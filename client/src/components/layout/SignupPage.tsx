@@ -12,7 +12,7 @@ const PROFESSIONS: { value: Profession; label: string }[] = [
   { value: "intern_doctor", label: "Intern doctor" },
   { value: "nurse", label: "Nurse" },
   { value: "medical_technologist", label: "Medical technologist" },
-  { value: "computer_operator", label: "Doctor's computer operator" },
+  { value: "computer_operator", label: "Doctor's computer operator (other than medical profession)" },
 ];
 
 const regNoLabel = (p: Profession | ""): string | null => {
@@ -96,6 +96,7 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
     if (!nidBackUrl) return "Please upload the back of your NID";
     if (!designation.trim()) return "Designation is required";
     if (!specialty.trim()) return "Specialty is required";
+    if (!profilePictureUrl) return "Please add your profile picture";
     if (!passwordOk)
       return "Password must be 8+ chars with uppercase, lowercase, a number and a special character";
     if (password !== retype) return "Passwords do not match";
@@ -124,7 +125,7 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
         registrationCertUrl,
         nidFrontUrl,
         nidBackUrl,
-        profilePictureUrl: profilePictureUrl || undefined,
+        profilePictureUrl,
       };
       await register(input);
       setStep("otp");
@@ -161,8 +162,8 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={{ fontFamily: font, minHeight: 500, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg, ${C.n[50]} 0%, #f0f7f4 100%)`, borderRadius: 16, padding: 40 }}>
-      <div style={{ width: 460, textAlign: "center" }}>
+    <div style={{ fontFamily: font, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: `radial-gradient(1200px 600px at 50% -10%, ${C.pri[50]} 0%, transparent 60%), linear-gradient(160deg, ${C.n[50]} 0%, #eef6f2 100%)`, padding: 32 }}>
+      <div style={{ width: 720, maxWidth: "100%", textAlign: "center" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 24, padding: "12px 20px", background: C.n[0], borderRadius: 12, border: `0.5px solid ${C.n[200]}` }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 600 }}>M+</div>
           <span style={{ fontSize: 22, fontWeight: 500, color: C.n[900], letterSpacing: "-0.02em" }}>Muqsit Health System</span>
@@ -174,87 +175,97 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
               <h2 style={{ fontSize: 17, fontWeight: 600, color: C.n[900], margin: "0 0 4px" }}>Create your account</h2>
               <p style={{ fontSize: 12, color: C.n[600], margin: "0 0 18px" }}>Register as a healthcare professional</p>
 
-              <div style={groupStyle}>
-                <label style={labelStyle}>Name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Rahman" style={fieldStyle} />
-              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 18px" }}>
+                <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "center", marginBottom: 6 }}>
+                  <FileField label="Add your profile picture" value={profilePictureUrl} onUploaded={setProfilePictureUrl} onError={setError} center />
+                </div>
 
-              <div style={groupStyle}>
-                <label style={labelStyle}>Email address</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="doctor@clinic.com" style={fieldStyle} />
-                <span style={{ fontSize: 10, color: C.n[500] }}>We&apos;ll email a verification code after you submit.</span>
-              </div>
+                <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Name</label>
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Rahman" style={fieldStyle} />
+                </div>
 
-              <div style={groupStyle}>
-                <label style={labelStyle}>Mobile number</label>
-                <input value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" placeholder="your 11 digit mob no" style={fieldStyle} />
-              </div>
+                <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Email address</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="doctor@clinic.com" style={fieldStyle} />
+                  <span style={{ fontSize: 10, color: C.n[500] }}>We&apos;ll email a verification code after you submit.</span>
+                </div>
 
-              <div style={groupStyle}>
-                <label style={labelStyle}>Are you</label>
-                <select value={profession} onChange={(e) => setProfession(e.target.value as Profession | "")} style={{ ...fieldStyle, cursor: "pointer" }}>
-                  <option value="">Select…</option>
-                  {PROFESSIONS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {needsRegNo && (
                 <div style={groupStyle}>
-                  <label style={labelStyle}>{regNoLabel(profession)}</label>
-                  <input value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} placeholder={regNoLabel(profession) ?? ""} style={fieldStyle} />
+                  <label style={labelStyle}>Mobile number</label>
+                  <input
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                    inputMode="numeric"
+                    placeholder="your 11 digit mob no"
+                    style={{ ...fieldStyle, borderColor: mobile.length > 0 && mobile.length !== 11 ? C.danger[400] : (inputSm.border as string) }}
+                  />
+                  {mobile.length > 0 && (
+                    <span style={{ fontSize: 10, color: mobile.length === 11 ? C.pri[600] : C.warn[800] }}>
+                      {mobile.length === 11 ? "✓ Looks good" : `Must be exactly 11 digits (${mobile.length}/11)`}
+                    </span>
+                  )}
                 </div>
-              )}
 
-              <FileField
-                label={`Upload ${docLabel(profession)}`}
-                value={registrationCertUrl}
-                onUploaded={setRegistrationCertUrl}
-                onError={setError}
-              />
-
-              <div style={groupStyle}>
-                <label style={labelStyle}>NID number</label>
-                <input value={nidNo} onChange={(e) => setNidNo(e.target.value)} placeholder="National ID number" style={fieldStyle} />
-              </div>
-
-              <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <FileField label="NID front" value={nidFrontUrl} onUploaded={setNidFrontUrl} onError={setError} />
+                <div style={groupStyle}>
+                  <label style={labelStyle}>Are you</label>
+                  <select value={profession} onChange={(e) => setProfession(e.target.value as Profession | "")} style={{ ...fieldStyle, cursor: "pointer" }}>
+                    <option value="">Select…</option>
+                    {PROFESSIONS.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <FileField label="NID back" value={nidBackUrl} onUploaded={setNidBackUrl} onError={setError} />
-                </div>
-              </div>
 
-              <div style={groupStyle}>
-                <label style={labelStyle}>Designation</label>
-                <input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Professor, Medical Officer" style={fieldStyle} />
-              </div>
-
-              <div style={groupStyle}>
-                <label style={labelStyle}>Specialty</label>
-                <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Hepatology / General practitioner" style={fieldStyle} />
-              </div>
-
-              <div style={groupStyle}>
-                <label style={labelStyle}>Password</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
-                {password.length > 0 && (
-                  <span style={{ fontSize: 10, color: passwordOk ? C.pri[600] : C.warn[800] }}>
-                    {passwordOk ? "✓ Strong password" : "Must include uppercase, lowercase, number & special character (min 8)"}
-                  </span>
+                {needsRegNo && (
+                  <div style={groupStyle}>
+                    <label style={labelStyle}>{regNoLabel(profession)}</label>
+                    <input value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} placeholder={regNoLabel(profession) ?? ""} style={fieldStyle} />
+                  </div>
                 )}
-              </div>
 
-              <div style={groupStyle}>
-                <label style={labelStyle}>Retype password</label>
-                <input type="password" value={retype} onChange={(e) => setRetype(e.target.value)} placeholder="Re-enter password" style={{ ...fieldStyle, borderColor: mismatch ? C.danger[400] : (inputSm.border as string) }} />
-                {mismatch && <span style={{ fontSize: 10, color: C.danger[800] }}>Passwords do not match</span>}
-              </div>
+                <FileField
+                  label={`Upload ${docLabel(profession)}`}
+                  value={registrationCertUrl}
+                  onUploaded={setRegistrationCertUrl}
+                  onError={setError}
+                />
 
-              <FileField label="Add your profile picture" value={profilePictureUrl} onUploaded={setProfilePictureUrl} onError={setError} optional />
+                <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>NID number</label>
+                  <input value={nidNo} onChange={(e) => setNidNo(e.target.value)} placeholder="National ID number" style={fieldStyle} />
+                </div>
+
+                <FileField label="NID front" value={nidFrontUrl} onUploaded={setNidFrontUrl} onError={setError} />
+                <FileField label="NID back" value={nidBackUrl} onUploaded={setNidBackUrl} onError={setError} />
+
+                <div style={groupStyle}>
+                  <label style={labelStyle}>Designation</label>
+                  <input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Professor, Medical Officer" style={fieldStyle} />
+                </div>
+
+                <div style={groupStyle}>
+                  <label style={labelStyle}>Specialty</label>
+                  <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Hepatology / General practitioner" style={fieldStyle} />
+                </div>
+
+                <div style={groupStyle}>
+                  <label style={labelStyle}>Password</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
+                  {password.length > 0 && (
+                    <span style={{ fontSize: 10, color: passwordOk ? C.pri[600] : C.warn[800] }}>
+                      {passwordOk ? "✓ Strong password" : "Must include uppercase, lowercase, number & special character (min 8)"}
+                    </span>
+                  )}
+                </div>
+
+                <div style={groupStyle}>
+                  <label style={labelStyle}>Retype password</label>
+                  <input type="password" value={retype} onChange={(e) => setRetype(e.target.value)} placeholder="Re-enter password" style={{ ...fieldStyle, borderColor: mismatch ? C.danger[400] : (inputSm.border as string) }} />
+                  {mismatch && <span style={{ fontSize: 10, color: C.danger[800] }}>Passwords do not match</span>}
+                </div>
+
+              </div>
 
               {error && (
                 <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px", margin: "14px 0" }}>{error}</div>
@@ -312,12 +323,14 @@ function FileField({
   onUploaded,
   onError,
   optional,
+  center,
 }: {
   label: string;
   value: string;
   onUploaded: (url: string) => void;
   onError: (msg: string) => void;
   optional?: boolean;
+  center?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -335,6 +348,40 @@ function FileField({
       setBusy(false);
     }
   };
+
+  // ── Centered circular avatar uploader (e.g. profile picture) ──
+  if (center) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+        <label
+          style={{
+            position: "relative",
+            width: 88,
+            height: 88,
+            borderRadius: "50%",
+            border: `2px dashed ${value ? C.pri[400] : C.n[300]}`,
+            background: value ? "transparent" : C.n[50],
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            overflow: "hidden",
+          }}
+        >
+          {value ? (
+            <img src={value} alt="profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <span style={{ fontSize: 26, color: C.n[500] }}>{busy ? "…" : "📷"}</span>
+          )}
+          <input type="file" accept="image/*" style={{ display: "none" }} onChange={onChange} disabled={busy} />
+        </label>
+        <span style={{ fontSize: 11, color: value ? C.pri[600] : C.n[600], fontWeight: 500 }}>
+          {busy ? "Uploading…" : value ? "✓ Change photo" : label}
+          {optional && !value && <span style={{ color: C.n[500], fontWeight: 400 }}> (optional)</span>}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div style={groupStyle}>

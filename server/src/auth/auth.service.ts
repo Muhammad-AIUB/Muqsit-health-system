@@ -131,11 +131,13 @@ export class AuthService {
 
   // ── Login ─────────────────────────────────────────────────
   async login(dto: LoginDto) {
-    const user = await this.users.findByEmail(dto.email);
-    if (!user) throw new UnauthorizedException('Invalid email or password');
+    const user = await this.users.findByEmailOrMobile(dto.identifier.trim());
+    if (!user)
+      throw new UnauthorizedException('Invalid email/phone or password');
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Invalid email or password');
+    if (!ok)
+      throw new UnauthorizedException('Invalid email/phone or password');
 
     // Admins skip the verification/approval gates.
     if (user.role !== 'admin') {

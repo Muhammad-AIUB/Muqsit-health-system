@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
-import { inputSm } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api";
 import SignupPage from "./SignupPage";
@@ -10,8 +9,10 @@ import SignupPage from "./SignupPage";
 export default function LoginPage() {
   const { login } = useAuth();
   const [view, setView] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [focused, setFocused] = useState<"identifier" | "password" | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +22,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(identifier.trim(), password);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong. Is the API running?");
     } finally {
@@ -33,48 +34,212 @@ export default function LoginPage() {
     if (e.key === "Enter") submit();
   };
 
+  // ── input styling with focus state ──
+  const fieldWrap = (id: "identifier" | "password") =>
+    ({
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "12px 14px",
+      borderRadius: 10,
+      background: C.n[50],
+      border: `1.5px solid ${focused === id ? C.pri[400] : C.n[200]}`,
+      boxShadow: focused === id ? `0 0 0 3px ${C.pri[50]}` : "none",
+      transition: "border-color 0.15s, box-shadow 0.15s",
+    }) as const;
+
+  const inputBase = {
+    flex: 1,
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    fontSize: 14,
+    color: C.n[900],
+    fontFamily: font,
+  } as const;
+
   return (
-    <div style={{ fontFamily: font, minHeight: 500, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg, ${C.n[50]} 0%, #f0f7f4 100%)`, borderRadius: 16, padding: 40 }}>
-      <div style={{ width: 380, textAlign: "center" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 32, padding: "12px 20px", background: C.n[0], borderRadius: 12, border: `0.5px solid ${C.n[200]}` }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 600 }}>M+</div>
-          <span style={{ fontSize: 22, fontWeight: 500, color: C.n[900], letterSpacing: "-0.02em" }}>Muqsit Health System</span>
-        </div>
-        <p style={{ fontSize: 13, color: C.n[600], marginBottom: 24 }}>Patient management & prescription system</p>
-        <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 14, padding: 28, textAlign: "left" }}>
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 12, color: C.n[600], display: "block", marginBottom: 5 }}>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={onKeyDown} placeholder="doctor@clinic.com" style={{ ...inputSm, padding: "10px 14px", fontSize: 13 }} />
+    <div
+      style={{
+        fontFamily: font,
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: `radial-gradient(1200px 600px at 50% -10%, ${C.pri[50]} 0%, transparent 60%), linear-gradient(160deg, ${C.n[50]} 0%, #eef6f2 100%)`,
+        padding: 24,
+      }}
+    >
+      <div style={{ width: 400, maxWidth: "100%" }}>
+        {/* ── Brand ── */}
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 56,
+              height: 56,
+              borderRadius: 16,
+              background: `linear-gradient(135deg, ${C.pri[400]} 0%, ${C.pri[600]} 100%)`,
+              color: "#fff",
+              fontSize: 22,
+              fontWeight: 700,
+              boxShadow: `0 8px 24px ${C.pri[100]}`,
+              marginBottom: 14,
+            }}
+          >
+            M+
           </div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: C.n[900], margin: "0 0 4px", letterSpacing: "-0.02em" }}>
+            Muqsit Health System
+          </h1>
+          <p style={{ fontSize: 13, color: C.n[600], margin: 0 }}>Patient management &amp; prescription system</p>
+        </div>
+
+        {/* ── Card ── */}
+        <div
+          style={{
+            background: C.n[0],
+            border: `1px solid ${C.n[200]}`,
+            borderRadius: 18,
+            padding: 30,
+            boxShadow: "0 12px 40px rgba(15, 110, 86, 0.08), 0 2px 8px rgba(0,0,0,0.04)",
+          }}
+        >
+          <h2 style={{ fontSize: 17, fontWeight: 600, color: C.n[900], margin: "0 0 4px" }}>Welcome back</h2>
+          <p style={{ fontSize: 12.5, color: C.n[600], margin: "0 0 22px" }}>Sign in to continue to your dashboard</p>
+
+          {/* Email or phone */}
           <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 12, color: C.n[600], display: "block", marginBottom: 5 }}>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={onKeyDown} placeholder="••••••••" style={{ ...inputSm, padding: "10px 14px", fontSize: 13 }} />
+            <label style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Email or phone</label>
+            <div style={fieldWrap("identifier")}>
+              <span style={{ fontSize: 15, color: C.n[500] }}>👤</span>
+              <input
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                onKeyDown={onKeyDown}
+                onFocus={() => setFocused("identifier")}
+                onBlur={() => setFocused(null)}
+                placeholder="Email address or phone"
+                autoComplete="off"
+                style={inputBase}
+              />
+            </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <label style={{ fontSize: 11, color: C.n[600], display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <input type="checkbox" defaultChecked style={{ accentColor: C.pri[400], width: 14, height: 14 }} /> Remember me
+          {/* Password */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Password</label>
+            <div style={fieldWrap("password")}>
+              <span style={{ fontSize: 15, color: C.n[500] }}>🔒</span>
+              <input
+                type={showPass ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={onKeyDown}
+                onFocus={() => setFocused("password")}
+                onBlur={() => setFocused(null)}
+                placeholder="Enter your password"
+                autoComplete="new-password"
+                style={inputBase}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((s) => !s)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.n[500], padding: 0 }}
+                aria-label={showPass ? "Hide password" : "Show password"}
+              >
+                {showPass ? "🙈" : "👁️"}
+              </button>
+            </div>
+          </div>
+
+          {/* Remember + forgot */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <label style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 7, cursor: "pointer" }}>
+              <input type="checkbox" defaultChecked style={{ accentColor: C.pri[400], width: 15, height: 15 }} /> Remember me
             </label>
-            <span style={{ fontSize: 11, color: C.pri[400], cursor: "pointer", fontWeight: 500 }}
+            <span
+              style={{ fontSize: 12, color: C.pri[600], cursor: "pointer", fontWeight: 500 }}
               onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}>Forgot password?</span>
+              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+            >
+              Forgot password?
+            </span>
           </div>
 
           {error && (
-            <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>{error}</div>
+            <div
+              style={{
+                fontSize: 12,
+                color: C.danger[800],
+                background: C.danger[50],
+                border: `1px solid ${C.danger[100]}`,
+                borderRadius: 10,
+                padding: "10px 12px",
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span>⚠️</span>
+              {error}
+            </div>
           )}
 
-          <button onClick={submit} disabled={loading} style={{ width: "100%", padding: "12px 20px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 14, fontWeight: 500, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1, transition: "opacity 0.15s" }}>
+          <button
+            onClick={submit}
+            disabled={loading}
+            style={{
+              width: "100%",
+              padding: "13px 20px",
+              borderRadius: 10,
+              border: "none",
+              background: loading ? C.pri[600] : `linear-gradient(135deg, ${C.pri[400]} 0%, ${C.pri[600]} 100%)`,
+              color: "#fff",
+              fontSize: 14.5,
+              fontWeight: 600,
+              cursor: loading ? "default" : "pointer",
+              opacity: loading ? 0.8 : 1,
+              boxShadow: `0 4px 14px ${C.pri[100]}`,
+              transition: "opacity 0.15s, transform 0.1s",
+            }}
+            onMouseDown={(e) => !loading && (e.currentTarget.style.transform = "scale(0.99)")}
+            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          >
             {loading ? "Please wait…" : "Sign in"}
           </button>
 
-          <div style={{ textAlign: "center", fontSize: 11, color: C.n[600], marginTop: 16 }}>
-            New here? <span onClick={() => { setView("signup"); setError(""); }} style={{ color: C.pri[400], cursor: "pointer", fontWeight: 500 }}>Create an account</span>
+          <div style={{ textAlign: "center", fontSize: 12.5, color: C.n[600], marginTop: 18 }}>
+            New here?{" "}
+            <span
+              onClick={() => {
+                setView("signup");
+                setError("");
+              }}
+              style={{ color: C.pri[600], cursor: "pointer", fontWeight: 600 }}
+            >
+              Create an account
+            </span>
           </div>
         </div>
-        <div style={{ marginTop: 20, display: "flex", justifyContent: "center", gap: 4, alignItems: "center" }}>
-          <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.pri[400] }} />
-          <span style={{ fontSize: 10, color: C.n[600] }}>Offline-ready · Encrypted · HIPAA compliant</span>
+
+        {/* ── Trust badges ── */}
+        <div style={{ marginTop: 22, display: "flex", justifyContent: "center", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          {[
+            { icon: "📡", label: "Offline-ready" },
+            { icon: "🔐", label: "Encrypted" },
+            { icon: "🛡️", label: "HIPAA compliant" },
+          ].map((b) => (
+            <span key={b.label} style={{ fontSize: 11, color: C.n[600], display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontSize: 12 }}>{b.icon}</span>
+              {b.label}
+            </span>
+          ))}
         </div>
       </div>
     </div>

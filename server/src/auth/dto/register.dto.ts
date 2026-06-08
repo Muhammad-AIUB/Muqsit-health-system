@@ -1,7 +1,6 @@
 import {
   IsEmail,
   IsIn,
-  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -73,7 +72,7 @@ export class RegisterDto {
   @IsString()
   nidBackUrl!: string;
 
-  @IsOptional()
   @IsString()
-  profilePictureUrl?: string;
+  @MinLength(1, { message: 'Profile picture is required' })
+  profilePictureUrl!: string;
 }

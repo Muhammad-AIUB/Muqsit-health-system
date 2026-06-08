@@ -44,7 +44,7 @@ export interface RegisterInput {
   registrationCertUrl: string;
   nidFrontUrl: string;
   nidBackUrl: string;
-  profilePictureUrl?: string;
+  profilePictureUrl: string;
 }
 
 export interface MessageResponse {
@@ -129,8 +129,8 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
 // ── Auth ────────────────────────────────────────────────────
 export const authApi = {
-  login: (email: string, password: string) =>
-    apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  login: (identifier: string, password: string) =>
+    apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ identifier, password }) }),
   register: (input: RegisterInput) =>
     apiFetch<MessageResponse>("/auth/register", { method: "POST", body: JSON.stringify(input) }),
   verifyEmail: (email: string, otp: string) =>

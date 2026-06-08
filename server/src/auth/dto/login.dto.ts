@@ -1,8 +1,10 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
-  @IsEmail()
-  email!: string;
+  // Email address OR 11-digit mobile number.
+  @IsString()
+  @MinLength(1, { message: 'Email or phone is required' })
+  identifier!: string;
 
   @IsString()
   @MinLength(1)

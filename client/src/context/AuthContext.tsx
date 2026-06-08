@@ -14,7 +14,7 @@ import {
 interface AuthContextValue {
   user: AuthUser | null;
   ready: boolean; // finished restoring session from storage
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
   // Registration is a multi-step flow (verify email → admin approval),
   // so it returns a message instead of signing the user in.
   register: (input: RegisterInput) => Promise<MessageResponse>;
@@ -41,8 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setReady(true));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const res = await authApi.login(email, password);
+  const login = async (identifier: string, password: string) => {
+    const res = await authApi.login(identifier, password);
     setToken(res.accessToken);
     setUser(res.user);
   };

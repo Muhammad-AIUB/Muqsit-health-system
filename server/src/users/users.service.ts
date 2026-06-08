@@ -10,6 +10,13 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
+  // Look up by email address OR mobile number (for sign-in).
+  findByEmailOrMobile(identifier: string): Promise<User | null> {
+    return this.prisma.user.findFirst({
+      where: { OR: [{ email: identifier }, { mobile: identifier }] },
+    });
+  }
+
   findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
   }
