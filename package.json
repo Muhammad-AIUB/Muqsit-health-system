@@ -1,0 +1,17 @@
+{
+  "name": "medcare",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MedCare — patient management & prescription system (client + server + admin monorepo)",
+  "scripts": {
+    "dev": "concurrently -n api,web,admin -c blue,green,magenta \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:admin\"",
+    "dev:api": "npm --prefix server run start:dev",
+    "dev:web": "npm --prefix client run dev",
+    "dev:admin": "npm --prefix admin run dev",
+    "build": "npm --prefix server run build && npm --prefix client run build && npm --prefix admin run build",
+    "install:all": "npm --prefix server install && npm --prefix client install && npm --prefix admin install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

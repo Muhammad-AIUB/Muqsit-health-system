@@ -1,0 +1,8 @@
+# Root — per-app ignores live in client/.gitignore, server/.gitignore and admin/.gitignore
+node_modules/
+*.log
+.DS_Store
+
+# Never commit secrets
+.env
+.env*.local

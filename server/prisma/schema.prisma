@@ -1,0 +1,135 @@
+// Prisma schema — MedCare backend (Neon Postgres)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String @id @default(cuid())
+  email        String @unique
+  passwordHash String
+  name         String
+
+  // role: "admin" for back-office users, "professional" for healthcare sign-ups.
+  role String @default("professional")
+
+  // ── Healthcare professional registration ──────────────────
+  mobile       String? // exactly 11 digits
+  profession   String? // doctor | intern_doctor | nurse | medical_technologist | computer_operator
+  registrationNo String? // BMDC / temporary / professional reg no (null for computer_operator)
+  nidNo        String?
+  designation  String?
+  specialty    String?
+
+  // Uploaded document URLs (Cloudinary)
+  profilePictureUrl   String?
+  registrationCertUrl String?
+  nidFrontUrl         String?
+  nidBackUrl          String?
+
+  // ── Verification & approval lifecycle ─────────────────────
+  emailVerified   Boolean @default(false)
+  approvalStatus  String  @default("pending") // pending | approved | rejected
+  rejectionReason String?
+
+  patients      Patient[]
+  prescriptions Prescription[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([approvalStatus])
+}
+
+model EmailOtp {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model Patient {
+  id               String    @id @default(cuid())
+  name             String
+  dob              DateTime?
+  age              Int?
+  sex              String?
+  ethnicity        String?
+  religion         String?
+  mobile           String?
+  spouseMobile     String?
+  relativeMobile   String?
+  relativeRelation String?
+  district         String?
+  fullAddress      String?
+  monthlyIncome    String?
+  pictureUrl       String?
+  tags             String[]  @default([])
+
+  doctorId String?
+  doctor   User?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  prescriptions Prescription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([doctorId])
+  @@index([name])
+}
+
+model Prescription {
+  id        String  @id @default(cuid())
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  String
+  doctor    User    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  // Clinical assessment (left column of the prescription)
+  chiefComplaints      String[] @default([])
+  history              String[] @default([])
+  investigation        String[] @default([])
+  drugHistory          String[] @default([])
+  onExamination        String[] @default([])
+  note                 String[] @default([])
+  provisionalDiagnosis String[] @default([])
+  associatedIllness    String[] @default([])
+  finalDiagnosis       String[] @default([])
+
+  // Right column extras
+  advice     String[] @default([])
+  adviceTest String[] @default([])
+
+  followUpNum       String?
+  followUpUnit      String?
+  followUpMandatory Boolean @default(false)
+
+  items PrescriptionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([doctorId])
+}
+
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  drug           String
+  dose           String
+  duration       String
+  instruction    String
+  order          Int          @default(0)
+}
