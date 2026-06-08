@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// Typed client for the MedCare API (NestJS, server/).
+// Typed client for the Muqsit API (NestJS, server/).
 // ═══════════════════════════════════════════════════════════
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
-const TOKEN_KEY = "medcare_token";
+const TOKEN_KEY = "muqsit_token";
 
 // ── Token storage (browser only) ────────────────────────────
 export const getToken = (): string | null =>

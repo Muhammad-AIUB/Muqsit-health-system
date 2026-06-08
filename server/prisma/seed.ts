@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 async function main() {
   const email = process.env.ADMIN_SEED_EMAIL;
   const password = process.env.ADMIN_SEED_PASSWORD;
-  const name = process.env.ADMIN_SEED_NAME ?? 'MedCare Admin';
+  const name = process.env.ADMIN_SEED_NAME ?? 'Muqsit Health System Admin';
 
   if (!email || !password) {
     console.warn('[seed] ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD not set — skipping admin seed.');

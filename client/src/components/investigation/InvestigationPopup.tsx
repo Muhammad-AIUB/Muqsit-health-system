@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { C } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
@@ -12,7 +12,7 @@ export default function InvestigationPopup() {
     showInvPopup, setShowInvPopup, calDate, setCalDate, showMonthPicker, setShowMonthPicker,
     invSearch, setInvSearch, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
     investigation, setInvestigation, invImages, setInvImages,
-  } = useMedCare();
+  } = useMuqsit();
 
   // Format date as string for display
   const formatCalDate = (d: Date) => {

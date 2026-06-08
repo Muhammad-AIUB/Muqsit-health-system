@@ -1,12 +1,12 @@
 "use client";
 
 import { C, colorOf, font } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { opdQueue } from "@/data/patients";
 import Pill from "@/components/common/Pill";
 
 export default function OpdView() {
-  const { setPtName, setPtAge, setPtGender, setActiveTab, setRxItems, setActiveTemplate } = useMedCare();
+  const { setPtName, setPtAge, setPtGender, setActiveTab, setRxItems, setActiveTemplate } = useMuqsit();
 
   return (
     <div>

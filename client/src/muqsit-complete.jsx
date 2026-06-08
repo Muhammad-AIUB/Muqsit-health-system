@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 
 // ═══════════════════════════════════════════════════════════
-// MEDCARE — Complete Patient Management & Prescription System
+// MUQSIT — Complete Patient Management & Prescription System
 // Built from full design session: 13 revisions
 // ═══════════════════════════════════════════════════════════
 
@@ -476,7 +476,7 @@ const INV_CATS = [
 // ═══════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════
-export default function MedCare() {
+export default function Muqsit() {
   const [page, setPage] = useState("login");
   const [activeTab, setActiveTab] = useState("prescription");
   const [view, setView] = useState("desktop");
@@ -621,7 +621,7 @@ export default function MedCare() {
         <div style={{ width: 380, textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 32, padding: "12px 20px", background: C.n[0], borderRadius: 12, border: `0.5px solid ${C.n[200]}` }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 600 }}>M+</div>
-            <span style={{ fontSize: 22, fontWeight: 500, color: C.n[900], letterSpacing: "-0.02em" }}>MedCare</span>
+            <span style={{ fontSize: 22, fontWeight: 500, color: C.n[900], letterSpacing: "-0.02em" }}>Muqsit Health System</span>
           </div>
           <p style={{ fontSize: 13, color: C.n[600], marginBottom: 24 }}>Patient management & prescription system</p>
           <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 14, padding: 28, textAlign: "left" }}>
@@ -2244,7 +2244,7 @@ export default function MedCare() {
   };
 
   const showHeader = ["prescription", "pt-settings", "idsp"].includes(activeTab);
-  const tabTitle = activeTab === "pt-settings" ? "Patient Settings" : activeTab === "idsp" ? "Health Monitoring" : (tabs.find(t => t.id === activeTab) || {}).label || "MedCare";
+  const tabTitle = activeTab === "pt-settings" ? "Patient Settings" : activeTab === "idsp" ? "Health Monitoring" : (tabs.find(t => t.id === activeTab) || {}).label || "Muqsit Health System";
 
   // ═══════════════════════════════════════════
   // RENDER
@@ -2254,7 +2254,7 @@ export default function MedCare() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <div style={{ width: 20, height: 20, borderRadius: 4, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 600 }}>M+</div>
-          <span style={{ fontSize: 12, fontWeight: 500 }}>MedCare</span>
+          <span style={{ fontSize: 12, fontWeight: 500 }}>Muqsit Health System</span>
         </div>
         <div style={{ display: "flex", gap: 2, background: C.n[100], borderRadius: 6, padding: 2, marginLeft: 6 }}>
           {["desktop", "mobile"].map(v => (<button key={v} onClick={() => setView(v)} style={{ padding: "3px 10px", borderRadius: 4, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 500, background: view === v ? "#fff" : "transparent", color: view === v ? C.n[900] : C.n[600], boxShadow: view === v ? "0 1px 2px rgba(0,0,0,0.06)" : "none", fontFamily: font }}>{v === "desktop" ? "Desktop" : "Mobile"}</button>))}
@@ -2268,7 +2268,7 @@ export default function MedCare() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", height: 48, background: C.n[0], borderBottom: `0.5px solid ${C.n[200]}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ width: 26, height: 26, borderRadius: 6, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 600 }}>M+</div>
-              <span style={{ fontSize: 14, fontWeight: 500, marginRight: 20 }}>MedCare</span>
+              <span style={{ fontSize: 14, fontWeight: 500, marginRight: 20 }}>Muqsit Health System</span>
               <div style={{ display: "flex", gap: 1 }}>
                 {tabs.map(t => (<button key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding: "5px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12, background: activeTab === t.id || (t.id === "prescription" && ["pt-settings","idsp"].includes(activeTab)) ? C.pri[50] : "transparent", color: activeTab === t.id || (t.id === "prescription" && ["pt-settings","idsp"].includes(activeTab)) ? C.pri[600] : C.n[600], fontWeight: activeTab === t.id ? 500 : 400, display: "flex", alignItems: "center", gap: 4, fontFamily: font }}><span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}</button>))}
               </div>

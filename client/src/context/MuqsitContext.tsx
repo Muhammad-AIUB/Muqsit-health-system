@@ -54,7 +54,7 @@ const initialOeData: OeData = {
 };
 
 // ── The store hook (single source of truth) ─────────────────
-function useMedCareStore() {
+function useMuqsitStore() {
   const [page, setPage] = useState<Page>("login");
   const [activeTab, setActiveTab] = useState<TabId>("prescription");
   const [view, setView] = useState<View>("desktop");
@@ -219,17 +219,17 @@ function useMedCareStore() {
   };
 }
 
-export type MedCareStore = ReturnType<typeof useMedCareStore>;
+export type MuqsitStore = ReturnType<typeof useMuqsitStore>;
 
-const MedCareContext = createContext<MedCareStore | null>(null);
+const MuqsitContext = createContext<MuqsitStore | null>(null);
 
-export function MedCareProvider({ children }: { children: ReactNode }) {
-  const store = useMedCareStore();
-  return <MedCareContext.Provider value={store}>{children}</MedCareContext.Provider>;
+export function MuqsitProvider({ children }: { children: ReactNode }) {
+  const store = useMuqsitStore();
+  return <MuqsitContext.Provider value={store}>{children}</MuqsitContext.Provider>;
 }
 
-export function useMedCare(): MedCareStore {
-  const ctx = useContext(MedCareContext);
-  if (!ctx) throw new Error("useMedCare must be used within a MedCareProvider");
+export function useMuqsit(): MuqsitStore {
+  const ctx = useContext(MuqsitContext);
+  if (!ctx) throw new Error("useMuqsit must be used within a MuqsitProvider");
   return ctx;
 }

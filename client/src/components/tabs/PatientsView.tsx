@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { questionPatients } from "@/data/patients";
 import { usePatients, useDeletePatient } from "@/hooks/usePatients";
 import { patientToPtInfo } from "@/lib/patientForm";
@@ -71,7 +71,7 @@ export default function PatientsView() {
     watchPatient, ptName, ptAge, ptGender, ptPhone,
     setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab,
     setPtInfo, setCurrentPatientId, setPtSettingsTab,
-  } = useMedCare();
+  } = useMuqsit();
 
   const { data: patients = [], isLoading, isError, error } = usePatients();
   const deletePatient = useDeletePatient();

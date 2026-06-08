@@ -2,7 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { C } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
 import { ptInfoToInput } from "@/lib/patientForm";
 import type { PtInfo } from "@/types";
@@ -29,7 +29,7 @@ export default function PatientSettingsView() {
     familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptName, ptGender, ptPhone, setPtName, setPtAge, setPtGender, setPtPhone,
     currentPatientId, setCurrentPatientId,
-  } = useMedCare();
+  } = useMuqsit();
 
   const createPatient = useCreatePatient();
   const updatePatient = useUpdatePatient();

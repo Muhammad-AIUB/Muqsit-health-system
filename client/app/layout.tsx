@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MedCare — Patient Management & Prescription System",
+  title: "Muqsit Health System — Patient Management & Prescription System",
   description: "Offline-ready clinical prescription and patient management system.",
 };
 

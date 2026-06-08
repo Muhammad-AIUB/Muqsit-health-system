@@ -85,12 +85,12 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: 360 }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <h1 style={{ fontSize: 24, color: C.n900 }}>MedCare Admin</h1>
+          <h1 style={{ fontSize: 24, color: C.n900 }}>Muqsit Health System Admin</h1>
           <p style={{ color: C.n600, fontSize: 13 }}>Sign in to review registrations</p>
         </div>
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: 26 }}>
           <label style={lblStyle}>Email</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="admin@medcare.local" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="admin@muqsit.local" />
           <label style={{ ...lblStyle, marginTop: 14 }}>Password</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="••••••••" />
           {error && <div style={errBox}>{error}</div>}

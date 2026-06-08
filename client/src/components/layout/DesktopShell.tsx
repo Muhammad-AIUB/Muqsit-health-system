@@ -1,7 +1,7 @@
 "use client";
 
 import { C, font } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import PatientHeader from "@/components/prescription/PatientHeader";
@@ -12,7 +12,7 @@ import InvestigationPopup from "@/components/investigation/InvestigationPopup";
 import OePopup from "@/components/examination/OePopup";
 
 export default function DesktopShell() {
-  const { activeTab, setActiveTab } = useMedCare();
+  const { activeTab, setActiveTab } = useMuqsit();
   const { user, logout } = useAuth();
   const showHeader = HEADER_TABS.includes(activeTab);
   const initials = (user?.name || "DR").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -22,7 +22,7 @@ export default function DesktopShell() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", height: 48, background: C.n[0], borderBottom: `0.5px solid ${C.n[200]}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 26, height: 26, borderRadius: 6, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 600 }}>M+</div>
-          <span style={{ fontSize: 14, fontWeight: 500, marginRight: 20 }}>MedCare</span>
+          <span style={{ fontSize: 14, fontWeight: 500, marginRight: 20 }}>Muqsit Health System</span>
           <div style={{ display: "flex", gap: 1 }}>
             {TABS.map((t) => {
               const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));

@@ -1,7 +1,7 @@
 "use client";
 
 import { C } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { TABS, MOBILE_TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import PatientHeader from "@/components/prescription/PatientHeader";
@@ -12,14 +12,14 @@ import InvestigationPopup from "@/components/investigation/InvestigationPopup";
 import OePopup from "@/components/examination/OePopup";
 
 export default function MobileShell() {
-  const { activeTab, setActiveTab } = useMedCare();
+  const { activeTab, setActiveTab } = useMuqsit();
   const { user, logout } = useAuth();
   const showHeader = HEADER_TABS.includes(activeTab);
   const initials = (user?.name || "DR").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   const tabTitle =
     activeTab === "pt-settings" ? "Patient Settings"
       : activeTab === "idsp" ? "Health Monitoring"
-        : (TABS.find((t) => t.id === activeTab) || { label: "MedCare" }).label || "MedCare";
+        : (TABS.find((t) => t.id === activeTab) || { label: "Muqsit Health System" }).label || "Muqsit Health System";
 
   return (
     <div style={{ width: 375, margin: "0 auto", border: `0.5px solid ${C.n[200]}`, borderRadius: 32, padding: 10, background: C.n[100] }}>

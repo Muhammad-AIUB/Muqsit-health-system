@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-// Typed client for the MedCare API — admin dashboard.
+// Typed client for the Muqsit API — admin dashboard.
 // ═══════════════════════════════════════════════════════════
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
-const TOKEN_KEY = "medcare_admin_token";
+const TOKEN_KEY = "muqsit_admin_token";
 
 export const getToken = (): string | null =>
   typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);

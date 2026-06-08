@@ -2,11 +2,11 @@
 
 import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { researchPatients } from "@/data/patients";
 
 export default function ResearchView() {
-  const { rcQuery, setRcQuery, rcFilter, rcSelected, setRcSelected } = useMedCare();
+  const { rcQuery, setRcQuery, rcFilter, rcSelected, setRcSelected } = useMuqsit();
 
   const q = rcQuery.trim().toLowerCase();
   const rcResults = q.length < 1 ? [] : researchPatients.filter((p) => {

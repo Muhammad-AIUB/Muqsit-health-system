@@ -2,13 +2,13 @@
 
 import { C, font } from "@/theme";
 import { inputSm, fieldLabel } from "@/theme/styles";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 
 export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   const {
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone,
     monthlyCost, watchPatient, setWatchPatient, activeTab, setActiveTab,
-  } = useMedCare();
+  } = useMuqsit();
 
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: mobile ? 10 : 14, marginBottom: mobile ? 10 : 14 }}>

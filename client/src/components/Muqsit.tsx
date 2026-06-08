@@ -1,7 +1,7 @@
 "use client";
 
 import { C, font } from "@/theme";
-import { MedCareProvider, useMedCare } from "@/context/MedCareContext";
+import { MuqsitProvider, useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import Providers from "./providers/Providers";
 import type { View } from "@/types";
@@ -11,8 +11,8 @@ import MobileShell from "./layout/MobileShell";
 
 const VIEWS: View[] = ["desktop", "mobile"];
 
-function MedCareInner() {
-  const { view, setView } = useMedCare();
+function MuqsitInner() {
+  const { view, setView } = useMuqsit();
   const { user, ready } = useAuth();
 
   if (!ready) {
@@ -25,7 +25,7 @@ function MedCareInner() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <div style={{ width: 20, height: 20, borderRadius: 4, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 600 }}>M+</div>
-          <span style={{ fontSize: 12, fontWeight: 500 }}>MedCare</span>
+          <span style={{ fontSize: 12, fontWeight: 500 }}>Muqsit Health System</span>
         </div>
         <div style={{ display: "flex", gap: 2, background: C.n[100], borderRadius: 6, padding: 2, marginLeft: 6 }}>
           {VIEWS.map((v) => (
@@ -41,12 +41,12 @@ function MedCareInner() {
   );
 }
 
-export default function MedCare() {
+export default function Muqsit() {
   return (
     <Providers>
-      <MedCareProvider>
-        <MedCareInner />
-      </MedCareProvider>
+      <MuqsitProvider>
+        <MuqsitInner />
+      </MuqsitProvider>
     </Providers>
   );
 }

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MedCare Admin — Dashboard",
-  description: "Administration dashboard for the MedCare platform.",
+  title: "Muqsit Health System Admin — Dashboard",
+  description: "Administration dashboard for the Muqsit Health System platform.",
 };
 
 export default function RootLayout({

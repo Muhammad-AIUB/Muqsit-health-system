@@ -1,9 +1,9 @@
-import MedCare from "@/components/MedCare";
+import Muqsit from "@/components/Muqsit";
 
 export default function Home() {
   return (
     <main className="app-root">
-      <MedCare />
+      <Muqsit />
     </main>
   );
 }

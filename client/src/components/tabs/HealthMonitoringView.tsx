@@ -1,7 +1,7 @@
 "use client";
 
 import { C } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { ptHealthDrugs, ptHealthSymptoms, ptHealthTests } from "@/data/health";
 import type { HealthDrug, HealthSymptom, HealthTest } from "@/types";
 
@@ -20,7 +20,7 @@ const IDSP_MENU = [
 ];
 
 export default function HealthMonitoringView() {
-  const { hmDrugs, setHmDrugs, hmSymptoms, setHmSymptoms, hmTests, setHmTests } = useMedCare();
+  const { hmDrugs, setHmDrugs, hmSymptoms, setHmSymptoms, hmTests, setHmTests } = useMuqsit();
 
   const RANGE_START = new Date("2026-01-01");
   const RANGE_END = new Date("2026-05-17");

@@ -1,4 +1,4 @@
-// Prisma schema — MedCare backend (Neon Postgres)
+// Prisma schema — Muqsit backend (Neon Postgres)
 
 generator client {
   provider = "prisma-client-js"

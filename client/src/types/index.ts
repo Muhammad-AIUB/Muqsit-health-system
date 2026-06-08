@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// Shared domain types for MedCare
+// Shared domain types for Muqsit
 // ═══════════════════════════════════════════════════════════
 
 export type ColorKey = "pri" | "warn" | "danger" | "info";

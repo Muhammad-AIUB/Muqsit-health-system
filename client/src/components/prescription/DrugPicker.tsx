@@ -2,11 +2,11 @@
 
 import { C } from "@/theme";
 import { inputSm } from "@/theme/styles";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import Pill from "@/components/common/Pill";
 
 export default function DrugPicker({ mobile }: { mobile?: boolean }) {
-  const { showDrugPicker, setShowDrugPicker, drugSearch, setDrugSearch, filteredDrugs, rxItems, addDrug } = useMedCare();
+  const { showDrugPicker, setShowDrugPicker, drugSearch, setDrugSearch, filteredDrugs, rxItems, addDrug } = useMuqsit();
 
   if (!showDrugPicker) return null;
 

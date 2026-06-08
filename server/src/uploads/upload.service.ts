@@ -35,7 +35,7 @@ export class UploadService {
 
     return new Promise<string>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: 'medcare/registrations', resource_type: 'image' },
+        { folder: 'muqsit/registrations', resource_type: 'image' },
         (error, result) => {
           if (error || !result) {
             return reject(error ?? new Error('Upload failed'));

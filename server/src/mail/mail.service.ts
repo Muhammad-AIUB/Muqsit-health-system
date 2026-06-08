@@ -28,12 +28,12 @@ export class MailService {
 
   async sendVerificationOtp(email: string, code: string): Promise<void> {
     const from =
-      this.config.get<string>('MAIL_FROM') ?? 'MedCare <no-reply@medcare.local>';
-    const subject = 'Your MedCare verification code';
-    const text = `Your MedCare email verification code is ${code}. It expires soon.`;
+      this.config.get<string>('MAIL_FROM') ?? 'Muqsit Health System <no-reply@muqsit.local>';
+    const subject = 'Your Muqsit Health System verification code';
+    const text = `Your Muqsit Health System email verification code is ${code}. It expires soon.`;
     const html = `
       <div style="font-family:sans-serif;max-width:420px;margin:auto">
-        <h2 style="color:#0F6E56">MedCare email verification</h2>
+        <h2 style="color:#0F6E56">Muqsit Health System email verification</h2>
         <p>Use the code below to verify your email address:</p>
         <p style="font-size:28px;font-weight:700;letter-spacing:6px;color:#1A1A1A">${code}</p>
         <p style="color:#6B6B6B;font-size:13px">If you did not request this, you can ignore this email.</p>

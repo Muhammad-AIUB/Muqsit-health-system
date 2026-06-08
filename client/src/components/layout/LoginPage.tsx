@@ -38,7 +38,7 @@ export default function LoginPage() {
       <div style={{ width: 380, textAlign: "center" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 32, padding: "12px 20px", background: C.n[0], borderRadius: 12, border: `0.5px solid ${C.n[200]}` }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 600 }}>M+</div>
-          <span style={{ fontSize: 22, fontWeight: 500, color: C.n[900], letterSpacing: "-0.02em" }}>MedCare</span>
+          <span style={{ fontSize: 22, fontWeight: 500, color: C.n[900], letterSpacing: "-0.02em" }}>Muqsit Health System</span>
         </div>
         <p style={{ fontSize: 13, color: C.n[600], marginBottom: 24 }}>Patient management & prescription system</p>
         <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 14, padding: 28, textAlign: "left" }}>

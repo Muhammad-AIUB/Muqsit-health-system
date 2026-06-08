@@ -1,7 +1,7 @@
 "use client";
 
 import { C, font } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 
@@ -12,7 +12,7 @@ const NOTIFICATIONS = [
 ];
 
 export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
-  const { savePrescription, savedMsg } = useMedCare();
+  const { savePrescription, savedMsg } = useMuqsit();
 
   if (mobile) {
     return (

@@ -2,7 +2,7 @@
 
 import { C, font } from "@/theme";
 import { inputSm } from "@/theme/styles";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { templateRx, DOSE_OPTIONS, DURATION_OPTIONS, INSTRUCTION_OPTIONS } from "@/data/drugs";
 import { adviceSuggestions, advisedTestSuggestions } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
@@ -19,7 +19,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     activeTemplate, loadTemplate, setShowDrugPicker, rxItems, removeDrug, updateRx,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
-  } = useMedCare();
+  } = useMuqsit();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: mobile ? 8 : 10 }}>

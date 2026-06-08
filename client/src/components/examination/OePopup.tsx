@@ -2,11 +2,11 @@
 
 import type { CSSProperties } from "react";
 import { C } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import type { OeData } from "@/types";
 
 export default function OePopup() {
-  const { showOePopup, setShowOePopup, oeData, setOeData, setOnExamination } = useMedCare();
+  const { showOePopup, setShowOePopup, oeData, setOeData, setOnExamination } = useMuqsit();
 
   const oeD = oeData;
   const setOe = (field: keyof OeData, val: string) =>

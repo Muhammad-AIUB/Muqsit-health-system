@@ -1,12 +1,12 @@
 "use client";
 
 import { C } from "@/theme";
-import { useMedCare } from "@/context/MedCareContext";
+import { useMuqsit } from "@/context/MuqsitContext";
 import { suggestionDB } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
 
 export default function LeftColumn() {
-  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup } = useMedCare();
+  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup } = useMuqsit();
 
   return (
     <div>
