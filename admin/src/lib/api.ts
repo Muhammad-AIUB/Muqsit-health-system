@@ -33,6 +33,7 @@ export interface Registration {
   nidNo: string | null;
   designation: string | null;
   specialty: string | null;
+  institutionCode: string | null;
   profilePictureUrl: string | null;
   registrationCertUrl: string | null;
   nidFrontUrl: string | null;
@@ -40,6 +41,7 @@ export interface Registration {
   emailVerified: boolean;
   approvalStatus: string;
   rejectionReason: string | null;
+  accountTier: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -78,7 +80,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
 export const adminApi = {
   login: (email: string, password: string) =>
-    apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ identifier: email, password }) }),
   me: () => apiFetch<AuthUser>("/auth/me"),
   listRegistrations: (status?: string) =>
     apiFetch<Registration[]>(`/admin/registrations${status ? `?status=${encodeURIComponent(status)}` : ""}`),
@@ -86,6 +88,10 @@ export const adminApi = {
     apiFetch<Registration>(`/admin/registrations/${id}/approve`, { method: "PATCH" }),
   reject: (id: string, reason: string) =>
     apiFetch<Registration>(`/admin/registrations/${id}/reject`, { method: "PATCH", body: JSON.stringify({ reason }) }),
+  suspend: (id: string) =>
+    apiFetch<Registration>(`/admin/registrations/${id}/suspend`, { method: "PATCH" }),
+  setTier: (id: string, tier: "primary" | "secondary") =>
+    apiFetch<Registration>(`/admin/registrations/${id}/tier`, { method: "PATCH", body: JSON.stringify({ tier }) }),
 };
 
 export const PROFESSION_LABELS: Record<string, string> = {

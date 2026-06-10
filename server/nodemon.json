@@ -1,0 +1,6 @@
+{
+  "watch": ["src", ".env", "prisma/schema.prisma"],
+  "ext": "ts,json,env,prisma",
+  "exec": "nest start",
+  "delay": 500
+}

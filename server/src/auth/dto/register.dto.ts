@@ -1,6 +1,7 @@
 import {
   IsEmail,
   IsIn,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -50,6 +51,11 @@ export class RegisterDto {
   @IsString()
   @MinLength(1)
   specialty!: string;
+
+  // Hospital / institution code (optional).
+  @IsOptional()
+  @IsString()
+  institutionCode?: string;
 
   @Matches(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,

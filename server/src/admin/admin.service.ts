@@ -42,4 +42,24 @@ export class AdminService {
     });
     return this.strip(updated);
   }
+
+  async suspend(id: string): Promise<Registration> {
+    const user = await this.users.findById(id);
+    if (!user || user.role !== 'professional') {
+      throw new NotFoundException('Registration not found');
+    }
+    const updated = await this.users.update(id, {
+      approvalStatus: 'suspended',
+    });
+    return this.strip(updated);
+  }
+
+  async setTier(id: string, tier: 'primary' | 'secondary'): Promise<Registration> {
+    const user = await this.users.findById(id);
+    if (!user || user.role !== 'professional') {
+      throw new NotFoundException('Registration not found');
+    }
+    const updated = await this.users.update(id, { accountTier: tier });
+    return this.strip(updated);
+  }
 }

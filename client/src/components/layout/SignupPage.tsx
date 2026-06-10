@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { C, font } from "@/theme";
 import { inputSm } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, authApi, uploadImage, type Profession, type RegisterInput } from "@/lib/api";
+import { verifyNidNumber, type NidMatch } from "@/lib/ocr";
 
 // ── Profession metadata (drives conditional fields) ──────────
 const PROFESSIONS: { value: Profession; label: string }[] = [
@@ -64,6 +65,7 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
   const [nidNo, setNidNo] = useState("");
   const [designation, setDesignation] = useState("");
   const [specialty, setSpecialty] = useState("");
+  const [institutionCode, setInstitutionCode] = useState("");
   const [password, setPassword] = useState("");
   const [retype, setRetype] = useState("");
 
@@ -79,6 +81,32 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
   // OTP step
   const [otp, setOtp] = useState("");
   const [otpMsg, setOtpMsg] = useState("");
+
+  // NID OCR verification (advisory — compares typed number with the image)
+  const [nidFrontFile, setNidFrontFile] = useState<File | null>(null);
+  const [nidOcr, setNidOcr] = useState<"idle" | "checking" | NidMatch>("idle");
+
+  useEffect(() => {
+    const digits = nidNo.replace(/\D/g, "");
+    if (!nidFrontFile || digits.length < 10) {
+      setNidOcr("idle");
+      return;
+    }
+    let cancelled = false;
+    setNidOcr("checking");
+    const t = setTimeout(async () => {
+      try {
+        const res = await verifyNidNumber(nidFrontFile, digits);
+        if (!cancelled) setNidOcr(res);
+      } catch {
+        if (!cancelled) setNidOcr("unreadable");
+      }
+    }, 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [nidFrontFile, nidNo]);
 
   const needsRegNo = profession !== "" && profession !== "computer_operator";
   const passwordOk = PASSWORD_RE.test(password);
@@ -121,6 +149,7 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
         nidNo: nidNo.trim(),
         designation: designation.trim(),
         specialty: specialty.trim(),
+        institutionCode: institutionCode.trim() || undefined,
         password,
         registrationCertUrl,
         nidFrontUrl,
@@ -165,7 +194,7 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
     <div style={{ fontFamily: font, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: `radial-gradient(1200px 600px at 50% -10%, ${C.pri[50]} 0%, transparent 60%), linear-gradient(160deg, ${C.n[50]} 0%, #eef6f2 100%)`, padding: 32 }}>
       <div style={{ width: 720, maxWidth: "100%", textAlign: "center" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 24, padding: "12px 20px", background: C.n[0], borderRadius: 12, border: `0.5px solid ${C.n[200]}` }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 600 }}>M+</div>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700 }}>MHS+</div>
           <span style={{ fontSize: 22, fontWeight: 500, color: C.n[900], letterSpacing: "-0.02em" }}>Muqsit Health System</span>
         </div>
 
@@ -234,9 +263,30 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
                   <label style={labelStyle}>NID number</label>
                   <input value={nidNo} onChange={(e) => setNidNo(e.target.value)} placeholder="National ID number" style={fieldStyle} />
+                  {nidOcr !== "idle" && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color:
+                          nidOcr === "match"
+                            ? C.pri[600]
+                            : nidOcr === "checking"
+                              ? C.n[500]
+                              : C.warn[800],
+                      }}
+                    >
+                      {nidOcr === "checking"
+                        ? "🔍 Checking the NID image…"
+                        : nidOcr === "match"
+                          ? "✓ This number matches the NID image"
+                          : nidOcr === "mismatch"
+                            ? "⚠ This number wasn't found in the uploaded NID image — please double-check"
+                            : "⚠ Couldn't read the NID image clearly — make sure it's sharp and well-lit"}
+                    </span>
+                  )}
                 </div>
 
-                <FileField label="NID front" value={nidFrontUrl} onUploaded={setNidFrontUrl} onError={setError} />
+                <FileField label="NID front" value={nidFrontUrl} onUploaded={setNidFrontUrl} onError={setError} onFileSelected={setNidFrontFile} />
                 <FileField label="NID back" value={nidBackUrl} onUploaded={setNidBackUrl} onError={setError} />
 
                 <div style={groupStyle}>
@@ -247,6 +297,11 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
                 <div style={groupStyle}>
                   <label style={labelStyle}>Specialty</label>
                   <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Hepatology / General practitioner" style={fieldStyle} />
+                </div>
+
+                <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Institution code <span style={{ color: C.n[500], fontWeight: 400 }}>(optional)</span></label>
+                  <input value={institutionCode} onChange={(e) => setInstitutionCode(e.target.value)} placeholder="Your hospital / institution code" style={fieldStyle} />
                 </div>
 
                 <div style={groupStyle}>
@@ -275,8 +330,9 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
                 {loading ? "Submitting…" : "Create account"}
               </button>
 
-              <div style={{ textAlign: "center", fontSize: 11, color: C.n[600], marginTop: 16 }}>
-                Already have an account? <span onClick={onBack} style={{ color: C.pri[400], cursor: "pointer", fontWeight: 500 }}>Sign in</span>
+              <div style={{ textAlign: "center", fontSize: 13.5, color: C.n[600], marginTop: 18 }}>
+                Already have an account?{" "}
+                <span onClick={onBack} style={{ color: C.pri[600], cursor: "pointer", fontWeight: 600 }}>Sign in</span>
               </div>
             </>
           )}
@@ -324,6 +380,7 @@ function FileField({
   onError,
   optional,
   center,
+  onFileSelected,
 }: {
   label: string;
   value: string;
@@ -331,12 +388,14 @@ function FileField({
   onError: (msg: string) => void;
   optional?: boolean;
   center?: boolean;
+  onFileSelected?: (file: File) => void;
 }) {
   const [busy, setBusy] = useState(false);
 
   const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    onFileSelected?.(file);
     setBusy(true);
     onError("");
     try {

@@ -46,6 +46,7 @@ export class AuthService {
       nidNo: dto.nidNo,
       designation: dto.designation,
       specialty: dto.specialty,
+      institutionCode: dto.institutionCode ?? null,
       registrationCertUrl: dto.registrationCertUrl,
       nidFrontUrl: dto.nidFrontUrl,
       nidBackUrl: dto.nidBackUrl,
@@ -149,6 +150,11 @@ export class AuthService {
       if (user.approvalStatus === 'pending') {
         throw new ForbiddenException(
           'Your account is awaiting admin approval.',
+        );
+      }
+      if (user.approvalStatus === 'suspended') {
+        throw new ForbiddenException(
+          'Your account is temporarily suspended. Please contact support.',
         );
       }
       if (user.approvalStatus === 'rejected') {

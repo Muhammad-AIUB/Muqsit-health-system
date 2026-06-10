@@ -40,6 +40,7 @@ export interface RegisterInput {
   nidNo: string;
   designation: string;
   specialty: string;
+  institutionCode?: string;
   password: string;
   registrationCertUrl: string;
   nidFrontUrl: string;

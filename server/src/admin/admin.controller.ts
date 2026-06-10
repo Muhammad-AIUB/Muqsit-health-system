@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { RejectDto } from './dto/reject.dto';
+import { TierDto } from './dto/tier.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -32,5 +33,15 @@ export class AdminController {
   @Patch('registrations/:id/reject')
   reject(@Param('id') id: string, @Body() dto: RejectDto) {
     return this.admin.reject(id, dto.reason);
+  }
+
+  @Patch('registrations/:id/suspend')
+  suspend(@Param('id') id: string) {
+    return this.admin.suspend(id);
+  }
+
+  @Patch('registrations/:id/tier')
+  setTier(@Param('id') id: string, @Body() dto: TierDto) {
+    return this.admin.setTier(id, dto.tier);
   }
 }

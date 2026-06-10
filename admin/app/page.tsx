@@ -85,12 +85,12 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: 360 }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 30, marginBottom: 8 }}>🛡️</div>
           <h1 style={{ fontSize: 24, color: C.n900 }}>Muqsit Health System Admin</h1>
-          <p style={{ color: C.n600, fontSize: 13 }}>Sign in to review registrations</p>
         </div>
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: 26 }}>
           <label style={lblStyle}>Email</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="admin@muqsit.local" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="Enter your email" autoComplete="off" />
           <label style={{ ...lblStyle, marginTop: 14 }}>Password</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="••••••••" />
           {error && <div style={errBox}>{error}</div>}
@@ -103,50 +103,119 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
   );
 }
 
-// ── Dashboard ────────────────────────────────────────────────
-const STATUSES = ["pending", "approved", "rejected"] as const;
+// ── Dashboard (sidebar layout) ───────────────────────────────
+const NAV = [
+  { id: "accounts", label: "Accounts", icon: "👥" },
+  { id: "trash", label: "Trash", icon: "🗑️" },
+] as const;
+type NavId = (typeof NAV)[number]["id"];
 
 function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>("pending");
+  const [nav, setNav] = useState<NavId>("accounts");
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* ── Sidebar ── */}
+      <aside style={{ width: 220, flexShrink: 0, background: C.white, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", padding: "20px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 10px", marginBottom: 28 }}>
+          <div style={{ width: 30, height: 26, borderRadius: 6, background: C.pri, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>MHS+</div>
+          <span style={{ fontSize: 14, fontWeight: 600, color: C.n900 }}>Admin</span>
+        </div>
+
+        <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+          {NAV.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setNav(item.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "none",
+                textAlign: "left",
+                fontSize: 13.5,
+                fontWeight: nav === item.id ? 600 : 400,
+                background: nav === item.id ? C.priLight : "transparent",
+                color: nav === item.id ? C.priDark : C.n600,
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 14 }}>
+          <div style={{ fontSize: 12.5, color: C.n900, fontWeight: 500, padding: "0 10px", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
+          <button onClick={onLogout} style={{ ...btnGhost, width: "100%" }}>Log out</button>
+        </div>
+      </aside>
+
+      {/* ── Main content ── */}
+      <main style={{ flex: 1, padding: "26px 30px", overflow: "auto" }}>
+        {nav === "accounts" && <AccountsPage trash={false} />}
+        {nav === "trash" && <AccountsPage trash />}
+      </main>
+    </div>
+  );
+}
+
+// ── Accounts page (all sign-ups + full details) ──────────────
+const STATUS_BADGE: Record<string, { bg: string; fg: string }> = {
+  pending: { bg: "#FAEEDA", fg: "#854F0B" },
+  approved: { bg: "#E1F5EE", fg: "#0F6E56" },
+  suspended: { bg: "#EEEEEC", fg: "#6B6B6B" },
+  rejected: { bg: "#FCEBEB", fg: "#A32D2D" },
+};
+
+function AccountsPage({ trash }: { trash: boolean }) {
   const [rows, setRows] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Registration | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      setRows(await adminApi.listRegistrations(status));
+      // No status filter → every sign-up regardless of state.
+      setRows(await adminApi.listRegistrations());
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Failed to load registrations");
+      setError(e instanceof ApiError ? e.message : "Failed to load accounts");
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  return (
-    <div className="app-root">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <h1>Registrations</h1>
-          <p style={{ color: C.n600, fontSize: 13 }}>Review and approve healthcare professional sign-ups</p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, color: C.n600 }}>{user.name}</span>
-          <button onClick={onLogout} style={btnGhost}>Log out</button>
-        </div>
-      </div>
+  // Accounts shows everything except rejected; Trash shows only rejected.
+  const visible = rows.filter((r) => (trash ? r.approvalStatus === "rejected" : r.approvalStatus !== "rejected"));
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {STATUSES.map((s) => (
-          <button key={s} onClick={() => setStatus(s)} style={{ ...tab, ...(status === s ? tabActive : {}) }}>
-            {s[0].toUpperCase() + s.slice(1)}
-          </button>
-        ))}
-      </div>
+  // Search rules: BMDC/registration number, name, institution code, email, phone number.
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? visible.filter((r) =>
+        [r.registrationNo ?? "", r.name, r.institutionCode ?? "", r.email, r.mobile ?? ""].some((v) =>
+          v.toLowerCase().includes(q),
+        ),
+      )
+    : visible;
+
+  return (
+    <div>
+      <h1 style={{ marginBottom: 20 }}>{trash ? "Trash" : "Accounts"}</h1>
+
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by BMDC number, name, institution code, email or phone…"
+        style={{ ...inpStyle, maxWidth: 420, marginBottom: 16 }}
+      />
 
       {error && <div style={errBox}>{error}</div>}
 
@@ -158,9 +227,9 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
               <th style={th}>Profession</th>
               <th style={th}>Email</th>
               <th style={th}>Mobile</th>
-              <th style={th}>Reg. no</th>
-              <th style={th}>Email verified</th>
-              <th style={th}>Submitted</th>
+              <th style={th}>Status</th>
+              <th style={th}>Tier</th>
+              <th style={th}>Signed up</th>
               <th style={th}></th>
             </tr>
           </thead>
@@ -168,29 +237,51 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
             {loading && (
               <tr><td style={td} colSpan={8}>Loading…</td></tr>
             )}
-            {!loading && rows.length === 0 && (
-              <tr><td style={{ ...td, color: C.n500 }} colSpan={8}>No {status} registrations.</td></tr>
+            {!loading && filtered.length === 0 && (
+              <tr><td style={{ ...td, color: C.n500 }} colSpan={8}>{q ? "No accounts match your search." : trash ? "Trash is empty." : "No accounts yet."}</td></tr>
             )}
-            {!loading && rows.map((r) => (
-              <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
-                <td style={td}>{r.name}</td>
-                <td style={td}>{r.profession ? PROFESSION_LABELS[r.profession] ?? r.profession : "—"}</td>
-                <td style={td}>{r.email}</td>
-                <td style={td}>{r.mobile ?? "—"}</td>
-                <td style={td}>{r.registrationNo ?? "—"}</td>
-                <td style={td}>{r.emailVerified ? "✓" : "✗"}</td>
-                <td style={td}>{new Date(r.createdAt).toLocaleDateString()}</td>
-                <td style={td}>
-                  <button onClick={() => setSelected(r)} style={btnGhost}>Review</button>
-                </td>
-              </tr>
-            ))}
+            {!loading && filtered.map((r) => {
+              const badge = STATUS_BADGE[r.approvalStatus] ?? STATUS_BADGE.pending;
+              return (
+                <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={td}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      {r.profilePictureUrl ? (
+                        <img src={r.profilePictureUrl} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: `1px solid ${C.border}` }} />
+                      ) : (
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.priLight, color: C.priDark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>
+                          {r.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      {r.name}
+                    </div>
+                  </td>
+                  <td style={td}>{r.profession ? PROFESSION_LABELS[r.profession] ?? r.profession : "—"}</td>
+                  <td style={td}>{r.email}</td>
+                  <td style={td}>{r.mobile ?? "—"}</td>
+                  <td style={td}>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: badge.bg, color: badge.fg }}>
+                      {r.approvalStatus}
+                    </span>
+                  </td>
+                  <td style={td}>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: r.accountTier === "secondary" ? "#E6F1FB" : C.priLight, color: r.accountTier === "secondary" ? "#185FA5" : C.priDark }}>
+                      {r.accountTier}
+                    </span>
+                  </td>
+                  <td style={td}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                  <td style={td}>
+                    <button onClick={() => setSelected(r)} style={btnGhost}>View details</button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {selected && (
-        <ReviewModal
+        <AccountDetailsModal
           reg={selected}
           onClose={() => setSelected(null)}
           onDone={() => { setSelected(null); void load(); }}
@@ -200,8 +291,9 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   );
 }
 
-// ── Review modal ─────────────────────────────────────────────
-function ReviewModal({ reg, onClose, onDone }: { reg: Registration; onClose: () => void; onDone: () => void }) {
+// ── Account details modal (full submission + approve/reject) ─
+function AccountDetailsModal({ reg, onClose, onDone }: { reg: Registration; onClose: () => void; onDone: () => void }) {
+  const badge = STATUS_BADGE[reg.approvalStatus] ?? STATUS_BADGE.pending;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [rejecting, setRejecting] = useState(false);
@@ -222,6 +314,21 @@ function ReviewModal({ reg, onClose, onDone }: { reg: Registration; onClose: () 
     finally { setBusy(false); }
   };
 
+  const suspend = async () => {
+    setBusy(true); setError("");
+    try { await adminApi.suspend(reg.id); onDone(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : "Failed to suspend"); }
+    finally { setBusy(false); }
+  };
+
+  const moveTier = async () => {
+    const next = reg.accountTier === "secondary" ? "primary" : "secondary";
+    setBusy(true); setError("");
+    try { await adminApi.setTier(reg.id, next); onDone(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : "Failed to change tier"); }
+    finally { setBusy(false); }
+  };
+
   const docs: { label: string; url: string | null }[] = [
     { label: "Profile picture", url: reg.profilePictureUrl },
     { label: "Registration / qualification certificate", url: reg.registrationCertUrl },
@@ -233,20 +340,41 @@ function ReviewModal({ reg, onClose, onDone }: { reg: Registration; onClose: () 
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 50 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: C.white, borderRadius: 14, width: 680, maxHeight: "88vh", overflow: "auto", padding: 26 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-          <div>
-            <h2 style={{ fontSize: 19, color: C.n900 }}>{reg.name}</h2>
-            <p style={{ color: C.n600, fontSize: 13 }}>{reg.profession ? PROFESSION_LABELS[reg.profession] ?? reg.profession : "—"} · {reg.specialty ?? "—"}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {reg.profilePictureUrl ? (
+              <img src={reg.profilePictureUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: `1px solid ${C.border}` }} />
+            ) : (
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: C.priLight, color: C.priDark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 600 }}>
+                {reg.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <h2 style={{ fontSize: 19, color: C.n900 }}>{reg.name}</h2>
+              <p style={{ color: C.n600, fontSize: 13 }}>
+                {reg.profession ? PROFESSION_LABELS[reg.profession] ?? reg.profession : "—"} · {reg.specialty ?? "—"}{" "}
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: badge.bg, color: badge.fg, marginLeft: 4 }}>
+                  {reg.approvalStatus}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: reg.accountTier === "secondary" ? "#E6F1FB" : C.priLight, color: reg.accountTier === "secondary" ? "#185FA5" : C.priDark, marginLeft: 4 }}>
+                  {reg.accountTier}
+                </span>
+              </p>
+            </div>
           </div>
           <button onClick={onClose} style={btnGhost}>Close</button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px", marginTop: 18, fontSize: 13 }}>
+        <h3 style={{ fontSize: 13, color: C.n600, marginTop: 22, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>Submitted information</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px", fontSize: 13 }}>
           <Detail label="Email" value={`${reg.email}${reg.emailVerified ? " (verified)" : " (unverified)"}`} />
           <Detail label="Mobile" value={reg.mobile} />
+          <Detail label="Profession" value={reg.profession ? PROFESSION_LABELS[reg.profession] ?? reg.profession : null} />
           <Detail label="Registration no" value={reg.registrationNo} />
           <Detail label="NID no" value={reg.nidNo} />
           <Detail label="Designation" value={reg.designation} />
-          <Detail label="Status" value={reg.approvalStatus} />
+          <Detail label="Specialty" value={reg.specialty} />
+          <Detail label="Institution code" value={reg.institutionCode} />
+          <Detail label="Signed up" value={new Date(reg.createdAt).toLocaleString()} />
         </div>
 
         <h3 style={{ fontSize: 13, color: C.n600, marginTop: 22, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>Documents</h3>
@@ -266,7 +394,7 @@ function ReviewModal({ reg, onClose, onDone }: { reg: Registration; onClose: () 
         </div>
 
         {reg.rejectionReason && (
-          <div style={{ ...errBox, marginTop: 16 }}>Previously rejected: {reg.rejectionReason}</div>
+          <div style={{ ...errBox, marginTop: 16 }}>Rejection reason: {reg.rejectionReason}</div>
         )}
         {error && <div style={{ ...errBox, marginTop: 16 }}>{error}</div>}
 
@@ -280,9 +408,19 @@ function ReviewModal({ reg, onClose, onDone }: { reg: Registration; onClose: () 
             </div>
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-            <button onClick={approve} disabled={busy} style={{ ...btnPri, opacity: busy ? 0.7 : 1 }}>Approve</button>
-            <button onClick={() => setRejecting(true)} disabled={busy} style={btnDanger}>Reject</button>
+          <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
+            {reg.approvalStatus !== "approved" && (
+              <button onClick={approve} disabled={busy} style={{ ...btnPri, opacity: busy ? 0.7 : 1 }}>Approve</button>
+            )}
+            {reg.approvalStatus === "approved" && (
+              <button onClick={suspend} disabled={busy} style={{ ...btnPri, background: C.warn, opacity: busy ? 0.7 : 1 }}>Suspend</button>
+            )}
+            {reg.approvalStatus !== "rejected" && (
+              <button onClick={() => setRejecting(true)} disabled={busy} style={btnDanger}>Reject</button>
+            )}
+            <button onClick={moveTier} disabled={busy} style={{ ...btnGhost, marginLeft: "auto", padding: "10px 20px", fontSize: 13 }}>
+              Move to {reg.accountTier === "secondary" ? "primary" : "secondary"}
+            </button>
           </div>
         )}
       </div>

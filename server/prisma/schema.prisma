@@ -26,6 +26,7 @@ model User {
   nidNo        String?
   designation  String?
   specialty    String?
+  institutionCode String? // hospital / institution code (optional)
 
   // Uploaded document URLs (Cloudinary)
   profilePictureUrl   String?
@@ -35,8 +36,9 @@ model User {
 
   // ── Verification & approval lifecycle ─────────────────────
   emailVerified   Boolean @default(false)
-  approvalStatus  String  @default("pending") // pending | approved | rejected
+  approvalStatus  String  @default("pending") // pending | approved | suspended | rejected
   rejectionReason String?
+  accountTier     String  @default("primary") // primary | secondary
 
   patients      Patient[]
   prescriptions Prescription[]

@@ -24,7 +24,7 @@ function MuqsitInner() {
     <div style={{ fontFamily: font, color: C.n[900] }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 20, height: 20, borderRadius: 4, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 600 }}>M+</div>
+          <div style={{ width: 24, height: 20, borderRadius: 4, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 7, fontWeight: 700 }}>MHS+</div>
           <span style={{ fontSize: 12, fontWeight: 500 }}>Muqsit Health System</span>
         </div>
         <div style={{ display: "flex", gap: 2, background: C.n[100], borderRadius: 6, padding: 2, marginLeft: 6 }}>

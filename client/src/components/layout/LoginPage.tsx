@@ -83,13 +83,13 @@ export default function LoginPage() {
               borderRadius: 16,
               background: `linear-gradient(135deg, ${C.pri[400]} 0%, ${C.pri[600]} 100%)`,
               color: "#fff",
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: 700,
               boxShadow: `0 8px 24px ${C.pri[100]}`,
               marginBottom: 14,
             }}
           >
-            M+
+            MHS+
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: C.n[900], margin: "0 0 4px", letterSpacing: "-0.02em" }}>
             Muqsit Health System
@@ -226,20 +226,6 @@ export default function LoginPage() {
               Create an account
             </span>
           </div>
-        </div>
-
-        {/* ── Trust badges ── */}
-        <div style={{ marginTop: 22, display: "flex", justifyContent: "center", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          {[
-            { icon: "📡", label: "Offline-ready" },
-            { icon: "🔐", label: "Encrypted" },
-            { icon: "🛡️", label: "HIPAA compliant" },
-          ].map((b) => (
-            <span key={b.label} style={{ fontSize: 11, color: C.n[600], display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ fontSize: 12 }}>{b.icon}</span>
-              {b.label}
-            </span>
-          ))}
         </div>
       </div>
     </div>
