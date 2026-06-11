@@ -33,7 +33,6 @@ export default function OePopup() {
 
   const saveOeToItems = () => {
     const results: string[] = [];
-    if (oeD.age) results.push("Age: " + oeD.age);
     if (oeD.bloodGroup) results.push("Blood group: " + oeD.bloodGroup);
     if (hCm > 0) results.push("Height: " + hCm + " cm");
     if (wKg > 0) results.push("Weight: " + wKg + " kg");
@@ -77,8 +76,6 @@ export default function OePopup() {
         <div style={{ padding: "16px 20px", flex: 1, overflowY: "auto" }}>
 
           <div style={oeRow}>
-            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Age</div><input style={oeInp} value={oeD.age} onChange={(e) => setOe("age", e.target.value)} placeholder="e.g. 34" /></div>
-            <div style={{ flex: "1 1 120px" }}><div style={oeLbl}>Date of birth</div><input style={oeInp} type="date" value={oeD.dob} onChange={(e) => setOe("dob", e.target.value)} /></div>
             <div style={{ flex: "1 1 120px" }}><div style={oeLbl}>Blood group & Rh</div><select style={oeSel} value={oeD.bloodGroup} onChange={(e) => setOe("bloodGroup", e.target.value)}><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Other</option></select></div>
           </div>
 

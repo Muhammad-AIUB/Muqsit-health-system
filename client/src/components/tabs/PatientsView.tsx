@@ -68,17 +68,15 @@ const smallBtn = (filled: boolean) => ({
 
 export default function PatientsView() {
   const {
-    watchPatient, ptName, ptAge, ptGender, ptPhone,
     setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab,
-    setPtInfo, setCurrentPatientId, setPtSettingsTab,
+    setPtInfo, setCurrentPatientId, setPtSettingsTab, setWatchPatient,
   } = useMuqsit();
 
   const { data: patients = [], isLoading, isError, error } = usePatients();
   const deletePatient = useDeletePatient();
 
-  const surveillanceList: RowData[] = watchPatient
-    ? [{ id: "s1", name: ptName, age: ptAge, gender: ptGender, init: initialsOf(ptName), phone: ptPhone, diagnosis: "Under monitoring", color: "warn" }]
-    : [];
+  // Surveillance = real `watched` flag from the database.
+  const watchedPatients = patients.filter((p) => p.watched);
 
   const loadHeader = (p: Patient) => {
     setPtName(p.name);
@@ -87,6 +85,7 @@ export default function PatientsView() {
     setPtPhone(p.mobile || "");
     setPtInfo(patientToPtInfo(p));
     setCurrentPatientId(p.id);
+    setWatchPatient(p.watched); // sync the "Keep eye" checkbox with the record
   };
 
   const openForPrescription = (p: Patient) => {
@@ -128,19 +127,22 @@ export default function PatientsView() {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 2 }}>Patient Records</div>
 
-      {/* ── GROUP 1: Surveillance (local) ── */}
-      <div style={{ background: C.n[0], border: `0.5px solid ${C.warn[200]}`, borderRadius: 12, padding: "14px 16px" }}>
-        <SectionHeader icon="👁️" title="Patients on your surveillance" count={surveillanceList.length} color={C.warn} />
-        {surveillanceList.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "20px 0", color: C.n[400], fontSize: 12 }}>
+      {/* ── GROUP 1: Surveillance (watched flag from the API) ── */}
+      <div style={{ background: C.n[0], border: `0.5px solid ${C.warn[100]}`, borderRadius: 12, padding: "14px 16px" }}>
+        <SectionHeader icon="👁️" title="Patients on your surveillance" count={watchedPatients.length} color={C.warn} />
+        {watchedPatients.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "20px 0", color: C.n[500], fontSize: 12 }}>
             No patients flagged — tick <strong>&quot;Keep eye on this patient&quot;</strong> in the prescription header to add one here
           </div>
         ) : (
           <div style={{ borderTop: `0.5px solid ${C.n[100]}` }}>
-            {surveillanceList.map((p, i) => (
-              <div key={p.id} style={{ borderBottom: i < surveillanceList.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
-                <PatientRow p={p} rightSlot={
-                  <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 10, background: "#fffbeb", color: "#b45309", border: "0.5px solid #fde68a", fontWeight: 600, whiteSpace: "nowrap" }}>👁️ Watching</span>
+            {watchedPatients.map((p, i) => (
+              <div key={p.id} style={{ borderBottom: i < watchedPatients.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
+                <PatientRow p={{ ...toRow(p), diagnosis: "Under monitoring", color: "warn" }} rightSlot={
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 10, background: "#fffbeb", color: "#b45309", border: "0.5px solid #fde68a", fontWeight: 600, whiteSpace: "nowrap" }}>👁️ Watching</span>
+                    <button onClick={() => openForPrescription(p)} style={smallBtn(true)}>Open</button>
+                  </div>
                 } />
               </div>
             ))}

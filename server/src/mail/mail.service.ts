@@ -47,4 +47,27 @@ export class MailService {
 
     await this.transporter.sendMail({ from, to: email, subject, text, html });
   }
+
+  // Sent when an admin approves a registration — the account is now active.
+  async sendAccountApproved(email: string, name: string): Promise<void> {
+    const from =
+      this.config.get<string>('MAIL_FROM') ?? 'Muqsit Health System <no-reply@muqsit.local>';
+    const subject = 'Your Muqsit Health System account is activated';
+    const text = `Dear ${name}, your Muqsit Health System account has been approved and activated. You can now sign in with your email or phone number.`;
+    const html = `
+      <div style="font-family:sans-serif;max-width:420px;margin:auto">
+        <h2 style="color:#0F6E56">Account activated ✓</h2>
+        <p>Dear ${name},</p>
+        <p>Your Muqsit Health System account has been <b>approved and activated</b>.</p>
+        <p>You can now sign in with your email or phone number.</p>
+        <p style="color:#6B6B6B;font-size:13px">If you did not register for this account, please contact support.</p>
+      </div>`;
+
+    if (!this.transporter) {
+      this.logger.log(`[DEV MAIL] account approved -> ${email}`);
+      return;
+    }
+
+    await this.transporter.sendMail({ from, to: email, subject, text, html });
+  }
 }

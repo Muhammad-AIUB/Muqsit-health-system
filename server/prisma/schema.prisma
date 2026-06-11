@@ -38,7 +38,7 @@ model User {
   emailVerified   Boolean @default(false)
   approvalStatus  String  @default("pending") // pending | approved | suspended | rejected
   rejectionReason String?
-  accountTier     String  @default("primary") // primary | secondary
+  accountTier     String  @default("secondary") // secondary (new sign-ups) | primary (admin-promoted)
 
   patients      Patient[]
   prescriptions Prescription[]
@@ -77,17 +77,77 @@ model Patient {
   monthlyIncome    String?
   pictureUrl       String?
   tags             String[]  @default([])
+  watched          Boolean   @default(false) // "Keep eye on this patient"
 
   doctorId String?
   doctor   User?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
 
   prescriptions Prescription[]
+  opdVisits     OpdVisit[]
+  ipdAdmissions IpdAdmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([doctorId])
   @@index([name])
+}
+
+// ── OPD queue ────────────────────────────────────────────────
+model OpdVisit {
+  id        String   @id @default(cuid())
+  doctorId  String
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  // Snapshot fields so the queue row survives even without a saved patient.
+  name   String
+  phone  String?
+  age    Int?
+  gender String?
+
+  type   String @default("New") // New | Follow-up | Urgent
+  token  String
+  status String @default("waiting") // waiting | done
+
+  createdAt DateTime @default(now())
+
+  @@index([doctorId, createdAt])
+}
+
+// ── IPD ward ─────────────────────────────────────────────────
+model IpdAdmission {
+  id        String   @id @default(cuid())
+  doctorId  String
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  bed       String
+  name      String
+  diagnosis String?
+  status    String @default("Stable") // Stable | Observation | Critical | Discharge
+
+  events IpdEvent[]
+
+  admittedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([doctorId])
+}
+
+model IpdEvent {
+  id          String       @id @default(cuid())
+  admissionId String
+  admission   IpdAdmission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+
+  author    String
+  role      String?
+  note      String
+  reportUrl String?
+
+  createdAt DateTime @default(now())
+
+  @@index([admissionId, createdAt])
 }
 
 model Prescription {

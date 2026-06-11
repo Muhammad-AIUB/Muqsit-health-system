@@ -8,3 +8,6 @@ coverage/
 
 *.log
 .DS_Store
+
+# Uploaded files live on disk, never in git
+uploads/

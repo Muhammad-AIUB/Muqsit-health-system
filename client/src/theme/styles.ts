@@ -7,7 +7,7 @@ export const inputSm: CSSProperties = {
   padding: "6px 10px",
   borderRadius: 6,
   border: `0.5px solid ${C.n[200]}`,
-  fontSize: 12,
+  fontSize: 13,
   outline: "none",
   boxSizing: "border-box",
   background: C.n[0],
@@ -16,7 +16,7 @@ export const inputSm: CSSProperties = {
 };
 
 export const fieldLabel: CSSProperties = {
-  fontSize: 10,
+  fontSize: 11,
   fontWeight: 600,
   color: C.n[600],
   textTransform: "uppercase",

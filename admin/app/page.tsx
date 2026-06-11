@@ -412,7 +412,7 @@ function AccountDetailsModal({ reg, onClose, onDone }: { reg: Registration; onCl
             {reg.approvalStatus !== "approved" && (
               <button onClick={approve} disabled={busy} style={{ ...btnPri, opacity: busy ? 0.7 : 1 }}>Approve</button>
             )}
-            {reg.approvalStatus === "approved" && (
+            {reg.approvalStatus !== "suspended" && (
               <button onClick={suspend} disabled={busy} style={{ ...btnPri, background: C.warn, opacity: busy ? 0.7 : 1 }}>Suspend</button>
             )}
             {reg.approvalStatus !== "rejected" && (

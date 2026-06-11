@@ -1,13 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
 
 // Public-safe shape of a registration (no password hash).
 export type Registration = Omit<User, 'passwordHash'>;
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly users: UsersService) {}
+  private readonly logger = new Logger(AdminService.name);
+
+  constructor(
+    private readonly users: UsersService,
+    private readonly mail: MailService,
+  ) {}
 
   private strip(user: User): Registration {
     const { passwordHash, ...rest } = user;
@@ -28,6 +34,14 @@ export class AdminService {
       approvalStatus: 'approved',
       rejectionReason: null,
     });
+
+    // Fire-and-forget: tell the user their account is now active.
+    void this.mail.sendAccountApproved(updated.email, updated.name).catch((e) => {
+      this.logger.error(
+        `Failed to send approval email to ${updated.email}: ${e?.message ?? e}`,
+      );
+    });
+
     return this.strip(updated);
   }
 

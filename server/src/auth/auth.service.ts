@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,6 +19,8 @@ import { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
@@ -30,7 +33,13 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const existing = await this.users.findByEmail(dto.email);
     if (existing) {
-      throw new ConflictException('An account with this email already exists');
+      // Verification happens exactly once, at sign-up. An account that never
+      // completed OTP verification is incomplete — replace it and start over.
+      if (!existing.emailVerified && existing.role !== 'admin') {
+        await this.prisma.user.delete({ where: { id: existing.id } });
+      } else {
+        throw new ConflictException('An account with this email already exists');
+      }
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -53,9 +62,14 @@ export class AuthService {
       profilePictureUrl: dto.profilePictureUrl ?? null,
       emailVerified: false,
       approvalStatus: 'pending',
+      accountTier: 'secondary', // every new sign-up starts as secondary
     });
 
-    await this.issueOtp(dto.email);
+    // Fire-and-forget: OTP hashing + DB writes + email happen in the
+    // background so the user gets their response immediately.
+    void this.issueOtp(dto.email).catch((e) => {
+      this.logger.error(`Failed to issue OTP for ${dto.email}: ${e?.message ?? e}`);
+    });
 
     return {
       message:
@@ -81,7 +95,11 @@ export class AuthService {
       data: { email, codeHash, expiresAt },
     });
 
-    await this.mail.sendVerificationOtp(email, code);
+    // Fire-and-forget: don't make the HTTP response wait 3–5s for SMTP.
+    // If delivery fails the user can hit "Resend code".
+    void this.mail.sendVerificationOtp(email, code).catch((e) => {
+      this.logger.error(`Failed to send OTP email to ${email}: ${e?.message ?? e}`);
+    });
   }
 
   async resendOtp(email: string) {
@@ -144,7 +162,7 @@ export class AuthService {
     if (user.role !== 'admin') {
       if (!user.emailVerified) {
         throw new ForbiddenException(
-          'Please verify your email before signing in.',
+          'Your registration was not completed. Please sign up again.',
         );
       }
       if (user.approvalStatus === 'pending') {

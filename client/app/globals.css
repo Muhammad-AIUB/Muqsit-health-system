@@ -7,6 +7,8 @@
 body {
   font-family: "DM Sans", "Outfit", system-ui, sans-serif;
   background: #f8f8f6;
+  /* Uniformly scales the whole UI (text + spacing) up by 12% */
+  zoom: 1.12;
 }
 
 .app-root {

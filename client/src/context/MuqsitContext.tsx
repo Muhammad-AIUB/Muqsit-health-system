@@ -8,7 +8,9 @@ import React, {
   type SetStateAction,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { drugDB, templateRx } from "@/data/drugs";
+import { ApiError, patientsApi, prescriptionsApi } from "@/lib/api";
 import type {
   Page,
   View,
@@ -55,6 +57,7 @@ const initialOeData: OeData = {
 
 // ── The store hook (single source of truth) ─────────────────
 function useMuqsitStore() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState<Page>("login");
   const [activeTab, setActiveTab] = useState<TabId>("prescription");
   const [view, setView] = useState<View>("desktop");
@@ -144,9 +147,56 @@ function useMuqsitStore() {
     setActiveTemplate(name);
     if (templateRx[name]) setRxItems([...templateRx[name]]);
   };
-  const savePrescription = () => {
-    setSavedMsg("Prescription saved!");
-    setTimeout(() => setSavedMsg(""), 2500);
+  // Saves the prescription to the API. If no saved patient is loaded,
+  // a patient record is created first from the header fields.
+  const savePrescription = async () => {
+    if (rxItems.length === 0) {
+      setSavedMsg("Add at least one drug before saving.");
+      setTimeout(() => setSavedMsg(""), 3000);
+      return;
+    }
+    try {
+      let pid = currentPatientId;
+      if (!pid) {
+        const patient = await patientsApi.create({
+          name: ptName.trim() || "Unnamed patient",
+          age: ptAge ? Number(ptAge) : undefined,
+          sex: ptGender || undefined,
+          mobile: ptPhone || undefined,
+          fullAddress: ptAddress || undefined,
+          pictureUrl: ptInfo.picture || undefined,
+        });
+        pid = patient.id;
+        setCurrentPatientId(pid);
+      }
+
+      await prescriptionsApi.create({
+        patientId: pid,
+        chiefComplaints, history, investigation, drugHistory, onExamination,
+        note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+        advice, adviceTest,
+        followUpNum: followUpNum || undefined,
+        followUpUnit: followUpUnit || undefined,
+        followUpMandatory,
+        items: rxItems.map((r, i) => ({ ...r, order: i })),
+      });
+      setSavedMsg("Prescription saved!");
+    } catch (e) {
+      setSavedMsg(e instanceof ApiError ? `Save failed: ${e.message}` : "Save failed. Is the API running?");
+    }
+    setTimeout(() => setSavedMsg(""), 3000);
+  };
+
+  // Toggle "Keep eye on this patient" — persists when a saved patient is loaded.
+  const toggleWatch = () => {
+    const next = !watchPatient;
+    setWatchPatient(next);
+    if (currentPatientId) {
+      void patientsApi
+        .update(currentPatientId, { watched: next })
+        .then(() => queryClient.invalidateQueries({ queryKey: ["patients"] }))
+        .catch(() => setWatchPatient(!next)); // revert on failure
+    }
   };
 
   const filteredDrugs: Drug[] = drugDB.filter(
@@ -214,7 +264,7 @@ function useMuqsitStore() {
     rcFilter, setRcFilter, rcSelected, setRcSelected, watchPatient, setWatchPatient,
     hmDrugs, setHmDrugs, hmSymptoms, setHmSymptoms, hmTests, setHmTests, oeData, setOeData,
     // handlers + derived
-    handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription,
+    handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
     filteredDrugs, monthlyCost, allFieldValues, leftFields,
   };
 }

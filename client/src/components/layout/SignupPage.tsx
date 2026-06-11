@@ -82,6 +82,68 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
   const [otp, setOtp] = useState("");
   const [otpMsg, setOtpMsg] = useState("");
 
+  // OTP countdown (codes expire after 10 minutes — matches OTP_EXPIRES_MIN)
+  const OTP_TTL_MS = 10 * 60 * 1000;
+  const [otpDeadline, setOtpDeadline] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (step !== "otp") return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [step]);
+
+  const otpRemaining = otpDeadline ? Math.max(0, otpDeadline - now) : 0;
+  const otpExpired = otpDeadline !== null && otpRemaining === 0;
+  const otpTimeLabel = `${String(Math.floor(otpRemaining / 60000)).padStart(2, "0")}:${String(Math.floor((otpRemaining % 60000) / 1000)).padStart(2, "0")}`;
+
+  // ── Draft autosave ────────────────────────────────────────
+  // Everything except passwords survives a page refresh (localStorage).
+  // Passwords are never persisted for security.
+  const DRAFT_KEY = "muqsit_signup_draft";
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, string>;
+      if (d.name) setName(d.name);
+      if (d.email) setEmail(d.email);
+      if (d.mobile) setMobile(d.mobile);
+      if (d.profession) setProfession(d.profession as Profession);
+      if (d.registrationNo) setRegistrationNo(d.registrationNo);
+      if (d.nidNo) setNidNo(d.nidNo);
+      if (d.designation) setDesignation(d.designation);
+      if (d.specialty) setSpecialty(d.specialty);
+      if (d.institutionCode) setInstitutionCode(d.institutionCode);
+      if (d.registrationCertUrl) setRegistrationCertUrl(d.registrationCertUrl);
+      if (d.nidFrontUrl) setNidFrontUrl(d.nidFrontUrl);
+      if (d.nidBackUrl) setNidBackUrl(d.nidBackUrl);
+      if (d.profilePictureUrl) setProfilePictureUrl(d.profilePictureUrl);
+    } catch {
+      /* corrupt draft — ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({
+            name, email, mobile, profession, registrationNo, nidNo,
+            designation, specialty, institutionCode,
+            registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl,
+          }),
+        );
+      } catch {
+        /* storage full/unavailable — ignore */
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [name, email, mobile, profession, registrationNo, nidNo, designation, specialty, institutionCode, registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl]);
+
   // NID OCR verification (advisory — compares typed number with the image)
   const [nidFrontFile, setNidFrontFile] = useState<File | null>(null);
   const [nidOcr, setNidOcr] = useState<"idle" | "checking" | NidMatch>("idle");
@@ -157,6 +219,8 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
         profilePictureUrl,
       };
       await register(input);
+      try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+      setOtpDeadline(Date.now() + OTP_TTL_MS);
       setStep("otp");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong. Is the API running?");
@@ -185,6 +249,8 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
     try {
       const res = await authApi.resendOtp(email.trim());
       setOtpMsg(res.message);
+      setOtp("");
+      setOtpDeadline(Date.now() + OTP_TTL_MS);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not resend code.");
     }
@@ -343,11 +409,20 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
               <p style={{ fontSize: 12, color: C.n[600], margin: "0 0 18px" }}>Enter the 6-digit code sent to <b>{email}</b>.</p>
               <div style={groupStyle}>
                 <label style={labelStyle}>Verification code</label>
-                <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="••••••" style={{ ...fieldStyle, letterSpacing: 8, textAlign: "center", fontSize: 18 }} />
+                <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="••••••" disabled={otpExpired} style={{ ...fieldStyle, letterSpacing: 8, textAlign: "center", fontSize: 18, opacity: otpExpired ? 0.5 : 1 }} />
+                <div style={{ textAlign: "center", marginTop: 8 }}>
+                  {otpExpired ? (
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.danger[800] }}>Code expired — please resend a new one</span>
+                  ) : (
+                    <span style={{ fontSize: 12, color: otpRemaining < 60000 ? C.danger[800] : C.n[600] }}>
+                      Code expires in <b style={{ fontVariantNumeric: "tabular-nums" }}>{otpTimeLabel}</b>
+                    </span>
+                  )}
+                </div>
               </div>
               {otpMsg && <div style={{ fontSize: 11, color: C.pri[600], marginBottom: 10 }}>{otpMsg}</div>}
               {error && <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>{error}</div>}
-              <button onClick={verify} disabled={loading || otp.length !== 6} style={{ width: "100%", padding: "12px 20px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 14, fontWeight: 500, cursor: loading ? "default" : "pointer", opacity: loading || otp.length !== 6 ? 0.6 : 1 }}>
+              <button onClick={verify} disabled={loading || otp.length !== 6 || otpExpired} style={{ width: "100%", padding: "12px 20px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 14, fontWeight: 500, cursor: loading ? "default" : "pointer", opacity: loading || otp.length !== 6 || otpExpired ? 0.6 : 1 }}>
                 {loading ? "Verifying…" : "Verify email"}
               </button>
               <div style={{ textAlign: "center", fontSize: 11, color: C.n[600], marginTop: 16 }}>

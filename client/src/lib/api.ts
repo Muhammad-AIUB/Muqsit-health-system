@@ -2,6 +2,8 @@
 // Typed client for the Muqsit API (NestJS, server/).
 // ═══════════════════════════════════════════════════════════
 
+import { compressImage } from "./compressImage";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 const TOKEN_KEY = "muqsit_token";
 
@@ -70,6 +72,7 @@ export interface Patient {
   monthlyIncome: string | null;
   pictureUrl: string | null;
   tags: string[];
+  watched: boolean;
   doctorId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -91,6 +94,7 @@ export interface PatientInput {
   monthlyIncome?: string | null;
   pictureUrl?: string | null;
   tags?: string[];
+  watched?: boolean;
 }
 
 export class ApiError extends Error {
@@ -143,9 +147,11 @@ export const authApi = {
 
 // ── File upload (multipart → Cloudinary) ────────────────────
 export async function uploadImage(file: File): Promise<string> {
+  // Shrink large photos in the browser first — uploads get ~10x faster.
+  const compressed = await compressImage(file);
   const token = getToken();
   const form = new FormData();
-  form.append("file", file);
+  form.append("file", compressed);
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -172,10 +178,138 @@ export async function uploadImage(file: File): Promise<string> {
 export const patientsApi = {
   list: (search?: string) =>
     apiFetch<Patient[]>(`/patients${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  watched: () => apiFetch<Patient[]>("/patients/watched"),
   get: (id: string) => apiFetch<Patient>(`/patients/${id}`),
   create: (input: PatientInput) =>
     apiFetch<Patient>("/patients", { method: "POST", body: JSON.stringify(input) }),
   update: (id: string, input: Partial<PatientInput>) =>
     apiFetch<Patient>(`/patients/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
+};
+
+// ── Prescriptions ───────────────────────────────────────────
+export interface RxItemInput {
+  drug: string;
+  dose: string;
+  duration: string;
+  instruction: string;
+  order?: number;
+}
+
+export interface PrescriptionInput {
+  patientId: string;
+  chiefComplaints?: string[];
+  history?: string[];
+  investigation?: string[];
+  drugHistory?: string[];
+  onExamination?: string[];
+  note?: string[];
+  provisionalDiagnosis?: string[];
+  associatedIllness?: string[];
+  finalDiagnosis?: string[];
+  advice?: string[];
+  adviceTest?: string[];
+  followUpNum?: string;
+  followUpUnit?: string;
+  followUpMandatory?: boolean;
+  items: RxItemInput[];
+}
+
+export interface PrescriptionRecord extends PrescriptionInput {
+  id: string;
+  doctorId: string;
+  createdAt: string;
+}
+
+export const prescriptionsApi = {
+  create: (input: PrescriptionInput) =>
+    apiFetch<PrescriptionRecord>("/prescriptions", { method: "POST", body: JSON.stringify(input) }),
+  listByPatient: (patientId: string) =>
+    apiFetch<PrescriptionRecord[]>(`/prescriptions?patientId=${encodeURIComponent(patientId)}`),
+};
+
+// ── OPD queue ───────────────────────────────────────────────
+export interface OpdVisit {
+  id: string;
+  patientId: string | null;
+  name: string;
+  phone: string | null;
+  age: number | null;
+  gender: string | null;
+  type: string;
+  token: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface OpdVisitInput {
+  name: string;
+  patientId?: string;
+  phone?: string;
+  age?: number;
+  gender?: string;
+  type?: string;
+}
+
+export const opdApi = {
+  list: () => apiFetch<OpdVisit[]>("/opd"),
+  create: (input: OpdVisitInput) =>
+    apiFetch<OpdVisit>("/opd", { method: "POST", body: JSON.stringify(input) }),
+  setStatus: (id: string, status: "waiting" | "done") =>
+    apiFetch<OpdVisit>(`/opd/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+};
+
+// ── IPD ward ────────────────────────────────────────────────
+export interface IpdAdmission {
+  id: string;
+  patientId: string | null;
+  bed: string;
+  name: string;
+  diagnosis: string | null;
+  status: string;
+  admittedAt: string;
+}
+
+export interface IpdAdmissionInput {
+  bed: string;
+  name: string;
+  patientId?: string;
+  diagnosis?: string;
+  status?: string;
+}
+
+export interface IpdEventRecord {
+  id: string;
+  admissionId: string;
+  author: string;
+  role: string | null;
+  note: string;
+  reportUrl: string | null;
+  createdAt: string;
+}
+
+export const ipdApi = {
+  list: () => apiFetch<IpdAdmission[]>("/ipd"),
+  create: (input: IpdAdmissionInput) =>
+    apiFetch<IpdAdmission>("/ipd", { method: "POST", body: JSON.stringify(input) }),
+  setStatus: (id: string, status: string) =>
+    apiFetch<IpdAdmission>(`/ipd/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  events: (id: string) => apiFetch<IpdEventRecord[]>(`/ipd/${id}/events`),
+  addEvent: (id: string, note: string, reportUrl?: string) =>
+    apiFetch<IpdEventRecord>(`/ipd/${id}/events`, { method: "POST", body: JSON.stringify({ note, reportUrl }) }),
+};
+
+// ── Research companion ──────────────────────────────────────
+export interface ResearchHit {
+  id: string;
+  name: string;
+  age: number | null;
+  sex: string | null;
+  mobile: string | null;
+  tags: string[];
+  diseases: string[];
+}
+
+export const researchApi = {
+  search: (q: string) => apiFetch<ResearchHit[]>(`/research/patients?q=${encodeURIComponent(q)}`),
 };

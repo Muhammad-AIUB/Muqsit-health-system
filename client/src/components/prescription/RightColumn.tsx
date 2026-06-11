@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { C, font } from "@/theme";
 import { inputSm } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
@@ -16,10 +17,19 @@ const RX_SELECTS: { f: keyof RxItem; opts: string[] }[] = [
 
 export default function RightColumn({ mobile }: { mobile?: boolean }) {
   const {
-    activeTemplate, loadTemplate, setShowDrugPicker, rxItems, removeDrug, updateRx,
+    activeTemplate, loadTemplate, setShowDrugPicker, rxItems, addDrug, removeDrug, updateRx,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
   } = useMuqsit();
+
+  // Free-text drug entry inside the ℞ box.
+  const [drugInput, setDrugInput] = useState("");
+  const submitDrug = () => {
+    const v = drugInput.trim();
+    if (!v) return;
+    addDrug(v);
+    setDrugInput("");
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: mobile ? 8 : 10 }}>
@@ -30,8 +40,23 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
         <div style={{ fontSize: 22, fontWeight: 500, color: C.pri[400], fontStyle: "italic" }}>℞</div>
         <button onClick={() => setShowDrugPicker(true)} style={{ padding: "4px 12px", borderRadius: 6, border: `1px dashed ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: font }}>+ Add drug</button>
       </div>
-      <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8 }}>
-        {rxItems.length === 0 && <div style={{ textAlign: "center", padding: "24px 16px", color: C.n[500], fontSize: 11 }}>No drugs added yet</div>}
+      <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, minHeight: mobile ? 220 : 320, display: "flex", flexDirection: "column" }}>
+        {/* Write a drug directly */}
+        <div style={{ display: "flex", gap: 8, padding: mobile ? "8px 10px" : "10px 14px", borderBottom: `0.5px solid ${C.n[200]}` }}>
+          <input
+            value={drugInput}
+            onChange={(e) => setDrugInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submitDrug(); }}
+            placeholder="Write drug name and press Enter…"
+            style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.n[900], fontFamily: font }}
+          />
+          {drugInput.trim() && (
+            <button onClick={submitDrug} style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: font }}>
+              Add
+            </button>
+          )}
+        </div>
+        {rxItems.length === 0 && <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.n[500], fontSize: 12 }}>No drugs added yet</div>}
         {rxItems.map((item, idx) => (
           <div key={idx} style={{ padding: mobile ? "8px 10px" : "10px 14px", borderBottom: idx < rxItems.length - 1 ? `0.5px solid ${C.n[200]}` : "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
