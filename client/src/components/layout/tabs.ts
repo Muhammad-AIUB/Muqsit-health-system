@@ -44,8 +44,20 @@ const PATH_TO_TAB = new Map<string, TabId>(
   (Object.entries(TAB_PATHS) as [TabId, string][]).map(([tab, path]) => [path, tab]),
 );
 
-export const tabFromPath = (pathname: string): TabId | null =>
-  PATH_TO_TAB.get(pathname.replace(/\/+$/, "") || "/") ?? null;
+export const tabFromPath = (pathname: string): TabId | null => {
+  const clean = pathname.replace(/\/+$/, "") || "/";
+  const exact = PATH_TO_TAB.get(clean);
+  if (exact) return exact;
+  // Sub-paths (e.g. /settings/assistants) resolve to their parent tab.
+  const firstSeg = "/" + (clean.split("/").filter(Boolean)[0] ?? "");
+  return PATH_TO_TAB.get(firstSeg) ?? null;
+};
+
+// ── Settings sub-sections ─────────────────────────────────────
+// Sections inside the Settings tab that have their own URL under
+// /settings/<slug>. Used by the app/settings/[section] route to
+// validate deep links and by SettingsView for shallow navigation.
+export const SETTINGS_SECTION_SLUGS = new Set<string>(["assistants"]);
 
 // Tabs that display the patient header above their content.
 export const HEADER_TABS: TabId[] = ["prescription", "pt-settings", "idsp"];

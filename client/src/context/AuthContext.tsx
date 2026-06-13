@@ -3,9 +3,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   authApi,
-  getToken,
-  setToken,
-  clearToken,
+  onAuthFailure,
+  ApiError,
   type AuthUser,
   type RegisterInput,
   type MessageResponse,
@@ -13,12 +12,12 @@ import {
 
 interface AuthContextValue {
   user: AuthUser | null;
-  ready: boolean; // finished restoring session from storage
+  ready: boolean; // finished restoring session from cookie
   login: (identifier: string, password: string) => Promise<void>;
   // Registration is a multi-step flow (verify email → admin approval),
   // so it returns a message instead of signing the user in.
   register: (input: RegisterInput) => Promise<MessageResponse>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -27,23 +26,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
 
-  // Restore session on first load.
+  // Restore session on first load: ask the server who we are. The access
+  // cookie is httpOnly so we cannot read it ourselves; /auth/me will return
+  // 200 if the cookie is valid, and apiFetch will silently refresh once
+  // before giving up.
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      setReady(true);
-      return;
-    }
     authApi
       .me()
       .then(setUser)
-      .catch(() => clearToken())
+      .catch((e) => {
+        if (!(e instanceof ApiError && e.status === 401)) {
+          // 401 just means "not signed in" — anything else is unexpected
+          // (server down, CORS misconfig). Log so it isn't silent.
+          console.error("Failed to restore session", e);
+        }
+        setUser(null);
+      })
       .finally(() => setReady(true));
   }, []);
 
+  // When the API layer detects an unrecoverable 401 (refresh also failed),
+  // drop the user from state. The RequireAuth guard then sends them to
+  // /login on the next render.
+  useEffect(() => onAuthFailure(() => setUser(null)), []);
+
   const login = async (identifier: string, password: string) => {
     const res = await authApi.login(identifier, password);
-    setToken(res.accessToken);
     setUser(res.user);
   };
 
@@ -51,8 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return authApi.register(input);
   };
 
-  const logout = () => {
-    clearToken();
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Even if the server call fails (offline, etc) we still drop local
+      // state so the UI reflects "logged out".
+    }
     setUser(null);
   };
 

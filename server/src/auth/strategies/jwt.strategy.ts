@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
+import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UsersService } from '../../users/users.service';
 
@@ -10,6 +11,15 @@ export interface JwtPayload {
   role: string;
 }
 
+const ACCESS_COOKIE = 'mhs_at';
+
+// Read the access token from the httpOnly cookie. Bearer-header fallback is
+// kept only so server-to-server tooling (cron jobs, healthchecks) can still
+// authenticate; the browser flow uses cookies exclusively.
+const cookieExtractor = (req: Request): string | null => {
+  return (req?.cookies?.[ACCESS_COOKIE] as string | undefined) ?? null;
+};
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -17,13 +27,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly users: UsersService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        cookieExtractor,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET') ?? 'dev-secret',
+      secretOrKey:
+        config.get<string>('JWT_SECRET') ??
+        (() => {
+          throw new Error('JWT_SECRET is not configured');
+        })(),
     });
   }
 
-  // Whatever this returns is attached to request.user.
   async validate(payload: JwtPayload) {
     const user = await this.users.findById(payload.sub);
     if (!user) throw new UnauthorizedException();

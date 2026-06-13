@@ -1,17 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // Typed client for the Muqsit API (NestJS, server/).
+//
+// Auth: the API issues an httpOnly access cookie (short-lived) and an
+// httpOnly refresh cookie (long-lived, scoped to /api/auth). Tokens are
+// never readable from JavaScript, so XSS cannot steal a session. We send
+// cookies on every request via `credentials: "include"`. On a 401 we try
+// the refresh endpoint once before bouncing the user to /login.
 // ═══════════════════════════════════════════════════════════
 
 import { compressImage } from "./compressImage";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
-const TOKEN_KEY = "muqsit_token";
-
-// ── Token storage (browser only) ────────────────────────────
-export const getToken = (): string | null =>
-  typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);
-export const setToken = (token: string) => window.localStorage.setItem(TOKEN_KEY, token);
-export const clearToken = () => window.localStorage.removeItem(TOKEN_KEY);
 
 // ── Types ───────────────────────────────────────────────────
 export interface AuthUser {
@@ -22,7 +21,6 @@ export interface AuthUser {
 }
 
 export interface AuthResponse {
-  accessToken: string;
   user: AuthUser;
 }
 
@@ -105,32 +103,70 @@ export class ApiError extends Error {
   }
 }
 
+// ── Auth-failure listeners (used by AuthContext to clear state) ──
+type AuthFailureListener = () => void;
+const authFailureListeners = new Set<AuthFailureListener>();
+export const onAuthFailure = (fn: AuthFailureListener): (() => void) => {
+  authFailureListeners.add(fn);
+  return () => authFailureListeners.delete(fn);
+};
+
+// ── Single in-flight refresh promise so a burst of 401s doesn't kick off
+// ── multiple parallel refresh calls (each of which would rotate the token).
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function attemptRefresh(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      // Allow the next refresh attempt only after this one settles.
+      setTimeout(() => {
+        refreshInFlight = null;
+      }, 0);
+    }
+  })();
+  return refreshInFlight;
+}
+
 // ── Core fetch wrapper ──────────────────────────────────────
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
+async function apiFetch<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
 
   if (!res.ok) {
+    // 401 on an authenticated, non-auth request → access cookie expired.
+    // Try one silent refresh, then retry the original request once. If
+    // refresh fails we notify the AuthContext to drop the user and let the
+    // RequireAuth guard send the user to /login (no hard navigation here,
+    // because that would lose form state inside the app).
+    if (res.status === 401 && !retried && !path.startsWith("/auth/")) {
+      const ok = await attemptRefresh();
+      if (ok) return apiFetch<T>(path, options, true);
+      authFailureListeners.forEach((fn) => fn());
+    }
+
     let message = `Request failed (${res.status})`;
     try {
       const body = await res.json();
       if (body?.message) message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
     } catch {
       /* non-JSON error body */
-    }
-    // A 401 on an authenticated, non-auth request means the session/token
-    // expired — drop it and send the user to sign in again, preserving
-    // where they were. (/auth/* is excluded: a wrong password is also 401.)
-    if (res.status === 401 && token && !path.startsWith("/auth/") && typeof window !== "undefined") {
-      clearToken();
-      const next = window.location.pathname + window.location.search;
-      window.location.assign(`/login?next=${encodeURIComponent(next)}`);
     }
     throw new ApiError(res.status, message);
   }
@@ -149,6 +185,7 @@ export const authApi = {
     apiFetch<MessageResponse>("/auth/verify-email", { method: "POST", body: JSON.stringify({ email, otp }) }),
   resendOtp: (email: string) =>
     apiFetch<MessageResponse>("/auth/resend-otp", { method: "POST", body: JSON.stringify({ email }) }),
+  logout: () => apiFetch<void>("/auth/logout", { method: "POST" }),
   me: () => apiFetch<AuthUser>("/auth/me"),
 };
 
@@ -156,16 +193,13 @@ export const authApi = {
 export async function uploadImage(file: File): Promise<string> {
   // Shrink large photos in the browser first — uploads get ~10x faster.
   const compressed = await compressImage(file);
-  const token = getToken();
   const form = new FormData();
   form.append("file", compressed);
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_URL}/uploads/image`, {
     method: "POST",
     body: form,
-    headers,
+    credentials: "include",
   });
   if (!res.ok) {
     let message = `Upload failed (${res.status})`;
@@ -314,6 +348,38 @@ export const ipdApi = {
   events: (id: string) => apiFetch<IpdEventRecord[]>(`/ipd/${id}/events`),
   addEvent: (id: string, note: string, reportUrl?: string) =>
     apiFetch<IpdEventRecord>(`/ipd/${id}/events`, { method: "POST", body: JSON.stringify({ note, reportUrl }) }),
+};
+
+// ── Assistants & RBAC ───────────────────────────────────────
+export interface AssistantRecord {
+  id: string;
+  assistantId: string;
+  name: string;
+  email: string;
+  mobile: string | null;
+  profession: string | null;
+  status: "active" | "suspended";
+  permissions: string[];
+}
+
+export interface AssistantCandidate {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string | null;
+  profession: string | null;
+}
+
+export const assistantsApi = {
+  list: () => apiFetch<AssistantRecord[]>("/assistants"),
+  search: (q: string) =>
+    apiFetch<AssistantCandidate[]>(`/assistants/search?q=${encodeURIComponent(q)}`),
+  add: (assistantId: string) =>
+    apiFetch<AssistantRecord>("/assistants", { method: "POST", body: JSON.stringify({ assistantId }) }),
+  update: (id: string, input: { permissions?: string[]; status?: "active" | "suspended" }) =>
+    apiFetch<AssistantRecord>(`/assistants/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  remove: (id: string) =>
+    apiFetch<{ id: string }>(`/assistants/${id}`, { method: "DELETE" }),
 };
 
 // ── Research companion ──────────────────────────────────────

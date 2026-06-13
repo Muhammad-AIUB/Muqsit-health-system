@@ -42,10 +42,63 @@ model User {
 
   patients      Patient[]
   prescriptions Prescription[]
+
+  // RBAC: assistants this user (as a doctor) manages, and the links where
+  // this user is itself someone's assistant.
+  assistants   Assistant[] @relation("DoctorAssistants")
+  assistingFor Assistant[] @relation("AssistantLinks")
+
+  refreshTokens RefreshToken[]
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([approvalStatus])
+}
+
+// Opaque refresh tokens, stored as SHA-256 hashes. Every login starts a new
+// "family"; rotation issues a new token in the same family and revokes the
+// previous one. If a revoked token is ever presented again we assume theft
+// and revoke the entire family at once.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  family    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([family])
+}
+
+// ── Assistants & RBAC ────────────────────────────────────────
+// Links a doctor to another registered user who assists them, with a
+// per-assistant set of section-level edit permissions. Sensitive — lives
+// only server-side, never in the browser.
+model Assistant {
+  id String @id @default(cuid())
+
+  doctorId String
+  doctor   User   @relation("DoctorAssistants", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  assistantId String
+  assistant   User   @relation("AssistantLinks", fields: [assistantId], references: [id], onDelete: Cascade)
+
+  // Granted permission keys (e.g. "rx.drugHistory", "pt.info").
+  permissions String[] @default([])
+  status      String   @default("active") // active | suspended
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doctorId, assistantId])
+  @@index([doctorId])
+  @@index([assistantId])
 }
 
 model EmailOtp {

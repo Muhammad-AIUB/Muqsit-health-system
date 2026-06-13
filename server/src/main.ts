@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import * as cookieParser from 'cookie-parser';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
@@ -9,7 +10,24 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
 
+  // Fail fast if a real secret isn't configured in production. A leaked or
+  // guessable JWT_SECRET lets anyone forge tokens for any user.
+  const jwtSecret = config.get<string>('JWT_SECRET');
+  if (
+    config.get<string>('NODE_ENV') === 'production' &&
+    (!jwtSecret || jwtSecret === 'dev-secret' || jwtSecret.length < 32)
+  ) {
+    throw new Error(
+      'JWT_SECRET must be set to a random string of at least 32 characters in production',
+    );
+  }
+
+  // Trust the first proxy hop so req.ip reflects the real client address
+  // (matters for rate limiting and audit logging behind a reverse proxy).
+  app.set('trust proxy', 1);
+
   app.setGlobalPrefix('api');
+  app.use(cookieParser());
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );

@@ -10,12 +10,25 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+
+export interface SessionTokens {
+  accessToken: string;
+  refreshToken: string;
+  accessExpiresInSec: number;
+  refreshExpiresAt: Date;
+}
+
+export interface SessionResult {
+  tokens: SessionTokens;
+  user: { id: string; email: string; name: string; role: string };
+}
 
 @Injectable()
 export class AuthService {
@@ -149,7 +162,7 @@ export class AuthService {
   }
 
   // ── Login ─────────────────────────────────────────────────
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, meta: { ip?: string; userAgent?: string } = {}): Promise<SessionResult> {
     const user = await this.users.findByEmailOrMobile(dto.identifier.trim());
     if (!user)
       throw new UnauthorizedException('Invalid email/phone or password');
@@ -184,24 +197,131 @@ export class AuthService {
       }
     }
 
-    return this.buildAuthResponse(user);
+    const tokens = await this.startSession(user, randomUUID(), meta);
+    this.logger.log(`login user=${user.id} ip=${meta.ip ?? '-'}`);
+    return { tokens, user: this.publicUser(user) };
   }
 
-  private buildAuthResponse(user: User) {
+  // ── Refresh token rotation ────────────────────────────────
+  // The client presents the opaque refresh string from its cookie. We hash
+  // it the same way it was stored and look it up. Three outcomes:
+  //   • valid + unrevoked → rotate (revoke old, issue new in same family)
+  //   • token unknown / expired → 401, force re-login
+  //   • token *was* valid but is already revoked → assume theft, revoke the
+  //     entire family so neither the attacker nor the victim can refresh
+  async refresh(rawToken: string, meta: { ip?: string; userAgent?: string } = {}): Promise<SessionResult> {
+    if (!rawToken) throw new UnauthorizedException('No refresh token');
+    const tokenHash = this.hashToken(rawToken);
+    const record = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+    if (!record) throw new UnauthorizedException('Invalid refresh token');
+
+    if (record.revokedAt) {
+      // Reuse of a revoked token → kill the whole family.
+      await this.prisma.refreshToken.updateMany({
+        where: { family: record.family, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      this.logger.warn(
+        `refresh-reuse user=${record.userId} family=${record.family} ip=${meta.ip ?? '-'} — family revoked`,
+      );
+      throw new UnauthorizedException('Session revoked');
+    }
+
+    if (record.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+
+    // Rotation: mark the presented token as revoked and issue a new one
+    // sharing the same family id.
+    await this.prisma.refreshToken.update({
+      where: { id: record.id },
+      data: { revokedAt: new Date() },
+    });
+
+    const tokens = await this.startSession(record.user, record.family, meta);
+    return { tokens, user: this.publicUser(record.user) };
+  }
+
+  async revoke(rawToken: string | undefined) {
+    if (!rawToken) return;
+    const tokenHash = this.hashToken(rawToken);
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  // Force every device this user is signed in on to re-authenticate. The
+  // access token (mhs_at) stays valid until it expires on its own (≤ 15
+  // min by default), but every refresh attempt will fail, so sessions die
+  // within at most one access-token lifetime. Use this when an admin
+  // suspends, rejects, or otherwise needs to evict a user immediately.
+  async revokeAllForUser(userId: string): Promise<number> {
+    const res = await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (res.count > 0) {
+      this.logger.log(`revoke-all user=${userId} sessions=${res.count}`);
+    }
+    return res.count;
+  }
+
+  // ── Internals ─────────────────────────────────────────────
+  private async startSession(
+    user: User,
+    family: string,
+    meta: { ip?: string; userAgent?: string },
+  ): Promise<SessionTokens> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
     };
-    const accessToken = this.jwt.sign(payload);
-    return {
-      accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
+    const accessExpiresIn = this.config.get<string>('JWT_EXPIRES_IN') ?? '15m';
+    const accessToken = this.jwt.sign(payload, { expiresIn: accessExpiresIn });
+    const accessExpiresInSec = this.parseDurationSec(accessExpiresIn);
+
+    const refreshDays = Number(this.config.get<string>('REFRESH_EXPIRES_DAYS') ?? 30);
+    const refreshToken = randomBytes(48).toString('base64url');
+    const refreshExpiresAt = new Date(Date.now() + refreshDays * 24 * 60 * 60 * 1000);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: this.hashToken(refreshToken),
+        family,
+        expiresAt: refreshExpiresAt,
+        ip: meta.ip?.slice(0, 64) ?? null,
+        userAgent: meta.userAgent?.slice(0, 256) ?? null,
       },
-    };
+    });
+
+    return { accessToken, refreshToken, accessExpiresInSec, refreshExpiresAt };
+  }
+
+  private hashToken(raw: string): string {
+    // SHA-256 is fine here — the input is 48 random bytes (≈ 384 bits of
+    // entropy), so brute-force is infeasible and bcrypt's slowness adds no
+    // security, only latency on every authenticated request.
+    return createHash('sha256').update(raw).digest('hex');
+  }
+
+  private publicUser(user: User) {
+    return { id: user.id, email: user.email, name: user.name, role: user.role };
+  }
+
+  private parseDurationSec(input: string): number {
+    // Best-effort parse of "15m" / "1h" / "30s" / "7d" / plain seconds —
+    // matches @nestjs/jwt's `ms`-style accepted formats.
+    const m = /^(\d+)\s*(s|m|h|d)?$/i.exec(input.trim());
+    if (!m) return 900;
+    const n = Number(m[1]);
+    const unit = (m[2] ?? 's').toLowerCase();
+    const mult = unit === 's' ? 1 : unit === 'm' ? 60 : unit === 'h' ? 3600 : 86400;
+    return n * mult;
   }
 }

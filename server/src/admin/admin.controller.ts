@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -43,5 +44,12 @@ export class AdminController {
   @Patch('registrations/:id/tier')
   setTier(@Param('id') id: string, @Body() dto: TierDto) {
     return this.admin.setTier(id, dto.tier);
+  }
+
+  // Force-revoke every live session for a user (e.g. suspected device
+  // theft). Returns the number of refresh tokens revoked.
+  @Post('users/:id/revoke-sessions')
+  revokeSessions(@Param('id') id: string) {
+    return this.admin.revokeSessions(id);
   }
 }
