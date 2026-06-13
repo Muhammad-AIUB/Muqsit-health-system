@@ -33,6 +33,10 @@ model User {
   registrationCertUrl String?
   nidFrontUrl         String?
   nidBackUrl          String?
+  // Free-form extra certificates the user uploads from their profile page.
+  // Each certificate is an image URL with an optional details note —
+  // stored as a relation so the pair stays linked even when reordered.
+  otherCertificates OtherCertificate[]
 
   // ── Verification & approval lifecycle ─────────────────────
   emailVerified   Boolean @default(false)
@@ -48,12 +52,51 @@ model User {
   assistants   Assistant[] @relation("DoctorAssistants")
   assistingFor Assistant[] @relation("AssistantLinks")
 
+  // Default permission keys applied to every new assistant this doctor adds,
+  // and used to pre-fill the per-assistant permission editor.
+  assistantDefaultPermissions String[] @default([])
+
   refreshTokens RefreshToken[]
+
+  // Practice locations (chambers / clinics) — multiple per doctor.
+  chambers Chamber[]
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([approvalStatus])
+}
+
+// Additional qualification / certificate uploaded from the profile page.
+// `details` is a free-form note ("MD Cardiology, BSMMU 2019" etc.).
+model OtherCertificate {
+  id      String  @id @default(cuid())
+  userId  String
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url     String
+  details String?
+  order   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Practice location for a doctor. Free-form address + an optional map URL
+// the doctor can share with patients. Order is preserved in the UI.
+model Chamber {
+  id      String  @id @default(cuid())
+  userId  String
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address String
+  mapLink String?
+  order   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // Opaque refresh tokens, stored as SHA-256 hashes. Every login starts a new

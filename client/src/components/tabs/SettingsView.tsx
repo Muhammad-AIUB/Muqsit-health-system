@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { C } from "@/theme";
 import ManageAssistantsView from "./ManageAssistantsView";
+import ProfileSettingsView from "./ProfileSettingsView";
 
 const SETTINGS_ITEMS = [
-  { t: "Profile", d: "Doctor name, specialization, clinic info", i: "◉" },
+  { t: "Profile", d: "Doctor name, specialization, clinic info", i: "◉", section: "profile" as const },
   { t: "Manage your assistants", d: "Role based access control & dynamic permission", i: "⊕", section: "assistants" as const },
   { t: "Prescription templates", d: "Create, edit, delete medicine templates", i: "℞" },
   { t: "Data export", d: "Export patient data with date range filter", i: "↓" },
@@ -15,15 +16,20 @@ const SETTINGS_ITEMS = [
   { t: "Offline & sync", d: "Sync status, conflict resolution, storage", i: "◎" },
 ];
 
-type Section = "home" | "assistants";
+type Section = "home" | "assistants" | "profile";
 
 const SECTION_PATH: Record<Section, string> = {
   home: "/settings",
   assistants: "/settings/assistants",
+  profile: "/settings/profile",
 };
 
-const sectionFromPath = (pathname: string): Section =>
-  pathname.replace(/\/+$/, "") === "/settings/assistants" ? "assistants" : "home";
+const sectionFromPath = (pathname: string): Section => {
+  const clean = pathname.replace(/\/+$/, "");
+  if (clean === "/settings/assistants") return "assistants";
+  if (clean === "/settings/profile") return "profile";
+  return "home";
+};
 
 export default function SettingsView() {
   // The active section mirrors the URL (/settings, /settings/assistants).
@@ -50,6 +56,9 @@ export default function SettingsView() {
 
   if (section === "assistants") {
     return <ManageAssistantsView onBack={() => go("home")} />;
+  }
+  if (section === "profile") {
+    return <ProfileSettingsView onBack={() => go("home")} />;
   }
 
   return (

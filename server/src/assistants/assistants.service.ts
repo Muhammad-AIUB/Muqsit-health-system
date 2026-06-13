@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { AddAssistantDto, UpdateAssistantDto } from './dto/assistant.dto';
+import { AddAssistantDto, SetDefaultsDto, UpdateAssistantDto } from './dto/assistant.dto';
 
 // Shape returned to the client — the link plus the assistant's public
 // profile fields. Never exposes password hashes or unrelated user data.
@@ -95,6 +95,60 @@ export class AssistantsService {
     return users;
   }
 
+  // The doctor's default permission set — applied to every new assistant and
+  // used to pre-fill the editor.
+  async getDefaults(doctorId: string): Promise<{ permissions: string[] }> {
+    const doctor = await this.prisma.user.findUnique({
+      where: { id: doctorId },
+      select: { assistantDefaultPermissions: true },
+    });
+    return { permissions: doctor?.assistantDefaultPermissions ?? [] };
+  }
+
+  // Saving defaults propagates the change to every existing assistant as a
+  // delta: a newly-ticked permission is granted to all of them, a newly-
+  // unticked one is revoked from all of them. Permissions that aren't part of
+  // the change are left untouched, so per-assistant custom grants survive.
+  async setDefaults(
+    doctorId: string,
+    dto: SetDefaultsDto,
+  ): Promise<{ permissions: string[]; updatedAssistants: number }> {
+    const { permissions: oldPerms } = await this.getDefaults(doctorId);
+    const newPerms = [...new Set(dto.permissions)];
+    const oldSet = new Set(oldPerms);
+    const newSet = new Set(newPerms);
+    const added = newPerms.filter((p) => !oldSet.has(p));
+    const removed = oldPerms.filter((p) => !newSet.has(p));
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: doctorId },
+        data: { assistantDefaultPermissions: { set: newPerms } },
+        select: { assistantDefaultPermissions: true },
+      });
+
+      let updatedAssistants = 0;
+      if (added.length || removed.length) {
+        const links = await tx.assistant.findMany({
+          where: { doctorId },
+          select: { id: true, permissions: true },
+        });
+        for (const link of links) {
+          const set = new Set(link.permissions);
+          added.forEach((p) => set.add(p));
+          removed.forEach((p) => set.delete(p));
+          // Only write when the set actually changed.
+          if (set.size !== link.permissions.length || link.permissions.some((p) => !set.has(p))) {
+            await tx.assistant.update({ where: { id: link.id }, data: { permissions: { set: [...set] } } });
+            updatedAssistants += 1;
+          }
+        }
+      }
+
+      return { permissions: updated.assistantDefaultPermissions, updatedAssistants };
+    });
+  }
+
   async add(doctorId: string, dto: AddAssistantDto): Promise<AssistantView> {
     const { assistantId } = dto;
     if (assistantId === doctorId) {
@@ -112,8 +166,11 @@ export class AssistantsService {
     });
     if (existing) throw new ConflictException('This user is already your assistant.');
 
+    // New assistants inherit the doctor's current default permission set.
+    const { permissions } = await this.getDefaults(doctorId);
+
     const row = await this.prisma.assistant.create({
-      data: { doctorId, assistantId, permissions: [], status: 'active' },
+      data: { doctorId, assistantId, permissions, status: 'active' },
       include: {
         assistant: { select: { name: true, email: true, mobile: true, profession: true } },
       },

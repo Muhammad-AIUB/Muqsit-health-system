@@ -23,6 +23,9 @@ export interface SessionTokens {
   refreshToken: string;
   accessExpiresInSec: number;
   refreshExpiresAt: Date;
+  // When false, the controller should set the refresh cookie WITHOUT an
+  // expires attribute so it dies when the browser closes ("don't remember").
+  persistent: boolean;
 }
 
 export interface SessionResult {
@@ -162,7 +165,10 @@ export class AuthService {
   }
 
   // ── Login ─────────────────────────────────────────────────
-  async login(dto: LoginDto, meta: { ip?: string; userAgent?: string } = {}): Promise<SessionResult> {
+  async login(
+    dto: LoginDto,
+    meta: { ip?: string; userAgent?: string } = {},
+  ): Promise<SessionResult> {
     const user = await this.users.findByEmailOrMobile(dto.identifier.trim());
     if (!user)
       throw new UnauthorizedException('Invalid email/phone or password');
@@ -197,8 +203,9 @@ export class AuthService {
       }
     }
 
-    const tokens = await this.startSession(user, randomUUID(), meta);
-    this.logger.log(`login user=${user.id} ip=${meta.ip ?? '-'}`);
+    const remember = dto.remember !== false; // default to remembering
+    const tokens = await this.startSession(user, randomUUID(), meta, remember);
+    this.logger.log(`login user=${user.id} ip=${meta.ip ?? '-'} remember=${remember}`);
     return { tokens, user: this.publicUser(user) };
   }
 
@@ -235,13 +242,20 @@ export class AuthService {
     }
 
     // Rotation: mark the presented token as revoked and issue a new one
-    // sharing the same family id.
+    // sharing the same family id. Whether the family is "remember me" was
+    // decided at login — preserve that by comparing the original TTL.
     await this.prisma.refreshToken.update({
       where: { id: record.id },
       data: { revokedAt: new Date() },
     });
 
-    const tokens = await this.startSession(record.user, record.family, meta);
+    const persistent = this.wasPersistent(record.createdAt, record.expiresAt);
+    const tokens = await this.startSession(
+      record.user,
+      record.family,
+      meta,
+      persistent,
+    );
     return { tokens, user: this.publicUser(record.user) };
   }
 
@@ -275,6 +289,7 @@ export class AuthService {
     user: User,
     family: string,
     meta: { ip?: string; userAgent?: string },
+    persistent: boolean,
   ): Promise<SessionTokens> {
     const payload: JwtPayload = {
       sub: user.id,
@@ -285,9 +300,11 @@ export class AuthService {
     const accessToken = this.jwt.sign(payload, { expiresIn: accessExpiresIn });
     const accessExpiresInSec = this.parseDurationSec(accessExpiresIn);
 
-    const refreshDays = Number(this.config.get<string>('REFRESH_EXPIRES_DAYS') ?? 30);
+    const refreshMs = persistent
+      ? Number(this.config.get<string>('REFRESH_EXPIRES_DAYS') ?? 30) * 86_400_000
+      : Number(this.config.get<string>('SESSION_EXPIRES_HOURS') ?? 12) * 3_600_000;
     const refreshToken = randomBytes(48).toString('base64url');
-    const refreshExpiresAt = new Date(Date.now() + refreshDays * 24 * 60 * 60 * 1000);
+    const refreshExpiresAt = new Date(Date.now() + refreshMs);
 
     await this.prisma.refreshToken.create({
       data: {
@@ -300,7 +317,20 @@ export class AuthService {
       },
     });
 
-    return { accessToken, refreshToken, accessExpiresInSec, refreshExpiresAt };
+    return {
+      accessToken,
+      refreshToken,
+      accessExpiresInSec,
+      refreshExpiresAt,
+      persistent,
+    };
+  }
+
+  // A "remember me" token has a TTL > 24h on creation. We infer this from
+  // the stored record so rotation keeps the same semantics without us
+  // having to add a column.
+  private wasPersistent(createdAt: Date, expiresAt: Date): boolean {
+    return expiresAt.getTime() - createdAt.getTime() > 24 * 60 * 60 * 1000;
   }
 
   private hashToken(raw: string): string {

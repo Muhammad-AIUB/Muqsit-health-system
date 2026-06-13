@@ -1,25 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { C, font } from "@/theme";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api";
+
+// Email/phone the user asked us to remember. Only the identifier is stored —
+// never the password (that would be readable by any script; the long-lived
+// session cookie is what saves you from re-typing it).
+const REMEMBER_KEY = "mhs_remember_id";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [focused, setFocused] = useState<"identifier" | "password" | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill the remembered email/phone on load.
+  useEffect(() => {
+    const saved = window.localStorage.getItem(REMEMBER_KEY);
+    if (saved) {
+      setIdentifier(saved);
+      setRemember(true);
+    }
+  }, []);
 
   const submit = async () => {
     setError("");
     setLoading(true);
     try {
-      await login(identifier.trim(), password);
+      const id = identifier.trim();
+      await login(id, password, remember);
+      // Persist (or clear) the remembered identifier only once login succeeds.
+      if (remember) window.localStorage.setItem(REMEMBER_KEY, id);
+      else window.localStorage.removeItem(REMEMBER_KEY);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong. Is the API running?");
     } finally {
@@ -120,7 +139,8 @@ export default function LoginPage() {
                 onFocus={() => setFocused("identifier")}
                 onBlur={() => setFocused(null)}
                 placeholder="Email address or phone"
-                autoComplete="off"
+                name="username"
+                autoComplete="username"
                 style={inputBase}
               />
             </div>
@@ -139,7 +159,8 @@ export default function LoginPage() {
                 onFocus={() => setFocused("password")}
                 onBlur={() => setFocused(null)}
                 placeholder="Enter your password"
-                autoComplete="new-password"
+                name="password"
+                autoComplete="current-password"
                 style={inputBase}
               />
               <button
@@ -156,7 +177,13 @@ export default function LoginPage() {
           {/* Remember + forgot */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <label style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 7, cursor: "pointer" }}>
-              <input type="checkbox" defaultChecked style={{ accentColor: C.pri[400], width: 15, height: 15 }} /> Remember me
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                style={{ accentColor: C.pri[400], width: 15, height: 15 }}
+              />{" "}
+              Remember me
             </label>
             <span
               style={{ fontSize: 12, color: C.pri[600], cursor: "pointer", fontWeight: 500 }}

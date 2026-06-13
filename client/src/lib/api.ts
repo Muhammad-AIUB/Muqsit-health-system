@@ -111,11 +111,32 @@ export const onAuthFailure = (fn: AuthFailureListener): (() => void) => {
   return () => authFailureListeners.delete(fn);
 };
 
+// Endpoints where a 401 is meaningful in itself (bad credentials, or the
+// refresh call itself) and must NOT trigger a silent-refresh retry. Note
+// /auth/me is deliberately NOT here: an expired access cookie on /auth/me
+// should refresh silently so a valid refresh cookie keeps the session alive
+// across reloads (otherwise every reload after the access cookie expires
+// would log the user out).
+const NO_REFRESH_PATHS = [
+  "/auth/login",
+  "/auth/refresh",
+  "/auth/register",
+  "/auth/verify-email",
+  "/auth/resend-otp",
+];
+const skipRefresh = (path: string) => NO_REFRESH_PATHS.some((p) => path.startsWith(p));
+
+// "refreshed" → got a new access cookie, retry the request.
+// "rejected"  → server said the refresh token is invalid → real session loss.
+// "unreachable" → network error (e.g. dev server restarting) → transient,
+//                 keep the session; the next call will succeed once it's back.
+type RefreshResult = "refreshed" | "rejected" | "unreachable";
+
 // ── Single in-flight refresh promise so a burst of 401s doesn't kick off
 // ── multiple parallel refresh calls (each of which would rotate the token).
-let refreshInFlight: Promise<boolean> | null = null;
+let refreshInFlight: Promise<RefreshResult> | null = null;
 
-async function attemptRefresh(): Promise<boolean> {
+async function attemptRefresh(): Promise<RefreshResult> {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
     try {
@@ -123,9 +144,9 @@ async function attemptRefresh(): Promise<boolean> {
         method: "POST",
         credentials: "include",
       });
-      return res.ok;
+      return res.ok ? "refreshed" : "rejected";
     } catch {
-      return false;
+      return "unreachable";
     } finally {
       // Allow the next refresh attempt only after this one settles.
       setTimeout(() => {
@@ -150,15 +171,15 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
   });
 
   if (!res.ok) {
-    // 401 on an authenticated, non-auth request → access cookie expired.
-    // Try one silent refresh, then retry the original request once. If
-    // refresh fails we notify the AuthContext to drop the user and let the
-    // RequireAuth guard send the user to /login (no hard navigation here,
-    // because that would lose form state inside the app).
-    if (res.status === 401 && !retried && !path.startsWith("/auth/")) {
-      const ok = await attemptRefresh();
-      if (ok) return apiFetch<T>(path, options, true);
-      authFailureListeners.forEach((fn) => fn());
+    // 401 on an authenticated request → access cookie likely expired. Try one
+    // silent refresh, then retry the original request once. Only a definitive
+    // "rejected" (the refresh token is invalid) drops the user — a transient
+    // "unreachable" (dev server mid-restart) keeps the session so a code
+    // change doesn't bounce the user to /login.
+    if (res.status === 401 && !retried && !skipRefresh(path)) {
+      const result = await attemptRefresh();
+      if (result === "refreshed") return apiFetch<T>(path, options, true);
+      if (result === "rejected") authFailureListeners.forEach((fn) => fn());
     }
 
     let message = `Request failed (${res.status})`;
@@ -177,8 +198,11 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
 
 // ── Auth ────────────────────────────────────────────────────
 export const authApi = {
-  login: (identifier: string, password: string) =>
-    apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ identifier, password }) }),
+  login: (identifier: string, password: string, remember: boolean) =>
+    apiFetch<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ identifier, password, remember }),
+    }),
   register: (input: RegisterInput) =>
     apiFetch<MessageResponse>("/auth/register", { method: "POST", body: JSON.stringify(input) }),
   verifyEmail: (email: string, otp: string) =>
@@ -187,6 +211,77 @@ export const authApi = {
     apiFetch<MessageResponse>("/auth/resend-otp", { method: "POST", body: JSON.stringify({ email }) }),
   logout: () => apiFetch<void>("/auth/logout", { method: "POST" }),
   me: () => apiFetch<AuthUser>("/auth/me"),
+};
+
+// ── Profile (self-service) ──────────────────────────────────
+export interface Chamber {
+  id: string;
+  address: string;
+  mapLink: string | null;
+  order: number;
+}
+
+export interface ChamberInput {
+  id?: string;
+  address: string;
+  mapLink?: string;
+}
+
+export interface OtherCertificate {
+  id: string;
+  url: string;
+  details: string | null;
+  order: number;
+}
+
+export interface OtherCertificateInput {
+  id?: string;
+  url: string;
+  details?: string;
+}
+
+export interface ProfileMe {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  mobile: string | null;
+  profession: string | null;
+  registrationNo: string | null;
+  nidNo: string | null;
+  designation: string | null;
+  specialty: string | null;
+  institutionCode: string | null;
+  profilePictureUrl: string | null;
+  registrationCertUrl: string | null;
+  nidFrontUrl: string | null;
+  nidBackUrl: string | null;
+  otherCertificates: OtherCertificate[];
+  emailVerified: boolean;
+  approvalStatus: string;
+  accountTier: string;
+  chambers: Chamber[];
+}
+
+export interface ProfileUpdateInput {
+  // Note: registrationNo and registrationCertUrl are NOT here — BMDC details
+  // are admin-managed (the server's UpdateProfileDto also rejects them).
+  email?: string;
+  mobile?: string;
+  nidNo?: string;
+  designation?: string;
+  specialty?: string;
+  profilePictureUrl?: string;
+  nidFrontUrl?: string;
+  nidBackUrl?: string;
+  otherCertificates?: OtherCertificateInput[];
+  chambers?: ChamberInput[];
+}
+
+export const usersApi = {
+  me: () => apiFetch<ProfileMe>("/users/me"),
+  update: (input: ProfileUpdateInput) =>
+    apiFetch<ProfileMe>("/users/me", { method: "PATCH", body: JSON.stringify(input) }),
 };
 
 // ── File upload (multipart → Cloudinary) ────────────────────
@@ -374,6 +469,9 @@ export const assistantsApi = {
   list: () => apiFetch<AssistantRecord[]>("/assistants"),
   search: (q: string) =>
     apiFetch<AssistantCandidate[]>(`/assistants/search?q=${encodeURIComponent(q)}`),
+  getDefaults: () => apiFetch<{ permissions: string[] }>("/assistants/defaults"),
+  setDefaults: (permissions: string[]) =>
+    apiFetch<{ permissions: string[]; updatedAssistants: number }>("/assistants/defaults", { method: "PUT", body: JSON.stringify({ permissions }) }),
   add: (assistantId: string) =>
     apiFetch<AssistantRecord>("/assistants", { method: "POST", body: JSON.stringify({ assistantId }) }),
   update: (id: string, input: { permissions?: string[]; status?: "active" | "suspended" }) =>

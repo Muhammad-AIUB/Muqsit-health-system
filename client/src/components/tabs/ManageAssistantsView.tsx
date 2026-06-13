@@ -1,20 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { C } from "@/theme";
 import { ApiError, type AssistantCandidate, type AssistantRecord } from "@/lib/api";
 import {
   useAddAssistant,
+  useAssistantDefaults,
   useAssistants,
   useAssistantSearch,
   useRemoveAssistant,
   useUpdateAssistant,
+  useUpdateAssistantDefaults,
 } from "@/hooks/useAssistants";
 
 // ── Permission catalog ──────────────────────────────────────
 // Mirrors the editable sections of the Prescription page (see
 // leftFields in MuqsitContext) and the Patient settings tabs.
-// Checking a box grants edit access to that section.
 interface Perm {
   key: string;
   label: string;
@@ -59,14 +60,13 @@ const ALL_PERMS: Perm[] = PERMISSION_GROUPS.flatMap((g) => g.perms);
 const ALL_PERM_KEYS = ALL_PERMS.map((p) => p.key);
 const LABEL_OF = new Map(ALL_PERMS.map((p) => [p.key, p.label]));
 
-// Registration professions are stored as snake_case enums — show them nicely.
 const prettyProfession = (p: string | null): string =>
   p ? p.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "—";
-
 const contactLine = (u: { email: string; mobile: string | null; profession: string | null }) =>
   `${u.email} · ${u.mobile ?? "—"} · ${prettyProfession(u.profession)}`;
-
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
+
+const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((k) => b.has(k));
 
 // ── Shared styles ───────────────────────────────────────────
 const card = { background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 16 };
@@ -75,37 +75,85 @@ const btn = (bg: string, fg: string): React.CSSProperties => ({
   fontSize: 12, fontWeight: 500, background: bg, color: fg, fontFamily: "inherit",
 });
 
+// ── Checkbox grid (shared by both editors) ──────────────────
+function PermissionGrid({ selected, onToggle }: { selected: Set<string>; onToggle: (key: string) => void }) {
+  return (
+    <>
+      {PERMISSION_GROUPS.map((grp) => (
+        <div key={grp.group} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 500, color: C.n[600], marginBottom: 6 }}>{grp.group}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 6 }}>
+            {grp.perms.map((p) => (
+              <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={selected.has(p.key)} onChange={() => onToggle(p.key)} style={{ cursor: "pointer" }} />
+                {p.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function MarkedChips({ keys }: { keys: string[] }) {
+  if (keys.length === 0) return <div style={{ fontSize: 12, color: C.n[500] }}>Nothing marked yet.</div>;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {keys.map((k) => (
+        <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 500, padding: "3px 9px", borderRadius: 20, background: C.pri[50], color: C.pri[600] }}>
+          ✓ {LABEL_OF.get(k) ?? k}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+const toggleInSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (key: string) =>
+  setter((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
+
 export default function ManageAssistantsView({ onBack }: { onBack: () => void }) {
   const assistantsQuery = useAssistants();
   const assistants: AssistantRecord[] = assistantsQuery.data ?? [];
+  const defaultsQuery = useAssistantDefaults();
+  const defaultPerms: string[] = defaultsQuery.data?.permissions ?? [];
 
   const addAssistant = useAddAssistant();
   const updateAssistant = useUpdateAssistant();
   const removeAssistant = useRemoveAssistant();
+  const updateDefaults = useUpdateAssistantDefaults();
 
-  // Add-assistant search box
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchQuery = useAssistantSearch(query);
   const suggestions: AssistantCandidate[] = searchQuery.data ?? [];
 
-  // The Default access panel doubles as the per-assistant permission editor.
-  // `editingId` is the assistant link currently loaded into it; `draft` is the
-  // working set of ticked permissions. Both clear after Save/Cancel.
+  // Per-assistant editor
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Set<string>>(new Set());
-  const [error, setError] = useState("");
-  const accessRef = useRef<HTMLDivElement>(null);
 
-  const editing = assistants.find((a) => a.id === editingId) ?? null;
+  // Global Default access editor — seeded from the server once it loads.
+  const [defaultDraft, setDefaultDraft] = useState<Set<string>>(new Set());
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (defaultsQuery.data && !seeded.current) {
+      setDefaultDraft(new Set(defaultsQuery.data.permissions));
+      seeded.current = true;
+    }
+  }, [defaultsQuery.data]);
+
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   const handleAdd = (u: AssistantCandidate) => {
     setError("");
     addAssistant.mutate(u.id, {
-      onSuccess: () => {
-        setQuery("");
-        setSearchOpen(false);
-      },
+      onSuccess: () => { setQuery(""); setSearchOpen(false); },
       onError: (e) => setError(errMsg(e, "Could not add assistant.")),
     });
   };
@@ -122,54 +170,42 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
     if (!window.confirm(`Permanently remove ${a.name}? This cannot be undone.`)) return;
     setError("");
     removeAssistant.mutate(a.id, {
-      onSuccess: () => {
-        if (editingId === a.id) {
-          setEditingId(null);
-          setDraft(new Set());
-        }
-      },
+      onSuccess: () => { if (editingId === a.id) setEditingId(null); },
       onError: (e) => setError(errMsg(e, "Could not remove assistant.")),
     });
   };
 
-  // Click "Edit permissions" → load this assistant's saved access into the
-  // Default access panel (pre-ticked) and scroll it into view.
+  // Open the per-assistant editor. If the assistant has no custom grants yet,
+  // pre-fill with the doctor's default access so the defaults show ticked.
   const openEditor = (a: AssistantRecord) => {
-    setEditingId(a.id);
-    setDraft(new Set(a.permissions));
-    requestAnimationFrame(() => accessRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setEditingId((cur) => (cur === a.id ? null : a.id));
+    setDraft(new Set(a.permissions.length ? a.permissions : defaultPerms));
   };
 
-  const toggleDraft = (key: string) =>
-    setDraft((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  // Save writes the draft back to the assistant, then clears the panel.
-  const saveAccess = () => {
-    if (!editingId) return;
+  const saveAccess = (a: AssistantRecord) => {
     setError("");
     updateAssistant.mutate(
-      { id: editingId, input: { permissions: [...draft] } },
+      { id: a.id, input: { permissions: [...draft] } },
       {
-        onSuccess: () => {
-          setEditingId(null);
-          setDraft(new Set());
-        },
+        onSuccess: () => setEditingId(null),
         onError: (e) => setError(errMsg(e, "Could not save permissions.")),
       },
     );
   };
 
-  const cancelAccess = () => {
-    setEditingId(null);
-    setDraft(new Set());
+  const saveDefaults = () => {
+    setError("");
+    setInfo("");
+    updateDefaults.mutate([...defaultDraft], {
+      onSuccess: (res) => {
+        const n = res.updatedAssistants;
+        setInfo(n > 0 ? `Default access saved — applied to ${n} assistant${n === 1 ? "" : "s"}.` : "Default access saved.");
+      },
+      onError: (e) => setError(errMsg(e, "Could not save default access.")),
+    });
   };
-
-  const saving = updateAssistant.isPending;
+  const defaultsServerSet = new Set(defaultPerms);
+  const defaultsDirty = !sameSet(defaultDraft, defaultsServerSet);
 
   return (
     <div>
@@ -194,7 +230,6 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
         <button onClick={() => setSearchOpen((s) => !s)} style={btn(C.pri[50], C.pri[600])}>+ Add new assistant</button>
       </div>
 
-      {/* Add-by-search box */}
       {searchOpen && (
         <div style={{ ...card, marginBottom: 12 }}>
           <input
@@ -205,7 +240,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
             style={{ width: "100%", padding: "8px 12px", borderRadius: 7, border: `0.5px solid ${C.n[300]}`, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
           />
           <div style={{ fontSize: 11, color: C.n[500], marginTop: 6 }}>
-            Only registered users can be added — pick from the suggestions below.
+            Only registered users can be added — pick from the suggestions below. New assistants start with your default access.
           </div>
           {query.trim() && (
             <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -233,7 +268,6 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
         </div>
       )}
 
-      {/* Assistant list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {assistantsQuery.isLoading ? (
           <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>Loading assistants…</div>
@@ -244,96 +278,77 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
             No assistants yet. Use “Add new assistant” to add as many as you want.
           </div>
         ) : (
-          assistants.map((a) => (
-            <div
-              key={a.id}
-              style={{ ...card, border: editingId === a.id ? `1px solid ${C.info[400]}` : card.border }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{a.name}</span>
-                    <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: a.status === "active" ? C.pri[50] : C.warn[50], color: a.status === "active" ? C.pri[600] : C.warn[800] }}>
-                      {a.status === "active" ? "Active" : "Suspended"}
-                    </span>
+          assistants.map((a) => {
+            const isEditing = editingId === a.id;
+            return (
+              <div key={a.id} style={{ ...card, border: isEditing ? `1px solid ${C.info[400]}` : card.border }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{a.name}</span>
+                      <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: a.status === "active" ? C.pri[50] : C.warn[50], color: a.status === "active" ? C.pri[600] : C.warn[800] }}>
+                        {a.status === "active" ? "Active" : "Suspended"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.n[600], marginTop: 2 }}>{contactLine(a)}</div>
+                    <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>{a.permissions.length} permission{a.permissions.length === 1 ? "" : "s"} granted</div>
                   </div>
-                  <div style={{ fontSize: 11, color: C.n[600], marginTop: 2 }}>{contactLine(a)}</div>
-                  <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>{a.permissions.length} permission{a.permissions.length === 1 ? "" : "s"} granted</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => openEditor(a)} style={btn(C.info[50], C.info[800])}>{isEditing ? "Close" : "Edit permissions"}</button>
+                    <button onClick={() => toggleSuspend(a)} style={btn(C.warn[50], C.warn[800])}>{a.status === "active" ? "Suspend" : "Reinstate"}</button>
+                    <button onClick={() => handleRemove(a)} style={btn(C.danger[50], C.danger[800])}>Remove</button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => openEditor(a)} style={btn(C.info[50], C.info[800])}>
-                    {editingId === a.id ? "Editing…" : "Edit permissions"}
-                  </button>
-                  <button onClick={() => toggleSuspend(a)} style={btn(C.warn[50], C.warn[800])}>{a.status === "active" ? "Suspend" : "Reinstate"}</button>
-                  <button onClick={() => handleRemove(a)} style={btn(C.danger[50], C.danger[800])}>Remove</button>
-                </div>
+
+                {isEditing && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `0.5px solid ${C.n[200]}` }}>
+                    <div style={{ fontSize: 11, color: C.n[600], marginBottom: 12 }}>
+                      Your default access is pre-ticked. Add or remove to give {a.name.split(" ")[0]} different permissions, then Save.
+                    </div>
+                    <PermissionGrid selected={draft} onToggle={toggleInSet(setDraft)} />
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <button onClick={() => saveAccess(a)} disabled={updateAssistant.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: updateAssistant.isPending ? 0.6 : 1 }}>
+                        {updateAssistant.isPending ? "Saving…" : "Save"}
+                      </button>
+                      <button onClick={() => setEditingId(null)} style={btn(C.n[100], C.n[800])}>Cancel</button>
+                      <span style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+                        <button type="button" onClick={() => setDraft(new Set(defaultPerms))} style={{ ...btn("transparent", C.info[800]), padding: "6px 4px" }}>Reset to default</button>
+                        <button type="button" onClick={() => setDraft(new Set(ALL_PERM_KEYS))} style={{ ...btn("transparent", C.info[800]), padding: "6px 4px" }}>Select all</button>
+                        <button type="button" onClick={() => setDraft(new Set())} style={{ ...btn("transparent", C.n[600]), padding: "6px 4px" }}>Clear</button>
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
-      {/* ── Default access (per-assistant permission editor) ── */}
-      <div ref={accessRef} style={{ fontSize: 13, fontWeight: 500, margin: "22px 0 4px" }}>
-        Default access{editing ? ` — ${editing.name}` : ""}
-      </div>
+      {/* ── Default access (global baseline) ────────────────── */}
+      <div style={{ fontSize: 13, fontWeight: 500, margin: "22px 0 4px" }}>Default access</div>
       <div style={{ fontSize: 11, color: C.n[600], marginBottom: 10 }}>
-        {editing
-          ? `Tick the sections ${editing.name.split(" ")[0]} may edit, then Save. Already-granted access is pre-ticked; saving updates their access and clears this panel.`
-          : "Click “Edit permissions” on an assistant above to load and edit their access here."}
+        Tick the sections all your assistants should be able to edit. Saving applies the change to <strong>every</strong> assistant — ticking grants it to all of them, unticking revokes it from all of them. New assistants inherit this too. Any extra per-assistant permissions you set above are kept.
       </div>
+      {info && (
+        <div style={{ ...card, padding: "10px 14px", marginBottom: 10, background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, color: C.pri[800], fontSize: 12 }}>
+          {info}
+        </div>
+      )}
+      <div style={card}>
+        <PermissionGrid selected={defaultDraft} onToggle={toggleInSet(setDefaultDraft)} />
 
-      <div style={{ ...card, opacity: editing ? 1 : 0.6 }}>
-        {PERMISSION_GROUPS.map((grp) => (
-          <div key={grp.group} style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 500, color: C.n[600], marginBottom: 6 }}>{grp.group}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 6 }}>
-              {grp.perms.map((p) => (
-                <label
-                  key={p.key}
-                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: editing ? "pointer" : "default", color: editing ? "inherit" : C.n[500] }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.has(p.key)}
-                    disabled={!editing}
-                    onChange={() => toggleDraft(p.key)}
-                    style={{ cursor: editing ? "pointer" : "default" }}
-                  />
-                  {p.label}
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Marked access summary */}
         <div style={{ marginTop: 4, paddingTop: 12, borderTop: `0.5px solid ${C.n[200]}` }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: C.n[600], marginBottom: 6 }}>Marked access</div>
-          {draft.size === 0 ? (
-            <div style={{ fontSize: 12, color: C.n[500] }}>Nothing marked yet.</div>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {[...draft].map((k) => (
-                <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 500, padding: "3px 9px", borderRadius: 20, background: C.pri[50], color: C.pri[600] }}>
-                  ✓ {LABEL_OF.get(k) ?? k}
-                </span>
-              ))}
-            </div>
-          )}
+          <div style={{ fontSize: 11, fontWeight: 500, color: C.n[600], marginBottom: 6 }}>Marked default access</div>
+          <MarkedChips keys={[...defaultDraft]} />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
-          <button onClick={saveAccess} disabled={!editing || saving} style={{ ...btn(C.pri[400], C.n[0]), opacity: editing && !saving ? 1 : 0.5, cursor: editing && !saving ? "pointer" : "default" }}>
-            {saving ? "Saving…" : "Save"}
+          <button onClick={saveDefaults} disabled={!defaultsDirty || updateDefaults.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: defaultsDirty && !updateDefaults.isPending ? 1 : 0.5, cursor: defaultsDirty && !updateDefaults.isPending ? "pointer" : "default" }}>
+            {updateDefaults.isPending ? "Saving…" : "Save"}
           </button>
-          <button onClick={cancelAccess} disabled={!editing} style={{ ...btn(C.n[100], C.n[800]), opacity: editing ? 1 : 0.5, cursor: editing ? "pointer" : "default" }}>Cancel</button>
-          {editing && (
-            <span style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-              <button type="button" onClick={() => setDraft(new Set(ALL_PERM_KEYS))} style={{ ...btn("transparent", C.info[800]), padding: "6px 4px" }}>Select all</button>
-              <button type="button" onClick={() => setDraft(new Set())} style={{ ...btn("transparent", C.n[600]), padding: "6px 4px" }}>Clear</button>
-            </span>
-          )}
+          <button onClick={() => setDefaultDraft(new Set(defaultPerms))} disabled={!defaultsDirty} style={{ ...btn(C.n[100], C.n[800]), opacity: defaultsDirty ? 1 : 0.5, cursor: defaultsDirty ? "pointer" : "default" }}>Cancel</button>
+          {!defaultsDirty && defaultPerms.length > 0 && <span style={{ fontSize: 11, color: C.pri[600], marginLeft: 4 }}>Saved</span>}
         </div>
       </div>
     </div>

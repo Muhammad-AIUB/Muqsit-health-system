@@ -22,6 +22,28 @@ export function useAssistantSearch(query: string) {
   });
 }
 
+const DEFAULTS_KEY = ["assistants", "defaults"] as const;
+
+export function useAssistantDefaults() {
+  return useQuery({
+    queryKey: DEFAULTS_KEY,
+    queryFn: () => assistantsApi.getDefaults(),
+  });
+}
+
+export function useUpdateAssistantDefaults() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (permissions: string[]) => assistantsApi.setDefaults(permissions),
+    // Defaults changed → both the defaults and every assistant's permissions
+    // may have changed (the server propagates the delta), so refresh both.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: DEFAULTS_KEY });
+      qc.invalidateQueries({ queryKey: ASSISTANTS_KEY });
+    },
+  });
+}
+
 export function useAddAssistant() {
   const qc = useQueryClient();
   return useMutation({

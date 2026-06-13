@@ -113,13 +113,17 @@ export class AuthController {
       path: '/',
       maxAge: tokens.accessExpiresInSec * 1000,
     });
+    // No `expires` when the user opted out of "remember me" → browser
+    // treats this as a session cookie and discards it on close. The server
+    // also drops the matching DB row's TTL to hours, so a stolen cookie
+    // dies quickly regardless of the browser's behavior.
     res.cookie(REFRESH_COOKIE, tokens.refreshToken, {
       httpOnly: true,
       secure,
       sameSite,
       domain,
       path: '/api/auth',
-      expires: tokens.refreshExpiresAt,
+      ...(tokens.persistent ? { expires: tokens.refreshExpiresAt } : {}),
     });
   }
 

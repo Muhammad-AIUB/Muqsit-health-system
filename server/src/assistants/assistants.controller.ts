@@ -6,11 +6,12 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { AssistantsService } from './assistants.service';
-import { AddAssistantDto, UpdateAssistantDto } from './dto/assistant.dto';
+import { AddAssistantDto, SetDefaultsDto, UpdateAssistantDto } from './dto/assistant.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -30,6 +31,16 @@ export class AssistantsController {
   @Get('search')
   search(@CurrentUser() user: AuthenticatedUser, @Query('q') q?: string) {
     return this.assistants.search(user.id, q);
+  }
+
+  @Get('defaults')
+  getDefaults(@CurrentUser() user: AuthenticatedUser) {
+    return this.assistants.getDefaults(user.id);
+  }
+
+  @Put('defaults')
+  setDefaults(@CurrentUser() user: AuthenticatedUser, @Body() dto: SetDefaultsDto) {
+    return this.assistants.setDefaults(user.id, dto);
   }
 
   @Post()

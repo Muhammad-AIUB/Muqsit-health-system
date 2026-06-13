@@ -20,7 +20,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>
+      {/* suppressHydrationWarning silences a noisy dev-only warning caused
+          by browser extensions (Grammarly, ColorZilla, etc.) that inject
+          attributes onto <body> after the server-rendered HTML loads. It
+          only affects this one element; React still hydrates as normal. */}
+      <body suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>
