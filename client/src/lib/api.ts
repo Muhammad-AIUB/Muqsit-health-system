@@ -42,7 +42,6 @@ export interface RegisterInput {
   nidNo: string;
   designation: string;
   specialty: string;
-  institutionCode?: string;
   password: string;
   registrationCertUrl: string;
   nidFrontUrl: string;
@@ -124,6 +123,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
       if (body?.message) message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
     } catch {
       /* non-JSON error body */
+    }
+    // A 401 on an authenticated, non-auth request means the session/token
+    // expired — drop it and send the user to sign in again, preserving
+    // where they were. (/auth/* is excluded: a wrong password is also 401.)
+    if (res.status === 401 && token && !path.startsWith("/auth/") && typeof window !== "undefined") {
+      clearToken();
+      const next = window.location.pathname + window.location.search;
+      window.location.assign(`/login?next=${encodeURIComponent(next)}`);
     }
     throw new ApiError(res.status, message);
   }
@@ -265,6 +272,11 @@ export interface IpdAdmission {
   patientId: string | null;
   bed: string;
   name: string;
+  hospitalId: string | null;
+  roomNo: string | null;
+  wardNo: string | null;
+  floorBuilding: string | null;
+  mobile: string | null;
   diagnosis: string | null;
   status: string;
   admittedAt: string;
@@ -274,6 +286,11 @@ export interface IpdAdmissionInput {
   bed: string;
   name: string;
   patientId?: string;
+  hospitalId?: string;
+  roomNo?: string;
+  wardNo?: string;
+  floorBuilding?: string;
+  mobile?: string;
   diagnosis?: string;
   status?: string;
 }

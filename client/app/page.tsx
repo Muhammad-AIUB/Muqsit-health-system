@@ -1,9 +1,7 @@
-import Muqsit from "@/components/Muqsit";
+import { redirect } from "next/navigation";
 
+// The app lives on per-tab URLs (app/[tab]); the root just forwards
+// to the default tab.
 export default function Home() {
-  return (
-    <main className="app-root">
-      <Muqsit />
-    </main>
-  );
+  redirect("/prescription");
 }

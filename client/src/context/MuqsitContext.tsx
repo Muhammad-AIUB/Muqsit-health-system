@@ -2,13 +2,16 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useState,
   type Dispatch,
   type SetStateAction,
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
 import { ApiError, patientsApi, prescriptionsApi } from "@/lib/api";
 import type {
@@ -36,7 +39,7 @@ export interface LeftField {
 
 // ── Initial values ──────────────────────────────────────────
 const initialPtInfo: PtInfo = {
-  name: "", dob: "", age: "", sex: "Male", ethnicity: "South Asian", religion: "Islam",
+  name: "", dob: "", age: "", sex: "Male", ethnicity: "", religion: "Islam",
   mobile: "", spouseMobile: "", relativeMobile: "", relativeRelation: "",
   district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
 };
@@ -59,17 +62,39 @@ const initialOeData: OeData = {
 function useMuqsitStore() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState<Page>("login");
-  const [activeTab, setActiveTab] = useState<TabId>("prescription");
   const [view, setView] = useState<View>("desktop");
 
-  // Patient header
-  const [ptName, setPtName] = useState("Fatima Khatun");
-  const [ptAge, setPtAge] = useState("34");
-  const [ptGender, setPtGender] = useState("Female");
-  const [ptAddress, setPtAddress] = useState("Mirpur-10, Dhaka");
-  const [ptWeight, setPtWeight] = useState("62");
-  const [ptDate, setPtDate] = useState("2026-04-09");
-  const [ptPhone, setPtPhone] = useState("+880 1712-345678");
+  // The active tab is mirrored to the URL (see TAB_PATHS): switching tabs
+  // pushes a history entry via the native History API — a shallow update,
+  // so the app shell (and all the state below) survives tab changes —
+  // while refresh and deep links are served by the app/[tab] route.
+  const [activeTab, setActiveTabState] = useState<TabId>(() =>
+    typeof window === "undefined" ? "prescription" : tabFromPath(window.location.pathname) ?? "prescription",
+  );
+
+  const setActiveTab = useCallback((tab: TabId) => {
+    setActiveTabState(tab);
+    const path = TAB_PATHS[tab];
+    if (typeof window !== "undefined" && window.location.pathname !== path) {
+      window.history.pushState(null, "", path);
+    }
+  }, []);
+
+  // Browser back/forward moves between tabs.
+  useEffect(() => {
+    const onPop = () => setActiveTabState(tabFromPath(window.location.pathname) ?? "prescription");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Patient header — starts empty; the date defaults to today.
+  const [ptName, setPtName] = useState("");
+  const [ptAge, setPtAge] = useState("");
+  const [ptGender, setPtGender] = useState("");
+  const [ptAddress, setPtAddress] = useState("");
+  const [ptWeight, setPtWeight] = useState("");
+  const [ptDate, setPtDate] = useState(() => new Date().toLocaleDateString("en-CA"));
+  const [ptPhone, setPtPhone] = useState("");
 
   // Left column fields
   const [chiefComplaints, setChiefComplaints] = useState<StringList>([]);

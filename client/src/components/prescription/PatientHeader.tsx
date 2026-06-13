@@ -19,6 +19,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => setPtAge(e.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" placeholder="—" style={inputSm} /></div>
         <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Gender</label>
           <select value={ptGender} onChange={(e) => setPtGender(e.target.value)} style={{ ...inputSm, padding: "6px 6px", cursor: "pointer" }}>
+            <option value="">—</option>
             <option>Male</option>
             <option>Female</option>
           </select>

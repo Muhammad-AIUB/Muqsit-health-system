@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { C, font } from "@/theme";
 import { inputSm } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
@@ -52,7 +53,9 @@ const labelStyle = { fontSize: 12, color: C.n[600], display: "block", marginBott
 const fieldStyle = { ...inputSm, padding: "10px 14px", fontSize: 13 } as const;
 const groupStyle = { marginBottom: 14 } as const;
 
-export default function SignupPage({ onBack }: { onBack: () => void }) {
+export default function SignupPage() {
+  const router = useRouter();
+  const onBack = () => router.push("/login");
   const { register } = useAuth();
   const [step, setStep] = useState<"form" | "otp" | "done">("form");
 
@@ -65,7 +68,6 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
   const [nidNo, setNidNo] = useState("");
   const [designation, setDesignation] = useState("");
   const [specialty, setSpecialty] = useState("");
-  const [institutionCode, setInstitutionCode] = useState("");
   const [password, setPassword] = useState("");
   const [retype, setRetype] = useState("");
 
@@ -98,11 +100,23 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
   const otpTimeLabel = `${String(Math.floor(otpRemaining / 60000)).padStart(2, "0")}:${String(Math.floor((otpRemaining % 60000) / 1000)).padStart(2, "0")}`;
 
   // ── Draft autosave ────────────────────────────────────────
-  // Everything except passwords survives a page refresh (localStorage).
-  // Passwords are never persisted for security.
+  // Form fields survive a page refresh (localStorage). Passwords are kept
+  // in sessionStorage only — they survive a refresh but are wiped when the
+  // tab closes, so they never persist on disk long-term.
   const DRAFT_KEY = "muqsit_signup_draft";
+  const PASS_KEY = "muqsit_signup_pass";
 
   useEffect(() => {
+    try {
+      const rawPass = window.sessionStorage.getItem(PASS_KEY);
+      if (rawPass) {
+        const p = JSON.parse(rawPass) as Record<string, string>;
+        if (p.password) setPassword(p.password);
+        if (p.retype) setRetype(p.retype);
+      }
+    } catch {
+      /* corrupt/unavailable — ignore */
+    }
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -115,7 +129,6 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
       if (d.nidNo) setNidNo(d.nidNo);
       if (d.designation) setDesignation(d.designation);
       if (d.specialty) setSpecialty(d.specialty);
-      if (d.institutionCode) setInstitutionCode(d.institutionCode);
       if (d.registrationCertUrl) setRegistrationCertUrl(d.registrationCertUrl);
       if (d.nidFrontUrl) setNidFrontUrl(d.nidFrontUrl);
       if (d.nidBackUrl) setNidBackUrl(d.nidBackUrl);
@@ -133,7 +146,7 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
           DRAFT_KEY,
           JSON.stringify({
             name, email, mobile, profession, registrationNo, nidNo,
-            designation, specialty, institutionCode,
+            designation, specialty,
             registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl,
           }),
         );
@@ -142,7 +155,18 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [name, email, mobile, profession, registrationNo, nidNo, designation, specialty, institutionCode, registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl]);
+  }, [name, email, mobile, profession, registrationNo, nidNo, designation, specialty, registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(PASS_KEY, JSON.stringify({ password, retype }));
+      } catch {
+        /* storage full/unavailable — ignore */
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [password, retype]);
 
   // NID OCR verification (advisory — compares typed number with the image)
   const [nidFrontFile, setNidFrontFile] = useState<File | null>(null);
@@ -211,7 +235,6 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
         nidNo: nidNo.trim(),
         designation: designation.trim(),
         specialty: specialty.trim(),
-        institutionCode: institutionCode.trim() || undefined,
         password,
         registrationCertUrl,
         nidFrontUrl,
@@ -219,7 +242,10 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
         profilePictureUrl,
       };
       await register(input);
-      try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+        window.sessionStorage.removeItem(PASS_KEY);
+      } catch { /* ignore */ }
       setOtpDeadline(Date.now() + OTP_TTL_MS);
       setStep("otp");
     } catch (e) {
@@ -365,11 +391,6 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
                   <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Hepatology / General practitioner" style={fieldStyle} />
                 </div>
 
-                <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Institution code <span style={{ color: C.n[500], fontWeight: 400 }}>(optional)</span></label>
-                  <input value={institutionCode} onChange={(e) => setInstitutionCode(e.target.value)} placeholder="Your hospital / institution code" style={fieldStyle} />
-                </div>
-
                 <div style={groupStyle}>
                   <label style={labelStyle}>Password</label>
                   <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
@@ -406,7 +427,11 @@ export default function SignupPage({ onBack }: { onBack: () => void }) {
           {step === "otp" && (
             <>
               <h2 style={{ fontSize: 17, fontWeight: 600, color: C.n[900], margin: "0 0 4px" }}>Verify your email</h2>
-              <p style={{ fontSize: 12, color: C.n[600], margin: "0 0 18px" }}>Enter the 6-digit code sent to <b>{email}</b>.</p>
+              <p style={{ fontSize: 12, color: C.n[600], margin: "0 0 10px" }}>Enter the 6-digit code sent to <b>{email}</b>.</p>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 11.5, color: C.n[600], background: C.n[50], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px", margin: "0 0 18px" }}>
+                <span>📩</span>
+                <span>Don&apos;t see the email? Check your <b>spam / junk</b> folder — verification emails sometimes end up there.</span>
+              </div>
               <div style={groupStyle}>
                 <label style={labelStyle}>Verification code</label>
                 <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="••••••" disabled={otpExpired} style={{ ...fieldStyle, letterSpacing: 8, textAlign: "center", fontSize: 18, opacity: otpExpired ? 0.5 : 1 }} />

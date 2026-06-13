@@ -1,22 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { C, font } from "@/theme";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api";
-import SignupPage from "./SignupPage";
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [view, setView] = useState<"login" | "signup">("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused] = useState<"identifier" | "password" | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  if (view === "signup") return <SignupPage onBack={() => setView("login")} />;
 
   const submit = async () => {
     setError("");
@@ -216,15 +213,9 @@ export default function LoginPage() {
 
           <div style={{ textAlign: "center", fontSize: 12.5, color: C.n[600], marginTop: 18 }}>
             New here?{" "}
-            <span
-              onClick={() => {
-                setView("signup");
-                setError("");
-              }}
-              style={{ color: C.pri[600], cursor: "pointer", fontWeight: 600 }}
-            >
+            <Link href="/signup" style={{ color: C.pri[600], cursor: "pointer", fontWeight: 600, textDecoration: "none" }}>
               Create an account
-            </span>
+            </Link>
           </div>
         </div>
       </div>

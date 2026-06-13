@@ -191,7 +191,7 @@ export type TabId =
   | "opd"
   | "ipd"
   | "patients"
-  | "chat"
+  | "message"
   | "research"
   | "settings"
   | "pt-settings"

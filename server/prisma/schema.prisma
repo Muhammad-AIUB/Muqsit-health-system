@@ -122,10 +122,15 @@ model IpdAdmission {
   patientId String?
   patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
-  bed       String
-  name      String
-  diagnosis String?
-  status    String @default("Stable") // Stable | Observation | Critical | Discharge
+  bed           String
+  name          String
+  hospitalId    String?
+  roomNo        String?
+  wardNo        String? // cabin / ward no
+  floorBuilding String? // floor or building
+  mobile        String?
+  diagnosis     String?
+  status        String  @default("Stable") // Stable | Observation | Critical | Discharge
 
   events IpdEvent[]
 

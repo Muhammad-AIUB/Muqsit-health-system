@@ -3,11 +3,10 @@
 import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { questionPatients } from "@/data/patients";
 import { usePatients, useDeletePatient } from "@/hooks/usePatients";
 import { patientToPtInfo } from "@/lib/patientForm";
 import type { Patient } from "@/lib/api";
-import type { PtInfo, QuestionPatient } from "@/types";
+import type { PtInfo } from "@/types";
 
 interface RowData {
   id: string;
@@ -23,7 +22,7 @@ interface RowData {
 type Palette = Record<number, string>;
 
 const EMPTY_PT_INFO: PtInfo = {
-  name: "", dob: "", age: "", sex: "Male", ethnicity: "South Asian", religion: "Islam",
+  name: "", dob: "", age: "", sex: "Male", ethnicity: "", religion: "Islam",
   mobile: "", spouseMobile: "", relativeMobile: "", relativeRelation: "",
   district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
 };
@@ -50,14 +49,6 @@ const SectionHeader = ({ icon, title, count, color, action }: { icon: string; ti
     {action && <div style={{ marginLeft: "auto" }}>{action}</div>}
   </div>
 );
-
-const typeStyle = (type: QuestionPatient["type"]) => {
-  if (type === "alert") return { bg: C.danger[50], fg: C.danger[800], label: "🚨 Alert" };
-  if (type === "info") return { bg: C.info[50], fg: C.info[800], label: "ℹ️ Info" };
-  if (type === "suggestion") return { bg: C.warn[50], fg: C.warn[800], label: "💡 Suggestion" };
-  if (type === "question") return { bg: C.pri[50], fg: C.pri[600], label: "❓ Question" };
-  return { bg: C.n[100], fg: C.n[700], label: type };
-};
 
 const smallBtn = (filled: boolean) => ({
   padding: "4px 12px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontFamily: font,
@@ -180,30 +171,6 @@ export default function PatientsView() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* ── GROUP 3: Questions & Suggestions (local) ── */}
-      <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "14px 16px" }}>
-        <SectionHeader icon="💬" title="Questions & suggestions from patients" count={questionPatients.length} color={C.info} />
-        <div style={{ borderTop: `0.5px solid ${C.n[100]}` }}>
-          {questionPatients.map((p, i) => {
-            const ts = typeStyle(p.type);
-            return (
-              <div key={p.id} style={{ borderBottom: i < questionPatients.length - 1 ? `0.5px solid ${C.n[100]}` : "none", padding: "10px 0", display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: colorOf(p.color).bg, color: colorOf(p.color).fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0, marginTop: 2 }}>{p.init}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>{p.name}</span>
-                    <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: ts.bg, color: ts.fg, fontWeight: 600 }}>{ts.label}</span>
-                    <span style={{ fontSize: 10, color: C.n[400] }}>{p.time}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: C.n[700], lineHeight: 1.5 }}>{p.msg}</div>
-                </div>
-                <button style={{ padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[700], fontSize: 10, cursor: "pointer", fontFamily: font, flexShrink: 0, marginTop: 2 }}>Reply</button>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

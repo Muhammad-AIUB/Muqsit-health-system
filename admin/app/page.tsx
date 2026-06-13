@@ -105,13 +105,14 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
 
 // ── Dashboard (sidebar layout) ───────────────────────────────
 const NAV = [
-  { id: "accounts", label: "Accounts", icon: "👥" },
+  { id: "primary", label: "Primary accounts", icon: "⭐" },
+  { id: "secondary", label: "Secondary accounts", icon: "👥" },
   { id: "trash", label: "Trash", icon: "🗑️" },
 ] as const;
 type NavId = (typeof NAV)[number]["id"];
 
 function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
-  const [nav, setNav] = useState<NavId>("accounts");
+  const [nav, setNav] = useState<NavId>("primary");
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -156,8 +157,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
 
       {/* ── Main content ── */}
       <main style={{ flex: 1, padding: "26px 30px", overflow: "auto" }}>
-        {nav === "accounts" && <AccountsPage trash={false} />}
-        {nav === "trash" && <AccountsPage trash />}
+        <AccountsPage mode={nav} />
       </main>
     </div>
   );
@@ -171,7 +171,8 @@ const STATUS_BADGE: Record<string, { bg: string; fg: string }> = {
   rejected: { bg: "#FCEBEB", fg: "#A32D2D" },
 };
 
-function AccountsPage({ trash }: { trash: boolean }) {
+function AccountsPage({ mode }: { mode: NavId }) {
+  const trash = mode === "trash";
   const [rows, setRows] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -193,8 +194,11 @@ function AccountsPage({ trash }: { trash: boolean }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Accounts shows everything except rejected; Trash shows only rejected.
-  const visible = rows.filter((r) => (trash ? r.approvalStatus === "rejected" : r.approvalStatus !== "rejected"));
+  // Primary/Secondary show non-rejected accounts of that tier; Trash shows
+  // only rejected ones (both tiers, hence the Tier column there).
+  const visible = rows.filter((r) =>
+    trash ? r.approvalStatus === "rejected" : r.approvalStatus !== "rejected" && r.accountTier === mode,
+  );
 
   // Search rules: BMDC/registration number, name, institution code, email, phone number.
   const q = search.trim().toLowerCase();
@@ -208,7 +212,7 @@ function AccountsPage({ trash }: { trash: boolean }) {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>{trash ? "Trash" : "Accounts"}</h1>
+      <h1 style={{ marginBottom: 20 }}>{trash ? "Trash" : mode === "primary" ? "Primary accounts" : "Secondary accounts"}</h1>
 
       <input
         value={search}
@@ -228,17 +232,17 @@ function AccountsPage({ trash }: { trash: boolean }) {
               <th style={th}>Email</th>
               <th style={th}>Mobile</th>
               <th style={th}>Status</th>
-              <th style={th}>Tier</th>
+              {trash && <th style={th}>Tier</th>}
               <th style={th}>Signed up</th>
               <th style={th}></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td style={td} colSpan={8}>Loading…</td></tr>
+              <tr><td style={td} colSpan={trash ? 8 : 7}>Loading…</td></tr>
             )}
             {!loading && filtered.length === 0 && (
-              <tr><td style={{ ...td, color: C.n500 }} colSpan={8}>{q ? "No accounts match your search." : trash ? "Trash is empty." : "No accounts yet."}</td></tr>
+              <tr><td style={{ ...td, color: C.n500 }} colSpan={trash ? 8 : 7}>{q ? "No accounts match your search." : trash ? "Trash is empty." : `No ${mode} accounts yet.`}</td></tr>
             )}
             {!loading && filtered.map((r) => {
               const badge = STATUS_BADGE[r.approvalStatus] ?? STATUS_BADGE.pending;
@@ -264,11 +268,13 @@ function AccountsPage({ trash }: { trash: boolean }) {
                       {r.approvalStatus}
                     </span>
                   </td>
-                  <td style={td}>
-                    <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: r.accountTier === "secondary" ? "#E6F1FB" : C.priLight, color: r.accountTier === "secondary" ? "#185FA5" : C.priDark }}>
-                      {r.accountTier}
-                    </span>
-                  </td>
+                  {trash && (
+                    <td style={td}>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: r.accountTier === "secondary" ? "#E6F1FB" : C.priLight, color: r.accountTier === "secondary" ? "#185FA5" : C.priDark }}>
+                        {r.accountTier}
+                      </span>
+                    </td>
+                  )}
                   <td style={td}>{new Date(r.createdAt).toLocaleDateString()}</td>
                   <td style={td}>
                     <button onClick={() => setSelected(r)} style={btnGhost}>View details</button>

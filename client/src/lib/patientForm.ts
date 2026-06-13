@@ -8,7 +8,7 @@ export function patientToPtInfo(p: Patient): PtInfo {
     dob: p.dob ? p.dob.slice(0, 10) : "",
     age: p.age != null ? String(p.age) : "",
     sex: p.sex ?? "Male",
-    ethnicity: p.ethnicity ?? "South Asian",
+    ethnicity: p.ethnicity ?? "",
     religion: p.religion ?? "Islam",
     mobile: p.mobile ?? "",
     spouseMobile: p.spouseMobile ?? "",

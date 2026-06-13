@@ -6,7 +6,7 @@ import IpdView from "./tabs/IpdView";
 import PatientSettingsView from "./tabs/PatientSettingsView";
 import HealthMonitoringView from "./tabs/HealthMonitoringView";
 import PatientsView from "./tabs/PatientsView";
-import ChatView from "./tabs/ChatView";
+import MessageView from "./tabs/MessageView";
 import ResearchView from "./tabs/ResearchView";
 import SettingsView from "./tabs/SettingsView";
 
@@ -20,7 +20,7 @@ export default function TabRouter() {
     case "pt-settings": return <PatientSettingsView />;
     case "idsp": return <HealthMonitoringView />;
     case "patients": return <PatientsView />;
-    case "chat": return <ChatView />;
+    case "message": return <MessageView />;
     case "research": return <ResearchView />;
     case "settings": return <SettingsView />;
     default: return null;

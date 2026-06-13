@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
+import { patientsApi, uploadImage } from "@/lib/api";
 import { ptInfoToInput } from "@/lib/patientForm";
 import type { PtInfo } from "@/types";
 import Pill from "@/components/common/Pill";
@@ -21,6 +22,90 @@ const RELATIONS = [
   { rel: "Son", icon: "♂", autoSex: "Male" },
   { rel: "Daughter", icon: "♀", autoSex: "Female" },
 ];
+
+// ── Patient photo (top-left corner of the info form) ─────────
+// Uploads to the server and, when editing an existing patient, persists
+// the photo on the record immediately.
+function PatientPhotoCorner() {
+  const { ptInfo, setPtInfo, currentPatientId } = useMuqsit();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const url = await uploadImage(file);
+      setPtInfo((prev) => ({ ...prev, picture: url }));
+      if (currentPatientId) await patientsApi.update(currentPatientId, { pictureUrl: url });
+    } catch {
+      setErr("Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    if (!window.confirm("Remove this patient's photo?")) return;
+    setBusy(true);
+    setErr("");
+    try {
+      if (currentPatientId) await patientsApi.update(currentPatientId, { pictureUrl: null });
+      setPtInfo((prev) => ({ ...prev, picture: null }));
+    } catch {
+      setErr("Could not remove");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ flexShrink: 0, width: 110, textAlign: "center" }}>
+      <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto" }}>
+        <label
+          style={{
+            width: 100, height: 100, borderRadius: 10,
+            border: `1.5px dashed ${ptInfo.picture ? C.pri[400] : C.n[300]}`,
+            background: ptInfo.picture ? "transparent" : C.n[50],
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", overflow: "hidden", boxSizing: "border-box",
+          }}
+        >
+          {ptInfo.picture ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={ptInfo.picture} alt={ptInfo.name || "Patient"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <>
+              <span style={{ fontSize: 22, color: C.n[500] }}>{busy ? "…" : "📷"}</span>
+              <span style={{ fontSize: 9, color: C.n[500], marginTop: 2 }}>Upload photo</span>
+            </>
+          )}
+          <input type="file" accept="image/*" style={{ display: "none" }} onChange={onChange} disabled={busy} />
+        </label>
+        {ptInfo.picture && !busy && (
+          <button
+            onClick={removePhoto}
+            title="Remove photo"
+            style={{
+              position: "absolute", top: -6, right: -6,
+              width: 18, height: 18, borderRadius: "50%",
+              border: `1px solid ${C.n[0]}`, background: C.danger[400], color: "#fff",
+              fontSize: 11, lineHeight: 1, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+      <div style={{ fontSize: 9, color: err ? C.danger[800] : C.n[500], marginTop: 4 }}>
+        {busy ? "Working…" : err ? err : ptInfo.picture ? "Click to change" : "For identification"}
+      </div>
+    </div>
+  );
+}
 
 export default function PatientSettingsView() {
   const {
@@ -94,15 +179,20 @@ export default function PatientSettingsView() {
             </span>
           </div>
           <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16 }}>
-            <div style={piRow}>
-              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
-              <div style={{ flex: "0 0 140px" }}><div style={piLbl}>Date of birth</div><input style={piInp} type="date" value={pI.dob} onChange={(e) => setPi("dob", e.target.value)} /></div>
-              <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => setPi("age", e.target.value)} placeholder="Auto" />{piAge && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
-              <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => setPi("sex", e.target.value)}><option>Male</option><option>Female</option><option>Other</option></select></div>
-            </div>
-            <div style={piRow}>
-              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Ethnicity</div><select style={piSel} value={pI.ethnicity} onChange={(e) => setPi("ethnicity", e.target.value)}>{ethnicities.map((e) => <option key={e}>{e}</option>)}</select></div>
-              <div style={{ flex: "1 1 150px" }}><div style={piLbl}>Religion</div><select style={piSel} value={pI.religion} onChange={(e) => setPi("religion", e.target.value)}>{religions.map((r) => <option key={r}>{r}</option>)}</select></div>
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <PatientPhotoCorner />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={piRow}>
+                  <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
+                  <div style={{ flex: "0 0 140px" }}><div style={piLbl}>Date of birth</div><input style={piInp} type="date" value={pI.dob} onChange={(e) => setPi("dob", e.target.value)} /></div>
+                  <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => setPi("age", e.target.value)} placeholder="Auto" />{piAge && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
+                  <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => setPi("sex", e.target.value)}><option>Male</option><option>Female</option><option>Other</option></select></div>
+                </div>
+                <div style={piRow}>
+                  <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Ethnicity</div><select style={piSel} value={pI.ethnicity} onChange={(e) => setPi("ethnicity", e.target.value)}><option value="">Select ethnicity…</option>{ethnicities.map((e) => <option key={e}>{e}</option>)}</select></div>
+                  <div style={{ flex: "1 1 150px" }}><div style={piLbl}>Religion</div><select style={piSel} value={pI.religion} onChange={(e) => setPi("religion", e.target.value)}>{religions.map((r) => <option key={r}>{r}</option>)}</select></div>
+                </div>
+              </div>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Contact numbers</div>
@@ -136,38 +226,6 @@ export default function PatientSettingsView() {
                 )}
               </div>
               <div style={{ flex: "2 1 300px" }}><div style={piLbl}>Full address</div><input style={piInp} value={pI.fullAddress} onChange={(e) => setPi("fullAddress", e.target.value)} placeholder="House, Road, Area, Upazila..." /></div>
-            </div>
-
-            <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 12, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Picture</div>
-            <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 12 }}>
-              {/* Photo preview */}
-              <div style={{ width: 100, height: 100, borderRadius: 10, border: "1px dashed " + C.n[300], background: C.n[50], display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
-                {pI.picture ? (
-                  <img src={pI.picture} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
-                ) : (
-                  <div style={{ textAlign: "center", color: C.n[500] }}>
-                    <div style={{ fontSize: 24, marginBottom: 2 }}>+</div>
-                    <div style={{ fontSize: 8 }}>Photo</div>
-                  </div>
-                )}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: C.n[600], marginBottom: 6 }}>Upload patient photo for identification</div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <label style={{ padding: "6px 14px", borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[800], fontSize: 11, cursor: "pointer", fontFamily: "inherit", display: "inline-block" }}>
-                    Choose file
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => {
-                      const file = e.target.files && e.target.files[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (ev) => { setPi("picture", ev.target?.result as string); };
-                        reader.readAsDataURL(file);
-                      }
-                    }} />
-                  </label>
-                  {pI.picture && <button onClick={() => setPi("picture", null)} style={{ padding: "6px 14px", borderRadius: 6, border: "0.5px solid " + C.danger[400], background: C.danger[50], color: C.danger[800], fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Remove</button>}
-                </div>
-              </div>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Tags</div>

@@ -2,23 +2,16 @@
 
 import { C, font } from "@/theme";
 import { MuqsitProvider, useMuqsit } from "@/context/MuqsitContext";
-import { useAuth } from "@/context/AuthContext";
-import Providers from "./providers/Providers";
 import type { View } from "@/types";
-import LoginPage from "./layout/LoginPage";
 import DesktopShell from "./layout/DesktopShell";
 import MobileShell from "./layout/MobileShell";
 
 const VIEWS: View[] = ["desktop", "mobile"];
 
+// Auth is enforced by RequireAuth at the route level (app/page.tsx) —
+// this component renders for signed-in users only.
 function MuqsitInner() {
   const { view, setView } = useMuqsit();
-  const { user, ready } = useAuth();
-
-  if (!ready) {
-    return <div style={{ fontFamily: font, color: C.n[500], fontSize: 13, padding: 40, textAlign: "center" }}>Loading…</div>;
-  }
-  if (!user) return <LoginPage />;
 
   return (
     <div style={{ fontFamily: font, color: C.n[900] }}>
@@ -43,10 +36,8 @@ function MuqsitInner() {
 
 export default function Muqsit() {
   return (
-    <Providers>
-      <MuqsitProvider>
-        <MuqsitInner />
-      </MuqsitProvider>
-    </Providers>
+    <MuqsitProvider>
+      <MuqsitInner />
+    </MuqsitProvider>
   );
 }
