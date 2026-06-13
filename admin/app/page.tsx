@@ -4,9 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   adminApi,
   ApiError,
-  clearToken,
-  getToken,
-  setToken,
+  onAuthFailure,
   PROFESSION_LABELS,
   type AuthUser,
   type Registration,
@@ -33,27 +31,30 @@ export default function AdminApp() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
 
+  // Restore the session from the httpOnly cookie. The cookie is sent
+  // automatically; if it's missing/expired, me() 401s and we stay logged out.
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      setReady(true);
-      return;
-    }
     adminApi
       .me()
-      .then((u) => {
-        if (u.role === "admin") setUser(u);
-        else clearToken();
-      })
-      .catch(() => clearToken())
+      .then((u) => setUser(u.role === "admin" ? u : null))
+      .catch(() => setUser(null))
       .finally(() => setReady(true));
   }, []);
+
+  // A failed silent refresh (expired/revoked session — e.g. after an admin
+  // force-logout) drops the user back to the sign-in screen.
+  useEffect(() => onAuthFailure(() => setUser(null)), []);
+
+  const logout = async () => {
+    try { await adminApi.logout(); } catch { /* clear locally regardless */ }
+    setUser(null);
+  };
 
   if (!ready) return null;
 
   if (!user) return <LoginForm onLoggedIn={setUser} />;
 
-  return <Dashboard user={user} onLogout={() => { clearToken(); setUser(null); }} />;
+  return <Dashboard user={user} onLogout={() => void logout()} />;
 }
 
 // ── Login ────────────────────────────────────────────────────
@@ -69,10 +70,11 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
     try {
       const res = await adminApi.login(email.trim(), password);
       if (res.user.role !== "admin") {
+        // Not an admin — don't keep the session cookie around.
+        try { await adminApi.logout(); } catch { /* ignore */ }
         setError("This account is not an administrator.");
         return;
       }
-      setToken(res.accessToken);
       onLoggedIn(res.user);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Login failed. Is the API running?");
@@ -335,6 +337,17 @@ function AccountDetailsModal({ reg, onClose, onDone }: { reg: Registration; onCl
     finally { setBusy(false); }
   };
 
+  const forceLogout = async () => {
+    if (!window.confirm(`Force log out ${reg.name} from all devices? They'll have to sign in again.`)) return;
+    setBusy(true); setError("");
+    try {
+      const { revoked } = await adminApi.revokeSessions(reg.id);
+      window.alert(`Done — revoked ${revoked} active session${revoked === 1 ? "" : "s"}.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to revoke sessions");
+    } finally { setBusy(false); }
+  };
+
   const docs: { label: string; url: string | null }[] = [
     { label: "Profile picture", url: reg.profilePictureUrl },
     { label: "Registration / qualification certificate", url: reg.registrationCertUrl },
@@ -424,6 +437,7 @@ function AccountDetailsModal({ reg, onClose, onDone }: { reg: Registration; onCl
             {reg.approvalStatus !== "rejected" && (
               <button onClick={() => setRejecting(true)} disabled={busy} style={btnDanger}>Reject</button>
             )}
+            <button onClick={forceLogout} disabled={busy} style={{ ...btnGhost, opacity: busy ? 0.7 : 1 }}>Force log out</button>
             <button onClick={moveTier} disabled={busy} style={{ ...btnGhost, marginLeft: "auto", padding: "10px 20px", fontSize: 13 }}>
               Move to {reg.accountTier === "secondary" ? "primary" : "secondary"}
             </button>
