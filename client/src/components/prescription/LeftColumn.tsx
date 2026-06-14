@@ -5,6 +5,7 @@ import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { suggestionDB } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
+import DrugHistoryField from "@/components/prescription/DrugHistoryField";
 
 export default function LeftColumn() {
   const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages } = useMuqsit();
@@ -14,6 +15,16 @@ export default function LeftColumn() {
   return (
     <div>
       {leftFields.map((f) => {
+        if (f.label === "Drug history") {
+          return (
+            <DrugHistoryField
+              key={f.label}
+              items={f.items}
+              setItems={f.set}
+              suggestions={suggestionDB[f.sugKey || f.label] || []}
+            />
+          );
+        }
         if (f.label === "Investigation report findings" || f.label === "On examination") {
           const openFn = f.label === "Investigation report findings" ? () => setShowInvPopup(true) : () => setShowOePopup(true);
           return (
