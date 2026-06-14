@@ -21,7 +21,6 @@ export default function LeftColumn() {
               key={f.label}
               items={f.items}
               setItems={f.set}
-              suggestions={suggestionDB[f.sugKey || f.label] || []}
             />
           );
         }

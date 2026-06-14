@@ -1,73 +1,141 @@
 "use client";
 
 import { useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
-import { C } from "@/theme";
+import { C, font } from "@/theme";
+import { drugDB } from "@/data/drugs";
 
-// Drug history is split into two categories. Items are stored in the single
-// `drugHistory` string[] with a "Current:" / "Past:" prefix so the rest of the
-// app (and the saved prescription) needs no schema change.
+// ── Categories (stored in one drugHistory[] with a prefix) ───
 const CATS = [
   { key: "Current", label: "Current medications" },
   { key: "Past", label: "Distant past medication" },
 ] as const;
 type CatKey = (typeof CATS)[number]["key"];
 
-const prefixOf = (s: string): CatKey => (s.startsWith("Past: ") ? "Past" : "Current");
+interface Row {
+  drug: string;
+  dose: string;
+  duration: string;
+  checked: boolean;
+}
+const emptyRow = (): Row => ({ drug: "", dose: "", duration: "", checked: true });
+
+const prefixOf = (s: string): CatKey => (s.startsWith("Past:") ? "Past" : "Current");
 const stripPrefix = (s: string) => s.replace(/^(Current|Past):\s*/, "");
+
+// "Current: Tab. X — 1+0+1 — 7 days" → Row
+function toRow(stored: string): Row {
+  const [drug = "", dose = "", duration = ""] = stripPrefix(stored).split(" — ");
+  return { drug: drug.trim(), dose: dose.trim(), duration: duration.trim(), checked: true };
+}
+function serialize(cat: CatKey, r: Row): string {
+  const parts = [r.drug.trim(), r.dose.trim(), r.duration.trim()].filter(Boolean);
+  return `${cat}: ${parts.join(" — ")}`;
+}
+
+// ── Dose shorthand: 101 → 1+0+1, 0.500.5 → 1/2+0+1/2 ─────────
+function parseDose(raw: string): string {
+  const s = raw.trim();
+  if (!s || s.includes("+")) return s;
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < s.length) {
+    if (s.slice(i, i + 3) === "0.5") { tokens.push("1/2"); i += 3; }
+    else if (/\d/.test(s[i])) { tokens.push(s[i]); i += 1; }
+    else { i += 1; }
+  }
+  return tokens.length === 3 ? tokens.join("+") : s;
+}
+
+// ── Duration shorthand: 7d → 7 days, c → Continue, 2m → 2 month
+function parseDuration(raw: string): string {
+  const s = raw.trim();
+  if (!s) return s;
+  if (/^c$/i.test(s)) return "Continue";
+  let m: RegExpMatchArray | null;
+  if ((m = s.match(/^(\d+)\s*d$/i))) return `${m[1]} days`;
+  if ((m = s.match(/^(\d+)\s*m$/i))) return `${m[1]} month`;
+  if ((m = s.match(/^(\d+)\s*w$/i))) return `${m[1]} week`;
+  return s;
+}
+
+// ── Medicine form priority: capsule > tablet > syrup > inj > supp
+function formRank(name: string): number {
+  const l = name.toLowerCase();
+  if (l.startsWith("cap")) return 1;
+  if (l.startsWith("tab")) return 2;
+  if (l.startsWith("syp") || l.startsWith("syr")) return 3;
+  if (l.startsWith("inj")) return 4;
+  if (l.startsWith("supp")) return 5;
+  return 6;
+}
+function drugMatches(q: string): string[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return [];
+  return drugDB
+    .filter((d) => d.name.toLowerCase().includes(needle))
+    .sort((a, b) => formRank(a.name) - formRank(b.name) || a.name.localeCompare(b.name))
+    .slice(0, 8)
+    .map((d) => d.name);
+}
 
 interface Props {
   items: string[];
   setItems: Dispatch<SetStateAction<string[]>>;
-  suggestions: string[];
 }
 
-export default function DrugHistoryField({ items, setItems, suggestions }: Props) {
+export default function DrugHistoryField({ items, setItems }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<CatKey>("Current");
-  const [inputVal, setInputVal] = useState("");
-  // Staged per-category lists (committed on Done).
-  const [current, setCurrent] = useState<string[]>([]);
-  const [past, setPast] = useState<string[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [current, setCurrent] = useState<Row[]>([emptyRow()]);
+  const [past, setPast] = useState<Row[]>([emptyRow()]);
+  // Active drug-name autocomplete: which row index is showing a dropdown.
+  const [acRow, setAcRow] = useState<number | null>(null);
+  const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const draft = tab === "Current" ? current : past;
-  const setDraft = tab === "Current" ? setCurrent : setPast;
+  const rows = tab === "Current" ? current : past;
+  const setRows = tab === "Current" ? setCurrent : setPast;
 
   const handleOpen = () => {
-    // Split existing items back into the two categories.
-    setCurrent(items.filter((i) => prefixOf(i) === "Current").map(stripPrefix));
-    setPast(items.filter((i) => prefixOf(i) === "Past").map(stripPrefix));
+    const cur = items.filter((i) => prefixOf(i) === "Current").map(toRow);
+    const pst = items.filter((i) => prefixOf(i) === "Past").map(toRow);
+    setCurrent([...cur, emptyRow()]);
+    setPast([...pst, emptyRow()]);
     setTab("Current");
-    setInputVal("");
+    setAcRow(null);
     setOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  const addToDraft = (text: string) => {
-    const v = text.trim();
-    if (v && !draft.includes(v)) setDraft([...draft, v]);
-    setInputVal("");
-    inputRef.current?.focus();
+  // Keep exactly one trailing empty row.
+  const normalize = (list: Row[]): Row[] => {
+    const filled = list.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim());
+    return [...filled, emptyRow()];
   };
-  const removeFromDraft = (idx: number) => setDraft(draft.filter((_, i) => i !== idx));
 
-  const cancel = () => { setOpen(false); setInputVal(""); };
+  const updateRow = (idx: number, patch: Partial<Row>) => {
+    setRows((prev) => {
+      const next = prev.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+      // If the user just started typing in the last row, append a fresh one.
+      const last = next[next.length - 1];
+      if (last.drug.trim() || last.dose.trim() || last.duration.trim()) next.push(emptyRow());
+      return next;
+    });
+  };
+
+  const removeRow = (idx: number) => setRows((prev) => normalize(prev.filter((_, i) => i !== idx)));
+
+  const cancel = () => { setOpen(false); setAcRow(null); };
   const done = () => {
-    const cur = inputVal.trim() && tab === "Current" && !current.includes(inputVal.trim()) ? [...current, inputVal.trim()] : current;
-    const pst = inputVal.trim() && tab === "Past" && !past.includes(inputVal.trim()) ? [...past, inputVal.trim()] : past;
-    setItems([...cur.map((t) => `Current: ${t}`), ...pst.map((t) => `Past: ${t}`)]);
+    const ser = (cat: CatKey, list: Row[]) =>
+      list.filter((r) => r.drug.trim()).map((r) => serialize(cat, r));
+    setItems([...ser("Current", current), ...ser("Past", past)]);
     setOpen(false);
-    setInputVal("");
+    setAcRow(null);
   };
 
-  const filteredSugs = suggestions
-    .filter((s) => !draft.includes(s))
-    .filter((s) => !inputVal || s.toLowerCase().includes(inputVal.toLowerCase()))
-    .slice(0, 12);
+  const acItems = acRow != null ? drugMatches(rows[acRow]?.drug ?? "") : [];
 
-  // Items shown in the collapsed row (with a tiny C/P badge).
-  const tagStyle: CSSProperties = { fontSize: 11, color: C.n[800], background: C.n[100], padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 };
-  const greenTag: CSSProperties = { fontSize: 11, color: C.pri[600], background: C.pri[50], padding: "4px 10px 4px 12px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6, border: `0.5px solid ${C.pri[100]}` };
+  // ── Styles ──
+  const lineInput: CSSProperties = { border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.n[900], fontFamily: font, padding: "0 2px" };
 
   return (
     <div style={{ marginBottom: 2 }}>
@@ -81,7 +149,7 @@ export default function DrugHistoryField({ items, setItems, suggestions }: Props
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, flex: 1, alignItems: "center", paddingTop: 2 }}>
             {items.map((item, idx) => (
-              <span key={idx} style={tagStyle}>
+              <span key={idx} style={{ fontSize: 11, color: C.n[800], background: C.n[100], padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}>
                 <span style={{ fontSize: 8, fontWeight: 700, color: prefixOf(item) === "Current" ? C.pri[600] : C.warn[800], background: prefixOf(item) === "Current" ? C.pri[50] : C.warn[50], padding: "1px 4px", borderRadius: 3 }}>{prefixOf(item) === "Current" ? "C" : "P"}</span>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripPrefix(item)}</span>
                 <button onClick={(e) => { e.stopPropagation(); setItems(items.filter((_, i) => i !== idx)); }} style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
@@ -95,74 +163,116 @@ export default function DrugHistoryField({ items, setItems, suggestions }: Props
       {/* Modal */}
       {open && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={cancel}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 540, maxWidth: "95vw", maxHeight: "82vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 600, maxWidth: "95vw", maxHeight: "82vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>Drug history</div>
-                <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Add items, then press Done to apply</div>
+                <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Write each medicine on a line · Done to apply</div>
               </div>
               <button onClick={cancel} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", gap: 8, padding: "12px 20px 0" }}>
+            <div style={{ display: "flex", gap: 8, padding: "12px 20px 4px" }}>
               {CATS.map((c) => {
                 const active = tab === c.key;
-                const count = (c.key === "Current" ? current : past).length;
+                const count = (c.key === "Current" ? current : past).filter((r) => r.drug.trim()).length;
                 return (
-                  <button key={c.key} onClick={() => { setTab(c.key); setInputVal(""); setTimeout(() => inputRef.current?.focus(), 30); }}
-                    style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${active ? C.pri[400] : C.n[200]}`, background: active ? C.pri[50] : C.n[0], color: active ? C.pri[600] : C.n[600], fontSize: 12.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                  <button key={c.key} onClick={() => { setTab(c.key); setAcRow(null); }}
+                    style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${active ? C.pri[400] : C.n[200]}`, background: active ? C.pri[50] : C.n[0], color: active ? C.pri[600] : C.n[600], fontSize: 12.5, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: font }}>
                     {c.label}{count > 0 ? ` (${count})` : ""}
                   </button>
                 );
               })}
             </div>
 
-            {/* Body */}
-            <div style={{ padding: "14px 20px", flex: 1, overflowY: "auto" }}>
-              {draft.length > 0 && (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Added ({draft.length})</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {draft.map((item, idx) => (
-                      <span key={idx} style={greenTag}>
-                        {item}
-                        <button onClick={() => removeFromDraft(idx)} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <input ref={inputRef} value={inputVal}
-                  onChange={(e) => setInputVal(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && inputVal.trim()) addToDraft(inputVal); }}
-                  placeholder={`Type ${tab === "Current" ? "current medication" : "past medication"} and press Enter...`}
-                  style={{ flex: 1, padding: "10px 14px", borderRadius: 8, fontSize: 13, border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50], color: C.n[900], fontFamily: "inherit" }} />
-                <button onClick={() => { if (inputVal.trim()) addToDraft(inputVal); }} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>Add</button>
+            {/* Lined pad */}
+            <div style={{ padding: "8px 20px 16px", flex: 1, overflowY: "auto" }}>
+              <div style={{ display: "flex", fontSize: 9, fontWeight: 600, color: C.n[500], textTransform: "uppercase", letterSpacing: "0.04em", padding: "0 0 4px 52px" }}>
+                <div style={{ flex: 1 }}>Medicine (trade name)</div>
+                <div style={{ width: 96 }}>Dose</div>
+                <div style={{ width: 96 }}>Duration</div>
               </div>
 
-              {filteredSugs.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Suggestions</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {filteredSugs.map((s) => (
-                      <button key={s} onClick={() => addToDraft(s)} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 11, cursor: "pointer", border: `0.5px solid ${C.n[200]}`, background: C.n[50], color: C.n[800], fontFamily: "inherit", lineHeight: 1.3 }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; e.currentTarget.style.color = C.pri[600]; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = C.n[50]; e.currentTarget.style.borderColor = C.n[200]; e.currentTarget.style.color = C.n[800]; }}
-                      >{s}</button>
-                    ))}
+              {rows.map((row, idx) => {
+                const isLastEmpty = idx === rows.length - 1 && !row.drug && !row.dose && !row.duration;
+                const started = Boolean(row.drug || row.dose || row.duration);
+                return (
+                  <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, borderBottom: `1px dashed ${C.n[200]}`, padding: "7px 0", minHeight: 34 }}>
+                    {/* Checkbox + serial — appear once the line has content */}
+                    <div style={{ width: 46, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      {started && (
+                        <>
+                          <input type="checkbox" checked={row.checked} onChange={(e) => updateRow(idx, { checked: e.target.checked })} style={{ width: 14, height: 14, accentColor: C.pri[400], cursor: "pointer" }} />
+                          <span style={{ fontSize: 11, color: C.n[500], width: 16, textAlign: "right" }}>{idx + 1}.</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Drug name + autocomplete */}
+                    <div style={{ flex: 1, position: "relative" }}>
+                      <input
+                        ref={(el) => { drugRefs.current[idx] = el; }}
+                        value={row.drug}
+                        onChange={(e) => { updateRow(idx, { drug: e.target.value }); setAcRow(idx); }}
+                        onFocus={() => setAcRow(idx)}
+                        onBlur={() => setTimeout(() => setAcRow((r) => (r === idx ? null : r)), 150)}
+                        placeholder={isLastEmpty ? "Type medicine name…" : ""}
+                        style={{ ...lineInput, width: "100%", opacity: row.checked ? 1 : 0.5 }}
+                      />
+                      {acRow === idx && acItems.length > 0 && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 30, marginTop: 2, maxHeight: 200, overflowY: "auto" }}>
+                          {acItems.map((name) => (
+                            <button
+                              key={name}
+                              onMouseDown={(e) => { e.preventDefault(); updateRow(idx, { drug: name }); setAcRow(null); }}
+                              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", fontSize: 12.5, color: C.n[800], cursor: "pointer", fontFamily: font }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = C.pri[50])}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >{name}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dose (101 → 1+0+1) */}
+                    <input
+                      value={row.dose}
+                      onChange={(e) => updateRow(idx, { dose: e.target.value })}
+                      onBlur={() => updateRow(idx, { dose: parseDose(row.dose) })}
+                      onKeyDown={(e) => { if (e.key === "Enter") updateRow(idx, { dose: parseDose(row.dose) }); }}
+                      placeholder="1+0+1"
+                      style={{ ...lineInput, width: 96, textAlign: "center", opacity: row.checked ? 1 : 0.5 }}
+                    />
+
+                    {/* Duration (7d → 7 days) */}
+                    <input
+                      value={row.duration}
+                      onChange={(e) => updateRow(idx, { duration: e.target.value })}
+                      onBlur={() => updateRow(idx, { duration: parseDuration(row.duration) })}
+                      onKeyDown={(e) => { if (e.key === "Enter") updateRow(idx, { duration: parseDuration(row.duration) }); }}
+                      placeholder="7 days"
+                      style={{ ...lineInput, width: 96, textAlign: "center", opacity: row.checked ? 1 : 0.5 }}
+                    />
+
+                    {/* Remove */}
+                    {started && (
+                      <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.danger[400], cursor: "pointer", fontSize: 15, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })}
+
+              <div style={{ fontSize: 10, color: C.n[500], marginTop: 10, lineHeight: 1.6 }}>
+                Shortcuts — dose: <b>101</b>→1+0+1, <b>0.500.5</b>→1/2+0+1/2 · duration: <b>7d</b>→7 days, <b>2m</b>→2 month, <b>c</b>→Continue
+              </div>
             </div>
 
             {/* Footer */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
-              <button onClick={cancel} style={{ padding: "8px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-              <button onClick={done} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
+              <button onClick={cancel} style={{ padding: "8px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Cancel</button>
+              <button onClick={done} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Done</button>
             </div>
           </div>
         </div>
