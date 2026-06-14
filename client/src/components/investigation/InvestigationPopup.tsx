@@ -243,7 +243,7 @@ export default function InvestigationPopup() {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "calc(100vh - 32px)" : undefined, maxHeight: "calc(100vh - 32px)", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
 
         {/* Left reports pane — half-screen viewer shown once reports are uploaded */}
         {reportImages.length > 0 && showReports && (() => {
