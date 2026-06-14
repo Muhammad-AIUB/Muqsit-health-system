@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C, font } from "@/theme";
-import { drugDB } from "@/data/drugs";
+import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 
 // ── Categories (stored in one drugHistory[] with a prefix) ───
 const CATS = [
@@ -56,26 +56,6 @@ function parseDuration(raw: string): string {
   if ((m = s.match(/^(\d+)\s*m$/i))) return `${m[1]} month`;
   if ((m = s.match(/^(\d+)\s*w$/i))) return `${m[1]} week`;
   return s;
-}
-
-// ── Medicine form priority: capsule > tablet > syrup > inj > supp
-function formRank(name: string): number {
-  const l = name.toLowerCase();
-  if (l.startsWith("cap")) return 1;
-  if (l.startsWith("tab")) return 2;
-  if (l.startsWith("syp") || l.startsWith("syr")) return 3;
-  if (l.startsWith("inj")) return 4;
-  if (l.startsWith("supp")) return 5;
-  return 6;
-}
-function drugMatches(q: string): string[] {
-  const needle = q.trim().toLowerCase();
-  if (!needle) return [];
-  return drugDB
-    .filter((d) => d.name.toLowerCase().includes(needle))
-    .sort((a, b) => formRank(a.name) - formRank(b.name) || a.name.localeCompare(b.name))
-    .slice(0, 8)
-    .map((d) => d.name);
 }
 
 interface Props {
@@ -132,7 +112,7 @@ export default function DrugHistoryField({ items, setItems }: Props) {
     setAcRow(null);
   };
 
-  const acItems = acRow != null ? drugMatches(rows[acRow]?.drug ?? "") : [];
+  const { results: acItems } = useMedicineSearch(acRow != null ? rows[acRow]?.drug ?? "" : "");
 
   // ── Styles ──
   const lineInput: CSSProperties = { border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.n[900], fontFamily: font, padding: "0 2px" };
@@ -223,14 +203,17 @@ export default function DrugHistoryField({ items, setItems }: Props) {
                       />
                       {acRow === idx && acItems.length > 0 && (
                         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 30, marginTop: 2, maxHeight: 200, overflowY: "auto" }}>
-                          {acItems.map((name) => (
+                          {acItems.map((m) => (
                             <button
-                              key={name}
-                              onMouseDown={(e) => { e.preventDefault(); updateRow(idx, { drug: name }); setAcRow(null); }}
-                              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", fontSize: 12.5, color: C.n[800], cursor: "pointer", fontFamily: font }}
+                              key={m.id}
+                              onMouseDown={(e) => { e.preventDefault(); updateRow(idx, { drug: m.brandName }); setAcRow(null); }}
+                              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: font }}
                               onMouseEnter={(e) => (e.currentTarget.style.background = C.pri[50])}
                               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >{name}</button>
+                            >
+                              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.n[900] }}>{m.brandName}</div>
+                              <div style={{ fontSize: 11, color: C.n[500] }}>{[m.genericName, m.strength, m.dosageForm].filter(Boolean).join(" · ")}</div>
+                            </button>
                           ))}
                         </div>
                       )}
