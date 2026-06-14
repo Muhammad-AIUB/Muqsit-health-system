@@ -349,34 +349,32 @@ export default function InvestigationPopup() {
         {/* Main column (form side) */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
+        {/* Header — title + actions (show/hide reports, add images, close) */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 500, color: C.n[900] }}>Investigation report findings</div>
             <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Enter test results — select a category, fill values, and add</div>
           </div>
-          <button onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-        </div>
-
-        {/* Toolbar: show/hide reports (left) + add report images (right) */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[0] }}>
-          {reportImages.length > 0 ? (
-            <button onClick={() => setShowReports((s) => !s)} style={{
-              padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {reportImages.length > 0 && (
+              <button onClick={() => setShowReports((s) => !s)} style={{
+                padding: "7px 12px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
+                border: `1px solid ${showReports ? C.pri[400] : C.n[200]}`,
+                background: showReports ? C.pri[50] : C.n[0], color: showReports ? C.pri[600] : C.n[700],
+              }}>{showReports ? "🙈 Hide reports" : "👁 Show reports"} ({reportImages.length})</button>
+            )}
+            <label style={{
+              padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
               fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
-              border: `1px solid ${showReports ? C.pri[400] : C.n[200]}`,
-              background: showReports ? C.pri[50] : C.n[0], color: showReports ? C.pri[600] : C.n[700],
-            }}>{showReports ? "🙈 Hide reports" : "👁 Show reports"} ({reportImages.length})</button>
-          ) : <span />}
-          <label style={{
-            padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-            fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
-            border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[700],
-          }}>
-            🖼 Add all reports image
-            <input type="file" accept="image/*" multiple style={{ display: "none" }}
-              onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
-          </label>
+              border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[700],
+            }}>
+              🖼 Add all reports image
+              <input type="file" accept="image/*" multiple style={{ display: "none" }}
+                onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
+            </label>
+            <button onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
+          </div>
         </div>
 
         {/* Calendar */}

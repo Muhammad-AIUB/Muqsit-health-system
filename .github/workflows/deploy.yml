@@ -1,0 +1,23 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_KEY }}
+          command_timeout: 10m
+          script: |
+            cd /root/muqsit && git pull origin main
+            cd client && npm install && npm run build && cd ..
+            cd server && npm install && npm run build && cd ..
+            pm2 restart all
