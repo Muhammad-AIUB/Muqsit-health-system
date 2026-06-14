@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 // Row shape returned from the raw `medicines` query.
 export interface MedicineHit {
+  id: string;
   brandName: string;
   genericName: string | null;
   dosageForm: string | null;
@@ -25,7 +26,7 @@ export class MedicinesService {
     const contains = `%${q}%`;
 
     return this.prisma.$queryRaw<MedicineHit[]>`
-      SELECT "brandName", "genericName", "dosageForm", strength, company, "priceRaw"
+      SELECT id, "brandName", "genericName", "dosageForm", strength, company, "priceRaw"
       FROM medicines
       WHERE "brandName" ILIKE ${contains} OR "genericName" ILIKE ${contains}
       ORDER BY

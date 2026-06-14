@@ -288,6 +288,22 @@ export const usersApi = {
     apiFetch<ProfileMe>("/users/me", { method: "PATCH", body: JSON.stringify(input) }),
 };
 
+// ── Medicines search ────────────────────────────────────────
+export interface MedicineHit {
+  id: string;
+  brandName: string;
+  genericName: string | null;
+  dosageForm: string | null;
+  strength: string | null;
+  company: string | null;
+  priceRaw: string | null;
+}
+
+export const medicinesApi = {
+  search: (q: string) =>
+    apiFetch<MedicineHit[]>(`/medicines/search?q=${encodeURIComponent(q)}`),
+};
+
 // ── Prescription print layout ───────────────────────────────
 export interface PrescriptionLayout {
   unit: "in" | "cm";

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
+import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { templateRx, DOSE_OPTIONS, DURATION_OPTIONS, INSTRUCTION_OPTIONS } from "@/data/drugs";
 import { adviceSuggestions, advisedTestSuggestions } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
@@ -29,14 +30,47 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
   } = useMuqsit();
 
-  // Free-text drug entry inside the ℞ box.
+  // Free-text drug entry inside the ℞ box, with API autocomplete.
   const [drugInput, setDrugInput] = useState("");
+  const [acOpen, setAcOpen] = useState(false);
+  const [acIndex, setAcIndex] = useState(0);
+  const acBoxRef = useRef<HTMLDivElement>(null);
+  const { results, isLoading } = useMedicineSearch(drugInput);
+
   const submitDrug = () => {
     const v = drugInput.trim();
     if (!v) return;
     addDrug(v);
     setDrugInput("");
+    setAcOpen(false);
   };
+  const pickMedicine = (m: { brandName: string }) => {
+    addDrug(m.brandName);
+    setDrugInput("");
+    setAcOpen(false);
+  };
+  const onDrugKeyDown = (e: React.KeyboardEvent) => {
+    if (acOpen && results.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setAcIndex((i) => Math.min(results.length - 1, i + 1)); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setAcIndex((i) => Math.max(0, i - 1)); return; }
+      if (e.key === "Enter") { e.preventDefault(); pickMedicine(results[acIndex] ?? results[0]); return; }
+      if (e.key === "Escape") { setAcOpen(false); return; }
+    } else if (e.key === "Enter") {
+      submitDrug();
+    }
+  };
+
+  // Re-open + reset highlight whenever fresh results arrive.
+  useEffect(() => { setAcIndex(0); if (results.length > 0) setAcOpen(true); }, [results]);
+
+  // Close the dropdown on outside click.
+  useEffect(() => {
+    if (!acOpen) return;
+    const onDoc = (e: MouseEvent) => { if (acBoxRef.current && !acBoxRef.current.contains(e.target as Node)) setAcOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [acOpen]);
+
   const addRow = () => setRxItems([...rxItems, { ...BLANK_RX }]);
 
   return (
@@ -46,19 +80,45 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
       </div>
       <div style={{ fontSize: 22, fontWeight: 500, color: C.pri[400], fontStyle: "italic" }}>℞</div>
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* Write a drug directly — adds a row to the table */}
-        <div style={{ display: "flex", gap: 8, padding: mobile ? "8px 10px" : "10px 14px", borderBottom: `0.5px solid ${C.n[200]}` }}>
+        {/* Write a drug directly — adds a row; suggestions come from the API */}
+        <div ref={acBoxRef} style={{ position: "relative", display: "flex", gap: 8, padding: mobile ? "8px 10px" : "10px 14px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <input
             value={drugInput}
-            onChange={(e) => setDrugInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") submitDrug(); }}
+            onChange={(e) => { setDrugInput(e.target.value); setAcOpen(true); }}
+            onFocus={() => { if (results.length > 0) setAcOpen(true); }}
+            onKeyDown={onDrugKeyDown}
             placeholder="Write drug name and press Enter…"
+            autoComplete="off"
             style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.n[900], fontFamily: font }}
           />
           {drugInput.trim() && (
             <button onClick={submitDrug} style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: font }}>
               Add
             </button>
+          )}
+
+          {/* Autocomplete dropdown */}
+          {acOpen && drugInput.trim().length >= 2 && (results.length > 0 || isLoading) && (
+            <div style={{ position: "absolute", top: "100%", left: mobile ? 10 : 14, right: mobile ? 10 : 14, zIndex: 30, marginTop: 2, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 260, overflowY: "auto" }}>
+              {isLoading && results.length === 0 ? (
+                <div style={{ padding: "10px 12px", fontSize: 12, color: C.n[500] }}>Searching…</div>
+              ) : (
+                results.map((m, i) => {
+                  const sub = [m.genericName, m.strength, m.dosageForm].filter(Boolean).join(" · ");
+                  return (
+                    <div
+                      key={m.id ?? i}
+                      onMouseDown={(e) => { e.preventDefault(); pickMedicine(m); }}
+                      onMouseEnter={() => setAcIndex(i)}
+                      style={{ padding: "8px 12px", cursor: "pointer", background: i === acIndex ? C.pri[50] : "transparent", borderBottom: i < results.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>{m.brandName}</div>
+                      {sub && <div style={{ fontSize: 11, color: C.n[500], marginTop: 1 }}>{sub}</div>}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           )}
         </div>
 
