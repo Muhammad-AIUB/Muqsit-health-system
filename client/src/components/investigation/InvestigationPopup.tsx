@@ -241,9 +241,9 @@ export default function InvestigationPopup() {
   const zoomBtn: CSSProperties = { width: 22, height: 22, border: "none", background: "transparent", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: modalWidth, maxWidth: "98vw", height: reportImages.length > 0 && showReports ? "94vh" : undefined, maxHeight: "94vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "calc(100vh - 32px)" : undefined, maxHeight: "calc(100vh - 32px)", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
 
         {/* Left reports pane — half-screen viewer shown once reports are uploaded */}
         {reportImages.length > 0 && showReports && (() => {
@@ -347,7 +347,7 @@ export default function InvestigationPopup() {
         })()}
 
         {/* Main column (form side) */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, minHeight: 0 }}>
 
         {/* Header — title + actions (show/hide reports, add images, close) */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
@@ -474,7 +474,7 @@ export default function InvestigationPopup() {
         </div>
 
         {/* Body */}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
           {/* Category sidebar */}
           <div style={{ width: 160, borderRight: `0.5px solid ${C.n[200]}`, padding: "8px 0", overflowY: "auto", flexShrink: 0 }}>
             {INV_CATS.map((c) => (
