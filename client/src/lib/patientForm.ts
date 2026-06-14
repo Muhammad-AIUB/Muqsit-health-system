@@ -5,6 +5,8 @@ import type { PtInfo } from "@/types";
 export function patientToPtInfo(p: Patient): PtInfo {
   return {
     name: p.name ?? "",
+    hospitalId: p.hospitalId ?? "",
+    bloodGroup: p.bloodGroup ?? "",
     dob: p.dob ? p.dob.slice(0, 10) : "",
     age: p.age != null ? String(p.age) : "",
     sex: p.sex ?? "Male",
@@ -27,6 +29,8 @@ export function ptInfoToInput(pi: PtInfo): PatientInput {
   const ageNum = pi.age ? parseInt(pi.age, 10) : NaN;
   return {
     name: pi.name.trim(),
+    hospitalId: pi.hospitalId.trim() || null,
+    bloodGroup: pi.bloodGroup || null,
     dob: pi.dob || null,
     age: Number.isNaN(ageNum) ? null : ageNum,
     sex: pi.sex || null,

@@ -132,6 +132,8 @@ export interface InvCat {
 
 export interface PtInfo {
   name: string;
+  hospitalId: string;
+  bloodGroup: string;
   dob: string;
   age: string;
   sex: string;
@@ -162,7 +164,6 @@ export interface FamilyMember extends FamilyForm {
 export interface OeData {
   age: string;
   dob: string;
-  bloodGroup: string;
   heightCm: string;
   heightFt: string;
   heightIn: string;

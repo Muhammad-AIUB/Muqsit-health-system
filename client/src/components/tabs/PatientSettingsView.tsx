@@ -184,6 +184,7 @@ export default function PatientSettingsView() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
+                  <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Hospital ID</div><input style={piInp} value={pI.hospitalId} onChange={(e) => setPi("hospitalId", e.target.value)} placeholder="Hospital ID" /></div>
                   <div style={{ flex: "0 0 140px" }}><div style={piLbl}>Date of birth</div><input style={piInp} type="date" value={pI.dob} onChange={(e) => setPi("dob", e.target.value)} /></div>
                   <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => setPi("age", e.target.value)} placeholder="Auto" />{piAge && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
                   <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => setPi("sex", e.target.value)}><option>Male</option><option>Female</option><option>Other</option></select></div>
@@ -191,6 +192,7 @@ export default function PatientSettingsView() {
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Ethnicity</div><select style={piSel} value={pI.ethnicity} onChange={(e) => setPi("ethnicity", e.target.value)}><option value="">Select ethnicity…</option>{ethnicities.map((e) => <option key={e}>{e}</option>)}</select></div>
                   <div style={{ flex: "1 1 150px" }}><div style={piLbl}>Religion</div><select style={piSel} value={pI.religion} onChange={(e) => setPi("religion", e.target.value)}>{religions.map((r) => <option key={r}>{r}</option>)}</select></div>
+                  <div style={{ flex: "0 0 130px" }}><div style={piLbl}>Blood group &amp; Rh</div><select style={piSel} value={pI.bloodGroup} onChange={(e) => setPi("bloodGroup", e.target.value)}><option value="">—</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Other</option></select></div>
                 </div>
               </div>
             </div>

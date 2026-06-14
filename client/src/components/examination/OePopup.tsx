@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import type { OeData } from "@/types";
@@ -11,6 +11,20 @@ export default function OePopup() {
   const oeD = oeData;
   const setOe = (field: keyof OeData, val: string) =>
     setOeData((prev) => Object.assign({}, prev, { [field]: val }));
+
+  // Doctors write BP as "120/80" — typing "/" in systolic moves the rest to
+  // diastolic and jumps the cursor there.
+  const dbpRef = useRef<HTMLInputElement>(null);
+  const onSbpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    const slash = v.indexOf("/");
+    if (slash >= 0) {
+      setOeData((prev) => ({ ...prev, sbp: v.slice(0, slash), dbp: v.slice(slash + 1) }));
+      dbpRef.current?.focus();
+    } else {
+      setOe("sbp", v);
+    }
+  };
 
   // Auto-calculations
   const hCm = parseFloat(oeD.heightCm) || 0;
@@ -25,17 +39,20 @@ export default function OePopup() {
   const calcFt = Math.floor(calcTotalIn / 12);
   const calcIn = Math.round((calcTotalIn - calcFt * 12) * 10) / 10;
   const calcKgFromLb = Math.round(wLb * 0.453592 * 10) / 10;
-  const hM = hCm / 100;
-  const bmi = hM > 0 && wKg > 0 ? Math.round((wKg / (hM * hM)) * 10) / 10 : 0;
+  // Effective height/weight — use the entered unit, or derive it from the other
+  // (ft/in → cm, lb → kg) so BMI & ideal body weight compute either way.
+  const effHCm = hCm > 0 ? hCm : calcCmFromFtIn;
+  const effWKg = wKg > 0 ? wKg : calcKgFromLb;
+  const hM = effHCm / 100;
+  const bmi = hM > 0 && effWKg > 0 ? Math.round((effWKg / (hM * hM)) * 10) / 10 : 0;
   const ibwLow = hM > 0 ? Math.round(19.5 * hM * hM * 10) / 10 : 0;
   const ibwHigh = hM > 0 ? Math.round(25 * hM * hM * 10) / 10 : 0;
   const mapVal = sbp > 0 && dbp > 0 ? Math.round(((sbp + 2 * dbp) / 3) * 10) / 10 : 0;
 
   const saveOeToItems = () => {
     const results: string[] = [];
-    if (oeD.bloodGroup) results.push("Blood group: " + oeD.bloodGroup);
-    if (hCm > 0) results.push("Height: " + hCm + " cm");
-    if (wKg > 0) results.push("Weight: " + wKg + " kg");
+    if (effHCm > 0) results.push("Height: " + effHCm + " cm");
+    if (effWKg > 0) results.push("Weight: " + effWKg + " kg");
     if (bmi > 0) results.push("BMI: " + bmi);
     if (ibwLow > 0) results.push("Ideal BW: " + ibwLow + "-" + ibwHigh + " kg");
     if (sbp > 0) results.push("BP: " + sbp + "/" + dbp + " mmHg");
@@ -76,7 +93,6 @@ export default function OePopup() {
         <div style={{ padding: "16px 20px", flex: 1, overflowY: "auto" }}>
 
           <div style={oeRow}>
-            <div style={{ flex: "1 1 120px" }}><div style={oeLbl}>Blood group & Rh</div><select style={oeSel} value={oeD.bloodGroup} onChange={(e) => setOe("bloodGroup", e.target.value)}><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Other</option></select></div>
           </div>
 
           <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 6, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Anthropometry</div>
@@ -94,8 +110,8 @@ export default function OePopup() {
 
           <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 6, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Vitals</div>
           <div style={oeRow}>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Systolic BP</div><input style={oeInp} value={oeD.sbp} onChange={(e) => setOe("sbp", e.target.value)} placeholder="mmHg" /></div>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Diastolic BP</div><input style={oeInp} value={oeD.dbp} onChange={(e) => setOe("dbp", e.target.value)} placeholder="mmHg" /></div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Systolic BP</div><input style={oeInp} value={oeD.sbp} onChange={onSbpChange} placeholder="120/80" /></div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Diastolic BP</div><input ref={dbpRef} style={oeInp} value={oeD.dbp} onChange={(e) => setOe("dbp", e.target.value)} placeholder="mmHg" /></div>
             <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>MAP (auto)</div><div style={{ padding: "7px 8px", borderRadius: 6, fontSize: 13, fontWeight: 500, background: mapVal > 0 ? C.info[50] : C.n[100], color: mapVal > 0 ? C.info[800] : C.n[500] }}>{mapVal > 0 ? mapVal + " mmHg" : "—"}</div></div>
             <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Pulse (b/m)</div><input style={oeInp} value={oeD.pulse} onChange={(e) => setOe("pulse", e.target.value)} placeholder="b/m" /></div>
             <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Pulse note</div><input style={oeInp} value={oeD.pulseNote} onChange={(e) => setOe("pulseNote", e.target.value)} placeholder="Regular, irregular..." /></div>

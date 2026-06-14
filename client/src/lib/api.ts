@@ -55,6 +55,8 @@ export interface MessageResponse {
 export interface Patient {
   id: string;
   name: string;
+  hospitalId: string | null;
+  bloodGroup: string | null;
   dob: string | null;
   age: number | null;
   sex: string | null;
@@ -77,6 +79,8 @@ export interface Patient {
 
 export interface PatientInput {
   name: string;
+  hospitalId?: string | null;
+  bloodGroup?: string | null;
   dob?: string | null;
   age?: number | null;
   sex?: string | null;
@@ -282,6 +286,35 @@ export const usersApi = {
   me: () => apiFetch<ProfileMe>("/users/me"),
   update: (input: ProfileUpdateInput) =>
     apiFetch<ProfileMe>("/users/me", { method: "PATCH", body: JSON.stringify(input) }),
+};
+
+// ── Prescription print layout ───────────────────────────────
+export interface PrescriptionLayout {
+  unit: "in" | "cm";
+  totalHeight: string;
+  totalWidth: string;
+  leftMargin: string;
+  rightMargin: string;
+  headerHeight: string;
+  footerHeight: string;
+  headerSplit: boolean;
+  headerAlign: "left" | "center" | "right";
+  headerHtml: string;
+  headerLeftHtml: string;
+  headerRightHtml: string;
+  footerHtml: string;
+  bodySplit: string;
+  bodyLeftTopMargin: string;
+  bodyRightTopMargin: string;
+  bodyBottomLine: boolean;
+}
+
+export type PrescriptionLayoutInput = Partial<PrescriptionLayout>;
+
+export const prescriptionLayoutApi = {
+  get: () => apiFetch<PrescriptionLayout>("/prescription-layout"),
+  update: (input: PrescriptionLayoutInput) =>
+    apiFetch<PrescriptionLayout>("/prescription-layout", { method: "PUT", body: JSON.stringify(input) }),
 };
 
 // ── File upload (multipart → Cloudinary) ────────────────────

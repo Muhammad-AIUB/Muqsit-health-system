@@ -8,7 +8,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   const {
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate,
-    ptPhone, setPtPhone,
+    ptPhone, setPtPhone, ptHospitalId, setPtHospitalId,
     monthlyCost, watchPatient, toggleWatch, activeTab, setActiveTab,
   } = useMuqsit();
 
@@ -34,14 +34,15 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             <span style={{ fontSize: 11, fontWeight: 400 }}>৳</span>{monthlyCost > 0 ? monthlyCost.toFixed(1) : "0.0"}
           </div>
         </div>
-        {/* Watch checkbox */}
-        <div style={{ flex: mobile ? "1 1 100%" : "0 0 auto", display: "flex", alignItems: "flex-end", paddingBottom: 4 }}>
-          <label onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${watchPatient ? "#f59e0b" : C.n[200]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap" }}>
+        {/* Watch checkbox + Hospital ID below it */}
+        <div style={{ flex: mobile ? "1 1 100%" : "0 0 190px", display: "flex", flexDirection: "column", gap: 6, justifyContent: "flex-end" }}>
+          <label onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${watchPatient ? "#f59e0b" : C.n[200]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box" }}>
             <span style={{ fontSize: 16, lineHeight: 1 }}>{watchPatient ? "👁️" : "👁"}</span>
             <span style={{ fontSize: 11, fontWeight: watchPatient ? 600 : 400, color: watchPatient ? "#b45309" : C.n[600] }}>Keep eye on this patient</span>
             <input type="checkbox" checked={watchPatient} onChange={() => {}} style={{ display: "none" }} />
-            <span style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
+            <span style={{ marginLeft: "auto", width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
           </label>
+          <div><label style={fieldLabel}>Hospital ID</label><input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={{ ...inputSm, width: "100%", boxSizing: "border-box" }} /></div>
         </div>
 
         <div style={{ flex: mobile ? "1 1 100%" : "0 0 auto", display: "flex", alignItems: "flex-end", gap: 6, paddingBottom: 1 }}>

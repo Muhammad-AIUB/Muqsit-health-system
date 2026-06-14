@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
@@ -14,6 +14,38 @@ export default function InvestigationPopup() {
     investigation, setInvestigation, invImages, setInvImages,
   } = useMuqsit();
 
+  // Index of the report image currently shown in the left-side viewer + its zoom.
+  const [reportIdx, setReportIdx] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [showReports, setShowReports] = useState(true);
+  // Inline edit of an added result (keyed by the result string).
+  const [editItem, setEditItem] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState("");
+  // Manual "tag this image to a result" picker in the report viewer.
+  const [tagOpen, setTagOpen] = useState(false);
+
+  // Drag-to-pan the (zoomed) report image: hold left mouse and move.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const onPanStart = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    dragRef.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+    el.style.cursor = "grabbing";
+    e.preventDefault();
+  };
+  const onPanMove = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    if (!el || !dragRef.current) return;
+    el.scrollLeft = dragRef.current.sl - (e.clientX - dragRef.current.x);
+    el.scrollTop = dragRef.current.st - (e.clientY - dragRef.current.y);
+  };
+  const onPanEnd = () => {
+    dragRef.current = null;
+    if (scrollRef.current) scrollRef.current.style.cursor = "grab";
+  };
+
   // Format date as string for display
   const formatCalDate = (d: Date) => {
     const dd = String(d.getDate()).padStart(2, "0");
@@ -22,10 +54,54 @@ export default function InvestigationPopup() {
     return dd + "/" + mm + "/" + yyyy;
   };
 
+  // Pool entries are "dd/mm/yyyy:Report N:[image attached]" — uploaded images
+  // tagged to the date they were added on, but still shown in the viewer for
+  // every date (a staging pool). Distinguished from real test images by the
+  // "Report N" middle segment. They get re-tagged to a test on data entry.
+  const isPoolEntry = (it: string) => /:Report \d+:\[image attached\]$/.test(it);
+
+  // Bulk-add report images into the pool, tagged to the selected date.
+  const addReportImages = (files: FileList) => {
+    const dateStr = formatCalDate(calDate);
+    const maxIdx = investigation.reduce((mx, it) => {
+      const m = it.match(/:Report (\d+):\[image attached\]$/);
+      return m ? Math.max(mx, parseInt(m[1], 10)) : mx;
+    }, 0);
+    Array.from(files).forEach((file, i) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        const imgKey = dateStr + ":Report " + (maxIdx + i + 1);
+        setInvImages((prev) => Object.assign({}, prev, { [imgKey]: dataUrl }));
+        const entry = imgKey + ":[image attached]";
+        setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Tag the currently-open report image to a test (the date + test name) on
+  // data entry. It's a COPY — the report stays in the pool and the viewer stays
+  // exactly where it is, so several tests can be read off the same report.
+  const tagOpenImage = (testName: string) => {
+    const pool = investigation.filter(isPoolEntry);
+    if (pool.length === 0) return;
+    const idx = Math.min(reportIdx, pool.length - 1);
+    const poolKey = pool[idx].replace(":[image attached]", "");
+    const dataUrl = invImages[poolKey];
+    if (!dataUrl) return;
+    const targetKey = formatCalDate(calDate) + ":" + testName;
+    setInvImages((prev) => ({ ...prev, [targetKey]: dataUrl }));
+    setInvestigation((prev) => {
+      const te = targetKey + ":[image attached]";
+      return prev.indexOf(te) === -1 ? prev.concat([te]) : prev;
+    });
+  };
+
   // Auto-save current form data to the current calDate before changing date
   const autoSaveInvData = () => {
     const dateStr = formatCalDate(calDate);
-    let anyData = false;
+    const savedTests: string[] = [];
     const allTests = INV_CATS.flatMap((c) => c.tests);
     allTests.forEach((test) => {
       const fields = test.fields || [];
@@ -38,7 +114,7 @@ export default function InvestigationPopup() {
         return label + val + unit;
       }).filter(Boolean);
       if (parts.length > 0) {
-        anyData = true;
+        savedTests.push(test.name);
         const result = dateStr + ":" + test.name + ":" + parts.join(",");
         if (!investigation.includes(result)) {
           setInvestigation((prev) => prev.concat([result]));
@@ -51,7 +127,9 @@ export default function InvestigationPopup() {
         });
       }
     });
-    return anyData;
+    // Tag the open report image to each test that was being entered.
+    savedTests.forEach((t) => tagOpenImage(t));
+    return savedTests.length > 0;
   };
 
   const handleInvFieldChange = (testName: string, fLabel: string, value: string) => {
@@ -85,6 +163,8 @@ export default function InvestigationPopup() {
         const key2 = testName + "__" + f.l + "_u2";
         setInvFormData((prev) => { const copy = { ...prev }; delete copy[key]; delete copy[key2]; return copy; });
       });
+      // Tag the currently-open report image (if any) to this test.
+      tagOpenImage(testName);
     }
   };
 
@@ -109,8 +189,10 @@ export default function InvestigationPopup() {
   const daysInMonth = new Date(y, m + 1, 0).getDate();
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  // The 1st always sits in the leftmost column; the weekday headers rotate so
+  // each column still shows the correct day of the week.
+  const rotatedDays = days.slice(firstDay).concat(days.slice(0, firstDay));
   const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
   const shiftMonth = (offset: number) => { handleCalDateChange(new Date(y, m + offset, 1)); };
   const shiftYear = (offset: number) => { handleCalDateChange(new Date(y + offset, m, 1)); };
@@ -119,14 +201,16 @@ export default function InvestigationPopup() {
 
   const navLeft = [
     { l: "-1Y", fn: () => shiftYear(-1), c: C.danger },
-    { l: "-5M", fn: () => shiftMonth(-5), c: C.warn },
+    { l: "-6M", fn: () => shiftMonth(-6), c: C.warn },
     { l: "-3M", fn: () => shiftMonth(-3), c: C.warn },
+    { l: "-2M", fn: () => shiftMonth(-2), c: C.info },
     { l: "-1M", fn: () => shiftMonth(-1), c: C.info },
   ];
   const navRight = [
     { l: "+1M", fn: () => shiftMonth(1), c: C.info },
+    { l: "+2M", fn: () => shiftMonth(2), c: C.info },
     { l: "+3M", fn: () => shiftMonth(3), c: C.warn },
-    { l: "+5M", fn: () => shiftMonth(5), c: C.warn },
+    { l: "+6M", fn: () => shiftMonth(6), c: C.warn },
     { l: "+1Y", fn: () => shiftYear(1), c: C.danger },
   ];
 
@@ -143,10 +227,127 @@ export default function InvestigationPopup() {
     });
   }
 
+  // Uploaded report images (date-independent pool) shown in the left viewer.
+  const reportImages = investigation.filter(isPoolEntry);
+  const repIdx = Math.min(reportIdx, Math.max(0, reportImages.length - 1));
+  // Added (text) results — shown in a right-side panel; the popup widens to fit.
+  const textResults = investigation.filter((it) => it.indexOf("[image attached]") < 0);
+  const modalWidth = (reportImages.length > 0 && showReports ? 1500 : 860) + (textResults.length > 0 ? 320 : 0);
+  const navBtn = (disabled: boolean): CSSProperties => ({
+    padding: "4px 10px", borderRadius: 6, fontSize: 11, fontFamily: "inherit",
+    border: `0.5px solid ${C.n[200]}`, background: C.n[0],
+    color: disabled ? C.n[300] : C.pri[600], cursor: disabled ? "default" : "pointer",
+  });
+  const zoomBtn: CSSProperties = { width: 22, height: 22, border: "none", background: "transparent", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" };
+
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
       onClick={handleCloseInvPopup}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: modalWidth, maxWidth: "98vw", height: reportImages.length > 0 && showReports ? "94vh" : undefined, maxHeight: "94vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden" }}>
+
+        {/* Left reports pane — half-screen viewer shown once reports are uploaded */}
+        {reportImages.length > 0 && showReports && (() => {
+          const entry = reportImages[repIdx];
+          const imgKey = entry.replace(":[image attached]", "");
+          const pm = imgKey.match(/^(.*):Report (\d+)$/);
+          const name = pm ? `Report ${pm[2]} (${pm[1]})` : imgKey;
+          return (
+            <div style={{ width: "38%", flexShrink: 0, borderRight: `0.5px solid ${C.n[200]}`, background: C.n[50], display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: C.n[0] }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>Reports ({reportImages.length})</span>
+                <span style={{ fontSize: 11, color: C.n[500], overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>{name}</span>
+              </div>
+              <div style={{ flex: 1, padding: 14, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <div style={{ flex: 1, position: "relative", borderRadius: 8, overflow: "hidden", border: `0.5px solid ${C.n[200]}`, background: C.n[100], minHeight: 0 }}>
+                  <div
+                    ref={scrollRef}
+                    onMouseDown={onPanStart}
+                    onMouseMove={onPanMove}
+                    onMouseUp={onPanEnd}
+                    onMouseLeave={onPanEnd}
+                    style={{ position: "absolute", inset: 0, overflow: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", cursor: "grab", userSelect: "none" }}
+                  >
+                    {invImages[imgKey] && (
+                      <img src={invImages[imgKey]} alt={name} draggable={false} style={{ width: `${zoom * 100}%`, maxWidth: "none", height: "auto", display: "block", flexShrink: 0, transform: `rotate(${rotation}deg)`, transition: "width 0.12s, transform 0.15s" }} />
+                    )}
+                  </div>
+                  {/* Zoom + rotate controls */}
+                  <div style={{ position: "absolute", top: 8, left: 8, display: "flex", alignItems: "center", gap: 2, background: "rgba(0,0,0,0.6)", borderRadius: 6, padding: 2 }}>
+                    <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} title="Zoom out" style={zoomBtn}>−</button>
+                    <span style={{ fontSize: 10, color: "#fff", minWidth: 36, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
+                    <button onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} title="Zoom in" style={zoomBtn}>+</button>
+                    <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...zoomBtn, fontSize: 12 }}>⤢</button>
+                    <span style={{ width: 1, height: 16, background: "rgba(255,255,255,0.4)" }} />
+                    <button onClick={() => setRotation((r) => (r + 270) % 360)} title="Rotate left" style={zoomBtn}>↺</button>
+                    <button onClick={() => setRotation((r) => (r + 90) % 360)} title="Rotate right" style={zoomBtn}>↻</button>
+                    <a href={invImages[imgKey]} target="_blank" rel="noreferrer" title="Open full image" style={{ ...zoomBtn, textDecoration: "none" }}>⤤</a>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                  <button onClick={() => { setReportIdx(Math.max(0, repIdx - 1)); setZoom(1); setRotation(0); }} disabled={repIdx === 0} style={navBtn(repIdx === 0)}>‹ Previous</button>
+                  <span style={{ fontSize: 12, color: C.n[600] }}>{repIdx + 1} / {reportImages.length}</span>
+                  <button onClick={() => { setReportIdx(Math.min(reportImages.length - 1, repIdx + 1)); setZoom(1); setRotation(0); }} disabled={repIdx === reportImages.length - 1} style={navBtn(repIdx === reportImages.length - 1)}>Next ›</button>
+                </div>
+                <button onClick={() => { setInvestigation(investigation.filter((it) => it !== entry)); setReportIdx(0); setZoom(1); setRotation(0); }} style={{
+                  marginTop: 8, padding: "7px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 11, fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  border: `1px solid ${C.danger[100]}`, background: C.danger[50], color: C.danger[800],
+                }}>🗑 Delete this report</button>
+
+                {/* Tag / Edit — attach this image to any added result */}
+                <button onClick={() => setTagOpen((o) => !o)} style={{
+                  marginTop: 6, padding: "7px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 11, fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  border: `1px solid ${tagOpen ? C.pri[400] : C.info[100]}`, background: tagOpen ? C.pri[50] : C.info[50], color: C.info[800],
+                }}>🏷 Tag / Edit</button>
+                {tagOpen && (
+                  <div style={{ marginTop: 6, border: `0.5px solid ${C.n[200]}`, borderRadius: 8, background: C.n[0], padding: 8, maxHeight: 180, overflowY: "auto" }}>
+                    <div style={{ fontSize: 10, color: C.n[600], marginBottom: 6 }}>Tag this image to a result:</div>
+                    {textResults.length === 0 ? (
+                      <div style={{ fontSize: 11, color: C.n[500] }}>No results yet — add a test result first.</div>
+                    ) : (
+                      textResults.map((r, i) => {
+                        const p = r.split(":");
+                        const targetKey = p.length >= 2 ? `${p[0]}:${p[1]}` : p[0];
+                        const tagged = invImages[targetKey] === invImages[imgKey] && !!invImages[imgKey];
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              const dataUrl = invImages[imgKey];
+                              if (dataUrl) setInvImages((prev) => ({ ...prev, [targetKey]: dataUrl }));
+                              setInvestigation((prev) => {
+                                const te = targetKey + ":[image attached]";
+                                return prev.indexOf(te) === -1 ? prev.concat([te]) : prev;
+                              });
+                              setTagOpen(false);
+                            }}
+                            style={{ display: "block", width: "100%", textAlign: "left", padding: "5px 8px", borderRadius: 5, marginBottom: 3, cursor: "pointer", fontFamily: "inherit", fontSize: 11, border: `0.5px solid ${tagged ? C.pri[400] : C.n[200]}`, background: tagged ? C.pri[50] : C.n[0], color: C.n[800] }}
+                          >
+                            {tagged ? "✓ " : ""}{r}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 6, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
+                  {reportImages.map((e2, i) => {
+                    const k2 = e2.replace(":[image attached]", "");
+                    return (
+                      <button key={i} onClick={() => { setReportIdx(i); setZoom(1); setRotation(0); }} style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 6, overflow: "hidden", border: `2px solid ${i === repIdx ? C.pri[400] : C.n[200]}`, padding: 0, cursor: "pointer", background: C.n[100] }}>
+                        {invImages[k2] && <img src={invImages[k2]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Main column (form side) */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
@@ -157,8 +358,30 @@ export default function InvestigationPopup() {
           <button onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
         </div>
 
+        {/* Toolbar: show/hide reports (left) + add report images (right) */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[0] }}>
+          {reportImages.length > 0 ? (
+            <button onClick={() => setShowReports((s) => !s)} style={{
+              padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+              fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
+              border: `1px solid ${showReports ? C.pri[400] : C.n[200]}`,
+              background: showReports ? C.pri[50] : C.n[0], color: showReports ? C.pri[600] : C.n[700],
+            }}>{showReports ? "🙈 Hide reports" : "👁 Show reports"} ({reportImages.length})</button>
+          ) : <span />}
+          <label style={{
+            padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+            fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
+            border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[700],
+          }}>
+            🖼 Add all reports image
+            <input type="file" accept="image/*" multiple style={{ display: "none" }}
+              onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
+          </label>
+        </div>
+
         {/* Calendar */}
         <div style={{ padding: "6px 20px 5px", borderBottom: "0.5px solid " + C.n[200], background: C.n[0] }}>
+          <div style={{ maxWidth: 620, margin: "0 auto" }}>
           {/* Selected date display */}
           <div style={{ textAlign: "center", marginBottom: 5 }}>
             <span style={{ fontSize: 16, fontWeight: 600, color: C.pri[600], letterSpacing: "0.02em" }}>{String(calDate.getDate()).padStart(2, "0")}</span>
@@ -205,7 +428,7 @@ export default function InvestigationPopup() {
           </div>
           {/* Day headers */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0 }}>
-            {days.map((d) => <div key={d} style={{ textAlign: "center", fontSize: 8, fontWeight: 600, color: C.pri[600], padding: "3px 0", background: C.pri[50], borderRadius: 2 }}>{d}</div>)}
+            {rotatedDays.map((d) => <div key={d} style={{ textAlign: "center", fontSize: 8, fontWeight: 600, color: C.pri[600], padding: "3px 0", background: C.pri[50], borderRadius: 2 }}>{d}</div>)}
             {cells.map((day, i) => {
               const todayMatch = isToday(day);
               const selected = isSel(day);
@@ -219,6 +442,7 @@ export default function InvestigationPopup() {
                   }}>{day || ""}</div>
               );
             })}
+          </div>
           </div>
         </div>
 
@@ -250,26 +474,6 @@ export default function InvestigationPopup() {
             )
           )}
         </div>
-
-        {/* Added results */}
-        {investigation.length > 0 && (
-          <div style={{ padding: "10px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.pri[50], maxHeight: 120, overflowY: "auto" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: C.pri[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Added results ({investigation.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {investigation.map((item, idx) => {
-                const hasImg = item.indexOf("[image attached]") >= 0;
-                const imgKey = hasImg ? item.replace(":[image attached]", "") : null;
-                return (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.pri[600], background: C.n[0], padding: "3px 8px 3px 10px", borderRadius: 4, border: `0.5px solid ${C.pri[100]}`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {hasImg && imgKey && invImages[imgKey] && <img src={invImages[imgKey]} alt="" style={{ width: 20, height: 20, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />}
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "monospace", fontSize: 10 }}>{item}</span>
-                    <button onClick={() => setInvestigation(investigation.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Body */}
         <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
@@ -458,12 +662,67 @@ export default function InvestigationPopup() {
               </div>
             </div>
           </div>
+
+          {/* Added results — right-side panel */}
+          {textResults.length > 0 && (
+            <div style={{ width: 290, flexShrink: 0, borderLeft: `0.5px solid ${C.n[200]}`, background: C.n[0], overflowY: "auto", padding: "12px 14px" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.n[700], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Added results ({textResults.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {textResults.map((item, idx) => {
+                  const parts = item.split(":");
+                  const date = parts[0] || "";
+                  const test = parts.length >= 3 ? parts[1] : "";
+                  const rawValue = parts.length >= 3 ? parts.slice(2).join(":") : parts.slice(1).join(":");
+                  const displayValue = rawValue.replace(/,(?=\S)/g, ", ");
+                  const editing = editItem === item;
+                  const commitEdit = () => {
+                    const v = editVal.trim();
+                    if (v) {
+                      const next = test ? `${date}:${test}:${v}` : `${date}:${v}`;
+                      setInvestigation(investigation.map((x) => (x === item ? next : x)));
+                    }
+                    setEditItem(null);
+                  };
+                  return (
+                    <div key={idx} style={{ background: C.n[0], border: `0.5px solid ${editing ? C.pri[400] : C.n[200]}`, borderRadius: 7, padding: "9px 11px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
+                        <span style={{ fontSize: 12, color: C.n[800] }}>{date}</span>
+                        {!editing && (
+                          <button onClick={() => { setEditItem(item); setEditVal(rawValue); }} style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "2px 9px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>✎ Edit</button>
+                        )}
+                      </div>
+                      {test && <div style={{ fontSize: 13.5, fontWeight: 600, color: C.n[900], marginTop: 1 }}>{test}</div>}
+                      {editing ? (
+                        <div style={{ marginTop: 5 }}>
+                          <input
+                            autoFocus
+                            value={editVal}
+                            onChange={(e) => setEditVal(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditItem(null); }}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: 6, fontSize: 12.5, border: `0.5px solid ${C.n[200]}`, outline: "none", fontFamily: "inherit", color: C.n[900] }}
+                          />
+                          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                            <button onClick={commitEdit} style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Save</button>
+                            <button onClick={() => setEditItem(null)} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                            <button onClick={() => { setInvestigation(investigation.filter((x) => x !== item)); setEditItem(null); }} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.danger[100]}`, background: C.danger[50], color: C.danger[800], fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Delete</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12.5, color: C.n[900], marginTop: 3, lineHeight: 1.45, wordBreak: "break-word" }}>{displayValue}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
           <button onClick={handleCloseInvPopup} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
         </div>
+        </div>{/* /Main column */}
       </div>
     </div>
   );

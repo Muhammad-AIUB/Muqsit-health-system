@@ -98,7 +98,6 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     }
   };
   const removeFromDraft = (idx: number) => setDraft(draft.filter((_, i) => i !== idx));
-  const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
 
   const handleOpen = () => {
     setDraft([...items]); // stage a copy — the real field is untouched until Done
@@ -125,29 +124,30 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
 
   const filteredSugs = getFiltered();
 
-  const tagStyle: CSSProperties = { fontSize: 11, color: C.n[800], background: C.n[100], padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 };
   const greenTag: CSSProperties = { fontSize: 11, color: C.pri[600], background: C.pri[50], padding: "4px 10px 4px 12px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6, border: `0.5px solid ${C.pri[100]}` };
 
   return (
     <div style={{ marginBottom: 2 }}>
-      {/* Collapsed row */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, minHeight: 28 }}>
-        <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], paddingTop: 4, cursor: "pointer" }} onClick={handleOpen}>{label}</span>
-        {items.length === 0 && (
-          <button onClick={handleOpen} style={{ width: 22, height: 22, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0, transition: "all 0.12s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
-        )}
+      {/* Collapsed row: label + add button, then selected items as a bullet list */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 28 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], cursor: "pointer" }} onClick={handleOpen}>{label}</span>
+        <button onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
         {items.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, flex: 1, alignItems: "center", paddingTop: 2 }}>
-            {items.map((item, idx) => (
-              <span key={idx} style={tagStyle}><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item}</span>
-                <button onClick={(e) => { e.stopPropagation(); removeItem(idx); }} style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>×</button></span>
-            ))}
-            <button onClick={handleOpen} style={{ width: 18, height: 18, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>+</button>
-          </div>
+          <button onClick={handleOpen} style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}>✎ Edit</button>
         )}
       </div>
+      {items.length > 0 && (
+        <div style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
+          {items.map((item, idx) => (
+            <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 7, fontSize: 12, color: C.n[800], padding: "1.5px 0" }}>
+              <span style={{ color: C.n[500], lineHeight: 1.45, flexShrink: 0 }}>•</span>
+              <span style={{ flex: 1, lineHeight: 1.45 }}>{item}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* POPUP MODAL */}
       {open && (

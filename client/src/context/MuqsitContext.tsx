@@ -39,13 +39,13 @@ export interface LeftField {
 
 // ── Initial values ──────────────────────────────────────────
 const initialPtInfo: PtInfo = {
-  name: "", dob: "", age: "", sex: "Male", ethnicity: "", religion: "Islam",
+  name: "", hospitalId: "", bloodGroup: "", dob: "", age: "", sex: "Male", ethnicity: "", religion: "Islam",
   mobile: "", spouseMobile: "", relativeMobile: "", relativeRelation: "",
   district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
 };
 
 const initialOeData: OeData = {
-  age: "", dob: "", bloodGroup: "A+",
+  age: "", dob: "",
   heightCm: "", heightFt: "", heightIn: "",
   weightLb: "", weightKg: "",
   sbp: "", dbp: "",
@@ -95,6 +95,7 @@ function useMuqsitStore() {
   const [ptWeight, setPtWeight] = useState("");
   const [ptDate, setPtDate] = useState(() => new Date().toLocaleDateString("en-CA"));
   const [ptPhone, setPtPhone] = useState("");
+  const [ptHospitalId, setPtHospitalId] = useState("");
 
   // Left column fields
   const [chiefComplaints, setChiefComplaints] = useState<StringList>([]);
@@ -185,6 +186,7 @@ function useMuqsitStore() {
       if (!pid) {
         const patient = await patientsApi.create({
           name: ptName.trim() || "Unnamed patient",
+          hospitalId: ptHospitalId || undefined,
           age: ptAge ? Number(ptAge) : undefined,
           sex: ptGender || undefined,
           mobile: ptPhone || undefined,
@@ -271,6 +273,7 @@ function useMuqsitStore() {
     page, setPage, activeTab, setActiveTab, view, setView,
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate, ptPhone, setPtPhone,
+    ptHospitalId, setPtHospitalId,
     chiefComplaints, setChiefComplaints, history, setHistory, investigation, setInvestigation,
     drugHistory, setDrugHistory, onExamination, setOnExamination, note, setNote,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,

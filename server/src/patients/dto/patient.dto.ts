@@ -16,6 +16,8 @@ export class CreatePatientDto {
   @MaxLength(160)
   name!: string;
 
+  @IsOptional() @IsString() hospitalId?: string;
+  @IsOptional() @IsString() bloodGroup?: string;
   @IsOptional() @IsString() dob?: string;
   @IsOptional() @Type(() => Number) @IsInt() age?: number;
   @IsOptional() @IsString() sex?: string;

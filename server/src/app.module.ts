@@ -14,6 +14,7 @@ import { OpdModule } from './opd/opd.module';
 import { IpdModule } from './ipd/ipd.module';
 import { ResearchModule } from './research/research.module';
 import { AssistantsModule } from './assistants/assistants.module';
+import { PrescriptionLayoutModule } from './prescription-layout/prescription-layout.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AssistantsModule } from './assistants/assistants.module';
     IpdModule,
     ResearchModule,
     AssistantsModule,
+    PrescriptionLayoutModule,
   ],
   controllers: [],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
