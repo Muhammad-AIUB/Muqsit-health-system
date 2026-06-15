@@ -341,7 +341,7 @@ export class AuthService {
   }
 
   private publicUser(user: User) {
-    return { id: user.id, email: user.email, name: user.name, role: user.role };
+    return { id: user.id, email: user.email, name: user.name, displayName: user.displayName, role: user.role };
   }
 
   private parseDurationSec(input: string): number {

@@ -48,6 +48,12 @@ export class ChamberInput {
 }
 
 export class UpdateProfileDto {
+  // Editable signature/display name shown on printed prescriptions.
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  displayName?: string;
+
   @IsOptional()
   @IsEmail()
   email?: string;

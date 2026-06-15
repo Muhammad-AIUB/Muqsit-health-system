@@ -11,7 +11,7 @@ const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 export default function OpdView() {
-  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId } = useMuqsit();
+  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId, setPtInfo } = useMuqsit();
   const { data: queue = [], isLoading, error } = useOpdQueue();
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
@@ -98,11 +98,21 @@ export default function OpdView() {
                 <>
                   <button
                     onClick={() => {
+                      const sex = p.gender === "F" ? "Female" : "Male";
+                      const age = p.age != null ? String(p.age) : "";
                       setPtName(p.name);
-                      setPtAge(p.age != null ? String(p.age) : "");
-                      setPtGender(p.gender === "F" ? "Female" : "Male");
+                      setPtAge(age);
+                      setPtGender(sex);
                       if (p.phone) setPtPhone(p.phone);
                       setCurrentPatientId(p.patientId);
+                      // Tie Patient Settings + health monitoring to this patient
+                      // (pre-fill the form from the queue entry instead of blank).
+                      setPtInfo({
+                        name: p.name, hospitalId: "", bloodGroup: "", dob: "", age, sex,
+                        ethnicity: "", religion: "Islam", mobile: p.phone ?? "",
+                        spouseMobile: "", relativeMobile: "", relativeRelation: "",
+                        district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
+                      });
                       setActiveTab("prescription");
                       setRxItems([]);
                       setActiveTemplate(null);

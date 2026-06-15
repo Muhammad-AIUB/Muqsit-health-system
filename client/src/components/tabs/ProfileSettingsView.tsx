@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 // in the draft — they're shown read-only from the original profile and no
 // one (not even an admin) can change them after registration.
 type Draft = {
+  displayName: string;
   email: string;
   mobile: string;
   nidNo: string;
@@ -31,6 +32,7 @@ type Draft = {
 };
 
 const fromProfile = (p: ProfileMe): Draft => ({
+  displayName: p.displayName ?? "",
   email: p.email ?? "",
   mobile: p.mobile ?? "",
   nidNo: p.nidNo ?? "",
@@ -55,6 +57,7 @@ const fromProfile = (p: ProfileMe): Draft => ({
 // race-clobbering a value the user didn't touch.
 const diff = (cur: Draft, orig: Draft): ProfileUpdateInput => {
   const out: ProfileUpdateInput = {};
+  if (cur.displayName !== orig.displayName) out.displayName = cur.displayName;
   if (cur.email !== orig.email) out.email = cur.email;
   if (cur.mobile !== orig.mobile) out.mobile = cur.mobile;
   if (cur.nidNo !== orig.nidNo) out.nidNo = cur.nidNo;
@@ -178,6 +181,15 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
           <div style={{ flex: 1 }}>
             <Label>Name</Label>
             <input value={profile.name} disabled style={{ ...field, opacity: 0.7, cursor: "not-allowed" }} />
+            <div style={{ marginTop: 10 }}>
+              <Label>Display name <span style={{ color: C.n[500] }}>(used as the signature on printed prescriptions)</span></Label>
+              <input
+                value={draft.displayName}
+                onChange={(e) => set("displayName", e.target.value)}
+                placeholder={profile.name}
+                style={field}
+              />
+            </div>
           </div>
         </div>
       </Card>

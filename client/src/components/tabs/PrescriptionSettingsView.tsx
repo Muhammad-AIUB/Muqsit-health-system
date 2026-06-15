@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
+import { getRxType, setRxType, getOpdLayout, setOpdLayout, type RxType, type OpdLayout } from "@/lib/rxPrivacy";
 
 // Mirrors the "Print Layout Configuration → Prescription pad" wizard:
 // a 5-step header, a live page preview with margin labels, page-type cards
@@ -36,6 +37,12 @@ const INITIAL: PageForm = {
 };
 
 export default function PrescriptionSettingsView({ onBack }: { onBack: () => void }) {
+  // The page opens on a chooser (OPD / IPD / Customize). Picking a type opens
+  // the layout wizard below; OPD additionally masks the patient's identity on
+  // the printed prescription.
+  const [mode, setMode] = useState<RxType | null>(null);
+  // OPD only: print one full page, or that page + a masked privacy page.
+  const [opdLayout, setOpdLayoutState] = useState<OpdLayout>("single");
   const [step, setStep] = useState<StepId>("page");
   const [form, setForm] = useState<PageForm>(INITIAL);
   const [unit, setUnit] = useState<"in" | "cm">("in");
@@ -147,12 +154,34 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
     }
   };
 
+  // Choosing a type also makes it the active prescription type for printing.
+  const choose = (t: RxType) => {
+    setRxType(t);
+    if (t === "opd") setOpdLayoutState(getOpdLayout());
+    setMode(t);
+  };
+
+  const pickOpdLayout = (l: OpdLayout) => {
+    setOpdLayout(l);
+    setOpdLayoutState(l);
+  };
+
+  // ── Landing chooser: OPD / IPD / Customize ──
+  if (mode === null) {
+    return <TypeChooser onBack={onBack} active={getRxType()} onChoose={choose} />;
+  }
+
+  const isOpd = mode === "opd";
+
   return (
     <div style={{ fontFamily: font, maxWidth: 980 }}>
       {/* ── Top bar ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <button onClick={onBack} style={btnBack}>← Back</button>
+        <button onClick={() => setMode(null)} style={btnBack}>← Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
+        <span style={{ fontSize: 11, fontWeight: 600, color: isOpd ? C.pri[800] : C.info[800], background: isOpd ? C.pri[50] : C.info[50], borderRadius: 6, padding: "4px 10px" }}>
+          {isOpd ? "OPD · patient privacy on" : "IPD · full details"}
+        </span>
         <span style={{ fontSize: 12, color: C.n[600], borderLeft: `1px solid ${C.n[200]}`, paddingLeft: 12 }}>
           Print Layout Configuration
         </span>
@@ -160,6 +189,26 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
           Prescription pad <span style={{ color: C.n[500] }}>▾</span>
         </span>
       </div>
+
+      {/* ── OPD print options (single page vs extra privacy page) ── */}
+      {isOpd && (
+        <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+          <OpdOption
+            active={opdLayout === "single"}
+            onClick={() => pickOpdLayout("single")}
+            icon="📄"
+            title="Full prescription in a single page"
+            desc="Print one page with the patient's real name and full details."
+          />
+          <OpdOption
+            active={opdLayout === "extra"}
+            onClick={() => pickOpdLayout("extra")}
+            icon="📄+🔒"
+            title="Print an extra page for patient privacy"
+            desc="Page 1 is the full prescription; page 2 repeats it with the name & mobile masked and the clinical details hidden."
+          />
+        </div>
+      )}
 
       {/* ── Step wizard ── */}
       <div style={{ display: "flex", marginBottom: 18, border: `1px solid ${C.n[200]}`, borderRadius: 10, overflow: "hidden" }}>
@@ -329,6 +378,144 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
             Next <span style={{ marginLeft: 4 }}>›</span>
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── OPD print option (radio-style card) ─────────────────────
+function OpdOption({
+  active,
+  onClick,
+  icon,
+  title,
+  desc,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: string;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        flex: "1 1 280px",
+        display: "flex",
+        gap: 11,
+        background: active ? C.pri[50] : C.n[0],
+        border: `1px solid ${active ? C.pri[400] : C.n[200]}`,
+        borderRadius: 10,
+        padding: "13px 15px",
+        cursor: "pointer",
+      }}
+    >
+      <span
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: "50%",
+          border: `2px solid ${active ? C.pri[400] : C.n[300]}`,
+          background: active ? C.pri[400] : C.n[0],
+          boxShadow: active ? `inset 0 0 0 2.5px ${C.n[0]}` : "none",
+          flexShrink: 0,
+          marginTop: 2,
+        }}
+      />
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>
+          <span style={{ marginRight: 6 }}>{icon}</span>{title}
+        </div>
+        <div style={{ fontSize: 11, color: C.n[600], marginTop: 3, lineHeight: 1.5 }}>{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Landing chooser (OPD / IPD / Customize) ─────────────────
+function TypeChooser({
+  onBack,
+  active,
+  onChoose,
+}: {
+  onBack: () => void;
+  active: RxType;
+  onChoose: (t: RxType) => void;
+}) {
+  const card = (opts: {
+    type?: RxType;
+    icon: string;
+    title: string;
+    desc: string;
+    note?: string;
+    disabled?: boolean;
+  }) => {
+    const isActive = opts.type === active;
+    return (
+      <div
+        onClick={opts.disabled || !opts.type ? undefined : () => onChoose(opts.type!)}
+        style={{
+          flex: "1 1 240px",
+          background: C.n[0],
+          border: `1px solid ${isActive ? C.pri[400] : C.n[200]}`,
+          borderRadius: 12,
+          padding: 18,
+          cursor: opts.disabled ? "not-allowed" : "pointer",
+          opacity: opts.disabled ? 0.6 : 1,
+          position: "relative",
+          boxShadow: isActive ? `0 0 0 3px ${C.pri[50]}` : "none",
+        }}
+      >
+        {isActive && (
+          <span style={{ position: "absolute", top: 12, right: 12, fontSize: 10, fontWeight: 600, color: C.pri[800], background: C.pri[50], borderRadius: 5, padding: "2px 8px" }}>
+            Active
+          </span>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 9, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{opts.icon}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>{opts.title}</div>
+        </div>
+        <div style={{ fontSize: 12, color: C.n[600], lineHeight: 1.5 }}>{opts.desc}</div>
+        {opts.note && (
+          <div style={{ marginTop: 10, fontSize: 11, color: opts.disabled ? C.n[500] : C.pri[800], background: opts.disabled ? C.n[100] : C.pri[50], borderRadius: 6, padding: "6px 9px" }}>
+            {opts.note}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ fontFamily: font, maxWidth: 900 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+        <button onClick={onBack} style={btnBack}>← Back</button>
+        <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
+      </div>
+      <div style={{ fontSize: 12, color: C.n[600], marginBottom: 18 }}>
+        Choose the prescription type to set up. This becomes the active type used when you print.
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {card({
+          type: "opd",
+          icon: "🩺",
+          title: "OPD prescription",
+          desc: "Outdoor / consultation prescription with the standard layout.",
+        })}
+        {card({
+          type: "ipd",
+          icon: "🛏️",
+          title: "IPD prescription",
+          desc: "In-patient prescription with the full layout and complete patient details.",
+        })}
+        {card({
+          icon: "🛠️",
+          title: "Customize prescription",
+          desc: "Build a fully custom prescription layout from scratch.",
+          note: "This feature is not available at this time.",
+          disabled: true,
+        })}
       </div>
     </div>
   );

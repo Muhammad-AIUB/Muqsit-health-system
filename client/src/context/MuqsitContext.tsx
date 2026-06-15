@@ -99,6 +99,7 @@ function useMuqsitStore() {
 
   // Left column fields
   const [chiefComplaints, setChiefComplaints] = useState<StringList>([]);
+  const [previousComplaints, setPreviousComplaints] = useState<StringList>([]);
   const [history, setHistory] = useState<StringList>([]);
   const [investigation, setInvestigation] = useState<StringList>([]);
   const [drugHistory, setDrugHistory] = useState<StringList>([]);
@@ -199,13 +200,23 @@ function useMuqsitStore() {
 
       await prescriptionsApi.create({
         patientId: pid,
-        chiefComplaints, history, investigation, drugHistory, onExamination,
+        chiefComplaints, previousComplaints, history, investigation, drugHistory, onExamination,
         note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
         advice, adviceTest,
         followUpNum: followUpNum || undefined,
         followUpUnit: followUpUnit || undefined,
         followUpMandatory,
-        items: rxItems.map((r, i) => ({ ...r, order: i })),
+        // Tapering lines carry an empty drug (they belong to the line above) —
+        // fill the name back in so each saved item is self-contained.
+        items: (() => {
+          let lastDrug = "";
+          return rxItems.map((r, i) => {
+            // Notes are free text — they don't carry a drug name forward.
+            if (r.isNote) return { ...r, order: i };
+            if (r.drug.trim()) lastDrug = r.drug.trim();
+            return { ...r, drug: r.drug.trim() || lastDrug, order: i };
+          });
+        })(),
       });
       setSavedMsg("Prescription saved!");
     } catch (e) {
@@ -259,6 +270,7 @@ function useMuqsitStore() {
 
   const leftFields: LeftField[] = [
     { label: "Chief complaints", items: chiefComplaints, set: setChiefComplaints },
+    { label: "Previous complaints", items: previousComplaints, set: setPreviousComplaints },
     { label: "History", items: history, set: setHistory },
     { label: "Investigation report findings", items: investigation, set: setInvestigation, sugKey: "Investigation report findings" },
     { label: "Drug history", items: drugHistory, set: setDrugHistory },
@@ -274,7 +286,8 @@ function useMuqsitStore() {
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate, ptPhone, setPtPhone,
     ptHospitalId, setPtHospitalId,
-    chiefComplaints, setChiefComplaints, history, setHistory, investigation, setInvestigation,
+    chiefComplaints, setChiefComplaints, previousComplaints, setPreviousComplaints,
+    history, setHistory, investigation, setInvestigation,
     drugHistory, setDrugHistory, onExamination, setOnExamination, note, setNote,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,

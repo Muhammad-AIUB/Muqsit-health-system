@@ -17,6 +17,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  displayName?: string | null;
   role: string;
 }
 
@@ -248,6 +249,7 @@ export interface ProfileMe {
   id: string;
   email: string;
   name: string;
+  displayName: string | null;
   role: string;
   mobile: string | null;
   profession: string | null;
@@ -270,6 +272,7 @@ export interface ProfileMe {
 export interface ProfileUpdateInput {
   // Note: registrationNo and registrationCertUrl are NOT here — BMDC details
   // are admin-managed (the server's UpdateProfileDto also rejects them).
+  displayName?: string;
   email?: string;
   mobile?: string;
   nidNo?: string;
@@ -379,11 +382,13 @@ export interface RxItemInput {
   duration: string;
   instruction: string;
   order?: number;
+  isNote?: boolean;
 }
 
 export interface PrescriptionInput {
   patientId: string;
   chiefComplaints?: string[];
+  previousComplaints?: string[];
   history?: string[];
   investigation?: string[];
   drugHistory?: string[];

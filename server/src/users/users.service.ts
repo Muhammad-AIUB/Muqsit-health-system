@@ -91,6 +91,7 @@ export class UsersService {
     // BMDC (registrationNo / registrationCertUrl) is deliberately not copied
     // here even if a hostile client tried to send it — those are admin-only.
     const data: Prisma.UserUpdateInput = {};
+    if (dto.displayName !== undefined) data.displayName = dto.displayName || null;
     if (dto.email !== undefined) data.email = dto.email;
     if (dto.mobile !== undefined) data.mobile = dto.mobile;
     if (dto.nidNo !== undefined) data.nidNo = dto.nidNo;

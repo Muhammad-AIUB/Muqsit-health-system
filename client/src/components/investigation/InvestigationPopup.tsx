@@ -614,6 +614,7 @@ export default function InvestigationPopup() {
                 {/* Previous entries for this test */}
                 {(() => {
                   const prevEntries = investigation.filter((item) => {
+                    if (item.indexOf("[image attached]") >= 0) return false; // skip image markers
                     const colonIdx = item.indexOf(":");
                     if (colonIdx < 0) return false;
                     const afterDate = item.substring(colonIdx + 1);

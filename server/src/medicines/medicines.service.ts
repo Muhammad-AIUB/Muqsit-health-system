@@ -35,13 +35,23 @@ export class MedicinesService {
       FROM medicines
       WHERE "brandName" ILIKE ${contains} OR "genericName" ILIKE ${contains}
       ORDER BY
+        -- 1) relevance: brand prefix > brand contains > generic
         CASE
           WHEN "brandName" ILIKE ${prefix} THEN 0
           WHEN "brandName" ILIKE ${contains} THEN 1
           WHEN "genericName" ILIKE ${prefix} THEN 2
           ELSE 3
         END,
-        "brandName"
+        -- 2) dosage form: capsule > tablet > syrup > suppository > other
+        CASE
+          WHEN "dosageForm" ILIKE 'cap%' THEN 0
+          WHEN "dosageForm" ILIKE 'tab%' THEN 1
+          WHEN "dosageForm" ILIKE 'syp%' OR "dosageForm" ILIKE 'syr%' THEN 2
+          WHEN "dosageForm" ILIKE 'supp%' THEN 3
+          ELSE 4
+        END,
+        "brandName",
+        "strength"
       LIMIT 10
     `;
   }

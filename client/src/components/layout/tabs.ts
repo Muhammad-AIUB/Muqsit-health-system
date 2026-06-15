@@ -57,7 +57,7 @@ export const tabFromPath = (pathname: string): TabId | null => {
 // Sections inside the Settings tab that have their own URL under
 // /settings/<slug>. Used by the app/settings/[section] route to
 // validate deep links and by SettingsView for shallow navigation.
-export const SETTINGS_SECTION_SLUGS = new Set<string>(["assistants", "profile", "prescription-settings"]);
+export const SETTINGS_SECTION_SLUGS = new Set<string>(["assistants", "profile", "prescription-settings", "prescription-templates"]);
 
 // Tabs that display the patient header above their content.
 export const HEADER_TABS: TabId[] = ["prescription", "pt-settings", "idsp"];

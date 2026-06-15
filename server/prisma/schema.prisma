@@ -15,6 +15,7 @@ model User {
   email        String @unique
   passwordHash String
   name         String
+  displayName  String? // editable signature/display name (falls back to name)
 
   // role: "admin" for back-office users, "professional" for healthcare sign-ups.
   role String @default("professional")

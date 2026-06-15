@@ -15,6 +15,9 @@ export interface RxItem {
   dose: string;
   duration: string;
   instruction: string;
+  // A free-typed instruction line the doctor wrote between medicines
+  // (e.g. "Take rest for 2 weeks"). Carried through to the printed sheet.
+  isNote?: boolean;
 }
 
 export interface OpdPatient {
