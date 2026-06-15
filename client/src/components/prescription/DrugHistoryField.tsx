@@ -115,7 +115,7 @@ export default function DrugHistoryField({ items, setItems }: Props) {
   const { results: acItems } = useMedicineSearch(acRow != null ? rows[acRow]?.drug ?? "" : "");
 
   // ── Styles ──
-  const lineInput: CSSProperties = { border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.n[900], fontFamily: font, padding: "0 2px" };
+  const lineInput: CSSProperties = { border: `1px solid ${C.n[200]}`, outline: "none", background: C.n[0], fontSize: 13, color: C.n[900], fontFamily: font, padding: "8px 10px", borderRadius: 7, boxSizing: "border-box" };
 
   return (
     <div style={{ marginBottom: 2 }}>
@@ -143,7 +143,7 @@ export default function DrugHistoryField({ items, setItems }: Props) {
       {/* Modal */}
       {open && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={cancel}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 600, maxWidth: "95vw", maxHeight: "82vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 600, maxWidth: "95vw", height: "82vh", maxHeight: "82vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
               <div>
@@ -179,7 +179,7 @@ export default function DrugHistoryField({ items, setItems }: Props) {
                 const isLastEmpty = idx === rows.length - 1 && !row.drug && !row.dose && !row.duration;
                 const started = Boolean(row.drug || row.dose || row.duration);
                 return (
-                  <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, borderBottom: `1px dashed ${C.n[200]}`, padding: "7px 0", minHeight: 34 }}>
+                  <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "5px 0", minHeight: 34, zIndex: acRow === idx ? 5 : undefined }}>
                     {/* Checkbox + serial — appear once the line has content */}
                     <div style={{ width: 46, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                       {started && (
@@ -202,14 +202,14 @@ export default function DrugHistoryField({ items, setItems }: Props) {
                         style={{ ...lineInput, width: "100%", opacity: row.checked ? 1 : 0.5 }}
                       />
                       {acRow === idx && acItems.length > 0 && (
-                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 30, marginTop: 2, maxHeight: 200, overflowY: "auto" }}>
-                          {acItems.map((m) => (
+                        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: "auto", minWidth: 320, maxWidth: 420, background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: 220, overflowY: "auto" }}>
+                          {acItems.map((m, mi) => (
                             <button
                               key={m.id}
                               onMouseDown={(e) => { e.preventDefault(); updateRow(idx, { drug: m.brandName }); setAcRow(null); }}
-                              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: font }}
+                              style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", border: "none", borderTop: mi === 0 ? "none" : `0.5px solid ${C.n[100]}`, background: C.n[0], cursor: "pointer", fontFamily: font }}
                               onMouseEnter={(e) => (e.currentTarget.style.background = C.pri[50])}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = C.n[0])}
                             >
                               <div style={{ fontSize: 12.5, fontWeight: 600, color: C.n[900] }}>{m.brandName}</div>
                               <div style={{ fontSize: 11, color: C.n[500] }}>{[m.genericName, m.strength, m.dosageForm].filter(Boolean).join(" · ")}</div>
