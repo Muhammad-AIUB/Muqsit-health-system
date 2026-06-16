@@ -126,6 +126,9 @@ export interface InvField {
 export interface InvTest {
   name: string;
   fields: InvField[];
+  // Optional id of a built-in score calculator (see lib/calculators registry).
+  // When set, the investigation popup renders that calculator for this test.
+  calc?: string;
 }
 
 export interface InvCat {
@@ -199,4 +202,5 @@ export type TabId =
   | "research"
   | "settings"
   | "pt-settings"
-  | "idsp";
+  | "idsp"
+  | "pt-records";

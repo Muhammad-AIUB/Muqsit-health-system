@@ -43,10 +43,14 @@ export class PatientsService {
 
   async update(doctorId: string, id: string, dto: UpdatePatientDto): Promise<Patient> {
     await this.get(doctorId, id); // ownership check
-    const { dob, ...rest } = dto;
+    const { dob, hmDrugDates, ...rest } = dto;
     return this.prisma.patient.update({
       where: { id },
-      data: { ...rest, ...(dob !== undefined ? { dob: dob ? new Date(dob) : null } : {}) },
+      data: {
+        ...rest,
+        ...(dob !== undefined ? { dob: dob ? new Date(dob) : null } : {}),
+        ...(hmDrugDates !== undefined ? { hmDrugDates: hmDrugDates as Prisma.InputJsonValue } : {}),
+      },
     });
   }
 

@@ -36,17 +36,11 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             <span style={{ fontSize: 11, fontWeight: 400 }}>৳</span>{monthlyCost > 0 ? monthlyCost.toFixed(1) : "0.0"}
           </div>
         </div>
-        {/* Watch checkbox + Hospital ID below it */}
-        <div style={{ flex: mobile ? "1 1 100%" : "0 0 190px", display: "flex", flexDirection: "column", gap: 6, justifyContent: "flex-end" }}>
-          <label onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${watchPatient ? "#f59e0b" : C.n[200]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box" }}>
-            <span style={{ fontSize: 16, lineHeight: 1 }}>{watchPatient ? "👁️" : "👁"}</span>
-            <span style={{ fontSize: 11, fontWeight: watchPatient ? 600 : 400, color: watchPatient ? "#b45309" : C.n[600] }}>Keep eye on this patient</span>
-            <input type="checkbox" checked={watchPatient} onChange={() => {}} style={{ display: "none" }} />
-            <span style={{ marginLeft: "auto", width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
-          </label>
-          <div><label style={fieldLabel}>Hospital ID</label><input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={{ ...inputSm, width: "100%", boxSizing: "border-box" }} /></div>
+        {/* Hospital ID — a normal inline field, in line with the others */}
+        <div style={{ flex: mobile ? "1 1 45%" : "0 0 140px" }}>
+          <label style={fieldLabel}>Hospital ID</label>
+          <input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={{ ...inputSm, width: "100%", boxSizing: "border-box" }} />
         </div>
-
         <div style={{ flex: mobile ? "1 1 100%" : "0 0 auto", display: "flex", alignItems: "flex-end", gap: 6, paddingBottom: 1 }}>
           <button onClick={() => setActiveTab("pt-settings")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "pt-settings" ? C.info[400] : C.n[200]}`, background: activeTab === "pt-settings" ? C.info[50] : C.n[0], color: activeTab === "pt-settings" ? C.info[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
             <span style={{ fontSize: 13 }}>⊕</span> Patient Settings
@@ -54,6 +48,17 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           <button onClick={() => setActiveTab("idsp")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "idsp" ? C.warn[400] : C.n[200]}`, background: activeTab === "idsp" ? C.warn[50] : C.n[0], color: activeTab === "idsp" ? C.warn[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
             <span style={{ fontSize: 13 }}>◎</span> Integrated health monitoring and overview
           </button>
+          {/* Patient's prescriptions & reports overview */}
+          <button onClick={() => setActiveTab("pt-records")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "pt-records" ? C.info[400] : C.n[200]}`, background: activeTab === "pt-records" ? C.info[50] : C.n[0], color: activeTab === "pt-records" ? C.info[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
+            <span style={{ fontSize: 13 }}>🗂</span> Patient&apos;s Prescriptions and reports
+          </button>
+          {/* Keep-eye toggle — third, after the two buttons */}
+          <label onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${watchPatient ? "#f59e0b" : C.n[200]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box" }}>
+            <span style={{ fontSize: 16, lineHeight: 1 }}>{watchPatient ? "👁️" : "👁"}</span>
+            <span style={{ fontSize: 11, fontWeight: watchPatient ? 600 : 400, color: watchPatient ? "#b45309" : C.n[600] }}>Keep eye on this patient</span>
+            <input type="checkbox" checked={watchPatient} onChange={() => {}} style={{ display: "none" }} />
+            <span style={{ marginLeft: 4, width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
+          </label>
         </div>
       </div>
     </div>

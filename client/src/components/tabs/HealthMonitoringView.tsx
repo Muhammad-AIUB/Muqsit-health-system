@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { prescriptionsApi } from "@/lib/api";
-import { cellToDate, loadHmDates, normaliseDateCell, saveHmDates, type DrugDateMap } from "@/lib/hmDates";
+import { patientsApi, prescriptionsApi } from "@/lib/api";
+import { cellToDate, normaliseDateCell, type DrugDateMap } from "@/lib/hmDates";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dedupe = (xs: string[]) => Array.from(new Set(xs.map((x) => x.trim()).filter(Boolean)));
@@ -35,9 +35,21 @@ export default function HealthMonitoringView() {
   const allSymptoms = useMemo(() => dedupe((prescriptions ?? []).flatMap((p) => p.chiefComplaints ?? [])), [prescriptions]);
   const allTests = useMemo(() => dedupe((prescriptions ?? []).flatMap((p) => p.adviceTest ?? [])), [prescriptions]);
 
-  // ── Per-drug Start-from / Upto dates (persisted per patient) ──
-  const [dates, setDates] = useState<DrugDateMap>(() => loadHmDates(currentPatientId));
-  useEffect(() => { setDates(loadHmDates(currentPatientId)); }, [currentPatientId]);
+  // ── Per-drug Start-from / Upto dates (persisted on the patient record) ──
+  const qc = useQueryClient();
+  const { data: patient } = useQuery({
+    queryKey: ["patient", currentPatientId],
+    queryFn: () => patientsApi.get(currentPatientId as string),
+    enabled: Boolean(currentPatientId),
+  });
+  const saveDates = useMutation({
+    mutationFn: (map: DrugDateMap) => patientsApi.update(currentPatientId as string, { hmDrugDates: map }),
+    onSuccess: (updated) => qc.setQueryData(["patient", currentPatientId], updated),
+  });
+
+  const [dates, setDates] = useState<DrugDateMap>({});
+  // Seed from the patient record whenever a different patient loads.
+  useEffect(() => { setDates((patient?.hmDrugDates as DrugDateMap) ?? {}); }, [patient?.id, currentPatientId]);
 
   const cellOf = (name: string) => dates[name] ?? { sf: "", upto: "" };
   const setCell = (name: string, field: "sf" | "upto", value: string) =>
@@ -46,7 +58,7 @@ export default function HealthMonitoringView() {
     setDates((prev) => {
       const cell = prev[name] ?? { sf: "", upto: "" };
       const next = { ...prev, [name]: { ...cell, [field]: normaliseDateCell(cell[field]) } };
-      saveHmDates(currentPatientId, next);
+      if (currentPatientId) saveDates.mutate(next);
       return next;
     });
 

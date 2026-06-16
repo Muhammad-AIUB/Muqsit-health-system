@@ -3,6 +3,10 @@ import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validato
 // Upsert the doctor's prescription print layout. Every field is optional so
 // the client can send a partial update; the service merges over current/defaults.
 export class UpsertPrescriptionLayoutDto {
+  // Active prescription type + OPD print layout (Prescription settings chooser).
+  @IsOptional() @IsIn(['opd', 'ipd']) rxType?: 'opd' | 'ipd';
+  @IsOptional() @IsIn(['single', 'extra']) opdLayout?: 'single' | 'extra';
+
   @IsOptional() @IsIn(['in', 'cm']) unit?: 'in' | 'cm';
 
   @IsOptional() @IsString() @MaxLength(16) totalHeight?: string;

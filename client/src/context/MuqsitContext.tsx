@@ -130,6 +130,11 @@ function useMuqsitStore() {
   const [invSearch, setInvSearch] = useState("");
   const [invImages, setInvImages] = useState<Record<string, string>>({});
 
+  // "Patient records" view galleries — uploaded prescription and report image
+  // URLs (self-hosted /uploads). Persisted on the Patient record.
+  const [rxImages, setRxImages] = useState<string[]>([]);
+  const [reportImages, setReportImages] = useState<string[]>([]);
+
   // On-examination popup + patient settings
   const [showOePopup, setShowOePopup] = useState(false);
   const [ptSettingsTab, setPtSettingsTab] = useState("info");
@@ -176,12 +181,22 @@ function useMuqsitStore() {
   };
   // Saves the prescription to the API. If no saved patient is loaded,
   // a patient record is created first from the header fields.
-  const savePrescription = async () => {
-    if (rxItems.length === 0) {
-      setSavedMsg("Add at least one drug before saving.");
+  const savePrescription = async (): Promise<boolean> => {
+    // A prescription is saveable with a medicine OR any clinical detail/advice —
+    // not every visit prescribes a drug. Only a completely empty form is blocked.
+    const hasContent =
+      rxItems.length > 0 ||
+      [
+        chiefComplaints, previousComplaints, history, investigation, drugHistory,
+        onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+        advice, adviceTest,
+      ].some((a) => a.length > 0);
+    if (!hasContent) {
+      setSavedMsg("Add a medicine or some clinical detail before saving.");
       setTimeout(() => setSavedMsg(""), 3000);
-      return;
+      return false;
     }
+    let ok = false;
     try {
       let pid = currentPatientId;
       if (!pid) {
@@ -196,6 +211,13 @@ function useMuqsitStore() {
         });
         pid = patient.id;
         setCurrentPatientId(pid);
+        // Persist any draft gallery images onto the freshly created patient.
+        // Non-fatal: a prescription must still save even if this fails.
+        if (rxImages.length || reportImages.length) {
+          void patientsApi
+            .update(pid, { prescriptionImages: rxImages, reportImages })
+            .catch(() => {});
+        }
       }
 
       await prescriptionsApi.create({
@@ -219,11 +241,37 @@ function useMuqsitStore() {
         })(),
       });
       setSavedMsg("Prescription saved!");
+      ok = true;
     } catch (e) {
       setSavedMsg(e instanceof ApiError ? `Save failed: ${e.message}` : "Save failed. Is the API running?");
     }
     setTimeout(() => setSavedMsg(""), 3000);
+    return ok;
   };
+
+  // Load the patient's saved image galleries whenever a different patient is
+  // opened (and clear them when starting a fresh, unsaved patient).
+  useEffect(() => {
+    if (!currentPatientId) { setRxImages([]); setReportImages([]); return; }
+    let cancelled = false;
+    patientsApi
+      .get(currentPatientId)
+      .then((p) => { if (!cancelled) { setRxImages(p.prescriptionImages ?? []); setReportImages(p.reportImages ?? []); } })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentPatientId]);
+
+  // Update a gallery and persist it to the loaded patient. If no patient is
+  // saved yet it's a no-op on the server — the array is included when the
+  // patient is created in savePrescription.
+  const saveRxImages = useCallback((next: string[]) => {
+    setRxImages(next);
+    if (currentPatientId) void patientsApi.update(currentPatientId, { prescriptionImages: next }).catch(() => {});
+  }, [currentPatientId]);
+  const saveReportImages = useCallback((next: string[]) => {
+    setReportImages(next);
+    if (currentPatientId) void patientsApi.update(currentPatientId, { reportImages: next }).catch(() => {});
+  }, [currentPatientId]);
 
   // Toggle "Keep eye on this patient" — persists when a saved patient is loaded.
   const toggleWatch = () => {
@@ -298,6 +346,7 @@ function useMuqsitStore() {
     showInvPopup, setShowInvPopup, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
     calDate, setCalDate, showMonthPicker, setShowMonthPicker, invSearch, setInvSearch,
     invImages, setInvImages,
+    rxImages, setRxImages, reportImages, setReportImages, saveRxImages, saveReportImages,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptInfo, setPtInfo, currentPatientId, setCurrentPatientId,

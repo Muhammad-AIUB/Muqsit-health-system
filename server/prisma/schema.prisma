@@ -1,4 +1,5 @@
-// Prisma schema — Muqsit backend (Neon Postgres)
+// Prisma schema — Muqsit backend (self-hosted Postgres on VPS,
+// reached locally via the SSH tunnel to localhost:5432)
 
 generator client {
   provider = "prisma-client-js"
@@ -44,6 +45,9 @@ model User {
   approvalStatus  String  @default("pending") // pending | approved | suspended | rejected
   rejectionReason String?
   accountTier     String  @default("secondary") // secondary (new sign-ups) | primary (admin-promoted)
+  // Soft-delete: non-null → the account lives in Trash (recoverable). A
+  // restorative admin action (approve / move tier) clears it back to null.
+  deletedAt       DateTime?
 
   patients      Patient[]
   prescriptions Prescription[]
@@ -65,10 +69,54 @@ model User {
   // Prescription print layout (page size, header, footer) — one per doctor.
   prescriptionLayout PrescriptionLayout?
 
+  // Saved prescription templates (OPD / IPD / custom) — one row per template.
+  prescriptionTemplates PrescriptionTemplate[]
+
+  // Activity feed entries this user (doctor) created.
+  activityLogs ActivityLog[]
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([approvalStatus])
+  @@index([deletedAt])
+}
+
+// Real-time activity feed: every add/save a doctor (or their assistant) does is
+// recorded here so the team sees who did what, when. Scoped per doctor account.
+model ActivityLog {
+  id          String  @id @default(cuid())
+  doctorId    String
+  doctor      User    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  actorName   String  // who performed it (doctor or assistant display name)
+  patientId   String?
+  patientName String?
+  section     String  // "Drug history", "Chief complaints", "Prescription", …
+  detail      String  // the value added, e.g. "Napa" or "Cough for 7 days"
+  action      String  @default("added") // added | saved
+
+  createdAt DateTime @default(now())
+
+  @@index([doctorId, createdAt])
+}
+
+// A reusable prescription template a doctor builds in Settings → Prescription
+// templates. `items` is the saved RxItem[] (drug/dose/duration/instruction).
+model PrescriptionTemplate {
+  id       String @id @default(cuid())
+  doctorId String
+  doctor   User   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  category String // opd | ipd | custom
+  name     String
+  items    Json   @default("[]") // RxItem[]
+  order    Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([doctorId, category])
 }
 
 // Additional qualification / certificate uploaded from the profile page.
@@ -119,6 +167,10 @@ model PrescriptionLayout {
   rightMargin  String @default("0.2")
   headerHeight String @default("1.7")
   footerHeight String @default("0.8")
+
+  // Active prescription type + OPD print layout (chosen in Prescription settings).
+  rxType    String @default("ipd")    // opd | ipd
+  opdLayout String @default("single") // single | extra (extra privacy page)
 
   // Header (single block aligned, or split into two sections)
   headerSplit     Boolean @default(false)
@@ -219,6 +271,12 @@ model Patient {
   pictureUrl       String?
   tags             String[]  @default([])
   watched          Boolean   @default(false) // "Keep eye on this patient"
+  // Uploaded document galleries (self-hosted /uploads URLs) shown in the
+  // patient's "Prescriptions & reports" view.
+  prescriptionImages String[] @default([])
+  reportImages       String[] @default([])
+  // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
+  hmDrugDates      Json?
 
   doctorId String?
   doctor   User?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
@@ -305,6 +363,7 @@ model Prescription {
 
   // Clinical assessment (left column of the prescription)
   chiefComplaints      String[] @default([])
+  previousComplaints   String[] @default([])
   history              String[] @default([])
   investigation        String[] @default([])
   drugHistory          String[] @default([])

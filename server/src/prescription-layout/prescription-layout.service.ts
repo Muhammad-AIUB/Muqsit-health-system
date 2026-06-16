@@ -6,6 +6,8 @@ import { UpsertPrescriptionLayoutDto } from './dto/prescription-layout.dto';
 // The defaults a doctor sees before they've saved anything. Mirrors the
 // initial values in the client's Prescription settings form.
 const DEFAULTS = {
+  rxType: 'ipd',
+  opdLayout: 'single',
   unit: 'in',
   totalHeight: '11',
   totalWidth: '8.25',

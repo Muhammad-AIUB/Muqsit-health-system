@@ -7,7 +7,7 @@ import { adviceSuggestions, advisedTestSuggestions } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
-import { getTemplates } from "@/lib/rxTemplates";
+import { useTemplates } from "@/hooks/useTemplates";
 import type { RxItem } from "@/types";
 
 export default function RightColumn({ mobile }: { mobile?: boolean }) {
@@ -20,9 +20,9 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   const [rows, setRows] = useState<Row[]>(() => fromRxItems(rxItems));
   const lastSync = useRef<string>(JSON.stringify(toRxItems(fromRxItems(rxItems))));
 
-  // Quick templates: only the doctor's own saved OPD templates.
+  // Quick templates: only the doctor's own saved OPD templates (from the server).
   const [tplSearch, setTplSearch] = useState("");
-  const allTemplates = getTemplates("opd");
+  const { data: allTemplates = [] } = useTemplates("opd");
   const shownTemplates = allTemplates.filter((t) => t.name.toLowerCase().includes(tplSearch.trim().toLowerCase()));
 
   // Clicking a template ADDS its medicines to the current prescription.

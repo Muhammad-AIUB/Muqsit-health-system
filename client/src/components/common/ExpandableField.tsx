@@ -11,6 +11,8 @@ interface ExpandableFieldProps {
   allFields?: Record<string, string[]>;
   // Fixed quick-pick checkboxes shown under the input (e.g. Associated illness).
   checkboxOptions?: string[];
+  // Called for each newly committed item (used for the activity feed).
+  onAdd?: (item: string) => void;
 }
 
 // ── Recent-entry memory (per field, survives refresh) ────────
@@ -37,7 +39,7 @@ function saveRecents(label: string, entries: string[]) {
   }
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
   // Staged items: edits live here until the user presses Done.
@@ -115,9 +117,11 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     // Anything still in the input counts too.
     const finalDraft = inputVal.trim() && !draft.includes(inputVal.trim()) ? [...draft, inputVal.trim()] : draft;
     setItems(finalDraft);
-    // Remember newly typed entries for future suggestions.
+    // Remember newly typed entries for future suggestions, and log them to the
+    // activity feed.
     const newOnes = finalDraft.filter((d) => !items.includes(d));
     if (newOnes.length) saveRecents(label, newOnes);
+    newOnes.forEach((n) => onAdd?.(n));
     setOpen(false);
     setInputVal("");
   };

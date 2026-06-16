@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
+import CalcRenderer from "./CalcRenderer";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -24,6 +25,49 @@ export default function InvestigationPopup() {
   const [editVal, setEditVal] = useState("");
   // Manual "tag this image to a result" picker in the report viewer.
   const [tagOpen, setTagOpen] = useState(false);
+
+  // Jump-to-test from a search result: clicking a chip switches category and
+  // then scrolls that test card into view + briefly flashes it. Refs are keyed
+  // by test name (unique within the rendered category); the nonce re-fires the
+  // scroll effect even when the clicked test is already in the active category.
+  const testRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollTargetRef = useRef<string | null>(null);
+  const [scrollNonce, setScrollNonce] = useState(0);
+  const [flashTest, setFlashTest] = useState<string | null>(null);
+
+  useEffect(() => {
+    const target = scrollTargetRef.current;
+    if (!target) return;
+
+    // Center the target card inside its scroll container and focus its first
+    // field. We measure against the container directly (getBoundingClientRect)
+    // rather than scrollIntoView, because when the category was just switched
+    // the long list isn't laid out yet at the first frame and scrollIntoView
+    // lands short. Two rAFs let layout settle before we measure.
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const card = testRefs.current[target];
+        const container = card?.parentElement;
+        if (!card || !container) return;
+        const cRect = container.getBoundingClientRect();
+        const kRect = card.getBoundingClientRect();
+        const delta = (kRect.top - cRect.top) - (container.clientHeight - card.clientHeight) / 2;
+        container.scrollBy({ top: delta, behavior: "smooth" });
+        card.querySelector<HTMLElement>("input, select, textarea")?.focus({ preventScroll: true });
+      });
+    });
+    const clear = setTimeout(() => setFlashTest(null), 1600);
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); clearTimeout(clear); };
+  }, [scrollNonce]);
+
+  const jumpToTest = (cat: string, test: string) => {
+    setInvActiveCat(cat);
+    setInvSearch("");
+    scrollTargetRef.current = test;
+    setFlashTest(test);
+    setScrollNonce((n) => n + 1);
+  };
 
   // Drag-to-pan the (zoomed) report image: hold left mouse and move.
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -127,8 +171,7 @@ export default function InvestigationPopup() {
         });
       }
     });
-    // Tag the open report image to each test that was being entered.
-    savedTests.forEach((t) => tagOpenImage(t));
+    // Image tagging is manual now (no auto-tag on save).
     return savedTests.length > 0;
   };
 
@@ -163,9 +206,16 @@ export default function InvestigationPopup() {
         const key2 = testName + "__" + f.l + "_u2";
         setInvFormData((prev) => { const copy = { ...prev }; delete copy[key]; delete copy[key2]; return copy; });
       });
-      // Tag the currently-open report image (if any) to this test.
-      tagOpenImage(testName);
+      // Tagging the open report image is now manual — use the per-test
+      // "Left image corresponds to this report" button instead.
     }
+  };
+
+  // Push a computed score-calculator result for the selected date.
+  const addCalcResult = (testName: string, summary: string) => {
+    const dateStr = formatCalDate(calDate);
+    const result = dateStr + ":" + testName + ":" + summary;
+    if (!investigation.includes(result)) setInvestigation([...investigation, result]);
   };
 
   const addInvNormal = (testName: string) => {
@@ -459,7 +509,7 @@ export default function InvestigationPopup() {
             ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
                 {searchResults.slice(0, 12).map((r) => (
-                  <button key={r.cat + r.test} onClick={() => { setInvActiveCat(r.cat); setInvSearch(""); }}
+                  <button key={r.cat + r.test} onClick={() => jumpToTest(r.cat, r.test)}
                     style={{ padding: "3px 10px", borderRadius: 5, fontSize: 10, cursor: "pointer", border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[800], fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = C.n[0]; e.currentTarget.style.borderColor = C.n[200]; }}>
@@ -492,7 +542,13 @@ export default function InvestigationPopup() {
           {/* Test forms */}
           <div style={{ flex: 1, padding: "12px 20px", overflowY: "auto" }}>
             {((INV_CATS.find((c) => c.cat === invActiveCat) || { tests: [] }).tests || []).map((test) => (
-              <div key={test.name} style={{ marginBottom: 14, padding: "12px 14px", background: C.n[50], borderRadius: 8, border: `0.5px solid ${C.n[200]}` }}>
+              <div key={test.name} ref={(el) => { testRefs.current[test.name] = el; }} style={{
+                marginBottom: 14, padding: "12px 14px", borderRadius: 8,
+                background: flashTest === test.name ? C.pri[50] : C.n[50],
+                border: `${flashTest === test.name ? 1.5 : 0.5}px solid ${flashTest === test.name ? C.pri[400] : C.n[200]}`,
+                boxShadow: flashTest === test.name ? `0 0 0 3px ${C.pri[100]}` : "none",
+                transition: "background 0.3s, border-color 0.3s, box-shadow 0.3s",
+              }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 500, color: C.n[900] }}>{test.name}</span>
                   <div style={{ display: "flex", gap: 6 }}>
@@ -500,31 +556,51 @@ export default function InvestigationPopup() {
                       padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.pri[100]}`,
                       background: C.pri[50], color: C.pri[600], fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                     }}>Normal</button>
-                    <label style={{
-                      padding: "4px 12px", borderRadius: 6, border: "none",
-                      background: C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-                      display: "inline-flex", alignItems: "center", gap: 4,
-                    }}>
-                      <span>Add report image</span>
-                      <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => {
-                        const file = e.target.files && e.target.files[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            const dateStr = formatCalDate(calDate);
-                            const imgKey = dateStr + ":" + test.name;
-                            const dataUrl = ev.target?.result as string;
-                            setInvImages((prev) => Object.assign({}, prev, { [imgKey]: dataUrl }));
-                            const entry = dateStr + ":" + test.name + ":[image attached]";
-                            setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                        e.target.value = "";
-                      }} />
-                    </label>
+                    {reportImages.length > 0 && showReports ? (() => {
+                      // A report image is open on the left → let the doctor tag
+                      // THAT image to this test (replaces the old auto-tag).
+                      const openPoolKey = reportImages[repIdx]?.replace(":[image attached]", "");
+                      const openImg = openPoolKey ? invImages[openPoolKey] : undefined;
+                      const myKey = formatCalDate(calDate) + ":" + test.name;
+                      const tagged = !!openImg && invImages[myKey] === openImg;
+                      return (
+                        <button onClick={() => tagOpenImage(test.name)} title="Tag the report image shown on the left to this test" style={{
+                          padding: "4px 12px", borderRadius: 6,
+                          border: `0.5px solid ${tagged ? C.pri[400] : C.info[100]}`,
+                          background: tagged ? C.pri[50] : C.info[50], color: tagged ? C.pri[600] : C.info[800],
+                          fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                        }}>{tagged ? "✓ Image tagged" : "⬅ Left image corresponds to this report"}</button>
+                      );
+                    })() : (
+                      <label style={{
+                        padding: "4px 12px", borderRadius: 6, border: "none",
+                        background: C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                      }}>
+                        <span>Add report image</span>
+                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => {
+                          const file = e.target.files && e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              const dateStr = formatCalDate(calDate);
+                              const imgKey = dateStr + ":" + test.name;
+                              const dataUrl = ev.target?.result as string;
+                              setInvImages((prev) => Object.assign({}, prev, { [imgKey]: dataUrl }));
+                              const entry = dateStr + ":" + test.name + ":[image attached]";
+                              setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                          e.target.value = "";
+                        }} />
+                      </label>
+                    )}
                   </div>
                 </div>
+                {test.calc ? (
+                  <CalcRenderer calcId={test.calc} onAdd={(summary) => addCalcResult(test.name, summary)} />
+                ) : (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {test.fields.map((f) => {
                     const key1 = test.name + "__" + f.l;
@@ -611,6 +687,7 @@ export default function InvestigationPopup() {
                     );
                   })}
                 </div>
+                )}
                 {/* Previous entries for this test */}
                 {(() => {
                   const prevEntries = investigation.filter((item) => {

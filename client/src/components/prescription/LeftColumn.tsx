@@ -7,9 +7,11 @@ import { suggestionDB } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
 import DrugHistoryField from "@/components/prescription/DrugHistoryField";
 import PreviousComplaintsField from "@/components/prescription/PreviousComplaintsField";
+import { useActivityLog } from "@/hooks/useActivity";
 
 export default function LeftColumn() {
   const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages } = useMuqsit();
+  const logActivity = useActivityLog();
   // Image opened from a finding that has an attached report.
   const [lightbox, setLightbox] = useState<string | null>(null);
 
@@ -22,6 +24,7 @@ export default function LeftColumn() {
               key={f.label}
               items={f.items}
               setItems={f.set}
+              onAdd={(drug) => logActivity("Drug history", drug)}
             />
           );
         }
@@ -91,6 +94,7 @@ export default function LeftColumn() {
             suggestions={suggestionDB[f.sugKey || f.label] || []}
             allFields={allFieldValues}
             checkboxOptions={f.label === "Associated illness" ? ["BA", "COPD", "Hypothyroidism", "CKD", "CLD"] : undefined}
+            onAdd={(item) => logActivity(f.label, item)}
           />
         );
       })}

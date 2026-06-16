@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
-import { getRxType, setRxType, getOpdLayout, setOpdLayout, type RxType, type OpdLayout } from "@/lib/rxPrivacy";
+import { type RxType, type OpdLayout } from "@/lib/rxPrivacy";
+import { useUpdatePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
 
 // Mirrors the "Print Layout Configuration → Prescription pad" wizard:
 // a 5-step header, a live page preview with margin labels, page-type cards
@@ -41,8 +42,10 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
   // the layout wizard below; OPD additionally masks the patient's identity on
   // the printed prescription.
   const [mode, setMode] = useState<RxType | null>(null);
-  // OPD only: print one full page, or that page + a masked privacy page.
+  // Active prescription type + OPD layout — persisted on the server (layout row).
+  const [activeType, setActiveType] = useState<RxType>("ipd");
   const [opdLayout, setOpdLayoutState] = useState<OpdLayout>("single");
+  const layoutMut = useUpdatePrescriptionLayout();
   const [step, setStep] = useState<StepId>("page");
   const [form, setForm] = useState<PageForm>(INITIAL);
   const [unit, setUnit] = useState<"in" | "cm">("in");
@@ -68,6 +71,8 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
     prescriptionLayoutApi
       .get()
       .then((l) => {
+        setActiveType(l.rxType);
+        setOpdLayoutState(l.opdLayout);
         setUnit(l.unit);
         setForm({
           totalHeight: l.totalHeight,
@@ -156,19 +161,19 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
 
   // Choosing a type also makes it the active prescription type for printing.
   const choose = (t: RxType) => {
-    setRxType(t);
-    if (t === "opd") setOpdLayoutState(getOpdLayout());
+    setActiveType(t);
+    layoutMut.mutate({ rxType: t });
     setMode(t);
   };
 
   const pickOpdLayout = (l: OpdLayout) => {
-    setOpdLayout(l);
     setOpdLayoutState(l);
+    layoutMut.mutate({ opdLayout: l });
   };
 
   // ── Landing chooser: OPD / IPD / Customize ──
   if (mode === null) {
-    return <TypeChooser onBack={onBack} active={getRxType()} onChoose={choose} />;
+    return <TypeChooser onBack={onBack} active={activeType} onChoose={choose} />;
   }
 
   const isOpd = mode === "opd";

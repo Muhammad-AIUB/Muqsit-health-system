@@ -40,9 +40,11 @@ function serialize(cat: CatKey, r: Row): string {
 interface Props {
   items: string[];
   setItems: Dispatch<SetStateAction<string[]>>;
+  // Logs a newly added drug (name only) to the activity feed.
+  onAdd?: (drug: string) => void;
 }
 
-export default function DrugHistoryField({ items, setItems }: Props) {
+export default function DrugHistoryField({ items, setItems, onAdd }: Props) {
   const { setRxItems } = useMuqsit();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<CatKey>("Current");
@@ -64,7 +66,15 @@ export default function DrugHistoryField({ items, setItems }: Props) {
   const done = () => {
     const ser = (cat: CatKey, list: Row[]) =>
       list.filter((r) => r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim()).map((r) => serialize(cat, r));
-    setItems([...ser("Current", current), ...ser("Past", past)]);
+    const next = [...ser("Current", current), ...ser("Past", past)];
+    // Log newly added drugs — drug name only, no dose/food/duration.
+    const prevSet = new Set(items);
+    next.forEach((entry) => {
+      if (prevSet.has(entry) || isNoteStored(entry) || isContStored(entry)) return;
+      const drug = stripPrefix(entry).split(" — ")[0].trim();
+      if (drug) onAdd?.(drug);
+    });
+    setItems(next);
     setOpen(false);
   };
 

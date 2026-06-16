@@ -3,6 +3,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -33,6 +34,11 @@ export class CreatePatientDto {
   @IsOptional() @IsString() pictureUrl?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsBoolean() watched?: boolean;
+  @IsOptional() @IsArray() @IsString({ each: true }) prescriptionImages?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) reportImages?: string[];
 }
 
-export class UpdatePatientDto extends PartialType(CreatePatientDto) {}
+export class UpdatePatientDto extends PartialType(CreatePatientDto) {
+  // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
+  @IsOptional() @IsObject() hmDrugDates?: Record<string, { sf: string; upto: string }>;
+}

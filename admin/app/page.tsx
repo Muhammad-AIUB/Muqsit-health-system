@@ -179,7 +179,6 @@ function AccountsPage({ mode }: { mode: NavId }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Registration | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -196,10 +195,10 @@ function AccountsPage({ mode }: { mode: NavId }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Primary/Secondary show non-rejected accounts of that tier; Trash shows
-  // only rejected ones (both tiers, hence the Tier column there).
+  // Trash = soft-deleted accounts (both tiers, hence the Tier column there).
+  // Primary/Secondary = live accounts of that tier.
   const visible = rows.filter((r) =>
-    trash ? r.approvalStatus === "rejected" : r.approvalStatus !== "rejected" && r.accountTier === mode,
+    trash ? !!r.deletedAt : !r.deletedAt && r.accountTier === mode,
   );
 
   // Search rules: BMDC/registration number, name, institution code, email, phone number.
@@ -236,7 +235,7 @@ function AccountsPage({ mode }: { mode: NavId }) {
               <th style={th}>Status</th>
               {trash && <th style={th}>Tier</th>}
               <th style={th}>Signed up</th>
-              <th style={th}></th>
+              <th style={th}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -279,7 +278,7 @@ function AccountsPage({ mode }: { mode: NavId }) {
                   )}
                   <td style={td}>{new Date(r.createdAt).toLocaleDateString()}</td>
                   <td style={td}>
-                    <button onClick={() => setSelected(r)} style={btnGhost}>View details</button>
+                    <RowActions reg={r} mode={mode} onChanged={load} />
                   </td>
                 </tr>
               );
@@ -287,172 +286,76 @@ function AccountsPage({ mode }: { mode: NavId }) {
           </tbody>
         </table>
       </div>
-
-      {selected && (
-        <AccountDetailsModal
-          reg={selected}
-          onClose={() => setSelected(null)}
-          onDone={() => { setSelected(null); void load(); }}
-        />
-      )}
     </div>
   );
 }
 
-// ── Account details modal (full submission + approve/reject) ─
-function AccountDetailsModal({ reg, onClose, onDone }: { reg: Registration; onClose: () => void; onDone: () => void }) {
-  const badge = STATUS_BADGE[reg.approvalStatus] ?? STATUS_BADGE.pending;
+// ── Per-row actions ──────────────────────────────────────────
+// "View details" opens the print-friendly page in a new tab (admin then
+// uses the browser's "Save as PDF"). The other buttons depend on which list
+// the row is in (see the spec in NAV).
+function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
 
-  const approve = async () => {
-    setBusy(true); setError("");
-    try { await adminApi.approve(reg.id); onDone(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Failed to approve"); }
-    finally { setBusy(false); }
-  };
-
-  const reject = async () => {
-    if (!reason.trim()) { setError("Please enter a reason"); return; }
-    setBusy(true); setError("");
-    try { await adminApi.reject(reg.id, reason.trim()); onDone(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Failed to reject"); }
-    finally { setBusy(false); }
-  };
-
-  const suspend = async () => {
-    setBusy(true); setError("");
-    try { await adminApi.suspend(reg.id); onDone(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Failed to suspend"); }
-    finally { setBusy(false); }
-  };
-
-  const moveTier = async () => {
-    const next = reg.accountTier === "secondary" ? "primary" : "secondary";
-    setBusy(true); setError("");
-    try { await adminApi.setTier(reg.id, next); onDone(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Failed to change tier"); }
-    finally { setBusy(false); }
-  };
-
-  const forceLogout = async () => {
-    if (!window.confirm(`Force log out ${reg.name} from all devices? They'll have to sign in again.`)) return;
-    setBusy(true); setError("");
+  // Run a mutation with an optional confirm, then reload the list. Failures
+  // surface as an alert (this is an internal back-office tool).
+  const run = async (fn: () => Promise<unknown>, confirmMsg?: string) => {
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    setBusy(true);
     try {
-      const { revoked } = await adminApi.revokeSessions(reg.id);
-      window.alert(`Done — revoked ${revoked} active session${revoked === 1 ? "" : "s"}.`);
+      await fn();
+      onChanged();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Failed to revoke sessions");
-    } finally { setBusy(false); }
+      window.alert(e instanceof ApiError ? e.message : "Action failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const docs: { label: string; url: string | null }[] = [
-    { label: "Profile picture", url: reg.profilePictureUrl },
-    { label: "Registration / qualification certificate", url: reg.registrationCertUrl },
-    { label: "NID front", url: reg.nidFrontUrl },
-    { label: "NID back", url: reg.nidBackUrl },
-  ];
+  const reject = () => {
+    const reason = window.prompt(`Reason for rejecting ${reg.name} (emailed to them):`);
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) { window.alert("A rejection reason is required."); return; }
+    void run(() => adminApi.reject(reg.id, reason.trim()));
+  };
 
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, zIndex: 50 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: C.white, borderRadius: 14, width: 680, maxHeight: "88vh", overflow: "auto", padding: 26 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {reg.profilePictureUrl ? (
-              <img src={reg.profilePictureUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: `1px solid ${C.border}` }} />
-            ) : (
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: C.priLight, color: C.priDark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 600 }}>
-                {reg.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <h2 style={{ fontSize: 19, color: C.n900 }}>{reg.name}</h2>
-              <p style={{ color: C.n600, fontSize: 13 }}>
-                {reg.profession ? PROFESSION_LABELS[reg.profession] ?? reg.profession : "—"} · {reg.specialty ?? "—"}{" "}
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: badge.bg, color: badge.fg, marginLeft: 4 }}>
-                  {reg.approvalStatus}
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: reg.accountTier === "secondary" ? "#E6F1FB" : C.priLight, color: reg.accountTier === "secondary" ? "#185FA5" : C.priDark, marginLeft: 4 }}>
-                  {reg.accountTier}
-                </span>
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} style={btnGhost}>Close</button>
-        </div>
-
-        <h3 style={{ fontSize: 13, color: C.n600, marginTop: 22, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>Submitted information</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px", fontSize: 13 }}>
-          <Detail label="Email" value={`${reg.email}${reg.emailVerified ? " (verified)" : " (unverified)"}`} />
-          <Detail label="Mobile" value={reg.mobile} />
-          <Detail label="Profession" value={reg.profession ? PROFESSION_LABELS[reg.profession] ?? reg.profession : null} />
-          <Detail label="Registration no" value={reg.registrationNo} />
-          <Detail label="NID no" value={reg.nidNo} />
-          <Detail label="Designation" value={reg.designation} />
-          <Detail label="Specialty" value={reg.specialty} />
-          <Detail label="Institution code" value={reg.institutionCode} />
-          <Detail label="Signed up" value={new Date(reg.createdAt).toLocaleString()} />
-        </div>
-
-        <h3 style={{ fontSize: 13, color: C.n600, marginTop: 22, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>Documents</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          {docs.map((d) => (
-            <div key={d.label}>
-              <div style={{ fontSize: 12, color: C.n600, marginBottom: 6 }}>{d.label}</div>
-              {d.url ? (
-                <a href={d.url} target="_blank" rel="noreferrer">
-                  <img src={d.url} alt={d.label} style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 8, border: `1px solid ${C.border}` }} />
-                </a>
-              ) : (
-                <div style={{ height: 150, borderRadius: 8, border: `1px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.n500, fontSize: 12 }}>Not provided</div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {reg.rejectionReason && (
-          <div style={{ ...errBox, marginTop: 16 }}>Rejection reason: {reg.rejectionReason}</div>
-        )}
-        {error && <div style={{ ...errBox, marginTop: 16 }}>{error}</div>}
-
-        {rejecting ? (
-          <div style={{ marginTop: 18 }}>
-            <label style={lblStyle}>Rejection reason</label>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} style={{ ...inpStyle, resize: "vertical" }} placeholder="Explain why this registration is being rejected…" />
-            <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-              <button onClick={reject} disabled={busy} style={{ ...btnDanger, opacity: busy ? 0.7 : 1 }}>Confirm rejection</button>
-              <button onClick={() => setRejecting(false)} style={btnGhost}>Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 10, marginTop: 22, flexWrap: "wrap" }}>
-            {reg.approvalStatus !== "approved" && (
-              <button onClick={approve} disabled={busy} style={{ ...btnPri, opacity: busy ? 0.7 : 1 }}>Approve</button>
-            )}
-            {reg.approvalStatus !== "suspended" && (
-              <button onClick={suspend} disabled={busy} style={{ ...btnPri, background: C.warn, opacity: busy ? 0.7 : 1 }}>Suspend</button>
-            )}
-            {reg.approvalStatus !== "rejected" && (
-              <button onClick={() => setRejecting(true)} disabled={busy} style={btnDanger}>Reject</button>
-            )}
-            <button onClick={forceLogout} disabled={busy} style={{ ...btnGhost, opacity: busy ? 0.7 : 1 }}>Force log out</button>
-            <button onClick={moveTier} disabled={busy} style={{ ...btnGhost, marginLeft: "auto", padding: "10px 20px", fontSize: 13 }}>
-              Move to {reg.accountTier === "secondary" ? "primary" : "secondary"}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+  const view = (
+    <button onClick={() => window.open(`/accounts/${reg.id}`, "_blank", "noopener")} style={actBtn(C.white)} disabled={busy}>
+      View details
+    </button>
   );
-}
 
-function Detail({ label, value }: { label: string; value: string | null }) {
   return (
-    <div>
-      <div style={{ fontSize: 11, color: C.n500, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
-      <div style={{ color: C.n900 }}>{value ?? "—"}</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+      {view}
+
+      {mode === "secondary" && reg.approvalStatus !== "approved" && (
+        <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
+      )}
+      {(mode === "primary" || mode === "secondary") && reg.approvalStatus !== "suspended" && (
+        <button onClick={() => void run(() => adminApi.suspend(reg.id))} style={actBtn(C.warn, "#fff")} disabled={busy}>Suspend</button>
+      )}
+      {mode === "primary" && (
+        <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
+      )}
+      {mode === "secondary" && (
+        <button onClick={() => void run(() => adminApi.setTier(reg.id, "primary"))} style={actBtn(C.white)} disabled={busy}>Move to primary</button>
+      )}
+      {(mode === "primary" || mode === "secondary") && reg.approvalStatus !== "rejected" && (
+        <button onClick={reject} style={actBtn(C.white, C.dangerDark)} disabled={busy}>Reject</button>
+      )}
+      {(mode === "primary" || mode === "secondary") && (
+        <button onClick={() => void run(() => adminApi.softDelete(reg.id), `Move ${reg.name} to Trash? They'll be signed out and can be restored later.`)} style={actBtn(C.danger, "#fff")} disabled={busy}>Delete</button>
+      )}
+
+      {mode === "trash" && (
+        <>
+          <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
+          <button onClick={() => void run(() => adminApi.setTier(reg.id, "primary"))} style={actBtn(C.white)} disabled={busy}>Move to primary</button>
+          <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
+          <button onClick={() => void run(() => adminApi.hardDelete(reg.id), `Permanently delete ${reg.name}? This cannot be undone.`)} style={actBtn(C.danger, "#fff")} disabled={busy}>Delete permanently</button>
+        </>
+      )}
     </div>
   );
 }
@@ -464,6 +367,19 @@ const errBox: React.CSSProperties = { fontSize: 12, color: C.dangerDark, backgro
 const btnPri: React.CSSProperties = { padding: "10px 20px", borderRadius: 8, border: "none", background: C.pri, color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer" };
 const btnDanger: React.CSSProperties = { padding: "10px 20px", borderRadius: 8, border: "none", background: C.danger, color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "7px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.n900, fontSize: 12.5, fontWeight: 500, cursor: "pointer" };
+// Compact per-row action button. Pass a background (and optional text colour);
+// a white background keeps the neutral bordered look, a colour fills it.
+const actBtn = (bg: string, fg?: string): React.CSSProperties => ({
+  padding: "5px 10px",
+  borderRadius: 7,
+  border: `1px solid ${bg === C.white ? C.border : bg}`,
+  background: bg,
+  color: fg ?? C.n900,
+  fontSize: 12,
+  fontWeight: 500,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+});
 const tab: React.CSSProperties = { padding: "7px 16px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.white, color: C.n600, fontSize: 13, cursor: "pointer" };
 const tabActive: React.CSSProperties = { background: C.priLight, borderColor: C.pri, color: C.priDark, fontWeight: 600 };
 const th: React.CSSProperties = { padding: "11px 14px", fontWeight: 600, fontSize: 12 };

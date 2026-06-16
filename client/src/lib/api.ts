@@ -73,6 +73,9 @@ export interface Patient {
   pictureUrl: string | null;
   tags: string[];
   watched: boolean;
+  prescriptionImages: string[];
+  reportImages: string[];
+  hmDrugDates: Record<string, { sf: string; upto: string }> | null;
   doctorId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -97,6 +100,9 @@ export interface PatientInput {
   pictureUrl?: string | null;
   tags?: string[];
   watched?: boolean;
+  prescriptionImages?: string[];
+  reportImages?: string[];
+  hmDrugDates?: Record<string, { sf: string; upto: string }>;
 }
 
 export class ApiError extends Error {
@@ -309,6 +315,8 @@ export const medicinesApi = {
 
 // ── Prescription print layout ───────────────────────────────
 export interface PrescriptionLayout {
+  rxType: "opd" | "ipd";
+  opdLayout: "single" | "extra";
   unit: "in" | "cm";
   totalHeight: string;
   totalWidth: string;
@@ -334,6 +342,64 @@ export const prescriptionLayoutApi = {
   get: () => apiFetch<PrescriptionLayout>("/prescription-layout"),
   update: (input: PrescriptionLayoutInput) =>
     apiFetch<PrescriptionLayout>("/prescription-layout", { method: "PUT", body: JSON.stringify(input) }),
+};
+
+// ── Prescription templates (OPD / IPD / custom), per doctor ──
+export type TemplateCategory = "opd" | "ipd" | "custom";
+
+export interface TemplateItem {
+  drug: string;
+  dose: string;
+  duration: string;
+  instruction: string;
+  isNote?: boolean;
+}
+
+export interface RxTemplateRecord {
+  id: string;
+  category: TemplateCategory;
+  name: string;
+  items: TemplateItem[];
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Activity feed (real-time who-did-what log) ──────────────
+export interface ActivityRecord {
+  id: string;
+  actorName: string;
+  patientName: string | null;
+  patientId: string | null;
+  section: string;
+  detail: string;
+  action: "added" | "saved";
+  createdAt: string;
+}
+
+export interface LogActivityInput {
+  section: string;
+  detail: string;
+  patientName?: string;
+  patientId?: string;
+  action?: "added" | "saved";
+}
+
+export const activityApi = {
+  list: (limit = 50) => apiFetch<ActivityRecord[]>(`/activity?limit=${limit}`),
+  log: (input: LogActivityInput) =>
+    apiFetch<ActivityRecord>("/activity", { method: "POST", body: JSON.stringify(input) }),
+};
+
+export const templatesApi = {
+  list: (category?: TemplateCategory) =>
+    apiFetch<RxTemplateRecord[]>(`/prescription-templates${category ? `?category=${category}` : ""}`),
+  create: (input: { category: TemplateCategory; name: string; items: TemplateItem[] }) =>
+    apiFetch<RxTemplateRecord>("/prescription-templates", { method: "POST", body: JSON.stringify(input) }),
+  update: (id: string, input: { name?: string; items?: TemplateItem[] }) =>
+    apiFetch<RxTemplateRecord>(`/prescription-templates/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  remove: (id: string) =>
+    apiFetch<{ id: string }>(`/prescription-templates/${id}`, { method: "DELETE" }),
 };
 
 // ── File upload (multipart → Cloudinary) ────────────────────

@@ -15,6 +15,8 @@ import { IpdModule } from './ipd/ipd.module';
 import { ResearchModule } from './research/research.module';
 import { AssistantsModule } from './assistants/assistants.module';
 import { PrescriptionLayoutModule } from './prescription-layout/prescription-layout.module';
+import { TemplatesModule } from './templates/templates.module';
+import { ActivityModule } from './activity/activity.module';
 import { MedicinesModule } from './medicines/medicines.module';
 
 @Module({
@@ -36,6 +38,8 @@ import { MedicinesModule } from './medicines/medicines.module';
     ResearchModule,
     AssistantsModule,
     PrescriptionLayoutModule,
+    TemplatesModule,
+    ActivityModule,
     MedicinesModule,
   ],
   controllers: [],

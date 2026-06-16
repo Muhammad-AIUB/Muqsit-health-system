@@ -2,6 +2,7 @@
 
 import { C, font } from "@/theme";
 import { MuqsitProvider, useMuqsit } from "@/context/MuqsitContext";
+import { useMigrateLocalData } from "@/hooks/useMigrateLocalData";
 import type { View } from "@/types";
 import DesktopShell from "./layout/DesktopShell";
 import MobileShell from "./layout/MobileShell";
@@ -12,6 +13,9 @@ const VIEWS: View[] = ["desktop", "mobile"];
 // this component renders for signed-in users only.
 function MuqsitInner() {
   const { view, setView } = useMuqsit();
+  // One-time move of any legacy localStorage data (templates, preferences,
+  // drug dates) into the server, then clear the local copies.
+  useMigrateLocalData();
 
   return (
     <div style={{ fontFamily: font, color: C.n[900] }}>

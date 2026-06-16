@@ -23,6 +23,7 @@ export class CreatePrescriptionDto {
   patientId!: string;
 
   @IsOptional() @IsArray() @IsString({ each: true }) chiefComplaints?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) previousComplaints?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) history?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) investigation?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) drugHistory?: string[];

@@ -40,8 +40,12 @@ export interface Registration {
   approvalStatus: string;
   rejectionReason: string | null;
   accountTier: string;
+  // Non-null → the account is in Trash (soft-deleted).
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // Only populated by getRegistration(id) (the View-details print page).
+  otherCertificates?: { id: string; url: string; details: string | null }[];
 }
 
 export class ApiError extends Error {
@@ -119,6 +123,8 @@ export const adminApi = {
   me: () => apiFetch<AuthUser>("/auth/me"),
   listRegistrations: (status?: string) =>
     apiFetch<Registration[]>(`/admin/registrations${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  getRegistration: (id: string) =>
+    apiFetch<Registration>(`/admin/registrations/${id}`),
   approve: (id: string) =>
     apiFetch<Registration>(`/admin/registrations/${id}/approve`, { method: "PATCH" }),
   reject: (id: string, reason: string) =>
@@ -127,6 +133,12 @@ export const adminApi = {
     apiFetch<Registration>(`/admin/registrations/${id}/suspend`, { method: "PATCH" }),
   setTier: (id: string, tier: "primary" | "secondary") =>
     apiFetch<Registration>(`/admin/registrations/${id}/tier`, { method: "PATCH", body: JSON.stringify({ tier }) }),
+  // Soft-delete → Trash (recoverable).
+  softDelete: (id: string) =>
+    apiFetch<Registration>(`/admin/registrations/${id}`, { method: "DELETE" }),
+  // Permanent delete from Trash.
+  hardDelete: (id: string) =>
+    apiFetch<{ deleted: true }>(`/admin/registrations/${id}/permanent`, { method: "DELETE" }),
   // Force-logout: revokes every active refresh token for the user, so their
   // next silent refresh fails and they fall through to /login.
   revokeSessions: (id: string) =>

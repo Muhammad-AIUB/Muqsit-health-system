@@ -1,18 +1,37 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { C, font } from "@/theme";
 import { useAuth } from "@/context/AuthContext";
 
-// Only same-origin relative paths are allowed as post-login destinations,
-// so a crafted ?next= link can never bounce a user to an external site
-// (open-redirect protection).
+// Where to send the user after they sign in. Kept in sessionStorage (not in the
+// URL) so the login link stays clean — "/login", not "/login?next=%2F…".
+const POST_LOGIN_KEY = "mhs_post_login";
+
+// Only same-origin relative paths are allowed as post-login destinations, so a
+// stored value can never bounce a user to an external site (open-redirect
+// protection).
 export function safeNext(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || raw.includes(":")) {
     return "/";
   }
   return raw;
+}
+
+function rememberDestination(path: string | null): void {
+  if (typeof window === "undefined") return;
+  const safe = safeNext(path);
+  if (safe !== "/") window.sessionStorage.setItem(POST_LOGIN_KEY, safe);
+  else window.sessionStorage.removeItem(POST_LOGIN_KEY);
+}
+
+// Read + clear the remembered destination (defaults to "/").
+function takeDestination(): string {
+  if (typeof window === "undefined") return "/";
+  const raw = window.sessionStorage.getItem(POST_LOGIN_KEY);
+  window.sessionStorage.removeItem(POST_LOGIN_KEY);
+  return safeNext(raw);
 }
 
 function Centered({ text }: { text: string }) {
@@ -32,8 +51,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready || user) return;
-    const next = pathname && pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : "";
-    router.replace(`/login${next}`);
+    rememberDestination(pathname); // remembered out-of-band, not in the URL
+    router.replace("/login");
   }, [ready, user, pathname, router]);
 
   if (!ready) return <Centered text="Loading…" />;
@@ -46,11 +65,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function RedirectIfAuthed({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();
   const router = useRouter();
-  const params = useSearchParams();
 
   useEffect(() => {
-    if (ready && user) router.replace(safeNext(params.get("next")));
-  }, [ready, user, params, router]);
+    if (ready && user) router.replace(takeDestination());
+  }, [ready, user, router]);
 
   if (!ready) return <Centered text="Loading…" />;
   if (user) return <Centered text="Redirecting…" />;

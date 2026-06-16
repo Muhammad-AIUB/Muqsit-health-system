@@ -27,6 +27,17 @@ export class AdminService {
     return users.map((u) => this.strip(u));
   }
 
+  // Single registration with its uploaded extra certificates, for the
+  // admin "View details" print page.
+  async getOne(id: string) {
+    const user = await this.users.findByIdWithDocs(id);
+    if (!user || user.role !== 'professional') {
+      throw new NotFoundException('Registration not found');
+    }
+    const { passwordHash, ...rest } = user;
+    return rest;
+  }
+
   async approve(id: string): Promise<Registration> {
     const user = await this.users.findById(id);
     if (!user || user.role !== 'professional') {
@@ -35,6 +46,8 @@ export class AdminService {
     const updated = await this.users.update(id, {
       approvalStatus: 'approved',
       rejectionReason: null,
+      // Approving is restorative — pull it out of Trash if it was there.
+      deletedAt: null,
     });
 
     // Fire-and-forget: tell the user their account is now active.
@@ -68,6 +81,8 @@ export class AdminService {
     }
     const updated = await this.users.update(id, {
       approvalStatus: 'suspended',
+      // Suspending from Trash restores it to its tier (suspended badge).
+      deletedAt: null,
     });
     // Suspension should take effect immediately, not on next sign-in.
     await this.auth.revokeAllForUser(id);
@@ -79,8 +94,32 @@ export class AdminService {
     if (!user || user.role !== 'professional') {
       throw new NotFoundException('Registration not found');
     }
-    const updated = await this.users.update(id, { accountTier: tier });
+    // Moving an account to a tier is restorative — clear Trash if set.
+    const updated = await this.users.update(id, { accountTier: tier, deletedAt: null });
     return this.strip(updated);
+  }
+
+  // Soft-delete → Trash. Recoverable via approve / move-tier. A trashed
+  // account must not keep a live session, so revoke everything.
+  async softDelete(id: string): Promise<Registration> {
+    const user = await this.users.findById(id);
+    if (!user || user.role !== 'professional') {
+      throw new NotFoundException('Registration not found');
+    }
+    const updated = await this.users.update(id, { deletedAt: new Date() });
+    await this.auth.revokeAllForUser(id);
+    return this.strip(updated);
+  }
+
+  // Permanent deletion from Trash — gone for good.
+  async hardDelete(id: string): Promise<{ deleted: true }> {
+    const user = await this.users.findById(id);
+    if (!user || user.role !== 'professional') {
+      throw new NotFoundException('Registration not found');
+    }
+    await this.auth.revokeAllForUser(id);
+    await this.users.remove(id);
+    return { deleted: true };
   }
 
   // Explicit "force logout" for cases that don't change approval state —

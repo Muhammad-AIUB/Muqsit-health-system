@@ -30,21 +30,5 @@ export function cellToDate(s: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// Stored on the patient record (Patient.hmDrugDates) — see patientsApi.
 export type DrugDateMap = Record<string, { sf: string; upto: string }>;
-
-const keyFor = (pid: string) => `mhs_hm_dates_${pid}`;
-
-export function loadHmDates(pid: string | null): DrugDateMap {
-  if (!pid || typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(keyFor(pid));
-    return raw ? (JSON.parse(raw) as DrugDateMap) : {};
-  } catch {
-    return {};
-  }
-}
-
-export function saveHmDates(pid: string | null, map: DrugDateMap): void {
-  if (!pid || typeof window === "undefined") return;
-  window.localStorage.setItem(keyFor(pid), JSON.stringify(map));
-}

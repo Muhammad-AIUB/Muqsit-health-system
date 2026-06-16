@@ -4,14 +4,8 @@ import { useState } from "react";
 import { C, font } from "@/theme";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
-import {
-  CATEGORY_LABEL,
-  deleteTemplate,
-  getTemplates,
-  saveTemplate,
-  type RxTemplate,
-  type TemplateCategory,
-} from "@/lib/rxTemplates";
+import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
+import { useTemplates, useSaveTemplate, useDeleteTemplate } from "@/hooks/useTemplates";
 
 const CATEGORIES: { cat: TemplateCategory; desc: string; icon: string }[] = [
   { cat: "opd", desc: "Templates for outdoor / consultation prescriptions.", icon: "▤" },
@@ -23,10 +17,12 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
   const [cat, setCat] = useState<TemplateCategory | null>(null);
   // null = list view; "new" = blank editor; RxTemplate = editing existing.
   const [editing, setEditing] = useState<RxTemplate | "new" | null>(null);
-  const [tick, setTick] = useState(0); // bump to re-read templates after delete
   // Remove mode: select one or more templates, then delete together.
   const [removeMode, setRemoveMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const { data: templates = [] } = useTemplates(cat ?? undefined);
+  const del = useDeleteTemplate();
 
   const exitRemove = () => { setRemoveMode(false); setSelected(new Set()); };
   const openCategory = (c: TemplateCategory) => { exitRemove(); setCat(c); };
@@ -35,9 +31,8 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
   const deleteSelected = () => {
     if (!cat || selected.size === 0) return;
     if (window.confirm(`Delete ${selected.size} selected template${selected.size === 1 ? "" : "s"}?`)) {
-      selected.forEach((id) => deleteTemplate(cat, id));
+      selected.forEach((id) => del.mutate(id));
       exitRemove();
-      setTick((x) => x + 1);
     }
   };
 
@@ -54,8 +49,6 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
 
   // ── A category's templates (Blank + saved cards) ──
   if (cat) {
-    void tick; // referenced so a delete re-reads localStorage
-    const templates = getTemplates(cat);
     return (
       <div style={{ fontFamily: font, maxWidth: 1000 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
@@ -160,14 +153,17 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
   const [name, setName] = useState(template?.name ?? "");
   const [rows, setRows] = useState<Row[]>(() => rowsFromRxItems(template?.items ?? []));
   const [error, setError] = useState("");
+  const saveMut = useSaveTemplate();
 
   const save = () => {
     const trimmed = name.trim();
     if (!trimmed) { setError("Please enter a template name."); return; }
     const items = rxItemsFromRows(rows);
     if (items.length === 0) { setError("Add at least one medicine or note."); return; }
-    saveTemplate(cat, { id: template?.id, name: trimmed, items });
-    onClose();
+    saveMut.mutate(
+      { id: template?.id, category: cat, name: trimmed, items },
+      { onSuccess: onClose, onError: () => setError("Could not save. Is the server running?") },
+    );
   };
 
   return (
@@ -197,7 +193,7 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
       {error && <div style={{ fontSize: 12, color: C.danger[800], marginTop: 10 }}>{error}</div>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
-        <button onClick={save} style={{ padding: "10px 26px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font }}>Save</button>
+        <button onClick={save} disabled={saveMut.isPending} style={{ padding: "10px 26px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font, opacity: saveMut.isPending ? 0.6 : 1 }}>{saveMut.isPending ? "Saving…" : "Save"}</button>
         <button onClick={onClose} style={{ padding: "10px 26px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[700], fontSize: 13, cursor: "pointer", fontFamily: font }}>Cancel</button>
       </div>
     </div>

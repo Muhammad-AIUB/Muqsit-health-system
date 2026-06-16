@@ -22,6 +22,21 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  // Single user with their uploaded extra certificates — used by the admin
+  // "View details" print page so every document is on one page.
+  findByIdWithDocs(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: { otherCertificates: { orderBy: { order: 'asc' } } },
+    });
+  }
+
+  // Permanent deletion (admin "Delete permanently" from Trash). Relations
+  // cascade / null out per the schema's onDelete rules.
+  remove(id: string): Promise<User> {
+    return this.prisma.user.delete({ where: { id } });
+  }
+
   create(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({ data });
   }

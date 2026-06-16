@@ -38,6 +38,7 @@ export const TAB_PATHS: Record<TabId, string> = {
   settings: "/settings",
   "pt-settings": "/patient-settings",
   idsp: "/health-monitoring",
+  "pt-records": "/patient-records",
 };
 
 const PATH_TO_TAB = new Map<string, TabId>(
@@ -60,7 +61,7 @@ export const tabFromPath = (pathname: string): TabId | null => {
 export const SETTINGS_SECTION_SLUGS = new Set<string>(["assistants", "profile", "prescription-settings", "prescription-templates"]);
 
 // Tabs that display the patient header above their content.
-export const HEADER_TABS: TabId[] = ["prescription", "pt-settings", "idsp"];
+export const HEADER_TABS: TabId[] = ["prescription", "pt-settings", "idsp", "pt-records"];
 
 export const isPrescriptionGroup = (activeTab: TabId) =>
-  activeTab === "prescription" || activeTab === "pt-settings" || activeTab === "idsp";
+  activeTab === "prescription" || activeTab === "pt-settings" || activeTab === "idsp" || activeTab === "pt-records";
