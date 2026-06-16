@@ -115,6 +115,11 @@ export class UsersService {
     if (dto.profilePictureUrl !== undefined) data.profilePictureUrl = dto.profilePictureUrl || null;
     if (dto.nidFrontUrl !== undefined) data.nidFrontUrl = dto.nidFrontUrl || null;
     if (dto.nidBackUrl !== undefined) data.nidBackUrl = dto.nidBackUrl || null;
+    // Assigned via a loose cast so this compiles before `prisma generate` adds
+    // the new columns to the client types (regenerate to activate at runtime).
+    const extra = data as Record<string, unknown>;
+    if (dto.favouriteInvestigations !== undefined) extra.favouriteInvestigations = dto.favouriteInvestigations;
+    if (dto.investigationUnitPrefs !== undefined) extra.investigationUnitPrefs = dto.investigationUnitPrefs;
 
     // Chambers and otherCertificates: replace the whole set in a transaction
     // so a half-saved state can't leave the user with phantom rows.

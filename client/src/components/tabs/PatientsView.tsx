@@ -22,7 +22,7 @@ interface RowData {
 type Palette = Record<number, string>;
 
 const EMPTY_PT_INFO: PtInfo = {
-  name: "", hospitalId: "", bloodGroup: "", dob: "", age: "", sex: "Male", ethnicity: "", religion: "Islam",
+  name: "", hospitalId: "", bloodGroup: "", dob: "", age: "", sex: "", ethnicity: "", religion: "Islam",
   mobile: "", spouseMobile: "", relativeMobile: "", relativeRelation: "",
   district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
 };

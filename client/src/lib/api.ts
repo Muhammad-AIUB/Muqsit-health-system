@@ -273,6 +273,8 @@ export interface ProfileMe {
   approvalStatus: string;
   accountTier: string;
   chambers: Chamber[];
+  favouriteInvestigations: string[];
+  investigationUnitPrefs: Record<string, string>;
 }
 
 export interface ProfileUpdateInput {
@@ -289,6 +291,8 @@ export interface ProfileUpdateInput {
   nidBackUrl?: string;
   otherCertificates?: OtherCertificateInput[];
   chambers?: ChamberInput[];
+  favouriteInvestigations?: string[];
+  investigationUnitPrefs?: Record<string, string>;
 }
 
 export const usersApi = {
@@ -516,6 +520,36 @@ export const opdApi = {
 };
 
 // ── IPD ward ────────────────────────────────────────────────
+// One "Follow Up" vitals/intake-output snapshot for an IPD admission.
+export interface IpdFollowUp {
+  bp?: string;          // blood pressure
+  hr?: string;          // heart rate
+  temp?: string;        // temperature
+  spo2?: string;        // oxygen saturation
+  urineOutput?: string;
+  fluidIntake?: string; // fluid intake / given
+  bloodSugar?: string;
+  note?: string;        // specific note
+}
+
+// A saved follow-up snapshot carries the time it was recorded.
+export interface IpdFollowUpEntry extends IpdFollowUp {
+  ts: string; // ISO timestamp
+}
+
+// Per-admission clinical sheet (IPD detail view). List sections are chip-lists
+// (like the prescription page); the diagnosis column on the row is kept in sync.
+export interface IpdClinical {
+  diagnosis?: string[];
+  chiefComplaints?: string[];
+  investigation?: string[];
+  procedure?: string[];
+  plan?: string[];
+  adviceTests?: string[];
+  followUps?: IpdFollowUpEntry[]; // timestamped log
+  rxItems?: RxItemInput[];
+}
+
 export interface IpdAdmission {
   id: string;
   patientId: string | null;
@@ -526,9 +560,26 @@ export interface IpdAdmission {
   wardNo: string | null;
   floorBuilding: string | null;
   mobile: string | null;
+  age: number | null;
+  sex: string | null;
   diagnosis: string | null;
   status: string;
+  clinical: IpdClinical | null;
   admittedAt: string;
+}
+
+export interface IpdAdmissionUpdateInput {
+  bed?: string;
+  name?: string;
+  hospitalId?: string;
+  roomNo?: string;
+  wardNo?: string;
+  floorBuilding?: string;
+  mobile?: string;
+  diagnosis?: string;
+  age?: number;
+  sex?: string;
+  clinical?: IpdClinical;
 }
 
 export interface IpdAdmissionInput {
@@ -560,6 +611,8 @@ export const ipdApi = {
     apiFetch<IpdAdmission>("/ipd", { method: "POST", body: JSON.stringify(input) }),
   setStatus: (id: string, status: string) =>
     apiFetch<IpdAdmission>(`/ipd/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  update: (id: string, input: IpdAdmissionUpdateInput) =>
+    apiFetch<IpdAdmission>(`/ipd/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   events: (id: string) => apiFetch<IpdEventRecord[]>(`/ipd/${id}/events`),
   addEvent: (id: string, note: string, reportUrl?: string) =>
     apiFetch<IpdEventRecord>(`/ipd/${id}/events`, { method: "POST", body: JSON.stringify({ note, reportUrl }) }),

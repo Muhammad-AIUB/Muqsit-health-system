@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEmail,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -111,4 +112,16 @@ export class UpdateProfileDto {
   @ValidateNested({ each: true })
   @Type(() => ChamberInput)
   chambers?: ChamberInput[];
+
+  // Favourite investigation test names (populate the "Favourite" category).
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(300)
+  @IsString({ each: true })
+  favouriteInvestigations?: string[];
+
+  // Per-test preferred unit: { [testName]: "u1" | "u2" }.
+  @IsOptional()
+  @IsObject()
+  investigationUnitPrefs?: Record<string, string>;
 }

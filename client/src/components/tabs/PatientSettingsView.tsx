@@ -147,12 +147,12 @@ export default function PatientSettingsView() {
     }
   };
 
-  let piAge = "";
-  if (pI.dob) {
-    const bd = new Date(pI.dob);
-    const today = new Date();
-    piAge = String(Math.floor((today.getTime() - bd.getTime()) / (365.25 * 24 * 60 * 60 * 1000)));
-  }
+  const computeAge = (dob: string) => {
+    if (!dob) return "";
+    const bd = new Date(dob);
+    return String(Math.floor((Date.now() - bd.getTime()) / (365.25 * 24 * 60 * 60 * 1000)));
+  };
+  const piAge = computeAge(pI.dob);
 
   const piLbl: CSSProperties = { fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 };
   const piInp: CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], boxSizing: "border-box", fontFamily: "inherit" };
@@ -185,9 +185,9 @@ export default function PatientSettingsView() {
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
                   <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Hospital ID</div><input style={piInp} value={pI.hospitalId} onChange={(e) => setPi("hospitalId", e.target.value)} placeholder="Hospital ID" /></div>
-                  <div style={{ flex: "0 0 140px" }}><div style={piLbl}>Date of birth</div><input style={piInp} type="date" value={pI.dob} onChange={(e) => setPi("dob", e.target.value)} /></div>
-                  <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => setPi("age", e.target.value)} placeholder="Auto" />{piAge && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
-                  <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => setPi("sex", e.target.value)}><option>Male</option><option>Female</option><option>Other</option></select></div>
+                  <div style={{ flex: "0 0 140px" }}><div style={piLbl}>Date of birth</div><input style={piInp} type="date" value={pI.dob} onChange={(e) => { setPi("dob", e.target.value); setPtAge(computeAge(e.target.value)); }} /></div>
+                  <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => { setPi("age", e.target.value); if (!pI.dob) setPtAge(e.target.value); }} placeholder="Auto" />{piAge && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
+                  <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => { setPi("sex", e.target.value); setPtGender(e.target.value); }}><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
                 </div>
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Ethnicity</div><select style={piSel} value={pI.ethnicity} onChange={(e) => setPi("ethnicity", e.target.value)}><option value="">Select ethnicity…</option>{ethnicities.map((e) => <option key={e}>{e}</option>)}</select></div>
@@ -199,7 +199,7 @@ export default function PatientSettingsView() {
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Contact numbers</div>
             <div style={piRow}>
-              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Patient mobile * (11 digit)</div><input style={piInp} value={pI.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("mobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} />{pI.mobile && pI.mobile.length !== 11 && <div style={{ fontSize: 9, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}</div>
+              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Patient mobile * (11 digit)</div><input style={piInp} value={pI.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) { setPi("mobile", v); setPtPhone(v); } }} placeholder="01XXXXXXXXX" maxLength={11} />{pI.mobile && pI.mobile.length !== 11 && <div style={{ fontSize: 9, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}</div>
               <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Spouse mobile (11 digit)</div><input style={piInp} value={pI.spouseMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("spouseMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
             </div>
             <div style={piRow}>

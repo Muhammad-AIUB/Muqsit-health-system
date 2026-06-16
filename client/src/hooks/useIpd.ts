@@ -5,6 +5,7 @@ import {
   ipdApi,
   type IpdAdmission,
   type IpdAdmissionInput,
+  type IpdAdmissionUpdateInput,
   type IpdEventRecord,
 } from "@/lib/api";
 
@@ -31,6 +32,14 @@ export function useSetIpdStatus() {
   });
 }
 
+export function useUpdateIpd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: IpdAdmissionUpdateInput }) => ipdApi.update(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: IPD_KEY }),
+  });
+}
+
 export function useIpdEvents(admissionId: string | null) {
   return useQuery({
     queryKey: eventsKey(admissionId ?? ""),
@@ -47,4 +56,4 @@ export function useAddIpdEvent() {
   });
 }
 
-export type { IpdAdmission, IpdAdmissionInput, IpdEventRecord };
+export type { IpdAdmission, IpdAdmissionInput, IpdAdmissionUpdateInput, IpdEventRecord };

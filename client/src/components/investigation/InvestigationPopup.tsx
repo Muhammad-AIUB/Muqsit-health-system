@@ -5,6 +5,8 @@ import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
 import CalcRenderer from "./CalcRenderer";
+import { useActivityLog } from "@/hooks/useActivity";
+import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -14,6 +16,22 @@ export default function InvestigationPopup() {
     invSearch, setInvSearch, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
     investigation, setInvestigation, invImages, setInvImages,
   } = useMuqsit();
+
+  // Mirror investigation adds into the activity feed (Notification, Charts &
+  // Reports), like the other clinical-assessment sections do.
+  const logActivity = useActivityLog();
+  const logInv = (detail: string) => logActivity("Investigation report findings", detail);
+
+  // The "Favourite" category is built from the doctor's saved favourites
+  // (Settings → Favourite & unit settings), looked up across all categories.
+  const { favourites } = useInvestigationPrefs();
+  const favTests = (() => {
+    const all = INV_CATS.flatMap((c) => c.tests);
+    return favourites.map((n) => all.find((t) => t.name === n)).filter((t): t is NonNullable<typeof t> => !!t);
+  })();
+  const activeTests = invActiveCat === "Favourite"
+    ? favTests
+    : (INV_CATS.find((c) => c.cat === invActiveCat)?.tests ?? []);
 
   // Index of the report image currently shown in the left-side viewer + its zoom.
   const [reportIdx, setReportIdx] = useState(0);
@@ -200,7 +218,10 @@ export default function InvestigationPopup() {
     }).filter(Boolean);
     if (parts.length > 0) {
       const result = dateStr + ":" + testName + ":" + parts.join(",");
-      if (!investigation.includes(result)) setInvestigation([...investigation, result]);
+      if (!investigation.includes(result)) {
+        setInvestigation([...investigation, result]);
+        logInv(testName + ": " + parts.join(", "));
+      }
       fields.forEach((f) => {
         const key = testName + "__" + f.l;
         const key2 = testName + "__" + f.l + "_u2";
@@ -215,13 +236,19 @@ export default function InvestigationPopup() {
   const addCalcResult = (testName: string, summary: string) => {
     const dateStr = formatCalDate(calDate);
     const result = dateStr + ":" + testName + ":" + summary;
-    if (!investigation.includes(result)) setInvestigation([...investigation, result]);
+    if (!investigation.includes(result)) {
+      setInvestigation([...investigation, result]);
+      logInv(testName + ": " + summary);
+    }
   };
 
   const addInvNormal = (testName: string) => {
     const dateStr = formatCalDate(calDate);
     const result = dateStr + ":" + testName + ":normal";
-    if (!investigation.includes(result)) setInvestigation([...investigation, result]);
+    if (!investigation.includes(result)) {
+      setInvestigation([...investigation, result]);
+      logInv(testName + ": normal");
+    }
   };
 
   // Auto-save when popup closes
@@ -541,7 +568,12 @@ export default function InvestigationPopup() {
 
           {/* Test forms */}
           <div style={{ flex: 1, padding: "12px 20px", overflowY: "auto" }}>
-            {((INV_CATS.find((c) => c.cat === invActiveCat) || { tests: [] }).tests || []).map((test) => (
+            {invActiveCat === "Favourite" && favTests.length === 0 && (
+              <div style={{ fontSize: 12, color: C.n[500], padding: "10px 4px" }}>
+                No favourites yet. Add them in Settings → Favourite &amp; unit settings.
+              </div>
+            )}
+            {activeTests.map((test) => (
               <div key={test.name} ref={(el) => { testRefs.current[test.name] = el; }} style={{
                 marginBottom: 14, padding: "12px 14px", borderRadius: 8,
                 background: flashTest === test.name ? C.pri[50] : C.n[50],
@@ -722,7 +754,9 @@ export default function InvestigationPopup() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && e.currentTarget.value.trim()) {
                       const dateStr = formatCalDate(calDate);
-                      setInvestigation([...investigation, dateStr + ":" + e.currentTarget.value.trim()]);
+                      const text = e.currentTarget.value.trim();
+                      setInvestigation([...investigation, dateStr + ":" + text]);
+                      logInv(text);
                       e.currentTarget.value = "";
                     }
                   }}
@@ -733,7 +767,7 @@ export default function InvestigationPopup() {
                   }} />
                 <button onClick={(e) => {
                   const input = e.currentTarget.previousSibling as HTMLInputElement | null;
-                  if (input && input.value.trim()) { const dateStr = formatCalDate(calDate); setInvestigation([...investigation, dateStr + ":" + input.value.trim()]); input.value = ""; }
+                  if (input && input.value.trim()) { const dateStr = formatCalDate(calDate); const text = input.value.trim(); setInvestigation([...investigation, dateStr + ":" + text]); logInv(text); input.value = ""; }
                 }} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
               </div>
             </div>

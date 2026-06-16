@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { IpdAdmission, IpdEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import {
   CreateAdmissionDto,
   CreateIpdEventDto,
+  UpdateAdmissionDto,
   UpdateAdmissionStatusDto,
 } from './dto/ipd.dto';
 
@@ -37,6 +39,21 @@ export class IpdService {
   ): Promise<IpdAdmission> {
     await this.owned(doctorId, id);
     return this.prisma.ipdAdmission.update({ where: { id }, data: { status: dto.status } });
+  }
+
+  async update(
+    doctorId: string,
+    id: string,
+    dto: UpdateAdmissionDto,
+  ): Promise<IpdAdmission> {
+    await this.owned(doctorId, id);
+    // Loose cast so this compiles before `prisma generate` learns the new
+    // age / sex / clinical columns (regenerate to activate at runtime).
+    const data = { ...dto } as Record<string, unknown>;
+    return this.prisma.ipdAdmission.update({
+      where: { id },
+      data: data as Prisma.IpdAdmissionUpdateInput,
+    });
   }
 
   async listEvents(doctorId: string, admissionId: string): Promise<IpdEvent[]> {

@@ -10,26 +10,34 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   const {
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate,
-    ptPhone, setPtPhone, ptHospitalId, setPtHospitalId,
+    ptPhone, setPtPhone, ptHospitalId, setPtHospitalId, setPtInfo,
     monthlyCost, watchPatient, toggleWatch, activeTab, setActiveTab,
   } = useMuqsit();
+
+  // Age / Gender / Mobile are shared with the Patient Settings form (ptInfo).
+  // Mirror header edits into ptInfo so the two views always show the same
+  // value. Editing age here clears any DOB (manual age overrides DOB).
+  const onAge = (v: string) => { const a = v.replace(/\D/g, "").slice(0, 3); setPtAge(a); setPtInfo((p) => ({ ...p, age: a, dob: "" })); };
+  const onGender = (v: string) => { setPtGender(v); setPtInfo((p) => ({ ...p, sex: v })); };
+  const onMobile = (v: string) => { const m = v.replace(/[^\d+ -]/g, "").slice(0, 16); setPtPhone(m); setPtInfo((p) => ({ ...p, mobile: m })); };
 
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: mobile ? 10 : 14, marginBottom: mobile ? 10 : 14 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: mobile ? 6 : 10 }}>
         <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={inputSm} /></div>
-        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => setPtAge(e.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" placeholder="—" style={inputSm} /></div>
+        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={inputSm} /></div>
         <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Gender</label>
-          <select value={ptGender} onChange={(e) => setPtGender(e.target.value)} style={{ ...inputSm, padding: "6px 6px", cursor: "pointer" }}>
+          <select value={ptGender} onChange={(e) => onGender(e.target.value)} style={{ ...inputSm, padding: "6px 6px", cursor: "pointer" }}>
             <option value="">—</option>
             <option>Male</option>
             <option>Female</option>
+            <option>Other</option>
           </select>
         </div>
         <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={inputSm} /></div>
         <div style={{ flex: "0 0 60px" }}><label style={fieldLabel}>Weight</label><input value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
         <div style={{ flex: "0 0 130px" }}><label style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
-        {!mobile && <div style={{ flex: "0 0 140px" }}><label style={fieldLabel}>Mobile</label><input value={ptPhone} onChange={(e) => setPtPhone(e.target.value.replace(/[^\d+ -]/g, "").slice(0, 16))} inputMode="tel" placeholder="01XXXXXXXXX" style={inputSm} /></div>}
+        {!mobile && <div style={{ flex: "0 0 140px" }}><label style={fieldLabel}>Mobile</label><input value={ptPhone} onChange={(e) => onMobile(e.target.value)} inputMode="tel" placeholder="01XXXXXXXXX" style={inputSm} /></div>}
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 150px" }}>
           <label style={fieldLabel}>Total monthly cost</label>
           <div style={{ padding: "6px 10px", borderRadius: 6, fontSize: 14, fontWeight: 600, background: monthlyCost > 0 ? C.pri[50] : C.n[100], border: `0.5px solid ${monthlyCost > 0 ? C.pri[100] : C.n[200]}`, color: monthlyCost > 0 ? C.pri[600] : C.n[500], display: "flex", alignItems: "center", gap: 4, minHeight: 30 }}>

@@ -61,6 +61,12 @@ model User {
   // and used to pre-fill the per-assistant permission editor.
   assistantDefaultPermissions String[] @default([])
 
+  // Investigation preferences (Settings → Favourite & unit settings):
+  // favourite test names (populate the "Favourite" category) and per-test
+  // preferred unit { [testName]: "u1" | "u2" }.
+  favouriteInvestigations String[] @default([])
+  investigationUnitPrefs  Json     @default("{}")
+
   refreshTokens RefreshToken[]
 
   // Practice locations (chambers / clinics) — multiple per doctor.
@@ -328,8 +334,14 @@ model IpdAdmission {
   wardNo        String? // cabin / ward no
   floorBuilding String? // floor or building
   mobile        String?
+  age           Int?
+  sex           String?
   diagnosis     String?
   status        String  @default("Stable") // Stable | Observation | Critical | Discharge
+
+  // Per-admission clinical sheet shown in the IPD detail view:
+  // { chiefComplaints, investigation, procedure, followUp, plan, adviceTests, rxItems }
+  clinical Json @default("{}")
 
   events IpdEvent[]
 

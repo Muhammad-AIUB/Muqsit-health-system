@@ -7,15 +7,17 @@ import ManageAssistantsView from "./ManageAssistantsView";
 import ProfileSettingsView from "./ProfileSettingsView";
 import PrescriptionSettingsView from "./PrescriptionSettingsView";
 import PrescriptionTemplatesView from "./PrescriptionTemplatesView";
+import FavouriteSettingsView from "./FavouriteSettingsView";
 
 const SETTINGS_ITEMS = [
   { t: "Profile", d: "Doctor name, specialization, clinic info", i: "◉", section: "profile" as const },
   { t: "Manage your assistants", d: "Role based access control & dynamic permission", i: "⊕", section: "assistants" as const },
   { t: "Prescription settings", d: "Set up your prescription paper size, format etc", i: "⚙", section: "prescription-settings" as const },
   { t: "Prescription templates", d: "Create, edit, delete medicine templates", i: "℞", section: "prescription-templates" as const },
+  { t: "Favourite & unit settings", d: "Pick favourite investigations & preferred units", i: "★", section: "favourite-settings" as const },
 ];
 
-type Section = "home" | "assistants" | "profile" | "prescription-settings" | "prescription-templates";
+type Section = "home" | "assistants" | "profile" | "prescription-settings" | "prescription-templates" | "favourite-settings";
 
 const SECTION_PATH: Record<Section, string> = {
   home: "/settings",
@@ -23,6 +25,7 @@ const SECTION_PATH: Record<Section, string> = {
   profile: "/settings/profile",
   "prescription-settings": "/settings/prescription-settings",
   "prescription-templates": "/settings/prescription-templates",
+  "favourite-settings": "/settings/favourite-settings",
 };
 
 const sectionFromPath = (pathname: string): Section => {
@@ -31,6 +34,7 @@ const sectionFromPath = (pathname: string): Section => {
   if (clean === "/settings/profile") return "profile";
   if (clean === "/settings/prescription-settings") return "prescription-settings";
   if (clean === "/settings/prescription-templates") return "prescription-templates";
+  if (clean === "/settings/favourite-settings") return "favourite-settings";
   return "home";
 };
 
@@ -68,6 +72,9 @@ export default function SettingsView() {
   }
   if (section === "prescription-templates") {
     return <PrescriptionTemplatesView onBack={() => go("home")} />;
+  }
+  if (section === "favourite-settings") {
+    return <FavouriteSettingsView onBack={() => go("home")} />;
   }
 
   return (

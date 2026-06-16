@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { useAddIpdEvent, useAdmitIpd, useIpdEvents, useIpdList, useSetIpdStatus, type IpdAdmission } from "@/hooks/useIpd";
+import { useAdmitIpd, useIpdList, useSetIpdStatus, type IpdAdmission } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
+import IpdDetailView from "@/components/ipd/IpdDetailView";
 
 const STATUSES = ["Stable", "Observation", "Critical", "Discharge"] as const;
 const statusColor = (s: string) =>
@@ -21,11 +22,8 @@ export default function IpdView() {
   const admit = useAdmitIpd();
   const setStatus = useSetIpdStatus();
 
-  // Events modal
-  const [selected, setSelected] = useState<IpdAdmission | null>(null);
-  const [eventMsg, setEventMsg] = useState("");
-  const { data: events = [] } = useIpdEvents(selected?.id ?? null);
-  const addEvent = useAddIpdEvent();
+  // Detail view: clicking a patient opens the full admission sheet.
+  const [openId, setOpenId] = useState<string | null>(null);
 
   // Admit form
   const [showAdd, setShowAdd] = useState(false);
@@ -60,15 +58,13 @@ export default function IpdView() {
     setShowAdd(false);
   };
 
-  const sendEvent = async () => {
-    if (!selected) return;
-    const msg = eventMsg.trim();
-    if (!msg) return;
-    await addEvent.mutateAsync({ id: selected.id, note: msg });
-    setEventMsg("");
-  };
-
   const inp = { padding: "7px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 12, outline: "none", fontFamily: font } as const;
+
+  // Full admission detail (opened by clicking a patient).
+  const openAdmission = admissions.find((a) => a.id === openId) ?? null;
+  if (openAdmission) {
+    return <IpdDetailView admission={openAdmission} onBack={() => setOpenId(null)} />;
+  }
 
   return (
     <div style={{ position: "relative" }}>
@@ -117,10 +113,12 @@ export default function IpdView() {
             .join(" · ");
           return (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < admissions.length - 1 ? `0.5px solid ${C.n[200]}` : "none" }}>
-              <div style={{ width: 40, height: 26, borderRadius: 6, background: C.info[50], color: C.info[800], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>{p.bed}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: C.n[600] }}>{p.diagnosis ?? "—"}{where ? ` · ${where}` : ""} · Admitted {fmtDate(p.admittedAt)}</div>
+              <div onClick={() => setOpenId(p.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, cursor: "pointer", minWidth: 0 }}>
+                <div style={{ width: 40, height: 26, borderRadius: 6, background: C.info[50], color: C.info[800], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{p.bed}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: C.n[600] }}>{p.diagnosis ?? "—"}{where ? ` · ${where}` : ""} · Admitted {fmtDate(p.admittedAt)}</div>
+                </div>
               </div>
               <Pill bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.status}</Pill>
               <select
@@ -130,76 +128,11 @@ export default function IpdView() {
               >
                 {STATUSES.map((s) => <option key={s}>{s}</option>)}
               </select>
-              <button onClick={() => setSelected(p)} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 11, cursor: "pointer", fontFamily: font }}>Events</button>
+              <button onClick={() => setOpenId(p.id)} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 11, cursor: "pointer", fontFamily: font }}>Open</button>
             </div>
           );
         })}
       </div>
-
-      {selected && (
-        <div onClick={() => setSelected(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: C.n[0], borderRadius: 14, width: 480, maxWidth: "95vw", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-            <div style={{ padding: "16px 20px 12px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{selected.name}</div>
-                <div style={{ fontSize: 11, color: C.n[600] }}>
-                  {[selected.hospitalId && `ID ${selected.hospitalId}`, selected.bed, selected.roomNo && `Room ${selected.roomNo}`, selected.wardNo && `Ward ${selected.wardNo}`, selected.floorBuilding, selected.mobile, selected.diagnosis ?? "—"].filter(Boolean).join(" · ")}
-                </div>
-              </div>
-              <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: C.n[500], lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ overflowY: "auto", padding: "14px 20px", flex: 1 }}>
-              {events.length === 0 ? (
-                <div style={{ textAlign: "center", color: C.n[500], fontSize: 12, padding: "24px 0" }}>No events recorded yet</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {events.map((ev, idx) => (
-                    <div key={ev.id} style={{ display: "flex", gap: 12, paddingBottom: 16, position: "relative" }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.pri[400], marginTop: 3, flexShrink: 0 }} />
-                        {idx < events.length - 1 && <div style={{ width: 1.5, flex: 1, background: C.n[200], marginTop: 3 }} />}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: C.n[500], marginBottom: 2 }}>{fmtTs(ev.createdAt)}</div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: C.n[800], marginBottom: 3 }}>
-                          {ev.author}{ev.role ? <span style={{ fontWeight: 400, color: C.n[500] }}> — {ev.role}</span> : ""}
-                        </div>
-                        <div style={{ fontSize: 12, color: C.n[700], lineHeight: 1.5 }}>{ev.note}</div>
-                        {ev.reportUrl && (
-                          <a href={ev.reportUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, padding: "3px 10px", borderRadius: 5, border: `0.5px solid ${C.pri[100]}`, background: C.pri[50], color: C.pri[600], fontSize: 11, textDecoration: "none", fontFamily: font }}>
-                            📄 Report
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div style={{ borderTop: `0.5px solid ${C.n[200]}`, padding: "10px 16px", display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <textarea
-                value={eventMsg}
-                onChange={(e) => setEventMsg(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void sendEvent();
-                  }
-                }}
-                placeholder="Add an event note… (Enter to send, Shift+Enter for new line)"
-                rows={2}
-                style={{ flex: 1, resize: "none", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, padding: "8px 10px", fontSize: 12, fontFamily: font, color: C.n[800], outline: "none", lineHeight: 1.5, background: C.n[50] }}
-              />
-              <button
-                onClick={() => void sendEvent()}
-                disabled={addEvent.isPending}
-                style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font, flexShrink: 0, alignSelf: "flex-end", opacity: addEvent.isPending ? 0.6 : 1 }}>
-                {addEvent.isPending ? "Sending…" : "Send"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

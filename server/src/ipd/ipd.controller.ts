@@ -11,6 +11,7 @@ import { IpdService } from './ipd.service';
 import {
   CreateAdmissionDto,
   CreateIpdEventDto,
+  UpdateAdmissionDto,
   UpdateAdmissionStatusDto,
 } from './dto/ipd.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -41,6 +42,15 @@ export class IpdController {
     @Body() dto: UpdateAdmissionStatusDto,
   ) {
     return this.ipd.setStatus(user.id, id, dto);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateAdmissionDto,
+  ) {
+    return this.ipd.update(user.id, id, dto);
   }
 
   @Get(':id/events')
