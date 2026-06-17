@@ -156,8 +156,6 @@ function useMuqsitStore() {
 
   // Health monitoring selections
   const [hmDrugs, setHmDrugs] = useState<Set<string>>(new Set());
-  const [hmSymptoms, setHmSymptoms] = useState<Set<string>>(new Set());
-  const [hmTests, setHmTests] = useState<Set<string>>(new Set());
   const [oeData, setOeData] = useState<OeData>(initialOeData);
 
   // ── Handlers ──────────────────────────────────────────────
@@ -252,11 +250,22 @@ function useMuqsitStore() {
   // Load the patient's saved image galleries whenever a different patient is
   // opened (and clear them when starting a fresh, unsaved patient).
   useEffect(() => {
-    if (!currentPatientId) { setRxImages([]); setReportImages([]); return; }
+    if (!currentPatientId) {
+      setRxImages([]); setReportImages([]);
+      setHmDrugs(new Set()); setFamilyMembers([]);
+      return;
+    }
     let cancelled = false;
     patientsApi
       .get(currentPatientId)
-      .then((p) => { if (!cancelled) { setRxImages(p.prescriptionImages ?? []); setReportImages(p.reportImages ?? []); } })
+      .then((p) => {
+        if (!cancelled) {
+          setRxImages(p.prescriptionImages ?? []);
+          setReportImages(p.reportImages ?? []);
+          setHmDrugs(new Set(p.hmSelectedDrugs ?? []));
+          setFamilyMembers((p.familyMembers as FamilyMember[]) ?? []);
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [currentPatientId]);
@@ -271,6 +280,12 @@ function useMuqsitStore() {
   const saveReportImages = useCallback((next: string[]) => {
     setReportImages(next);
     if (currentPatientId) void patientsApi.update(currentPatientId, { reportImages: next }).catch(() => {});
+  }, [currentPatientId]);
+
+  // Persist family members whenever the list changes (add or remove).
+  const saveFamilyMembers = useCallback((next: FamilyMember[]) => {
+    setFamilyMembers(next);
+    if (currentPatientId) void patientsApi.update(currentPatientId, { familyMembers: next }).catch(() => {});
   }, [currentPatientId]);
 
   // Toggle "Keep eye on this patient" — persists when a saved patient is loaded.
@@ -347,12 +362,12 @@ function useMuqsitStore() {
     calDate, setCalDate, showMonthPicker, setShowMonthPicker, invSearch, setInvSearch,
     invImages, setInvImages,
     rxImages, setRxImages, reportImages, setReportImages, saveRxImages, saveReportImages,
-    showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers,
+    showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptInfo, setPtInfo, currentPatientId, setCurrentPatientId,
     eventsPatient, setEventsPatient, eventMsg, setEventMsg, rcQuery, setRcQuery,
     rcFilter, setRcFilter, rcSelected, setRcSelected, watchPatient, setWatchPatient,
-    hmDrugs, setHmDrugs, hmSymptoms, setHmSymptoms, hmTests, setHmTests, oeData, setOeData,
+    hmDrugs, setHmDrugs, oeData, setOeData,
     // handlers + derived
     handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
     filteredDrugs, monthlyCost, allFieldValues, leftFields,

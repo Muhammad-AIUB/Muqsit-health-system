@@ -283,6 +283,10 @@ model Patient {
   reportImages       String[] @default([])
   // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
   hmDrugDates      Json?
+  // Health-monitoring ticked drug names — persisted so checkbox state survives reload.
+  hmSelectedDrugs  String[]  @default([])
+  // Patient family tree — array of { name, mobile, nid, sex, relation }.
+  familyMembers    Json      @default("[]")
 
   doctorId String?
   doctor   User?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)

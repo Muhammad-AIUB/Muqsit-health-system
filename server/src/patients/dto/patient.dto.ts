@@ -41,4 +41,8 @@ export class CreatePatientDto {
 export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
   @IsOptional() @IsObject() hmDrugDates?: Record<string, { sf: string; upto: string }>;
+  // Ticked drug names in the health-monitoring view.
+  @IsOptional() @IsArray() @IsString({ each: true }) hmSelectedDrugs?: string[];
+  // Family tree — array of { name, mobile, nid, sex, relation }.
+  @IsOptional() @IsArray() familyMembers?: Record<string, unknown>[];
 }

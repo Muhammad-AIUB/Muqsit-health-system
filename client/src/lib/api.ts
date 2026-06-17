@@ -76,6 +76,8 @@ export interface Patient {
   prescriptionImages: string[];
   reportImages: string[];
   hmDrugDates: Record<string, { sf: string; upto: string }> | null;
+  hmSelectedDrugs: string[];
+  familyMembers: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string }>;
   doctorId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -103,6 +105,8 @@ export interface PatientInput {
   prescriptionImages?: string[];
   reportImages?: string[];
   hmDrugDates?: Record<string, { sf: string; upto: string }>;
+  hmSelectedDrugs?: string[];
+  familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string }>;
 }
 
 export class ApiError extends Error {

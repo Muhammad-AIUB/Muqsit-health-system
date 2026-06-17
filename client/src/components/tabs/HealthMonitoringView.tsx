@@ -66,6 +66,9 @@ export default function HealthMonitoringView() {
     const s = new Set(hmDrugs);
     if (on) s.add(name); else s.delete(name);
     setHmDrugs(s);
+    if (currentPatientId) {
+      void patientsApi.update(currentPatientId, { hmSelectedDrugs: Array.from(s) }).catch(() => {});
+    }
   };
 
   // ── Timeline (drug bars: Start-from → Upto, or today if Upto is blank) ──

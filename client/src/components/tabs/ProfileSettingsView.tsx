@@ -5,7 +5,6 @@ import { C, font } from "@/theme";
 import { inputSm } from "@/theme/styles";
 import {
   ApiError,
-  uploadImage,
   usersApi,
   type ChamberInput,
   type OtherCertificateInput,
@@ -13,6 +12,7 @@ import {
   type ProfileUpdateInput,
 } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useImageUpload } from "@/hooks/useImageUpload";
 
 // BMDC (registrationNo / registrationCertUrl) and name are intentionally not
 // in the draft — they're shown read-only from the original profile and no
@@ -465,21 +465,7 @@ function PhotoUploader({
   onError: (msg: string) => void;
   fallback: string;
 }) {
-  const [busy, setBusy] = useState(false);
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setBusy(true);
-    onError("");
-    try {
-      const url = await uploadImage(file);
-      onChange(url);
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Upload failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { busy, onPick } = useImageUpload(onChange, onError);
 
   return (
     <label
@@ -568,21 +554,7 @@ function DocUploader({
   onError: (msg: string) => void;
   placeholder: string;
 }) {
-  const [busy, setBusy] = useState(false);
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setBusy(true);
-    onError("");
-    try {
-      const url = await uploadImage(file);
-      onChange(url);
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Upload failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { busy, onPick } = useImageUpload(onChange, onError);
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -626,22 +598,7 @@ function CertImageUploader({
   onChange: (url: string) => void;
   onError: (msg: string) => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setBusy(true);
-    onError("");
-    try {
-      const url = await uploadImage(file);
-      onChange(url);
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Upload failed");
-    } finally {
-      setBusy(false);
-      e.target.value = "";
-    }
-  };
+  const { busy, onPick } = useImageUpload(onChange, onError);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>

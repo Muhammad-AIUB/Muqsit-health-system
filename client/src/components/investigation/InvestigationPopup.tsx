@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
+import type { InvTest } from "@/types";
 import CalcRenderer from "./CalcRenderer";
 import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
@@ -160,37 +161,52 @@ export default function InvestigationPopup() {
     });
   };
 
-  // Auto-save current form data to the current calDate before changing date
-  const autoSaveInvData = () => {
-    const dateStr = formatCalDate(calDate);
-    const savedTests: string[] = [];
-    const allTests = INV_CATS.flatMap((c) => c.tests);
-    allTests.forEach((test) => {
-      const fields = test.fields || [];
-      const parts = fields.map((f) => {
-        const key = test.name + "__" + f.l;
-        const val = invFormData[key];
+  // ── Shared result-entry helpers (used by single-test add, calc, normal and
+  // the bulk auto-save) — one place for the form→findings string protocol. ──
+
+  // Collect a test's filled-in fields into display parts, e.g.
+  // ["Hb:13.5g/dL", "12000"]. Returns [] when nothing was entered.
+  const collectTestParts = (test: InvTest): string[] =>
+    (test.fields || [])
+      .map((f) => {
+        const val = invFormData[test.name + "__" + f.l];
         if (!val) return null;
         const unit = f.u1 ? f.u1 : "";
         const label = VALUE_LABELS.includes(f.l) ? "" : f.l + ":";
         return label + val + unit;
-      }).filter(Boolean);
-      if (parts.length > 0) {
-        savedTests.push(test.name);
-        const result = dateStr + ":" + test.name + ":" + parts.join(",");
-        if (!investigation.includes(result)) {
-          setInvestigation((prev) => prev.concat([result]));
-        }
-        // Clear those fields
-        fields.forEach((f) => {
-          const key = test.name + "__" + f.l;
-          const key2 = test.name + "__" + f.l + "_u2";
-          setInvFormData((prev) => { const copy = Object.assign({}, prev); delete copy[key]; delete copy[key2]; return copy; });
-        });
-      }
+      })
+      .filter((p): p is string => Boolean(p));
+
+  // Clear a test's entry fields (value + secondary-unit) after it's saved.
+  const clearTestFields = (test: InvTest) =>
+    (test.fields || []).forEach((f) => {
+      const key = test.name + "__" + f.l;
+      const key2 = key + "_u2";
+      setInvFormData((prev) => { const copy = { ...prev }; delete copy[key]; delete copy[key2]; return copy; });
+    });
+
+  // Append a "dd/mm/yyyy:Test:..." findings line if not already present and
+  // mirror it to the activity feed. Functional update — safe under batching.
+  const commitResult = (result: string, logText?: string) => {
+    if (investigation.includes(result)) return;
+    setInvestigation((prev) => (prev.includes(result) ? prev : prev.concat([result])));
+    if (logText) logInv(logText);
+  };
+
+  // Auto-save current form data to the current calDate before changing date.
+  // (Bulk save is silent — no per-test activity-feed entry.)
+  const autoSaveInvData = () => {
+    const dateStr = formatCalDate(calDate);
+    let savedAny = false;
+    INV_CATS.flatMap((c) => c.tests).forEach((test) => {
+      const parts = collectTestParts(test);
+      if (parts.length === 0) return;
+      savedAny = true;
+      commitResult(dateStr + ":" + test.name + ":" + parts.join(","));
+      clearTestFields(test);
     });
     // Image tagging is manual now (no auto-tag on save).
-    return savedTests.length > 0;
+    return savedAny;
   };
 
   const handleInvFieldChange = (testName: string, fLabel: string, value: string) => {
@@ -204,52 +220,24 @@ export default function InvestigationPopup() {
     setCalDate(newDate);
   };
 
+  // Add a single test's entered results for the selected date.
   const addInvResult = (testName: string) => {
-    const dateStr = formatCalDate(calDate);
-    const found = INV_CATS.flatMap((c) => c.tests).find((t) => t.name === testName);
-    const fields = found && found.fields ? found.fields : [];
-    const parts = fields.map((f) => {
-      const key = testName + "__" + f.l;
-      const val = invFormData[key];
-      if (!val) return null;
-      const unit = f.u1 ? f.u1 : "";
-      const label = VALUE_LABELS.includes(f.l) ? "" : f.l + ":";
-      return label + val + unit;
-    }).filter(Boolean);
-    if (parts.length > 0) {
-      const result = dateStr + ":" + testName + ":" + parts.join(",");
-      if (!investigation.includes(result)) {
-        setInvestigation([...investigation, result]);
-        logInv(testName + ": " + parts.join(", "));
-      }
-      fields.forEach((f) => {
-        const key = testName + "__" + f.l;
-        const key2 = testName + "__" + f.l + "_u2";
-        setInvFormData((prev) => { const copy = { ...prev }; delete copy[key]; delete copy[key2]; return copy; });
-      });
-      // Tagging the open report image is now manual — use the per-test
-      // "Left image corresponds to this report" button instead.
-    }
+    const test = INV_CATS.flatMap((c) => c.tests).find((t) => t.name === testName);
+    if (!test) return;
+    const parts = collectTestParts(test);
+    if (parts.length === 0) return;
+    commitResult(formatCalDate(calDate) + ":" + testName + ":" + parts.join(","), testName + ": " + parts.join(", "));
+    clearTestFields(test);
+    // Tagging the open report image is now manual — use the per-test
+    // "Left image corresponds to this report" button instead.
   };
 
   // Push a computed score-calculator result for the selected date.
-  const addCalcResult = (testName: string, summary: string) => {
-    const dateStr = formatCalDate(calDate);
-    const result = dateStr + ":" + testName + ":" + summary;
-    if (!investigation.includes(result)) {
-      setInvestigation([...investigation, result]);
-      logInv(testName + ": " + summary);
-    }
-  };
+  const addCalcResult = (testName: string, summary: string) =>
+    commitResult(formatCalDate(calDate) + ":" + testName + ":" + summary, testName + ": " + summary);
 
-  const addInvNormal = (testName: string) => {
-    const dateStr = formatCalDate(calDate);
-    const result = dateStr + ":" + testName + ":normal";
-    if (!investigation.includes(result)) {
-      setInvestigation([...investigation, result]);
-      logInv(testName + ": normal");
-    }
-  };
+  const addInvNormal = (testName: string) =>
+    commitResult(formatCalDate(calDate) + ":" + testName + ":normal", testName + ": normal");
 
   // Auto-save when popup closes
   const handleCloseInvPopup = () => {

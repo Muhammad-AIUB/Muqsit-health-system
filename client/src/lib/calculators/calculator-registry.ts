@@ -50,7 +50,7 @@ import { calculateFLIPI } from './flipi'
 import { calculateCllIpi } from './cll-ipi'
 import { calculateIpssR } from './ipss-r'
 import { calculateIPSS } from './ipss'
-import { calculateBloodVolume } from './blood-volume'
+import { calculateBloodVolume, type PatientType, type Sex } from './blood-volume'
 import { calculateCCI } from './cci'
 import { calculatePlasmaDosage } from './plasma-dosage'
 import { calculateIronDeficit } from './iron-deficit'
@@ -73,7 +73,7 @@ import { calculateMMRC } from './mmrc'
 import { calculateBSA } from './bsa'
 import { calculateBSACosteff } from './bsa-costeff'
 import { calculateEjectionFraction } from './ejection-fraction'
-import { calculateSCAIShock } from './scai-shock'
+import { calculateSCAIShock, type SCAIStage } from './scai-shock'
 
 export const CALCULATORS: Calculator[] = [
   {
@@ -1356,8 +1356,8 @@ export const CALCULATORS: Calculator[] = [
     inputs: [],
     calculate: (inputs) => {
       const result = calculateBloodVolume({
-        patientType: inputs.patientType as any,
-        sex:         inputs.sex as any,
+        patientType: inputs.patientType as PatientType,
+        sex:         inputs.sex as Sex,
         heightCm:    Number(inputs.heightCm)  || undefined,
         weightKg:    Number(inputs.weightKg),
         hematocrit:  Number(inputs.hematocrit) || undefined,
@@ -2337,10 +2337,12 @@ export const CALCULATORS: Calculator[] = [
       },
     ],
     calculate: (inputs) => {
-      const result = calculateSCAIShock({ stage: (inputs.stage as any) ?? 'A' });
+      const result = calculateSCAIShock({ stage: (inputs.stage as SCAIStage) ?? 'A' });
       return {
         calculatorId: 'scai-shock',
-        score: result.stage as any,
+        // Stage is a letter (A–E), not a number — use the string-capable `value`
+        // field. The renderer falls back to `value` when `score` is absent.
+        value: result.stage,
         unit: '',
         severity: result.severity,
         label: `SCAI Stage ${result.stage}`,

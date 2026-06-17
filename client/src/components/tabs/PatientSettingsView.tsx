@@ -110,7 +110,7 @@ function PatientPhotoCorner() {
 export default function PatientSettingsView() {
   const {
     ptInfo, setPtInfo, ptSettingsTab, setPtSettingsTab,
-    familyMembers, setFamilyMembers, showFamilyForm, setShowFamilyForm,
+    familyMembers, saveFamilyMembers, showFamilyForm, setShowFamilyForm,
     familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptName, ptGender, ptPhone, setPtName, setPtAge, setPtGender, setPtPhone,
     currentPatientId, setCurrentPatientId,
@@ -372,7 +372,7 @@ export default function PatientSettingsView() {
                     <div style={{ fontSize: 10, color: C.n[600] }}>{fm.sex}{fm.mobile ? " · " + fm.mobile : ""}{fm.nid ? " · NID: " + fm.nid : ""}</div>
                   </div>
                   <Pill bg={rc.bg} fg={rc.fg}>{fm.relation}</Pill>
-                  <button onClick={() => setFamilyMembers(familyMembers.filter((_, idx) => idx !== i))}
+                  <button onClick={() => saveFamilyMembers(familyMembers.filter((_, idx) => idx !== i))}
                     style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14, padding: "2px 6px" }}>×</button>
                 </div>
               );
@@ -421,7 +421,7 @@ export default function PatientSettingsView() {
                   <button onClick={() => setShowFamilyForm(false)} style={{ padding: "8px 20px", borderRadius: 8, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
                   <button onClick={() => {
                     if (familyForm.name.trim()) {
-                      setFamilyMembers(familyMembers.concat([Object.assign({}, familyForm, { relation: familyRelation })]));
+                      saveFamilyMembers(familyMembers.concat([Object.assign({}, familyForm, { relation: familyRelation })]));
                       setShowFamilyForm(false);
                     }
                   }} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Add {familyRelation.toLowerCase()}</button>
