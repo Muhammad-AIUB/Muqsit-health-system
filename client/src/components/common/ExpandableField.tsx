@@ -13,6 +13,11 @@ interface ExpandableFieldProps {
   checkboxOptions?: string[];
   // Called for each newly committed item (used for the activity feed).
   onAdd?: (item: string) => void;
+  // Optional inline text box after each item (keyed by item text). When
+  // provided, every bullet gets an editable box beside it.
+  itemNotes?: Record<string, string>;
+  onItemNote?: (item: string, note: string) => void;
+  notePlaceholder?: string;
 }
 
 // ── Recent-entry memory (per field, survives refresh) ────────
@@ -39,7 +44,7 @@ function saveRecents(label: string, entries: string[]) {
   }
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
   // Staged items: edits live here until the user presses Done.
@@ -145,9 +150,17 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       {items.length > 0 && (
         <div style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
           {items.map((item, idx) => (
-            <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 7, fontSize: 12, color: C.n[800], padding: "1.5px 0" }}>
+            <div key={idx} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.n[800], padding: "1.5px 0" }}>
               <span style={{ color: C.n[500], lineHeight: 1.45, flexShrink: 0 }}>•</span>
-              <span style={{ flex: 1, lineHeight: 1.45 }}>{item}</span>
+              <span style={{ flex: itemNotes ? "0 0 auto" : 1, lineHeight: 1.45 }}>{item}</span>
+              {itemNotes && (
+                <input
+                  value={itemNotes[item] ?? ""}
+                  onChange={(e) => onItemNote?.(item, e.target.value)}
+                  placeholder={notePlaceholder ?? ""}
+                  style={{ flex: 1, minWidth: 0, marginLeft: 4, padding: "3px 8px", borderRadius: 5, border: `0.5px solid ${C.n[300]}`, fontSize: 11.5, fontFamily: "inherit", color: C.n[900], outline: "none", background: C.n[0] }}
+                />
+              )}
             </div>
           ))}
         </div>

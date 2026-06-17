@@ -18,6 +18,8 @@ export interface RxItem {
   // A free-typed instruction line the doctor wrote between medicines
   // (e.g. "Take rest for 2 weeks"). Carried through to the printed sheet.
   isNote?: boolean;
+  // "Start From" date for the medicine (IPD pad), e.g. "17 June 2026".
+  sf?: string;
 }
 
 export interface OpdPatient {

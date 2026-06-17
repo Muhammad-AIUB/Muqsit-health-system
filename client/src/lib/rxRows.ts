@@ -13,7 +13,7 @@ export function rowsFromRxItems(items: RxItem[]): Row[] {
   const rows: Row[] = items.map((it, i) => {
     if (it.isNote) return { drug: it.drug, dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false };
     const isCont = it.drug.trim() === "" && i > 0;
-    return { drug: it.drug, dose: it.dose, food: it.instruction, duration: it.duration, checked: true, isMedicine: true, continuation: isCont };
+    return { drug: it.drug, dose: it.dose, food: it.instruction, duration: it.duration, checked: true, isMedicine: true, continuation: isCont, sf: it.sf };
   });
   rows.push(emptyRow());
   return rows;
@@ -30,7 +30,7 @@ export function rxItemsFromRows(rows: Row[]): RxItem[] {
     if (r.continuation) {
       if (r.dose.trim() || r.duration.trim()) out.push({ drug: "", dose: r.dose, duration: r.duration, instruction: r.food });
     } else if (r.drug.trim()) {
-      out.push({ drug: r.drug.trim(), dose: r.dose, duration: r.duration, instruction: r.food });
+      out.push({ drug: r.drug.trim(), dose: r.dose, duration: r.duration, instruction: r.food, sf: r.sf });
     }
   }
   return out;

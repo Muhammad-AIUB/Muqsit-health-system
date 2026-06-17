@@ -453,6 +453,7 @@ export interface RxItemInput {
   instruction: string;
   order?: number;
   isNote?: boolean;
+  sf?: string;
 }
 
 export interface PrescriptionInput {
@@ -542,8 +543,10 @@ export interface IpdFollowUpEntry extends IpdFollowUp {
 export interface IpdClinical {
   diagnosis?: string[];
   chiefComplaints?: string[];
+  chiefComplaintsNotes?: Record<string, string>; // note box per complaint
   investigation?: string[];
   procedure?: string[];
+  procedureNotes?: Record<string, string>;        // note box per procedure
   plan?: string[];
   adviceTests?: string[];
   followUps?: IpdFollowUpEntry[]; // timestamped log

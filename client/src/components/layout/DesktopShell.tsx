@@ -1,9 +1,11 @@
 "use client";
 
+import { Fragment } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
+import CriticalAlert from "@/components/ipd/CriticalAlert";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
 import TabRouter from "@/components/TabRouter";
@@ -27,7 +29,11 @@ export default function DesktopShell() {
             {TABS.map((t) => {
               const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));
               return (
-                <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding: "5px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12, background: active ? C.pri[50] : "transparent", color: active ? C.pri[600] : C.n[600], fontWeight: activeTab === t.id ? 500 : 400, display: "flex", alignItems: "center", gap: 4, fontFamily: font }}><span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}</button>
+                <Fragment key={t.id}>
+                  <button onClick={() => setActiveTab(t.id)} style={{ padding: "5px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12, background: active ? C.pri[50] : "transparent", color: active ? C.pri[600] : C.n[600], fontWeight: activeTab === t.id ? 500 : 400, display: "flex", alignItems: "center", gap: 4, fontFamily: font }}><span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}</button>
+                  {/* Flashing emergency beacon right after OPD when any IPD patient is Critical. */}
+                  {t.id === "opd" && <CriticalAlert onClick={() => setActiveTab("ipd")} />}
+                </Fragment>
               );
             })}
           </div>

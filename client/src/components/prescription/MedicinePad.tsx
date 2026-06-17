@@ -4,6 +4,16 @@ import { useRef, useState, type CSSProperties, type Dispatch, type SetStateActio
 import { C, font } from "@/theme";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, FOOD_HINT } from "@/lib/rxShorthand";
+import { parseFlexibleDate } from "@/lib/dateInput";
+
+// "Start From": type 170626 → "17 June 2026". Leaves non-date text untouched.
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const formatSF = (v: string): string => {
+  const iso = parseFlexibleDate(v);
+  if (!iso) return v;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}` : v;
+};
 
 // Small pill icon shown beside the "treat as medicine" suggestion.
 const PillIcon = () => (
@@ -24,6 +34,7 @@ export interface Row {
   checked: boolean;
   isMedicine: boolean;
   continuation: boolean;
+  sf?: string; // "Start From" date (IPD pad) — display e.g. "17 June 2026"
 }
 export const emptyRow = (): Row => ({ drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false });
 export const contRow = (): Row => ({ drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: true, continuation: true });
@@ -36,9 +47,10 @@ interface Props {
   minHeight?: number;
   noteText?: string;      // placeholder for the trailing empty line
   showCheck?: boolean;    // per-row checkboxes + "Select all" (default true)
+  showSF?: boolean;       // "Start From" date box before each medicine (IPD)
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, noteText, showCheck = true }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, noteText, showCheck = true, showSF = false }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -125,6 +137,20 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                   </>
                 )}
               </div>
+
+              {/* Start From date box — before each medicine (IPD pad only) */}
+              {showSF && isHead && (
+                <span style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }} title="Start From — type a date like 170626">
+                  <span style={{ fontSize: 10, fontWeight: 700, color: C.pri[600] }}>SF:</span>
+                  <input
+                    value={row.sf ?? ""}
+                    onChange={(e) => updateRow(idx, { sf: e.target.value })}
+                    onBlur={() => updateRow(idx, { sf: formatSF(row.sf ?? "") })}
+                    placeholder="date"
+                    style={{ width: 96, padding: "3px 7px", borderRadius: 5, border: `0.5px solid ${C.n[300]}`, fontSize: 11, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }}
+                  />
+                </span>
+              )}
 
               {/* Medicine column: name (or indent) + >>> tapering button */}
               <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", gap: 4 }}>

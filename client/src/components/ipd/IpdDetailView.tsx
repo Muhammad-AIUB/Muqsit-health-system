@@ -66,7 +66,9 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // Chip-list sections (same UX as the prescription page).
   const [diagnosis, setDiagnosis] = useState<string[]>(c.diagnosis ?? (admission.diagnosis ? [admission.diagnosis] : []));
   const [chiefComplaints, setChief] = useState<string[]>(c.chiefComplaints ?? []);
+  const [chiefNotes, setChiefNotes] = useState<Record<string, string>>(c.chiefComplaintsNotes ?? {});
   const [procedure, setProc] = useState<string[]>(c.procedure ?? []);
+  const [procNotes, setProcNotes] = useState<Record<string, string>>(c.procedureNotes ?? {});
   const [plan, setPlan] = useState<string[]>(c.plan ?? []);
   const [adviceTests, setAdvice] = useState<string[]>(c.adviceTests ?? []);
 
@@ -90,7 +92,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   };
 
   const buildClinical = (followUpsOverride?: IpdFollowUpEntry[]): IpdClinical => ({
-    diagnosis, chiefComplaints, investigation, procedure, plan, adviceTests,
+    diagnosis, chiefComplaints, chiefComplaintsNotes: chiefNotes, investigation, procedure, procedureNotes: procNotes, plan, adviceTests,
     followUps: followUpsOverride ?? followUps,
     rxItems: rxItemsFromRows(rows),
   });
@@ -167,11 +169,13 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 340px", minWidth: 300 }}>
           <ExpandableField label="Diagnosis" items={diagnosis} setItems={setDiagnosis} suggestions={suggestionDB["Provisional diagnosis"]} allFields={allFields} />
-          <ExpandableField label="Chief Complaints" items={chiefComplaints} setItems={setChief} suggestions={suggestionDB["Chief complaints"]} allFields={allFields} />
+          <ExpandableField label="Chief Complaints" items={chiefComplaints} setItems={setChief} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
+            itemNotes={chiefNotes} onItemNote={(item, note) => setChiefNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note…" />
           <div style={{ marginBottom: 12 }}>
             <InvestigationFindingsField label="Investigation report findings" items={investigation} invImages={invImages} onOpen={() => setShowInvPopup(true)} />
           </div>
-          <ExpandableField label="Procedure" items={procedure} setItems={setProc} allFields={allFields} />
+          <ExpandableField label="Procedure" items={procedure} setItems={setProc} allFields={allFields}
+            itemNotes={procNotes} onItemNote={(item, note) => setProcNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note / date & time…" />
 
           {/* Follow Up — structured vitals, saved as a timestamped log */}
           <div style={{ marginBottom: 12 }}>
@@ -222,7 +226,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
         <div style={{ flex: "1 1 420px", minWidth: 320 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Prescription</div>
           <div style={{ fontSize: 15, color: C.pri[600], marginBottom: 6 }}>℞</div>
-          <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} />
+          <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} showSF />
         </div>
       </div>
 
