@@ -28,6 +28,10 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
   app.use(cookieParser());
+  // Prescription drafts and rich-text layouts can carry sizeable JSON, so lift
+  // the body limit well above the ~100 kB express default.
+  app.useBodyParser('json', { limit: '8mb' });
+  app.useBodyParser('urlencoded', { limit: '8mb', extended: true });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );

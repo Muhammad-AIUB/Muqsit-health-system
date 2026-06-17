@@ -10,11 +10,17 @@ import {
 } from 'class-validator';
 
 export class RxItemDto {
-  @IsString() @MinLength(1) drug!: string;
+  // Note lines carry an empty drug (the free-typed instruction lives in
+  // `instruction`), so `drug` can be blank for them — MinLength is dropped.
+  @IsString() drug!: string;
   @IsString() dose!: string;
   @IsString() duration!: string;
   @IsString() instruction!: string;
   @IsOptional() @Type(() => Number) @IsInt() order?: number;
+  // Free-typed note line (vs a real medicine).
+  @IsOptional() @IsBoolean() isNote?: boolean;
+  // "Start From" date for the medicine (IPD pad), e.g. "17 June 2026".
+  @IsOptional() @IsString() sf?: string;
 }
 
 export class CreatePrescriptionDto {

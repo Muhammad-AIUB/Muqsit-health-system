@@ -233,23 +233,3 @@ export function albuminConvert(value: number, from: 'g/dL' | 'g/L'): number {
   if (from === 'g/dL') return MedicalUnitConverter.round(value * 10, 1)
   return MedicalUnitConverter.round(value / 10, 2)
 }
-
-export function weightConvert(value: number, from: 'kg' | 'lb'): number {
-  if (from === 'kg') return MedicalUnitConverter.round(value * 2.20462, 1)
-  return MedicalUnitConverter.round(value * 0.453592, 1)
-}
-
-export function heightConvert(value: number, from: 'cm' | 'm' | 'in'): Record<string, number> {
-  let cm: number
-  if (from === 'cm') cm = value
-  else if (from === 'm') cm = value * 100
-  else cm = value * 2.54
-
-  return {
-    cm: MedicalUnitConverter.round(cm, 1),
-    m: MedicalUnitConverter.round(cm / 100, 2),
-    in: MedicalUnitConverter.round(cm / 2.54, 1),
-    ft: MedicalUnitConverter.round(Math.floor(cm / 30.48), 0),
-    remaining_in: MedicalUnitConverter.round((cm / 2.54) % 12, 1),
-  }
-}

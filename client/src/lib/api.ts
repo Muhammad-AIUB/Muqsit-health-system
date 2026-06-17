@@ -399,6 +399,21 @@ export const activityApi = {
     apiFetch<ActivityRecord>("/activity", { method: "POST", body: JSON.stringify(input) }),
 };
 
+// ── Active prescription draft (auto-saved editor state, one per doctor) ──
+export interface PrescriptionDraftRecord {
+  data: Record<string, unknown>;
+}
+
+export const prescriptionDraftApi = {
+  get: () => apiFetch<PrescriptionDraftRecord>("/prescription-draft"),
+  save: (data: Record<string, unknown>) =>
+    apiFetch<PrescriptionDraftRecord>("/prescription-draft", {
+      method: "PUT",
+      body: JSON.stringify({ data }),
+    }),
+  clear: () => apiFetch<{ ok: true }>("/prescription-draft", { method: "DELETE" }),
+};
+
 export const templatesApi = {
   list: (category?: TemplateCategory) =>
     apiFetch<RxTemplateRecord[]>(`/prescription-templates${category ? `?category=${category}` : ""}`),
@@ -555,6 +570,7 @@ export interface IpdClinical {
   adviceTests?: string[];
   followUps?: IpdFollowUpEntry[]; // timestamped log
   rxItems?: RxItemInput[];
+  invImages?: Record<string, string>; // attached report images, keyed like the findings
 }
 
 export interface IpdAdmission {

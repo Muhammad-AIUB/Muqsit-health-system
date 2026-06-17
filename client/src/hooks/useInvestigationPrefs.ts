@@ -39,3 +39,21 @@ export function useSaveFavourites() {
     onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+export function useSaveUnitPrefs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (investigationUnitPrefs: Record<string, string>) =>
+      usersApi.update({ investigationUnitPrefs }),
+    onMutate: async (next) => {
+      await qc.cancelQueries({ queryKey: KEY });
+      const prev = qc.getQueryData<ProfileMe>(KEY);
+      if (prev) qc.setQueryData<ProfileMe>(KEY, { ...prev, investigationUnitPrefs: next });
+      return { prev };
+    },
+    onError: (_e, _next, ctx) => {
+      if (ctx?.prev) qc.setQueryData(KEY, ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}

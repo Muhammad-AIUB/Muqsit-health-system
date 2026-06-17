@@ -2357,16 +2357,3 @@ CALCULATORS.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCa
 export function getCalculator(id: string): Calculator | undefined {
   return CALCULATORS.find((c) => c.id === id)
 }
-
-export function getCalculatorsByCategory(category: string): Calculator[] {
-  return CALCULATORS.filter((c) => c.category === category)
-}
-
-export const CALCULATOR_CATEGORIES = [
-  'critical-care',
-  'renal',
-  'liver',
-  'nutrition',
-  'obstetric',
-  'hematology',
-] as const

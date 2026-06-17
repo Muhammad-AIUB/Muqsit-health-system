@@ -75,6 +75,10 @@ model User {
   // Prescription print layout (page size, header, footer) — one per doctor.
   prescriptionLayout PrescriptionLayout?
 
+  // The doctor's active, in-progress prescription draft (auto-saved as they
+  // type) so the editor survives a reload — one per doctor.
+  prescriptionDraft PrescriptionDraft?
+
   // Saved prescription templates (OPD / IPD / custom) — one row per template.
   prescriptionTemplates PrescriptionTemplate[]
 
@@ -195,6 +199,22 @@ model PrescriptionLayout {
   bodyLeftTopMargin  String  @default("0")
   bodyRightTopMargin String  @default("0")
   bodyBottomLine     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The doctor's active in-progress prescription (one per doctor). The whole
+// editor state — header fields, clinical sections, investigation findings,
+// medicines, advice — is stored as a single JSON blob and auto-saved as the
+// doctor types, so a page reload restores exactly where they left off. Cleared
+// when the prescription is saved (Save & print) or the form is reset.
+model PrescriptionDraft {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  data Json @default("{}")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -415,4 +435,8 @@ model PrescriptionItem {
   duration       String
   instruction    String
   order          Int          @default(0)
+  // Free-typed note line (vs a real medicine).
+  isNote         Boolean      @default(false)
+  // "Start From" date for the medicine (IPD pad), e.g. "17 June 2026".
+  sf             String?
 }

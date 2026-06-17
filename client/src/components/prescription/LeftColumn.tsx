@@ -1,6 +1,5 @@
 "use client";
 
-import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { suggestionDB } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";

@@ -19,6 +19,37 @@ export default function ResearchView() {
   const q = debouncedQ.toLowerCase();
   const allSelected = rcResults.length > 0 && rcResults.every((p) => rcSelected.has(p.id));
 
+  const selectedPatients = rcResults.filter((p) => rcSelected.has(p.id));
+  const [showCompare, setShowCompare] = useState(false);
+
+  // Download the selected patients as a CSV (no server round-trip — the rows
+  // are already loaded). Excel-safe quoting.
+  const exportCsv = () => {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = ["Name", "Age", "Sex", "Mobile", "Diseases", "Tags"];
+    const lines = selectedPatients.map((p) =>
+      [p.name, p.age != null ? String(p.age) : "", p.sex ?? "", p.mobile ?? "", p.diseases.join("; "), p.tags.join("; ")]
+        .map(esc)
+        .join(","),
+    );
+    const csv = "﻿" + [header.map(esc).join(","), ...lines].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `research-${debouncedQ.trim() || "patients"}-${selectedPatients.length}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Diseases / tags shared by EVERY selected patient — the useful research signal.
+  const commonOf = (key: "diseases" | "tags") =>
+    selectedPatients.length === 0
+      ? []
+      : selectedPatients[0][key].filter((v) => selectedPatients.every((p) => p[key].includes(v)));
+
   const highlight = (text: string): ReactNode => {
     if (!q) return text;
     const idx = text.toLowerCase().indexOf(q);
@@ -74,8 +105,8 @@ export default function ResearchView() {
                 {rcSelected.size > 0 && (
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <span style={{ fontSize: 11, color: C.pri[600], fontWeight: 500 }}>{rcSelected.size} selected</span>
-                    <button style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, cursor: "pointer", fontFamily: font }}>Compare</button>
-                    <button style={{ padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 11, cursor: "pointer", fontFamily: font }}>Export</button>
+                    <button onClick={() => setShowCompare(true)} disabled={selectedPatients.length < 2} title={selectedPatients.length < 2 ? "Select at least 2 patients to compare" : "Compare selected patients"} style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, cursor: selectedPatients.length < 2 ? "not-allowed" : "pointer", opacity: selectedPatients.length < 2 ? 0.5 : 1, fontFamily: font }}>Compare</button>
+                    <button onClick={exportCsv} style={{ padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 11, cursor: "pointer", fontFamily: font }}>Export CSV</button>
                   </div>
                 )}
               </div>
@@ -132,6 +163,52 @@ export default function ResearchView() {
           <div style={{ fontSize: 28, marginBottom: 8 }}>🔬</div>
           <div style={{ fontSize: 13, color: C.n[500] }}>Type a disease name or tag to find matching patients</div>
           <div style={{ fontSize: 11, color: C.n[500], marginTop: 4 }}>Diseases come from saved prescriptions; tags from Patient Settings</div>
+        </div>
+      )}
+
+      {/* Compare panel — selected patients side by side, with shared diseases/tags */}
+      {showCompare && (
+        <div onClick={() => setShowCompare(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, padding: 24 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 50px rgba(0,0,0,0.18)" }}>
+            <div style={{ position: "sticky", top: 0, background: C.n[0], padding: "14px 18px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>Comparing {selectedPatients.length} patients</div>
+              <button onClick={() => setShowCompare(false)} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer" }}>×</button>
+            </div>
+
+            {(["diseases", "tags"] as const).map((key) => {
+              const common = commonOf(key);
+              return common.length > 0 ? (
+                <div key={key} style={{ padding: "10px 18px", borderBottom: `0.5px solid ${C.n[100]}`, background: C.pri[50] }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.pri[600], textTransform: "uppercase", letterSpacing: "0.04em" }}>Shared {key}: </span>
+                  {common.map((v) => (
+                    <span key={v} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: C.n[0], color: C.pri[600], border: `0.5px solid ${C.pri[100]}`, marginRight: 5 }}>{v}</span>
+                  ))}
+                </div>
+              ) : null;
+            })}
+
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${selectedPatients.length}, minmax(180px, 1fr))`, gap: 0 }}>
+              {selectedPatients.map((p, i) => (
+                <div key={p.id} style={{ padding: "12px 16px", borderRight: i < selectedPatients.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: C.n[500], marginBottom: 10 }}>{p.age != null ? `${p.age}y` : "—"} · {p.sex ?? "—"} · {p.mobile ?? "—"}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Diseases</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                    {p.diseases.length ? p.diseases.map((d) => <span key={d} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: C.danger[50], color: C.danger[800], border: `0.5px solid ${C.danger[100]}` }}>🩺 {d}</span>) : <span style={{ fontSize: 10, color: C.n[400] }}>—</span>}
+                  </div>
+                  <div style={{ fontSize: 9.5, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Tags</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {p.tags.length ? p.tags.map((t) => <span key={t} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: C.n[100], color: C.n[800] }}># {t}</span>) : <span style={{ fontSize: 10, color: C.n[400] }}>—</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ padding: "12px 18px", borderTop: `0.5px solid ${C.n[200]}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={exportCsv} style={{ padding: "7px 16px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, cursor: "pointer", fontFamily: font }}>Export CSV</button>
+              <button onClick={() => setShowCompare(false)} style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Done</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

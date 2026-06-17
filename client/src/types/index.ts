@@ -22,18 +22,6 @@ export interface RxItem {
   sf?: string;
 }
 
-export interface OpdPatient {
-  id: number;
-  name: string;
-  phone: string;
-  age: number;
-  gender: "M" | "F";
-  init: string;
-  type: string;
-  token: string;
-  color: ColorKey;
-}
-
 export interface IpdPatient {
   bed: string;
   name: string;
@@ -41,76 +29,6 @@ export interface IpdPatient {
   status: string;
   admitted: string;
   color: ColorKey;
-}
-
-export interface IpdEvent {
-  ts: string;
-  author: string;
-  role: string;
-  note: string;
-  report: string | null;
-}
-
-export interface RecentPatient {
-  id: string;
-  name: string;
-  age: number;
-  gender: "M" | "F";
-  init: string;
-  phone: string;
-  lastSeen: string;
-  diagnosis: string;
-  color: ColorKey;
-}
-
-export interface QuestionPatient {
-  id: string;
-  name: string;
-  age: number;
-  gender: "M" | "F";
-  init: string;
-  phone: string;
-  time: string;
-  msg: string;
-  type: "alert" | "info" | "suggestion" | "question";
-  color: ColorKey;
-}
-
-export interface ResearchPatient {
-  id: string;
-  name: string;
-  age: number;
-  gender: "M" | "F";
-  phone: string;
-  source: "OPD" | "IPD";
-  diseases: string[];
-  tags: string[];
-}
-
-export interface HealthDrug {
-  name: string;
-  start: string;
-  end: string;
-  color: string;
-}
-
-export interface HealthDataPoint {
-  d: string;
-  v: number;
-}
-
-export interface HealthSymptom {
-  name: string;
-  color: string;
-  data: HealthDataPoint[];
-}
-
-export interface HealthTest {
-  name: string;
-  unit: string;
-  normal: [number, number];
-  color: string;
-  data: HealthDataPoint[];
 }
 
 export type InvFieldType = "num" | "text" | "dd";

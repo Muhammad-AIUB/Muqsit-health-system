@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { useAdmitIpd, useIpdList, useSetIpdStatus, type IpdAdmission } from "@/hooks/useIpd";
+import { useAdmitIpd, useIpdList, useSetIpdStatus } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
 
@@ -12,10 +12,6 @@ const statusColor = (s: string) =>
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("default", { month: "short", day: "numeric" });
-const fmtTs = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.getDate()} ${d.toLocaleString("default", { month: "short" })} ${d.getFullYear()} · ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
 
 export default function IpdView() {
   const { data: admissions = [], isLoading, error } = useIpdList();

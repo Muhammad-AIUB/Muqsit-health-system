@@ -3,15 +3,34 @@
 import { useMemo, useState } from "react";
 import { C, font } from "@/theme";
 import { INV_CATS } from "@/data/investigations";
-import { useInvestigationPrefs, useSaveFavourites } from "@/hooks/useInvestigationPrefs";
+import { useInvestigationPrefs, useSaveFavourites, useSaveUnitPrefs } from "@/hooks/useInvestigationPrefs";
 
 // Settings → Favourite & unit settings.
 // Part 1 (this view): pick favourite investigations — they populate the
 // "Favourite" category in the Investigation popup. Preferred-unit settings are
 // the next part (placeholder below).
 export default function FavouriteSettingsView({ onBack }: { onBack: () => void }) {
-  const { favourites, isLoading } = useInvestigationPrefs();
+  const { favourites, unitPrefs, isLoading } = useInvestigationPrefs();
   const save = useSaveFavourites();
+  const saveUnits = useSaveUnitPrefs();
+
+  // Dual-unit fields (those with both u1 and u2) belonging to a favourite test —
+  // these are the ones a doctor can set a preferred unit for.
+  const unitChoices = useMemo(() => {
+    const all = INV_CATS.flatMap((c) => c.tests);
+    const out: { test: string; field: string; u1: string; u2: string; key: string }[] = [];
+    for (const name of favourites) {
+      const t = all.find((x) => x.name === name);
+      if (!t) continue;
+      for (const f of t.fields ?? []) {
+        if (f.u1 && f.u2) out.push({ test: t.name, field: f.l, u1: f.u1, u2: f.u2, key: `${t.name}__${f.l}` });
+      }
+    }
+    return out;
+  }, [favourites]);
+
+  const setUnit = (key: string, choice: "u1" | "u2") =>
+    saveUnits.mutate({ ...unitPrefs, [key]: choice });
 
   // Categories to browse from (everything except the dynamic "Favourite" tab).
   const browseCats = useMemo(() => INV_CATS.filter((c) => c.cat !== "Favourite" && c.tests.length > 0), []);
@@ -101,10 +120,39 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
         </div>
       </div>
 
-      {/* Preferred units — next part */}
+      {/* Preferred units for dual-unit favourite tests */}
       <div style={{ fontSize: 13, fontWeight: 600, color: C.n[800], margin: "22px 0 8px" }}>Choose preferred unit in investigation</div>
-      <div style={{ background: C.n[50], border: `0.5px dashed ${C.n[300]}`, borderRadius: 10, padding: 14, fontSize: 12.5, color: C.n[500] }}>
-        Coming next — choose a preferred unit for dual-unit tests (e.g. Bilirubin mg/dL ↔ µmol/L).
+      <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14 }}>
+        {unitChoices.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: C.n[500] }}>
+            Star a favourite test that has dual units (e.g. Bilirubin mg/dL ↔ µmol/L) and its unit choice will appear here.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11.5, color: C.n[500], marginBottom: 2 }}>
+              The chosen unit is used when a finding is saved from the Investigation popup.
+            </div>
+            {unitChoices.map((u) => {
+              const cur = unitPrefs[u.key] === "u2" ? "u2" : "u1";
+              return (
+                <div key={u.key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                  <span style={{ flex: 1, color: C.n[900] }}>{u.test} <span style={{ color: C.n[500] }}>· {u.field}</span></span>
+                  <div style={{ display: "flex", gap: 4, background: C.n[100], borderRadius: 7, padding: 2 }}>
+                    {(["u1", "u2"] as const).map((opt) => (
+                      <button key={opt} onClick={() => setUnit(u.key, opt)} style={{
+                        padding: "4px 12px", borderRadius: 5, border: "none", cursor: "pointer", fontSize: 12, fontFamily: font,
+                        background: cur === opt ? C.n[0] : "transparent",
+                        color: cur === opt ? C.pri[600] : C.n[600],
+                        fontWeight: cur === opt ? 600 : 400,
+                        boxShadow: cur === opt ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                      }}>{opt === "u1" ? u.u1 : u.u2}</button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

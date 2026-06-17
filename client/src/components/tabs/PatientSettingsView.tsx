@@ -4,7 +4,7 @@ import { useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
-import { patientsApi, uploadImage } from "@/lib/api";
+import { patientsApi, uploadImage, type PatientInput } from "@/lib/api";
 import { ptInfoToInput } from "@/lib/patientForm";
 import type { PtInfo } from "@/types";
 import Pill from "@/components/common/Pill";
@@ -113,7 +113,7 @@ export default function PatientSettingsView() {
     familyMembers, saveFamilyMembers, showFamilyForm, setShowFamilyForm,
     familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptName, ptGender, ptPhone, setPtName, setPtAge, setPtGender, setPtPhone,
-    currentPatientId, setCurrentPatientId,
+    currentPatientId, setCurrentPatientId, hmDrugs, watchPatient,
   } = useMuqsit();
 
   const createPatient = useCreatePatient();
@@ -136,6 +136,16 @@ export default function PatientSettingsView() {
       } else {
         const created = await createPatient.mutateAsync(input);
         setCurrentPatientId(created.id);
+        // Carry over anything entered before the patient existed (family tree,
+        // health-monitoring ticks, watch flag) — their per-change PATCHes
+        // no-op without a patient id. Non-fatal.
+        const carryOver: Partial<PatientInput> = {};
+        if (familyMembers.length) carryOver.familyMembers = familyMembers;
+        if (hmDrugs.size) carryOver.hmSelectedDrugs = Array.from(hmDrugs);
+        if (watchPatient) carryOver.watched = true;
+        if (Object.keys(carryOver).length) {
+          await patientsApi.update(created.id, carryOver).catch(() => {});
+        }
       }
       if (pI.name) setPtName(pI.name);
       if (piAge || pI.age) setPtAge(piAge || pI.age);

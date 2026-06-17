@@ -25,7 +25,7 @@ export default function InvestigationPopup() {
 
   // The "Favourite" category is built from the doctor's saved favourites
   // (Settings → Favourite & unit settings), looked up across all categories.
-  const { favourites } = useInvestigationPrefs();
+  const { favourites, unitPrefs } = useInvestigationPrefs();
   const favTests = (() => {
     const all = INV_CATS.flatMap((c) => c.tests);
     return favourites.map((n) => all.find((t) => t.name === n)).filter((t): t is NonNullable<typeof t> => !!t);
@@ -165,13 +165,16 @@ export default function InvestigationPopup() {
   // the bulk auto-save) — one place for the form→findings string protocol. ──
 
   // Collect a test's filled-in fields into display parts, e.g.
-  // ["Hb:13.5g/dL", "12000"]. Returns [] when nothing was entered.
+  // ["Hb:13.5g/dL", "12000"]. Returns [] when nothing was entered. For dual-unit
+  // fields, the doctor's preferred unit (Settings → Favourite & unit settings)
+  // decides which value/label is recorded.
   const collectTestParts = (test: InvTest): string[] =>
     (test.fields || [])
       .map((f) => {
-        const val = invFormData[test.name + "__" + f.l];
+        const preferU2 = f.u2 ? unitPrefs[test.name + "__" + f.l] === "u2" : false;
+        const val = invFormData[test.name + "__" + f.l + (preferU2 ? "_u2" : "")];
         if (!val) return null;
-        const unit = f.u1 ? f.u1 : "";
+        const unit = preferU2 ? (f.u2 ?? "") : (f.u1 ?? "");
         const label = VALUE_LABELS.includes(f.l) ? "" : f.l + ":";
         return label + val + unit;
       })
@@ -193,8 +196,10 @@ export default function InvestigationPopup() {
     if (logText) logInv(logText);
   };
 
-  // Auto-save current form data to the current calDate before changing date.
-  // (Bulk save is silent — no per-test activity-feed entry.)
+  // Auto-save current form data to the current calDate before changing date or
+  // closing the popup. Each newly-committed finding is logged to the activity
+  // feed too — `commitResult` only logs genuinely-new entries, so navigating
+  // dates never re-logs an existing finding.
   const autoSaveInvData = () => {
     const dateStr = formatCalDate(calDate);
     let savedAny = false;
@@ -202,7 +207,7 @@ export default function InvestigationPopup() {
       const parts = collectTestParts(test);
       if (parts.length === 0) return;
       savedAny = true;
-      commitResult(dateStr + ":" + test.name + ":" + parts.join(","));
+      commitResult(dateStr + ":" + test.name + ":" + parts.join(","), test.name + ": " + parts.join(", "));
       clearTestFields(test);
     });
     // Image tagging is manual now (no auto-tag on save).

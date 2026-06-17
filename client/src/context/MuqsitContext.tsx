@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -13,7 +14,7 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
-import { ApiError, patientsApi, prescriptionsApi } from "@/lib/api";
+import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi } from "@/lib/api";
 import type {
   Page,
   View,
@@ -209,12 +210,18 @@ function useMuqsitStore() {
         });
         pid = patient.id;
         setCurrentPatientId(pid);
-        // Persist any draft gallery images onto the freshly created patient.
-        // Non-fatal: a prescription must still save even if this fails.
-        if (rxImages.length || reportImages.length) {
-          void patientsApi
-            .update(pid, { prescriptionImages: rxImages, reportImages })
-            .catch(() => {});
+        // Flush everything that was entered BEFORE this patient existed — the
+        // per-change PATCHes (family tree, health-monitoring ticks/dates, watch,
+        // image galleries) all no-op without a patient id, so carry them over
+        // now. Non-fatal: a prescription must still save even if this fails.
+        const carryOver: Parameters<typeof patientsApi.update>[1] = {};
+        if (rxImages.length) carryOver.prescriptionImages = rxImages;
+        if (reportImages.length) carryOver.reportImages = reportImages;
+        if (familyMembers.length) carryOver.familyMembers = familyMembers;
+        if (hmDrugs.size) carryOver.hmSelectedDrugs = Array.from(hmDrugs);
+        if (watchPatient) carryOver.watched = true;
+        if (Object.keys(carryOver).length) {
+          void patientsApi.update(pid, carryOver).catch(() => {});
         }
       }
 
@@ -287,6 +294,67 @@ function useMuqsitStore() {
     setFamilyMembers(next);
     if (currentPatientId) void patientsApi.update(currentPatientId, { familyMembers: next }).catch(() => {});
   }, [currentPatientId]);
+
+  // ── Server-side prescription draft ──────────────────────────
+  // The whole editor (header + clinical sections + investigation findings +
+  // medicines + advice) is auto-saved to the server as the doctor types, so a
+  // page reload restores exactly where they left off. One active draft per
+  // doctor; the saved draft always mirrors the live editor.
+  const draftReadyRef = useRef(false);
+
+  // Hydrate the editor from the server draft once, on mount (the provider only
+  // renders for a signed-in doctor). `draftReadyRef` then unlocks auto-save so
+  // the empty initial state can't overwrite the stored draft before it loads.
+  useEffect(() => {
+    let cancelled = false;
+    prescriptionDraftApi
+      .get()
+      .then((res) => {
+        if (cancelled) return;
+        const d = (res.data ?? {}) as Record<string, unknown>;
+        const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
+        const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
+        str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
+        str("ptAddress", setPtAddress); str("ptWeight", setPtWeight); str("ptDate", setPtDate);
+        str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
+        arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
+        arr("history", setHistory); arr("investigation", setInvestigation);
+        arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
+        arr("note", setNote); arr("provisionalDiagnosis", setProvisionalDiagnosis);
+        arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
+        arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
+        if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
+        str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
+        if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
+        if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
+        if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
+        if (typeof d.currentPatientId === "string") setCurrentPatientId(d.currentPatientId);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) draftReadyRef.current = true; });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save the live editor to the server (debounced) on any change.
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    const snapshot: Record<string, unknown> = {
+      ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
+      chiefComplaints, previousComplaints, history, investigation, drugHistory,
+      onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+      rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+      invImages, oeData, currentPatientId,
+    };
+    const t = setTimeout(() => { void prescriptionDraftApi.save(snapshot).catch(() => {}); }, 1200);
+    return () => clearTimeout(t);
+  }, [
+    ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
+    chiefComplaints, previousComplaints, history, investigation, drugHistory,
+    onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+    rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    invImages, oeData, currentPatientId,
+  ]);
 
   // Toggle "Keep eye on this patient" — persists when a saved patient is loaded.
   const toggleWatch = () => {

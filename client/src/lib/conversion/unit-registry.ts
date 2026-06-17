@@ -1,4 +1,4 @@
-import type { UnitDefinition, UnitCategory } from '@/types/conversion'
+import type { UnitDefinition } from '@/types/conversion'
 
 export const MOLAR_MASSES: Record<string, number> = {
   creatinine: 113.12,
@@ -70,10 +70,6 @@ export function findUnit(symbol: string): UnitDefinition | undefined {
   return Object.values(UNIT_REGISTRY).find(
     (u) => u.aliases?.some((a) => a.toLowerCase() === symbol.toLowerCase())
   )
-}
-
-export function getUnitsByCategory(category: UnitCategory): UnitDefinition[] {
-  return Object.values(UNIT_REGISTRY).filter((u) => u.category === category)
 }
 
 export const SUBSTANCE_UNIT_PAIRS: Record<string, [string, string]> = {

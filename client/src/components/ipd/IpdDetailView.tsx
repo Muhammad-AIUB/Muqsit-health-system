@@ -56,7 +56,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   useEffect(() => {
     snapRef.current = { inv: investigation, img: invImages };
     setInvestigation(admission.clinical?.investigation ?? []);
-    setInvImages({});
+    setInvImages(admission.clinical?.invImages ?? {});
     return () => {
       if (snapRef.current) { setInvestigation(snapRef.current.inv); setInvImages(snapRef.current.img); }
     };
@@ -95,6 +95,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     diagnosis, chiefComplaints, chiefComplaintsNotes: chiefNotes, investigation, procedure, procedureNotes: procNotes, plan, adviceTests,
     followUps: followUpsOverride ?? followUps,
     rxItems: rxItemsFromRows(rows),
+    invImages,
   });
 
   const persist = async (clinical: IpdClinical) => {

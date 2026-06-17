@@ -24,8 +24,12 @@ Audit of what works, what doesn't persist, and what's a stub. Updated as items a
 - [x] **Settings → Badges / Supervisors & role models** — intentionally disabled ("Coming soon").
 
 ## 3. By design (not a bug)
-- Prescription draft saves only on **Save & print** (becomes a saved prescription; shows in records /
-  previous complaints). The editor doesn't auto-reload the last draft on refresh.
+- ~~Prescription draft saves only on **Save & print**~~ — **now auto-saved server-side.** The whole editor
+  (header + clinical sections + investigation findings + medicines + advice) is debounced-saved to
+  `PrescriptionDraft` (one row per doctor) and re-hydrated on reload, so a refresh no longer loses work.
+  Save & print still creates the permanent prescription record.
+- Investigation findings added via the popup now log to the activity feed (Notification section) on every
+  add path — including closing the popup, not just the per-test "Add" button.
 
 ## Fix order (this pass)
 1. Health-monitoring drug selections — persist on the patient.

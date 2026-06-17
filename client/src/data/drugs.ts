@@ -39,7 +39,3 @@ export const templateRx: Record<string, RxItem[]> = {
     { drug: "Tab. Metformin 500mg", dose: "1+0+1", duration: "30 days", instruction: "After meal" },
   ],
 };
-
-export const DOSE_OPTIONS = ["1+0+0", "0+0+1", "1+0+1", "1+1+1", "1+1+1+1", "½+0+½", "5ml", "10ml", "As needed"];
-export const DURATION_OPTIONS = ["3 days", "5 days", "7 days", "10 days", "14 days", "21 days", "30 days", "Continue"];
-export const INSTRUCTION_OPTIONS = ["Before meal", "After meal", "Before meal (30 min)", "Empty stomach", "Morning", "At night", "SOS"];
