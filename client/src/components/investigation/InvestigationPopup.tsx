@@ -138,10 +138,14 @@ export default function InvestigationPopup() {
     for (let i = 0; i < arr.length; i++) {
       try {
         const url = await uploadImage(arr[i]);
-        const imgKey = dateStr + ":Report " + (maxIdx + i + 1);
+        const num = maxIdx + i + 1;
+        const imgKey = dateStr + ":Report " + num;
         setInvImages((prev) => ({ ...prev, [imgKey]: url }));
         const entry = imgKey + ":[image attached]";
         setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
+        // Every uploaded report is saved server-side and shown in the
+        // notification feed with a clickable link — no matter how many.
+        logInv(`Report ${num} (${dateStr})`, url);
       } catch (e) {
         console.warn("[investigation] report image upload failed:", e);
       }
@@ -217,10 +221,10 @@ export default function InvestigationPopup() {
 
   // Append a "dd/mm/yyyy:Test:..." findings line if not already present and
   // mirror it to the activity feed. Functional update — safe under batching.
-  const commitResult = (result: string, logText?: string, imageUrl?: string) => {
+  const commitResult = (result: string, logText?: string) => {
     if (investigation.includes(result)) return;
     setInvestigation((prev) => (prev.includes(result) ? prev : prev.concat([result])));
-    if (logText) logInv(logText, imageUrl);
+    if (logText) logInv(logText);
   };
 
   // Auto-save current form data to the current calDate before changing date or
@@ -234,8 +238,8 @@ export default function InvestigationPopup() {
       const parts = collectTestParts(test);
       if (parts.length === 0) return;
       savedAny = true;
-      const img = resolveTestImage(test.name);
-      commitResult(dateStr + ":" + test.name + ":" + parts.join(","), test.name + ": " + parts.join(", "), img);
+      resolveTestImage(test.name); // link the open report to this finding (📎)
+      commitResult(dateStr + ":" + test.name + ":" + parts.join(","), test.name + ": " + parts.join(", "));
       clearTestFields(test);
     });
     return savedAny;
@@ -258,10 +262,10 @@ export default function InvestigationPopup() {
     if (!test) return;
     const parts = collectTestParts(test);
     if (parts.length === 0) return;
-    // Auto-attach an image uploaded for this test/date so the finding shows the
-    // 📎 link and the activity feed carries it — no separate "tag" click needed.
-    const img = resolveTestImage(testName);
-    commitResult(formatCalDate(calDate) + ":" + testName + ":" + parts.join(","), testName + ": " + parts.join(", "), img);
+    // Attach the open report image to this finding so it shows the 📎 link.
+    // (The image's own notification entry is logged when it's uploaded.)
+    resolveTestImage(testName);
+    commitResult(formatCalDate(calDate) + ":" + testName + ":" + parts.join(","), testName + ": " + parts.join(", "));
     clearTestFields(test);
   };
 
@@ -269,8 +273,10 @@ export default function InvestigationPopup() {
   const addCalcResult = (testName: string, summary: string) =>
     commitResult(formatCalDate(calDate) + ":" + testName + ":" + summary, testName + ": " + summary);
 
-  const addInvNormal = (testName: string) =>
-    commitResult(formatCalDate(calDate) + ":" + testName + ":normal", testName + ": normal", resolveTestImage(testName));
+  const addInvNormal = (testName: string) => {
+    resolveTestImage(testName);
+    commitResult(formatCalDate(calDate) + ":" + testName + ":normal", testName + ": normal");
+  };
 
   // Auto-save when popup closes
   const handleCloseInvPopup = () => {
@@ -641,6 +647,7 @@ export default function InvestigationPopup() {
                               setInvImages((prev) => ({ ...prev, [imgKey]: url }));
                               const entry = dateStr + ":" + test.name + ":[image attached]";
                               setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
+                              logInv(`${test.name} report image (${dateStr})`, url);
                             } catch (err) {
                               console.warn("[investigation] report image upload failed:", err);
                             }
