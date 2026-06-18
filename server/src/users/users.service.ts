@@ -120,6 +120,7 @@ export class UsersService {
     const extra = data as Record<string, unknown>;
     if (dto.favouriteInvestigations !== undefined) extra.favouriteInvestigations = dto.favouriteInvestigations;
     if (dto.investigationUnitPrefs !== undefined) extra.investigationUnitPrefs = dto.investigationUnitPrefs;
+    if (dto.fieldRecents !== undefined) extra.fieldRecents = dto.fieldRecents;
 
     // Chambers and otherCertificates: replace the whole set in a transaction
     // so a half-saved state can't leave the user with phantom rows.

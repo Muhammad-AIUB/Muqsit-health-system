@@ -124,4 +124,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsObject()
   investigationUnitPrefs?: Record<string, string>;
+
+  // Recently-typed chip entries per clinical field: { [fieldLabel]: string[] }.
+  @IsOptional()
+  @IsObject()
+  fieldRecents?: Record<string, string[]>;
 }

@@ -279,6 +279,7 @@ export interface ProfileMe {
   chambers: Chamber[];
   favouriteInvestigations: string[];
   investigationUnitPrefs: Record<string, string>;
+  fieldRecents: Record<string, string[]>;
 }
 
 export interface ProfileUpdateInput {
@@ -297,6 +298,7 @@ export interface ProfileUpdateInput {
   chambers?: ChamberInput[];
   favouriteInvestigations?: string[];
   investigationUnitPrefs?: Record<string, string>;
+  fieldRecents?: Record<string, string[]>;
 }
 
 export const usersApi = {

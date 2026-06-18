@@ -66,6 +66,9 @@ model User {
   // preferred unit { [testName]: "u1" | "u2" }.
   favouriteInvestigations String[] @default([])
   investigationUnitPrefs  Json     @default("{}")
+  // Recently-typed chip entries per clinical field — { [fieldLabel]: string[] }.
+  // Powers the autocomplete "recents" (was browser localStorage, now per-doctor).
+  fieldRecents            Json     @default("{}")
 
   refreshTokens RefreshToken[]
 

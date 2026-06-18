@@ -2,6 +2,7 @@
 
 import { useState, useRef, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C } from "@/theme";
+import { useFieldRecents } from "@/hooks/useFieldRecents";
 
 interface ExpandableFieldProps {
   label: string;
@@ -20,36 +21,14 @@ interface ExpandableFieldProps {
   notePlaceholder?: string;
 }
 
-// ── Recent-entry memory (per field, survives refresh) ────────
-const RECENT_LIMIT = 12;
-const recentKey = (label: string) => `muqsit_recent_${label.toLowerCase().replace(/\W+/g, "_")}`;
-
-function loadRecents(label: string): string[] {
-  try {
-    const raw = window.localStorage.getItem(recentKey(label));
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecents(label: string, entries: string[]) {
-  try {
-    const prev = loadRecents(label);
-    // Newest first, no duplicates, capped.
-    const merged = [...entries, ...prev.filter((p) => !entries.includes(p))].slice(0, RECENT_LIMIT);
-    window.localStorage.setItem(recentKey(label), JSON.stringify(merged));
-  } catch {
-    /* storage unavailable — ignore */
-  }
-}
-
 export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
   // Staged items: edits live here until the user presses Done.
   const [draft, setDraft] = useState<string[]>([]);
-  const [recents, setRecents] = useState<string[]>([]);
+  // Per-doctor "recently typed" entries for this field (server-backed).
+  const { getRecents, addRecents } = useFieldRecents();
+  const recents = getRecents(label);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const getFiltered = () => {
@@ -108,7 +87,6 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
 
   const handleOpen = () => {
     setDraft([...items]); // stage a copy — the real field is untouched until Done
-    setRecents(loadRecents(label));
     setOpen(true);
     setTimeout(() => inputRef.current && inputRef.current.focus(), 100);
   };
@@ -125,7 +103,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     // Remember newly typed entries for future suggestions, and log them to the
     // activity feed.
     const newOnes = finalDraft.filter((d) => !items.includes(d));
-    if (newOnes.length) saveRecents(label, newOnes);
+    if (newOnes.length) addRecents(label, newOnes);
     newOnes.forEach((n) => onAdd?.(n));
     setOpen(false);
     setInputVal("");
