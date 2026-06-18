@@ -17,7 +17,8 @@ jobs:
           key: ${{ secrets.VPS_KEY }}
           command_timeout: 10m
           script: |
+            set -e
             cd /root/muqsit && git pull origin main
             cd client && npm install && npm run build && cd ..
-            cd server && npm install && npm run build && cd ..
+            cd server && npm install && npx prisma generate && npm run build && cd ..
             pm2 restart all

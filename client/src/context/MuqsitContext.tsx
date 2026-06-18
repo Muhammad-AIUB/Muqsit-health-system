@@ -330,7 +330,7 @@ function useMuqsitStore() {
         if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
         if (typeof d.currentPatientId === "string") setCurrentPatientId(d.currentPatientId);
       })
-      .catch(() => {})
+      .catch((e) => console.warn("[draft] load failed — editor will not restore on reload:", e))
       .finally(() => { if (!cancelled) draftReadyRef.current = true; });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -346,7 +346,7 @@ function useMuqsitStore() {
       rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
       invImages, oeData, currentPatientId,
     };
-    const t = setTimeout(() => { void prescriptionDraftApi.save(snapshot).catch(() => {}); }, 1200);
+    const t = setTimeout(() => { void prescriptionDraftApi.save(snapshot).catch((e) => console.warn("[draft] save failed:", e)); }, 1200);
     return () => clearTimeout(t);
   }, [
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
