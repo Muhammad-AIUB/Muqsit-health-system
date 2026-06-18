@@ -2,8 +2,8 @@
 
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { useAuth } from "@/context/AuthContext";
 import { TABS, MOBILE_TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
+import AccountMenu from "./AccountMenu";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
 import TabRouter from "@/components/TabRouter";
@@ -13,9 +13,7 @@ import OePopup from "@/components/examination/OePopup";
 
 export default function MobileShell() {
   const { activeTab, setActiveTab } = useMuqsit();
-  const { user, logout } = useAuth();
   const showHeader = HEADER_TABS.includes(activeTab);
-  const initials = (user?.name || "DR").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   const tabTitle =
     activeTab === "pt-settings" ? "Patient Settings"
       : activeTab === "idsp" ? "Health Monitoring"
@@ -30,7 +28,7 @@ export default function MobileShell() {
             <div style={{ width: 26, height: 22, borderRadius: 5, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 700 }}>MHS+</div>
             <span style={{ fontSize: 14, fontWeight: 500 }}>{tabTitle}</span>
           </div>
-          <button onClick={logout} title="Log out" style={{ width: 24, height: 24, borderRadius: "50%", border: "none", background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 500, cursor: "pointer" }}>{initials}</button>
+          <AccountMenu size={24} />
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
           {showHeader && <PatientHeader mobile />}

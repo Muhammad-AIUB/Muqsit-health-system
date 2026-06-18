@@ -3,8 +3,8 @@
 import { Fragment } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { useAuth } from "@/context/AuthContext";
 import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
+import AccountMenu from "./AccountMenu";
 import CriticalAlert from "@/components/ipd/CriticalAlert";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
@@ -15,9 +15,7 @@ import OePopup from "@/components/examination/OePopup";
 
 export default function DesktopShell() {
   const { activeTab, setActiveTab } = useMuqsit();
-  const { user, logout } = useAuth();
   const showHeader = HEADER_TABS.includes(activeTab);
-  const initials = (user?.name || "DR").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 12, overflow: "hidden", background: C.n[50], position: "relative" }}>
@@ -40,7 +38,7 @@ export default function DesktopShell() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <input placeholder="Search by mobile..." style={{ padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 11, width: 170, outline: "none", background: C.n[0], color: C.n[900], fontFamily: font }} />
-          <button onClick={logout} title={`Log out (${user?.email ?? ""})`} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: font }}>{initials}</button>
+          <AccountMenu size={28} />
         </div>
       </div>
       <div style={{ padding: 18 }}>
