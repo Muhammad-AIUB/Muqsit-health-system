@@ -289,6 +289,21 @@ function useMuqsitStore() {
     if (currentPatientId) void patientsApi.update(currentPatientId, { reportImages: next }).catch(() => {});
   }, [currentPatientId]);
 
+  // Clear the whole prescription editor — every patient is different, so this is
+  // called whenever a patient is switched/opened/created so one patient's
+  // clinical assessment can never bleed into the next. Identity (currentPatientId,
+  // ptInfo) is set by the caller right after.
+  const resetEditor = useCallback(() => {
+    setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
+    setPtDate(new Date().toLocaleDateString("en-CA")); setPtPhone(""); setPtHospitalId("");
+    setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]);
+    setDrugHistory([]); setOnExamination([]); setNote([]); setProvisionalDiagnosis([]);
+    setAssociatedIllness([]); setFinalDiagnosis([]);
+    setRxItems([]); setAdvice([]); setAdviceTest([]);
+    setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
+    setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
+  }, []);
+
   // Persist family members whenever the list changes (add or remove).
   const saveFamilyMembers = useCallback((next: FamilyMember[]) => {
     setFamilyMembers(next);
@@ -438,7 +453,7 @@ function useMuqsitStore() {
     hmDrugs, setHmDrugs, oeData, setOeData,
     // handlers + derived
     handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
-    filteredDrugs, monthlyCost, allFieldValues, leftFields,
+    resetEditor, filteredDrugs, monthlyCost, allFieldValues, leftFields,
   };
 }
 

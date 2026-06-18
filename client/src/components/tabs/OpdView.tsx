@@ -11,7 +11,7 @@ const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 export default function OpdView() {
-  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId, setPtInfo } = useMuqsit();
+  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId, setPtInfo, resetEditor } = useMuqsit();
   const { data: queue = [], isLoading, error } = useOpdQueue();
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
@@ -98,6 +98,7 @@ export default function OpdView() {
                 <>
                   <button
                     onClick={() => {
+                      resetEditor(); // start clean — don't carry the last patient's clinical data
                       const sex = p.gender === "F" ? "Female" : "Male";
                       const age = p.age != null ? String(p.age) : "";
                       setPtName(p.name);

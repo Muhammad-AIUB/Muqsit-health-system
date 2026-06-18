@@ -60,7 +60,7 @@ const smallBtn = (filled: boolean) => ({
 export default function PatientsView() {
   const {
     setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab,
-    setPtInfo, setCurrentPatientId, setPtSettingsTab, setWatchPatient,
+    setPtInfo, setCurrentPatientId, setPtSettingsTab, setWatchPatient, resetEditor,
   } = useMuqsit();
 
   const { data: patients = [], isLoading, isError, error } = usePatients();
@@ -70,6 +70,7 @@ export default function PatientsView() {
   const watchedPatients = patients.filter((p) => p.watched);
 
   const loadHeader = (p: Patient) => {
+    resetEditor(); // every patient is different — start the editor clean
     setPtName(p.name);
     setPtAge(p.age != null ? String(p.age) : "");
     setPtGender(p.sex || "Male");
@@ -91,6 +92,7 @@ export default function PatientsView() {
   };
 
   const newPatient = () => {
+    resetEditor(); // clear any previous patient's in-progress prescription
     setPtInfo(EMPTY_PT_INFO);
     setCurrentPatientId(null);
     setPtSettingsTab("info");
