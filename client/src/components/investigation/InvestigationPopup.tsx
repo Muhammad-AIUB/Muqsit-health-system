@@ -148,16 +148,18 @@ export default function InvestigationPopup() {
     }
   };
 
-  // The image to attach to a test result for the selected date: one uploaded
-  // straight onto the test, else a report image uploaded the same day (which we
-  // then auto-link to the test so its finding shows the 📎). Returns the URL.
+  // The image to attach to a test result: one uploaded straight onto the test,
+  // else the report image CURRENTLY OPEN in the left viewer (so each result links
+  // to the report the doctor is actually looking at — not always the first one).
+  // Returns the URL, and links it so the finding shows the 📎.
   const resolveTestImage = (testName: string): string | undefined => {
     const dateStr = formatCalDate(calDate);
     const direct = invImages[dateStr + ":" + testName];
     if (direct) return direct;
-    const poolEntry = investigation.find((it) => isPoolEntry(it) && it.startsWith(dateStr + ":Report "));
-    if (!poolEntry) return undefined;
-    const url = invImages[poolEntry.replace(":[image attached]", "")];
+    const pool = investigation.filter(isPoolEntry);
+    if (pool.length === 0) return undefined;
+    const idx = Math.min(reportIdx, pool.length - 1);
+    const url = invImages[pool[idx].replace(":[image attached]", "")];
     if (!url) return undefined;
     const targetKey = dateStr + ":" + testName;
     setInvImages((prev) => (prev[targetKey] ? prev : { ...prev, [targetKey]: url }));
