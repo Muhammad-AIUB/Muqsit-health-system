@@ -105,6 +105,7 @@ model ActivityLog {
   section     String  // "Drug history", "Chief complaints", "Prescription", …
   detail      String  // the value added, e.g. "Napa" or "Cough for 7 days"
   action      String  @default("added") // added | saved
+  imageUrl    String? // optional attached report image (hosted URL)
 
   createdAt DateTime @default(now())
 

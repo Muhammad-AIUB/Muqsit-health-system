@@ -12,7 +12,7 @@ import Pill from "@/components/common/Pill";
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
 const ethnicities = ["South Asian","Caucasian / European descent","African / African-American","East Asian","Southeast Asian","Middle Eastern / Arab","Native American / Indigenous Peoples","Pacific Islander / Polynesian","Hispanic / Latino","Aboriginal / Indigenous Australian","Jewish (Ashkenazi, Sephardic, Mizrahi)","Mediterranean","Scandinavian / Northern European","Black Caribbean","Mixed Ethnicity (Multiracial)"];
 const religions = ["Islam","Hinduism","Christianity","Buddhism","Sikhism","Judaism","Confucianism","Other"];
-const QUICK_TAGS = ["VIP", "Chronic", "Elderly", "Diabetic", "Hypertensive", "Pregnant", "Pediatric", "Follow-up", "Critical", "Post-surgery", "Cancer", "Transplant", "Dialysis", "Mental health"];
+const QUICK_TAGS: string[] = [];
 const RELATIONS = [
   { rel: "Spouse", icon: "♥", autoSex: "" },
   { rel: "Father", icon: "♂", autoSex: "Male" },

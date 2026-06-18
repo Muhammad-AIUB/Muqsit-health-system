@@ -120,7 +120,12 @@ function ReportsSection() {
                   <span style={{ color: C.n[500] }}> · {a.section}</span>
                   {a.patientName && <span style={{ color: C.n[600] }}> · {a.patientName}</span>}
                 </div>
-                <div style={{ fontSize: 11, color: C.n[500], marginTop: 1 }}>{formatActivityTime(a.createdAt)}</div>
+                <div style={{ fontSize: 11, color: C.n[500], marginTop: 1, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>{formatActivityTime(a.createdAt)}</span>
+                  {a.imageUrl && (
+                    <a href={a.imageUrl} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎 View image</a>
+                  )}
+                </div>
               </div>
             </div>
           ))

@@ -6,4 +6,5 @@ export class CreateActivityDto {
   @IsOptional() @IsString() @MaxLength(160) patientName?: string;
   @IsOptional() @IsString() patientId?: string;
   @IsOptional() @IsIn(['added', 'saved']) action?: 'added' | 'saved';
+  @IsOptional() @IsString() @MaxLength(600) imageUrl?: string;
 }

@@ -5,6 +5,7 @@ import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
 import type { InvTest } from "@/types";
+import { uploadImage } from "@/lib/api";
 import CalcRenderer from "./CalcRenderer";
 import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
@@ -21,7 +22,8 @@ export default function InvestigationPopup() {
   // Mirror investigation adds into the activity feed (Notification, Charts &
   // Reports), like the other clinical-assessment sections do.
   const logActivity = useActivityLog();
-  const logInv = (detail: string) => logActivity("Investigation report findings", detail);
+  const logInv = (detail: string, imageUrl?: string) =>
+    logActivity("Investigation report findings", detail, "added", imageUrl);
 
   // The "Favourite" category is built from the doctor's saved favourites
   // (Settings → Favourite & unit settings), looked up across all categories.
@@ -123,24 +125,47 @@ export default function InvestigationPopup() {
   // "Report N" middle segment. They get re-tagged to a test on data entry.
   const isPoolEntry = (it: string) => /:Report \d+:\[image attached\]$/.test(it);
 
-  // Bulk-add report images into the pool, tagged to the selected date.
-  const addReportImages = (files: FileList) => {
+  // Bulk-add report images into the pool, tagged to the selected date. Each file
+  // is uploaded to the server and stored as a hosted URL (not base64) so it
+  // persists in the draft cheaply and can be shown in the notification feed.
+  const addReportImages = async (files: FileList) => {
     const dateStr = formatCalDate(calDate);
     const maxIdx = investigation.reduce((mx, it) => {
       const m = it.match(/:Report (\d+):\[image attached\]$/);
       return m ? Math.max(mx, parseInt(m[1], 10)) : mx;
     }, 0);
-    Array.from(files).forEach((file, i) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
+    const arr = Array.from(files);
+    for (let i = 0; i < arr.length; i++) {
+      try {
+        const url = await uploadImage(arr[i]);
         const imgKey = dateStr + ":Report " + (maxIdx + i + 1);
-        setInvImages((prev) => Object.assign({}, prev, { [imgKey]: dataUrl }));
+        setInvImages((prev) => ({ ...prev, [imgKey]: url }));
         const entry = imgKey + ":[image attached]";
         setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
-      };
-      reader.readAsDataURL(file);
+      } catch (e) {
+        console.warn("[investigation] report image upload failed:", e);
+      }
+    }
+  };
+
+  // The image to attach to a test result for the selected date: one uploaded
+  // straight onto the test, else a report image uploaded the same day (which we
+  // then auto-link to the test so its finding shows the 📎). Returns the URL.
+  const resolveTestImage = (testName: string): string | undefined => {
+    const dateStr = formatCalDate(calDate);
+    const direct = invImages[dateStr + ":" + testName];
+    if (direct) return direct;
+    const poolEntry = investigation.find((it) => isPoolEntry(it) && it.startsWith(dateStr + ":Report "));
+    if (!poolEntry) return undefined;
+    const url = invImages[poolEntry.replace(":[image attached]", "")];
+    if (!url) return undefined;
+    const targetKey = dateStr + ":" + testName;
+    setInvImages((prev) => (prev[targetKey] ? prev : { ...prev, [targetKey]: url }));
+    setInvestigation((prev) => {
+      const te = targetKey + ":[image attached]";
+      return prev.includes(te) ? prev : prev.concat([te]);
     });
+    return url;
   };
 
   // Tag the currently-open report image to a test (the date + test name) on
@@ -190,10 +215,10 @@ export default function InvestigationPopup() {
 
   // Append a "dd/mm/yyyy:Test:..." findings line if not already present and
   // mirror it to the activity feed. Functional update — safe under batching.
-  const commitResult = (result: string, logText?: string) => {
+  const commitResult = (result: string, logText?: string, imageUrl?: string) => {
     if (investigation.includes(result)) return;
     setInvestigation((prev) => (prev.includes(result) ? prev : prev.concat([result])));
-    if (logText) logInv(logText);
+    if (logText) logInv(logText, imageUrl);
   };
 
   // Auto-save current form data to the current calDate before changing date or
@@ -207,10 +232,10 @@ export default function InvestigationPopup() {
       const parts = collectTestParts(test);
       if (parts.length === 0) return;
       savedAny = true;
-      commitResult(dateStr + ":" + test.name + ":" + parts.join(","), test.name + ": " + parts.join(", "));
+      const img = resolveTestImage(test.name);
+      commitResult(dateStr + ":" + test.name + ":" + parts.join(","), test.name + ": " + parts.join(", "), img);
       clearTestFields(test);
     });
-    // Image tagging is manual now (no auto-tag on save).
     return savedAny;
   };
 
@@ -231,10 +256,11 @@ export default function InvestigationPopup() {
     if (!test) return;
     const parts = collectTestParts(test);
     if (parts.length === 0) return;
-    commitResult(formatCalDate(calDate) + ":" + testName + ":" + parts.join(","), testName + ": " + parts.join(", "));
+    // Auto-attach an image uploaded for this test/date so the finding shows the
+    // 📎 link and the activity feed carries it — no separate "tag" click needed.
+    const img = resolveTestImage(testName);
+    commitResult(formatCalDate(calDate) + ":" + testName + ":" + parts.join(","), testName + ": " + parts.join(", "), img);
     clearTestFields(test);
-    // Tagging the open report image is now manual — use the per-test
-    // "Left image corresponds to this report" button instead.
   };
 
   // Push a computed score-calculator result for the selected date.
@@ -242,7 +268,7 @@ export default function InvestigationPopup() {
     commitResult(formatCalDate(calDate) + ":" + testName + ":" + summary, testName + ": " + summary);
 
   const addInvNormal = (testName: string) =>
-    commitResult(formatCalDate(calDate) + ":" + testName + ":normal", testName + ": normal");
+    commitResult(formatCalDate(calDate) + ":" + testName + ":normal", testName + ": normal", resolveTestImage(testName));
 
   // Auto-save when popup closes
   const handleCloseInvPopup = () => {
@@ -603,19 +629,19 @@ export default function InvestigationPopup() {
                         display: "inline-flex", alignItems: "center", gap: 4,
                       }}>
                         <span>Add report image</span>
-                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => {
+                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={async (e) => {
                           const file = e.target.files && e.target.files[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
+                            try {
+                              const url = await uploadImage(file);
                               const dateStr = formatCalDate(calDate);
                               const imgKey = dateStr + ":" + test.name;
-                              const dataUrl = ev.target?.result as string;
-                              setInvImages((prev) => Object.assign({}, prev, { [imgKey]: dataUrl }));
+                              setInvImages((prev) => ({ ...prev, [imgKey]: url }));
                               const entry = dateStr + ":" + test.name + ":[image attached]";
                               setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
-                            };
-                            reader.readAsDataURL(file);
+                            } catch (err) {
+                              console.warn("[investigation] report image upload failed:", err);
+                            }
                           }
                           e.target.value = "";
                         }} />

@@ -30,7 +30,12 @@ export function useLogActivity() {
 export function useActivityLog() {
   const { ptName, currentPatientId } = useMuqsit();
   const log = useLogActivity();
-  return (section: string, detail: string, action: "added" | "saved" = "added") => {
+  return (
+    section: string,
+    detail: string,
+    action: "added" | "saved" = "added",
+    imageUrl?: string,
+  ) => {
     const text = detail.trim();
     if (!text) return;
     log.mutate({
@@ -39,6 +44,7 @@ export function useActivityLog() {
       action,
       patientName: ptName.trim() || undefined,
       patientId: currentPatientId ?? undefined,
+      imageUrl: imageUrl || undefined,
     });
   };
 }

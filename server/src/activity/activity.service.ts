@@ -30,6 +30,7 @@ export class ActivityService {
         patientName: dto.patientName ?? null,
         patientId: dto.patientId ?? null,
         action: dto.action ?? 'added',
+        imageUrl: dto.imageUrl ?? null,
       },
     });
   }

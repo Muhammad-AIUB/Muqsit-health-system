@@ -382,6 +382,7 @@ export interface ActivityRecord {
   section: string;
   detail: string;
   action: "added" | "saved";
+  imageUrl: string | null;
   createdAt: string;
 }
 
@@ -391,6 +392,7 @@ export interface LogActivityInput {
   patientName?: string;
   patientId?: string;
   action?: "added" | "saved";
+  imageUrl?: string;
 }
 
 export const activityApi = {
