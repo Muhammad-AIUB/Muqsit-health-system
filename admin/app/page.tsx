@@ -320,13 +320,6 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
     }
   };
 
-  const reject = () => {
-    const reason = window.prompt(`Reason for rejecting ${reg.name} (emailed to them):`);
-    if (reason === null) return; // cancelled
-    if (!reason.trim()) { window.alert("A rejection reason is required."); return; }
-    void run(() => adminApi.reject(reg.id, reason.trim()));
-  };
-
   const view = (
     <button onClick={() => window.open(`/accounts/${reg.id}`, "_blank", "noopener")} style={actBtn(C.white)} disabled={busy}>
       View details
@@ -356,9 +349,6 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
       )}
       {isLive && mode !== "secondary" && (
         <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
-      )}
-      {mode === "secondary" && reg.approvalStatus !== "rejected" && (
-        <button onClick={reject} style={actBtn(C.white, C.dangerDark)} disabled={busy}>Reject</button>
       )}
       {isLive && (
         <button onClick={() => void run(() => adminApi.softDelete(reg.id), `Move ${reg.name} to Trash? They'll be signed out and can be restored later.`)} style={actBtn(C.danger, "#fff")} disabled={busy}>Delete</button>
