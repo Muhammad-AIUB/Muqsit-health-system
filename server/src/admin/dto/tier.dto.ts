@@ -1,6 +1,6 @@
 import { IsIn } from 'class-validator';
 
 export class TierDto {
-  @IsIn(['primary', 'secondary'])
-  tier!: 'primary' | 'secondary';
+  @IsIn(['primary', 'secondary', 'premium'])
+  tier!: 'primary' | 'secondary' | 'premium';
 }

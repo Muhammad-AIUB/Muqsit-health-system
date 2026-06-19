@@ -21,4 +21,6 @@ jobs:
             cd /root/muqsit && git pull origin main
             cd client && npm install && npm run build && cd ..
             cd server && npm install && npx prisma generate && npm run build && cd ..
+            # Admin build is non-fatal so it can never block the core client/server deploy.
+            (cd admin && npm install && npm run build) || echo "admin build failed — continuing"
             pm2 restart all

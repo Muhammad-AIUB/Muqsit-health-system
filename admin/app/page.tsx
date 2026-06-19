@@ -107,6 +107,7 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
 
 // ── Dashboard (sidebar layout) ───────────────────────────────
 const NAV = [
+  { id: "premium", label: "Premium accounts", icon: "💎" },
   { id: "primary", label: "Primary accounts", icon: "⭐" },
   { id: "secondary", label: "Secondary accounts", icon: "👥" },
   { id: "trash", label: "Trash", icon: "🗑️" },
@@ -213,7 +214,7 @@ function AccountsPage({ mode }: { mode: NavId }) {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>{trash ? "Trash" : mode === "primary" ? "Primary accounts" : "Secondary accounts"}</h1>
+      <h1 style={{ marginBottom: 20 }}>{trash ? "Trash" : mode === "premium" ? "Premium accounts" : mode === "primary" ? "Primary accounts" : "Secondary accounts"}</h1>
 
       <input
         value={search}
@@ -271,9 +272,16 @@ function AccountsPage({ mode }: { mode: NavId }) {
                   </td>
                   {trash && (
                     <td style={td}>
-                      <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: r.accountTier === "secondary" ? "#E6F1FB" : C.priLight, color: r.accountTier === "secondary" ? "#185FA5" : C.priDark }}>
-                        {r.accountTier}
-                      </span>
+                      {(() => {
+                        const tc = r.accountTier === "secondary" ? { bg: "#E6F1FB", fg: "#185FA5" }
+                          : r.accountTier === "premium" ? { bg: "#F3EAFB", fg: "#7B3FB3" }
+                          : { bg: C.priLight, fg: C.priDark };
+                        return (
+                          <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: tc.bg, color: tc.fg }}>
+                            {r.accountTier}
+                          </span>
+                        );
+                      })()}
                     </td>
                   )}
                   <td style={td}>{new Date(r.createdAt).toLocaleDateString()}</td>
@@ -325,6 +333,11 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
     </button>
   );
 
+  // Live tiers (premium / primary / secondary) share the same action set; only
+  // the "Move to …" targets differ (you can't move a row into the tier it's
+  // already in). Trash has its own set below.
+  const isLive = mode === "premium" || mode === "primary" || mode === "secondary";
+
   return (
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
       {view}
@@ -332,25 +345,29 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
       {mode === "secondary" && reg.approvalStatus !== "approved" && (
         <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
       )}
-      {(mode === "primary" || mode === "secondary") && reg.approvalStatus !== "suspended" && (
+      {isLive && reg.approvalStatus !== "suspended" && (
         <button onClick={() => void run(() => adminApi.suspend(reg.id))} style={actBtn(C.warn, "#fff")} disabled={busy}>Suspend</button>
       )}
-      {mode === "primary" && (
-        <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
+      {isLive && mode !== "premium" && (
+        <button onClick={() => void run(() => adminApi.setTier(reg.id, "premium"))} style={actBtn(C.white)} disabled={busy}>Move to premium</button>
       )}
-      {mode === "secondary" && (
+      {isLive && mode !== "primary" && (
         <button onClick={() => void run(() => adminApi.setTier(reg.id, "primary"))} style={actBtn(C.white)} disabled={busy}>Move to primary</button>
+      )}
+      {isLive && mode !== "secondary" && (
+        <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
       )}
       {(mode === "primary" || mode === "secondary") && reg.approvalStatus !== "rejected" && (
         <button onClick={reject} style={actBtn(C.white, C.dangerDark)} disabled={busy}>Reject</button>
       )}
-      {(mode === "primary" || mode === "secondary") && (
+      {isLive && (
         <button onClick={() => void run(() => adminApi.softDelete(reg.id), `Move ${reg.name} to Trash? They'll be signed out and can be restored later.`)} style={actBtn(C.danger, "#fff")} disabled={busy}>Delete</button>
       )}
 
       {mode === "trash" && (
         <>
           <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
+          <button onClick={() => void run(() => adminApi.setTier(reg.id, "premium"))} style={actBtn(C.white)} disabled={busy}>Move to premium</button>
           <button onClick={() => void run(() => adminApi.setTier(reg.id, "primary"))} style={actBtn(C.white)} disabled={busy}>Move to primary</button>
           <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
           <button onClick={() => void run(() => adminApi.hardDelete(reg.id), `Permanently delete ${reg.name}? This cannot be undone.`)} style={actBtn(C.danger, "#fff")} disabled={busy}>Delete permanently</button>

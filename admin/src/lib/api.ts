@@ -131,7 +131,7 @@ export const adminApi = {
     apiFetch<Registration>(`/admin/registrations/${id}/reject`, { method: "PATCH", body: JSON.stringify({ reason }) }),
   suspend: (id: string) =>
     apiFetch<Registration>(`/admin/registrations/${id}/suspend`, { method: "PATCH" }),
-  setTier: (id: string, tier: "primary" | "secondary") =>
+  setTier: (id: string, tier: "primary" | "secondary" | "premium") =>
     apiFetch<Registration>(`/admin/registrations/${id}/tier`, { method: "PATCH", body: JSON.stringify({ tier }) }),
   // Soft-delete → Trash (recoverable).
   softDelete: (id: string) =>

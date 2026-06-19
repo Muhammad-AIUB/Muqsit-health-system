@@ -89,7 +89,7 @@ export class AdminService {
     return this.strip(updated);
   }
 
-  async setTier(id: string, tier: 'primary' | 'secondary'): Promise<Registration> {
+  async setTier(id: string, tier: 'primary' | 'secondary' | 'premium'): Promise<Registration> {
     const user = await this.users.findById(id);
     if (!user || user.role !== 'professional') {
       throw new NotFoundException('Registration not found');
