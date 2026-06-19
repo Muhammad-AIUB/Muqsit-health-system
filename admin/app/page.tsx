@@ -357,7 +357,7 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
       {isLive && mode !== "secondary" && (
         <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
       )}
-      {(mode === "primary" || mode === "secondary") && reg.approvalStatus !== "rejected" && (
+      {mode === "secondary" && reg.approvalStatus !== "rejected" && (
         <button onClick={reject} style={actBtn(C.white, C.dangerDark)} disabled={busy}>Reject</button>
       )}
       {isLive && (
