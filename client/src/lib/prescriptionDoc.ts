@@ -32,6 +32,18 @@ export interface PrescriptionDoc {
   // patient's identity (name + mobile) is masked and the clinical assessment is
   // hidden, so it can be handed to a pharmacy/lab without exposing who/what.
   extraPrivacyPage?: boolean;
+  // Page size + margins from Prescription settings (in/cm). When omitted the
+  // sheet falls back to A4. headerHeight/footerHeight reserve the top/bottom
+  // bands (for a pre-printed letterhead pad).
+  page?: {
+    unit: "in" | "cm";
+    width: string;
+    height: string;
+    marginLeft: string;
+    marginRight: string;
+    headerHeight: string;
+    footerHeight: string;
+  };
 }
 
 const esc = (s: string) =>
@@ -138,13 +150,25 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   const fullPage = buildSheet(d, false);
   const privacyPage = d.extraPrivacyPage ? buildSheet(d, true) : "";
 
+  // Page size + margins from Prescription settings, applied to the sheet and the
+  // printed @page. Falls back to A4 with sensible margins.
+  const pg = d.page;
+  const u = pg?.unit ?? "in";
+  const pageW = `${pg?.width || "8.27"}${u}`;
+  const pageH = `${pg?.height || "11.69"}${u}`;
+  const padT = `${pg?.headerHeight || "0.5"}${u}`;
+  const padR = `${pg?.marginRight || "0.4"}${u}`;
+  const padB = `${pg?.footerHeight || "0.5"}${u}`;
+  const padL = `${pg?.marginLeft || "0.4"}${u}`;
+
   return `<!doctype html>
 <html><head><meta charset="utf-8" />
 <title>Prescription — ${esc(d.patient.name || "Patient")}</title>
 <style>
   * { box-sizing: border-box; }
+  @page { size: ${pageW} ${pageH}; margin: 0; }
   body { font-family: "DM Sans", Arial, sans-serif; color: #1a1a1a; margin: 0; background: #f0f0f0; }
-  .sheet { background: #fff; width: 794px; min-height: 1123px; margin: 16px auto; padding: 36px 40px; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  .sheet { background: #fff; width: ${pageW}; min-height: ${pageH}; margin: 16px auto; padding: ${padT} ${padR} ${padB} ${padL}; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
   .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1d9e75; padding-bottom: 12px; }
   .brand { display: flex; align-items: center; gap: 10px; }
   .logo { width: 40px; height: 40px; border-radius: 9px; background: #1d9e75; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
@@ -177,7 +201,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .toolbar button { background: #fff; color: #0f6e56; border: none; padding: 8px 22px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 0 4px; }
   /* Each sheet starts on its own printed page. */
   .sheet + .sheet { page-break-before: always; }
-  @media print { .toolbar { display: none; } body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: auto; } }
+  @media print { .toolbar { display: none; } body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: ${pageW}; min-height: ${pageH}; } }
 </style></head>
 <body>
   <div class="toolbar">

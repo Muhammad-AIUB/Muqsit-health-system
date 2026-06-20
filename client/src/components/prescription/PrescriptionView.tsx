@@ -57,6 +57,16 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       followUp,
       // OPD + "extra page" → append a masked privacy copy as a second page.
       extraPrivacyPage: layout?.rxType === "opd" && layout?.opdLayout === "extra",
+      // Page size + margins from Prescription settings (falls back to A4).
+      page: layout ? {
+        unit: layout.unit,
+        width: layout.totalWidth,
+        height: layout.totalHeight,
+        marginLeft: layout.leftMargin,
+        marginRight: layout.rightMargin,
+        headerHeight: layout.headerHeight,
+        footerHeight: layout.footerHeight,
+      } : undefined,
     });
 
     const w = window.open("", "_blank", "width=860,height=1000");
