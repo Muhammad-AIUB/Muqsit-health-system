@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
+import { useAuth } from "@/context/AuthContext";
 import { useWorkstations } from "@/hooks/useWorkstations";
 
 // The "Your workstations" picker. A secondary user works under the doctors they
@@ -11,6 +12,7 @@ import { useWorkstations } from "@/hooks/useWorkstations";
 // Auto-selects when there's only one; forces a choice when there are several.
 export default function WorkstationSwitcher() {
   const { activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation } = useMuqsit();
+  const { logout } = useAuth();
   const { data: workstations = [], isLoading } = useWorkstations();
 
   useEffect(() => {
@@ -18,6 +20,26 @@ export default function WorkstationSwitcher() {
     if (workstations.length === 1) selectWorkstation(workstations[0]);
     else setShowWorkstations(true);
   }, [isLoading, workstations, activeWorkstationId, selectWorkstation, setShowWorkstations]);
+
+  // A secondary user who isn't anyone's assistant has nowhere to work — the whole
+  // app is blurred behind an upgrade message (they can only be added as an
+  // assistant, or purchase the account).
+  if (!isLoading && workstations.length === 0) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: "rgba(248,248,246,0.55)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
+        <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.18)", padding: "30px 28px" }}>
+          <div style={{ fontSize: 30, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#ED1C24", lineHeight: 1.5 }}>
+            You are currently in secondary account holder. You can only use it as assistant under primary account holder. You can also purchase it to use its full potential.
+          </div>
+          <div style={{ fontSize: 12.5, color: C.n[500], marginTop: 14 }}>
+            Ask a primary doctor to add you as their assistant, or upgrade your account.
+          </div>
+          <button onClick={() => void logout()} style={{ marginTop: 18, padding: "9px 22px", borderRadius: 8, border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Log out</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!showWorkstations) return null;
   const canClose = !!activeWorkstationId; // can't dismiss until a workstation is chosen

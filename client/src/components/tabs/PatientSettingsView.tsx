@@ -8,6 +8,7 @@ import { patientsApi, uploadImage, type PatientInput } from "@/lib/api";
 import { ptInfoToInput } from "@/lib/patientForm";
 import type { PtInfo } from "@/types";
 import Pill from "@/components/common/Pill";
+import Lock from "@/components/common/Lock";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
 const ethnicities = ["South Asian","Caucasian / European descent","African / African-American","East Asian","Southeast Asian","Middle Eastern / Arab","Native American / Indigenous Peoples","Pacific Islander / Polynesian","Hispanic / Latino","Aboriginal / Indigenous Australian","Jewish (Ashkenazi, Sephardic, Mizrahi)","Mediterranean","Scandinavian / Northern European","Black Caribbean","Mixed Ethnicity (Multiracial)"];
@@ -113,7 +114,7 @@ export default function PatientSettingsView() {
     familyMembers, saveFamilyMembers, showFamilyForm, setShowFamilyForm,
     familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptName, ptGender, ptPhone, setPtName, setPtAge, setPtGender, setPtPhone,
-    currentPatientId, setCurrentPatientId, hmDrugs, watchPatient,
+    currentPatientId, setCurrentPatientId, hmDrugs, watchPatient, can,
   } = useMuqsit();
 
   const createPatient = useCreatePatient();
@@ -181,7 +182,7 @@ export default function PatientSettingsView() {
       </div>
 
       {ptSettingsTab === "info" && (
-        <div>
+        <Lock locked={!can("pt.info")}><div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 500 }}>Patient information</div>
             <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: currentPatientId ? C.info[50] : C.pri[50], color: currentPatientId ? C.info[800] : C.pri[600] }}>
@@ -294,7 +295,7 @@ export default function PatientSettingsView() {
               )}
             </div>
           </div>
-        </div>
+        </div></Lock>
       )}
 
       {ptSettingsTab === "security" && (
@@ -306,7 +307,7 @@ export default function PatientSettingsView() {
       )}
 
       {ptSettingsTab === "doctors" && (
-        <div>
+        <Lock locked={!can("pt.doctors")}><div>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Supervising doctor list</div>
           <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16 }}>
             {[{ name: "Dr. Rahman (You)", role: "Primary", spec: "General Medicine", status: "Active" },
@@ -321,11 +322,11 @@ export default function PatientSettingsView() {
             ))}
             <button style={{ marginTop: 12, padding: "8px 16px", borderRadius: 6, border: "1px dashed " + C.n[300], background: "transparent", color: C.pri[400], fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>+ Add supervising doctor</button>
           </div>
-        </div>
+        </div></Lock>
       )}
 
       {ptSettingsTab === "family" && (
-        <div>
+        <Lock locked={!can("pt.family")}><div>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Family tree</div>
 
           {/* Patient info summary */}
@@ -439,7 +440,7 @@ export default function PatientSettingsView() {
               </div>
             </div>
           )}
-        </div>
+        </div></Lock>
       )}
     </div>
   );
