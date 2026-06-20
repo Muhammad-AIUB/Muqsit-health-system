@@ -12,47 +12,47 @@ import {
 import { PatientsService } from './patients.service';
 import { CreatePatientDto, UpdatePatientDto } from './dto/patient.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  CurrentUser,
-  AuthenticatedUser,
-} from '../auth/decorators/current-user.decorator';
+import { WorkstationGuard } from '../workstations/workstation.guard';
+import { WorkstationDoctorId } from '../workstations/workstation.decorator';
 
+// All patient data is scoped to the ACTIVE workstation's doctor (own account, or
+// a doctor the user assists), not the raw logged-in user.
 @Controller('patients')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, WorkstationGuard)
 export class PatientsController {
   constructor(private readonly patients: PatientsService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthenticatedUser, @Query('search') search?: string) {
-    return this.patients.list(user.id, search);
+  list(@WorkstationDoctorId() doctorId: string, @Query('search') search?: string) {
+    return this.patients.list(doctorId, search);
   }
 
   @Get('watched')
-  watched(@CurrentUser() user: AuthenticatedUser) {
-    return this.patients.listWatched(user.id);
+  watched(@WorkstationDoctorId() doctorId: string) {
+    return this.patients.listWatched(doctorId);
   }
 
   @Get(':id')
-  get(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.patients.get(user.id, id);
+  get(@WorkstationDoctorId() doctorId: string, @Param('id') id: string) {
+    return this.patients.get(doctorId, id);
   }
 
   @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreatePatientDto) {
-    return this.patients.create(user.id, dto);
+  create(@WorkstationDoctorId() doctorId: string, @Body() dto: CreatePatientDto) {
+    return this.patients.create(doctorId, dto);
   }
 
   @Patch(':id')
   update(
-    @CurrentUser() user: AuthenticatedUser,
+    @WorkstationDoctorId() doctorId: string,
     @Param('id') id: string,
     @Body() dto: UpdatePatientDto,
   ) {
-    return this.patients.update(user.id, id, dto);
+    return this.patients.update(doctorId, id, dto);
   }
 
   @Delete(':id')
-  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.patients.remove(user.id, id);
+  remove(@WorkstationDoctorId() doctorId: string, @Param('id') id: string) {
+    return this.patients.remove(doctorId, id);
   }
 }

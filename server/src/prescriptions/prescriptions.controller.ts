@@ -10,31 +10,30 @@ import {
 import { PrescriptionsService } from './prescriptions.service';
 import { CreatePrescriptionDto } from './dto/prescription.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  CurrentUser,
-  AuthenticatedUser,
-} from '../auth/decorators/current-user.decorator';
+import { WorkstationGuard } from '../workstations/workstation.guard';
+import { WorkstationDoctorId } from '../workstations/workstation.decorator';
 
+// Prescriptions belong to the active workstation's doctor.
 @Controller('prescriptions')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, WorkstationGuard)
 export class PrescriptionsController {
   constructor(private readonly prescriptions: PrescriptionsService) {}
 
   @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreatePrescriptionDto) {
-    return this.prescriptions.create(user.id, dto);
+  create(@WorkstationDoctorId() doctorId: string, @Body() dto: CreatePrescriptionDto) {
+    return this.prescriptions.create(doctorId, dto);
   }
 
   @Get()
   listByPatient(
-    @CurrentUser() user: AuthenticatedUser,
+    @WorkstationDoctorId() doctorId: string,
     @Query('patientId') patientId: string,
   ) {
-    return this.prescriptions.listByPatient(user.id, patientId);
+    return this.prescriptions.listByPatient(doctorId, patientId);
   }
 
   @Get(':id')
-  get(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.prescriptions.get(user.id, id);
+  get(@WorkstationDoctorId() doctorId: string, @Param('id') id: string) {
+    return this.prescriptions.get(doctorId, id);
   }
 }
