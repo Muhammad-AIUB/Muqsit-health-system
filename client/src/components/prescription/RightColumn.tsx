@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { adviceSuggestions, advisedTestSuggestions } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
+import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -15,6 +16,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     rxItems, setRxItems,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
+    can,
   } = useMuqsit();
 
   const [rows, setRows] = useState<Row[]>(() => fromRxItems(rxItems));
@@ -81,13 +83,18 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
       <div style={{ fontSize: 22, fontWeight: 500, color: C.pri[400], fontStyle: "italic" }}>℞</div>
 
       {/* Notebook-style prescription pad (same editor as Drug history) */}
-      <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px" }}>
-        <MedicinePad rows={rows} setRows={setRows} minHeight={mobile ? 200 : 320} noteText="Start typing a medicine or note…" showCheck={false} />
-      </div>
+      <Lock locked={!can("rx.medicines")}>
+        <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px" }}>
+          <MedicinePad rows={rows} setRows={setRows} minHeight={mobile ? 200 : 320} noteText="Start typing a medicine or note…" showCheck={false} />
+        </div>
+      </Lock>
 
       <ExpandableField label="Advice" items={advice} setItems={setAdvice} suggestions={adviceSuggestions} allFields={allFieldValues} />
-      <ExpandableField label="Advised tests / investigation" items={adviceTest} setItems={setAdviceTest} suggestions={advisedTestSuggestions} allFields={allFieldValues} />
-      <div>
+      <Lock locked={!can("rx.adviceTest")}>
+        <ExpandableField label="Advised tests / investigation" items={adviceTest} setItems={setAdviceTest} suggestions={advisedTestSuggestions} allFields={allFieldValues} />
+      </Lock>
+      <Lock locked={!can("rx.followUp")}>
+        <div>
         <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800] }}>Follow-up</span>
         <div style={{ display: "flex", gap: 10, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
           <input type="number" min="1" value={followUpNum} onChange={(e) => setFollowUpNum(e.target.value)}
@@ -111,7 +118,8 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             Reminder will be sent 2 days before follow-up date
           </div>
         )}
-      </div>
+        </div>
+      </Lock>
     </div>
   );
 }
