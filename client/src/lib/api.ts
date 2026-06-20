@@ -403,6 +403,18 @@ export const activityApi = {
     apiFetch<ActivityRecord>("/activity", { method: "POST", body: JSON.stringify(input) }),
 };
 
+// ── Workstations (practices the user can work in: own + assisted) ──
+export interface Workstation {
+  doctorId: string;
+  name: string;
+  role: "owner" | "assistant";
+  permissions: string[]; // owner → [] (full access); assistant → granted keys
+}
+
+export const workstationsApi = {
+  list: () => apiFetch<Workstation[]>("/workstations"),
+};
+
 // ── Active prescription draft (auto-saved editor state, one per doctor) ──
 export interface PrescriptionDraftRecord {
   data: Record<string, unknown>;

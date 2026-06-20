@@ -19,6 +19,7 @@ import { PrescriptionDraftModule } from './prescription-draft/prescription-draft
 import { TemplatesModule } from './templates/templates.module';
 import { ActivityModule } from './activity/activity.module';
 import { MedicinesModule } from './medicines/medicines.module';
+import { WorkstationsModule } from './workstations/workstations.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { MedicinesModule } from './medicines/medicines.module';
     TemplatesModule,
     ActivityModule,
     MedicinesModule,
+    WorkstationsModule,
   ],
   controllers: [],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
