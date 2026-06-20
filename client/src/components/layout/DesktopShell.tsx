@@ -28,7 +28,7 @@ export default function DesktopShell() {
               const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));
               return (
                 <Fragment key={t.id}>
-                  <button onClick={() => setActiveTab(t.id)} style={{ padding: "5px 14px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12, background: active ? C.pri[50] : "transparent", color: active ? C.pri[600] : C.n[600], fontWeight: activeTab === t.id ? 500 : 400, display: "flex", alignItems: "center", gap: 4, fontFamily: font }}><span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}</button>
+                  <button onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} style={{ padding: "5px 14px", borderRadius: 7, border: "none", cursor: t.disabled ? "not-allowed" : "pointer", fontSize: 12, background: active ? C.pri[50] : "transparent", color: t.disabled ? C.n[300] : active ? C.pri[600] : C.n[600], fontWeight: activeTab === t.id ? 500 : 400, display: "flex", alignItems: "center", gap: 4, fontFamily: font }}><span style={{ fontSize: 12 }}>{t.icon}</span>{t.label}</button>
                   {/* Flashing emergency beacon right after OPD when any IPD patient is Critical. */}
                   {t.id === "opd" && <CriticalAlert onClick={() => setActiveTab("ipd")} />}
                 </Fragment>

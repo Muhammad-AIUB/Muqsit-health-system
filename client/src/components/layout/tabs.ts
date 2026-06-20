@@ -4,6 +4,9 @@ export interface TabDef {
   id: TabId;
   label: string;
   icon: string;
+  // Visible in the nav but greyed out and non-clickable (e.g. a feature that's
+  // only available on a higher account tier, or temporarily switched off).
+  disabled?: boolean;
 }
 
 export const TABS: TabDef[] = [
@@ -12,7 +15,7 @@ export const TABS: TabDef[] = [
   { id: "ipd", label: "IPD", icon: "▥" },
   { id: "patients", label: "Patients", icon: "◉" },
   { id: "message", label: "Message", icon: "◈" },
-  { id: "research", label: "Research companion", icon: "🔬" },
+  { id: "research", label: "Research companion", icon: "🔬", disabled: true },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -21,7 +24,7 @@ export const MOBILE_TABS: TabDef[] = [
   { id: "opd", label: "OPD", icon: "▤" },
   { id: "ipd", label: "IPD", icon: "▥" },
   { id: "message", label: "Message", icon: "◈" },
-  { id: "research", label: "Research", icon: "🔬" },
+  { id: "research", label: "Research", icon: "🔬", disabled: true },
   { id: "settings", label: "More", icon: "⋯" },
 ];
 

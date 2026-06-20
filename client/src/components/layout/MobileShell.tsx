@@ -38,7 +38,7 @@ export default function MobileShell() {
           {MOBILE_TABS.map((t) => {
             const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));
             return (
-              <div key={t.id} onClick={() => setActiveTab(t.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: active ? C.pri[400] : C.n[500] }}>
+              <div key={t.id} onClick={t.disabled ? undefined : () => setActiveTab(t.id)} title={t.disabled ? "Coming soon" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: t.disabled ? "not-allowed" : "pointer", color: t.disabled ? C.n[300] : active ? C.pri[400] : C.n[500], opacity: t.disabled ? 0.6 : 1 }}>
                 <div style={{ width: 22, height: 22, borderRadius: 5, background: active ? C.pri[400] : C.n[200], color: active ? "#fff" : C.n[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{t.icon}</div>
                 <span style={{ fontSize: 9, fontWeight: activeTab === t.id ? 500 : 400 }}>{t.label}</span>
               </div>
