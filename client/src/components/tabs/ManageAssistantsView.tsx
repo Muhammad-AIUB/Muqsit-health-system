@@ -12,53 +12,9 @@ import {
   useUpdateAssistant,
   useUpdateAssistantDefaults,
 } from "@/hooks/useAssistants";
+import { PERMISSION_GROUPS, ALL_PERM_KEYS, PERM_LABEL_OF } from "@/lib/permissions";
 
-// ── Permission catalog ──────────────────────────────────────
-// Mirrors the editable sections of the Prescription page (see
-// leftFields in MuqsitContext) and the Patient settings tabs.
-interface Perm {
-  key: string;
-  label: string;
-}
-interface PermGroup {
-  group: string;
-  perms: Perm[];
-}
-
-const PERMISSION_GROUPS: PermGroup[] = [
-  {
-    group: "Prescription page",
-    perms: [
-      { key: "rx.chiefComplaints", label: "Chief complaints" },
-      { key: "rx.history", label: "History" },
-      { key: "rx.investigation", label: "Investigation report findings" },
-      { key: "rx.drugHistory", label: "Drug history" },
-      { key: "rx.onExamination", label: "On examination" },
-      { key: "rx.note", label: "Note / plan" },
-      { key: "rx.provisionalDiagnosis", label: "Provisional diagnosis" },
-      { key: "rx.associatedIllness", label: "Associated illness" },
-      { key: "rx.finalDiagnosis", label: "Final diagnosis" },
-      { key: "rx.medicines", label: "Medicines (Rx)" },
-      { key: "rx.advice", label: "Advice" },
-      { key: "rx.adviceTest", label: "Advice — tests" },
-      { key: "rx.followUp", label: "Follow-up" },
-      { key: "rx.savePrint", label: "Save and print" },
-    ],
-  },
-  {
-    group: "Patient settings page",
-    perms: [
-      { key: "pt.info", label: "Patient information" },
-      { key: "pt.doctors", label: "Supervising doctor list" },
-      { key: "pt.family", label: "Family tree" },
-      { key: "pt.security", label: "Security" },
-    ],
-  },
-];
-
-const ALL_PERMS: Perm[] = PERMISSION_GROUPS.flatMap((g) => g.perms);
-const ALL_PERM_KEYS = ALL_PERMS.map((p) => p.key);
-const LABEL_OF = new Map(ALL_PERMS.map((p) => [p.key, p.label]));
+const LABEL_OF = PERM_LABEL_OF;
 
 const prettyProfession = (p: string | null): string =>
   p ? p.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "—";

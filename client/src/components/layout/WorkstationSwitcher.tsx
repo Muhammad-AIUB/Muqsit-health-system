@@ -15,7 +15,7 @@ export default function WorkstationSwitcher() {
 
   useEffect(() => {
     if (isLoading || activeWorkstationId || workstations.length === 0) return;
-    if (workstations.length === 1) selectWorkstation(workstations[0].doctorId);
+    if (workstations.length === 1) selectWorkstation(workstations[0]);
     else setShowWorkstations(true);
   }, [isLoading, workstations, activeWorkstationId, selectWorkstation, setShowWorkstations]);
 
@@ -40,7 +40,7 @@ export default function WorkstationSwitcher() {
               return (
                 <button
                   key={w.doctorId}
-                  onClick={() => selectWorkstation(w.doctorId)}
+                  onClick={() => selectWorkstation(w)}
                   style={{
                     textAlign: "center", padding: "18px 14px", borderRadius: 12, cursor: "pointer", fontFamily: font,
                     border: `2px solid ${active ? C.pri[400] : C.n[900]}`,

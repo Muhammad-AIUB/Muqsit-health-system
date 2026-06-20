@@ -14,7 +14,8 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
-import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, setActiveWorkstationId } from "@/lib/api";
+import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, setActiveWorkstationId, type Workstation } from "@/lib/api";
+import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import type {
   Page,
   View,
@@ -307,16 +308,16 @@ function useMuqsitStore() {
   // ── Active workstation (the practice the user is currently working in) ──
   // `null` until chosen. Switching scopes every API request to that doctor
   // (via the X-Workstation header) and starts a clean editor for that practice.
-  const [activeWorkstationId, setActiveWorkstationIdState] = useState<string | null>(null);
+  const [activeWorkstation, setActiveWorkstationState] = useState<Workstation | null>(null);
   const [showWorkstations, setShowWorkstations] = useState(false);
   const activeWsRef = useRef<string | null>(null);
-  const selectWorkstation = useCallback((doctorId: string) => {
+  const selectWorkstation = useCallback((ws: Workstation) => {
     const prev = activeWsRef.current;
-    if (prev === doctorId) { setShowWorkstations(false); return; }
+    if (prev === ws.doctorId) { setShowWorkstations(false); return; }
     const isFirstSelect = prev === null; // page-load auto-select vs an actual switch
-    activeWsRef.current = doctorId;
-    setActiveWorkstationId(doctorId);        // module-level → goes out as a header
-    setActiveWorkstationIdState(doctorId);
+    activeWsRef.current = ws.doctorId;
+    setActiveWorkstationId(ws.doctorId);     // module-level → goes out as a header
+    setActiveWorkstationState(ws);
     setShowWorkstations(false);
     // Only wipe the editor when CHANGING practice — not on the first auto-select,
     // so a reloaded draft (own workspace) isn't lost.
@@ -326,6 +327,22 @@ function useMuqsitStore() {
     }
     void queryClient.invalidateQueries();    // (re)fetch all data under this doctor
   }, [resetEditor, queryClient]);
+  const activeWorkstationId = activeWorkstation?.doctorId ?? null;
+
+  // Permission check for the active workstation. Owner (or before a workstation
+  // is chosen) → full access. Assistant → only the granted keys (+ always-on).
+  const can = useCallback((key: string): boolean => {
+    if (!activeWorkstation || activeWorkstation.role === "owner") return true;
+    return activeWorkstation.permissions.includes(key) || ALWAYS_ALLOWED.includes(key);
+  }, [activeWorkstation]);
+  // Is a section (identified by its display label) editable? Labels that aren't
+  // gated sections are always editable.
+  const canEditLabel = useCallback((label: string): boolean => {
+    const key = PERM_KEY_OF_LABEL.get(label);
+    return key ? can(key) : true;
+  }, [can]);
+  // True only while acting as an assistant in someone else's workstation.
+  const isAssistantMode = !!activeWorkstation && activeWorkstation.role === "assistant";
 
   // Persist family members whenever the list changes (add or remove).
   const saveFamilyMembers = useCallback((next: FamilyMember[]) => {
@@ -477,7 +494,8 @@ function useMuqsitStore() {
     // handlers + derived
     handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
     resetEditor, filteredDrugs, monthlyCost, allFieldValues, leftFields,
-    activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
+    activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
+    can, canEditLabel, isAssistantMode,
   };
 }
 

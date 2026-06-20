@@ -3,6 +3,7 @@
 import { useState, useRef, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C } from "@/theme";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
+import { useMuqsit } from "@/context/MuqsitContext";
 
 interface ExpandableFieldProps {
   label: string;
@@ -30,6 +31,9 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   const { getRecents, addRecents } = useFieldRecents();
   const recents = getRecents(label);
   const inputRef = useRef<HTMLInputElement>(null);
+  // When an assistant lacks this section's permission, it's visible but locked.
+  const { canEditLabel } = useMuqsit();
+  const editable = canEditLabel(label);
 
   const getFiltered = () => {
     // Recent entries first, then the static suggestion list.
@@ -86,6 +90,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   const removeFromDraft = (idx: number) => setDraft(draft.filter((_, i) => i !== idx));
 
   const handleOpen = () => {
+    if (!editable) return; // locked for this assistant — view only
     setDraft([...items]); // stage a copy — the real field is untouched until Done
     setOpen(true);
     setTimeout(() => inputRef.current && inputRef.current.focus(), 100);
@@ -117,11 +122,15 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     <div style={{ marginBottom: 2 }}>
       {/* Collapsed row: label + add button, then selected items as a bullet list */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 28 }}>
-        <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], cursor: "pointer" }} onClick={handleOpen}>{label}</span>
-        <button onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
-        {items.length > 0 && (
+        <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], cursor: editable ? "pointer" : "default" }} onClick={editable ? handleOpen : undefined}>{label}</span>
+        {editable ? (
+          <button onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
+        ) : (
+          <span title="View only — you don't have access to edit this section" style={{ fontSize: 10, color: C.n[400] }}>🔒</span>
+        )}
+        {editable && items.length > 0 && (
           <button onClick={handleOpen} style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}>✎ Edit</button>
         )}
       </div>
@@ -136,7 +145,8 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   value={itemNotes[item] ?? ""}
                   onChange={(e) => onItemNote?.(item, e.target.value)}
                   placeholder={notePlaceholder ?? ""}
-                  style={{ flex: 1, minWidth: 0, marginLeft: 4, padding: "3px 8px", borderRadius: 5, border: `0.5px solid ${C.n[300]}`, fontSize: 11.5, fontFamily: "inherit", color: C.n[900], outline: "none", background: C.n[0] }}
+                  disabled={!editable}
+                  style={{ flex: 1, minWidth: 0, marginLeft: 4, padding: "3px 8px", borderRadius: 5, border: `0.5px solid ${C.n[300]}`, fontSize: 11.5, fontFamily: "inherit", color: C.n[900], outline: "none", background: editable ? C.n[0] : C.n[50] }}
                 />
               )}
             </div>
