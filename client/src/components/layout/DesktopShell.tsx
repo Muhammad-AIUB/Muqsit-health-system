@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import AccountMenu from "./AccountMenu";
+import { WorkstationIndicator } from "./WorkstationSwitcher";
 import CriticalAlert from "@/components/ipd/CriticalAlert";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
@@ -37,6 +38,7 @@ export default function DesktopShell() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <WorkstationIndicator />
           <input placeholder="Search by mobile..." style={{ padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 11, width: 170, outline: "none", background: C.n[0], color: C.n[900], fontFamily: font }} />
           <AccountMenu size={28} />
         </div>

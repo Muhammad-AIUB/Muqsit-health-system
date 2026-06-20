@@ -14,7 +14,7 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
-import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi } from "@/lib/api";
+import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, setActiveWorkstationId } from "@/lib/api";
 import type {
   Page,
   View,
@@ -304,6 +304,29 @@ function useMuqsitStore() {
     setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
   }, []);
 
+  // ── Active workstation (the practice the user is currently working in) ──
+  // `null` until chosen. Switching scopes every API request to that doctor
+  // (via the X-Workstation header) and starts a clean editor for that practice.
+  const [activeWorkstationId, setActiveWorkstationIdState] = useState<string | null>(null);
+  const [showWorkstations, setShowWorkstations] = useState(false);
+  const activeWsRef = useRef<string | null>(null);
+  const selectWorkstation = useCallback((doctorId: string) => {
+    const prev = activeWsRef.current;
+    if (prev === doctorId) { setShowWorkstations(false); return; }
+    const isFirstSelect = prev === null; // page-load auto-select vs an actual switch
+    activeWsRef.current = doctorId;
+    setActiveWorkstationId(doctorId);        // module-level → goes out as a header
+    setActiveWorkstationIdState(doctorId);
+    setShowWorkstations(false);
+    // Only wipe the editor when CHANGING practice — not on the first auto-select,
+    // so a reloaded draft (own workspace) isn't lost.
+    if (!isFirstSelect) {
+      resetEditor();
+      setCurrentPatientId(null);
+    }
+    void queryClient.invalidateQueries();    // (re)fetch all data under this doctor
+  }, [resetEditor, queryClient]);
+
   // Persist family members whenever the list changes (add or remove).
   const saveFamilyMembers = useCallback((next: FamilyMember[]) => {
     setFamilyMembers(next);
@@ -454,6 +477,7 @@ function useMuqsitStore() {
     // handlers + derived
     handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
     resetEditor, filteredDrugs, monthlyCost, allFieldValues, leftFields,
+    activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
   };
 }
 

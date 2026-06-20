@@ -126,6 +126,15 @@ export const onAuthFailure = (fn: AuthFailureListener): (() => void) => {
   return () => authFailureListeners.delete(fn);
 };
 
+// ── Active workstation ──────────────────────────────────────
+// When the user is working inside a doctor they assist, every request carries
+// that doctor's id (X-Workstation) so the API scopes data to that practice.
+// Null = the user's own account (no header → unchanged behaviour).
+let activeWorkstationId: string | null = null;
+export const setActiveWorkstationId = (id: string | null): void => {
+  activeWorkstationId = id;
+};
+
 // Endpoints where a 401 is meaningful in itself (bad credentials, or the
 // refresh call itself) and must NOT trigger a silent-refresh retry. Note
 // /auth/me is deliberately NOT here: an expired access cookie on /auth/me
@@ -176,6 +185,7 @@ async function attemptRefresh(): Promise<RefreshResult> {
 async function apiFetch<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...(activeWorkstationId ? { "X-Workstation": activeWorkstationId } : {}),
     ...(options.headers as Record<string, string> | undefined),
   };
 

@@ -6,6 +6,7 @@ import { useMigrateLocalData } from "@/hooks/useMigrateLocalData";
 import type { View } from "@/types";
 import DesktopShell from "./layout/DesktopShell";
 import MobileShell from "./layout/MobileShell";
+import WorkstationSwitcher from "./layout/WorkstationSwitcher";
 
 const VIEWS: View[] = ["desktop", "mobile"];
 
@@ -34,6 +35,9 @@ function MuqsitInner() {
 
       {view === "desktop" && <DesktopShell />}
       {view === "mobile" && <MobileShell />}
+
+      {/* Practice picker — auto-selects when there's one, forces a choice when many. */}
+      <WorkstationSwitcher />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { TABS, MOBILE_TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import AccountMenu from "./AccountMenu";
+import { WorkstationIndicator } from "./WorkstationSwitcher";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
 import TabRouter from "@/components/TabRouter";
@@ -28,7 +29,10 @@ export default function MobileShell() {
             <div style={{ width: 26, height: 22, borderRadius: 5, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 700 }}>MHS+</div>
             <span style={{ fontSize: 14, fontWeight: 500 }}>{tabTitle}</span>
           </div>
-          <AccountMenu size={24} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <WorkstationIndicator />
+            <AccountMenu size={24} />
+          </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
           {showHeader && <PatientHeader mobile />}
