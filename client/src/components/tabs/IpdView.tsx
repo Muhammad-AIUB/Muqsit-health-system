@@ -5,6 +5,7 @@ import { C, colorOf, font } from "@/theme";
 import { useAdmitIpd, useIpdList, useSetIpdStatus } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
+import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 
 const STATUSES = ["Stable", "Observation", "Critical", "Discharge"] as const;
 const statusColor = (s: string) =>
@@ -31,6 +32,8 @@ export default function IpdView() {
   const [floorBuilding, setFloorBuilding] = useState("");
   const [mobile, setMobile] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
+  // Set when a patient is chosen from the mobile lookup — ties the admission to them.
+  const [patientId, setPatientId] = useState<string | undefined>(undefined);
 
   const occupied = admissions.filter((a) => a.status !== "Discharge").length;
   const critical = admissions.filter((a) => a.status === "Critical").length;
@@ -43,6 +46,7 @@ export default function IpdView() {
     await admit.mutateAsync({
       bed: bed.trim(),
       name: name.trim(),
+      patientId,
       hospitalId: hospitalId.trim() || undefined,
       roomNo: roomNo.trim() || undefined,
       wardNo: wardNo.trim() || undefined,
@@ -50,7 +54,7 @@ export default function IpdView() {
       mobile: mobile.trim() || undefined,
       diagnosis: diagnosis.trim() || undefined,
     });
-    setBed(""); setName(""); setHospitalId(""); setRoomNo(""); setWardNo(""); setFloorBuilding(""); setMobile(""); setDiagnosis("");
+    setBed(""); setName(""); setHospitalId(""); setRoomNo(""); setWardNo(""); setFloorBuilding(""); setMobile(""); setDiagnosis(""); setPatientId(undefined);
     setShowAdd(false);
   };
 
@@ -74,8 +78,20 @@ export default function IpdView() {
       {showAdd && (
         <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, flex: "1 1 160px" }} />
-          <div style={{ flex: "0 0 130px" }}>
-            <input value={mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setMobile(v); }} placeholder="Mobile (11 digit)" maxLength={11} style={{ ...inp, width: "100%", boxSizing: "border-box", borderColor: mobileInvalid ? C.danger[400] : C.n[200] }} />
+          <div style={{ flex: "0 0 150px" }}>
+            <PatientMobileLookup
+              value={mobile}
+              onChange={(d) => { setMobile(d); setPatientId(undefined); }}
+              onPick={(p) => {
+                setName(p.name);
+                setMobile(p.mobile ?? "");
+                if (p.hospitalId) setHospitalId(p.hospitalId);
+                setPatientId(p.id);
+              }}
+              label={null}
+              placeholder="Mobile (11 digit)"
+              inputStyle={{ ...inp, width: "100%", boxSizing: "border-box", borderColor: mobileInvalid ? C.danger[400] : C.n[200] }}
+            />
             {mobileInvalid && <div style={{ fontSize: 9, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}
           </div>
           <input value={hospitalId} onChange={(e) => setHospitalId(e.target.value)} placeholder="Hospital id" style={{ ...inp, flex: "0 0 110px" }} />

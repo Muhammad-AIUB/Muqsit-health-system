@@ -4,7 +4,9 @@ import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddOpdVisit, useOpdQueue, useSetOpdStatus } from "@/hooks/useOpd";
+import { displayAge } from "@/lib/age";
 import Pill from "@/components/common/Pill";
+import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 
 const typeColor = (type: string) => (type === "Urgent" ? "danger" : type === "Follow-up" ? "pri" : "warn");
 const initials = (name: string) =>
@@ -23,6 +25,8 @@ export default function OpdView() {
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("M");
   const [type, setType] = useState("New");
+  // Set when a patient is chosen from the mobile lookup — ties the visit to them.
+  const [patientId, setPatientId] = useState<string | undefined>(undefined);
 
   const waiting = queue.filter((v) => v.status === "waiting").length;
   const done = queue.filter((v) => v.status === "done").length;
@@ -31,12 +35,13 @@ export default function OpdView() {
     if (!name.trim()) return;
     await addVisit.mutateAsync({
       name: name.trim(),
+      patientId,
       phone: phone.trim() || undefined,
       age: age ? Number(age) : undefined,
       gender,
       type,
     });
-    setName(""); setPhone(""); setAge(""); setType("New");
+    setName(""); setPhone(""); setAge(""); setType("New"); setPatientId(undefined);
     setShowAdd(false);
   };
 
@@ -54,7 +59,21 @@ export default function OpdView() {
       {showAdd && (
         <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, flex: "1 1 160px" }} />
-          <input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ -]/g, ""))} placeholder="Mobile" style={{ ...inp, flex: "0 0 130px" }} />
+          <PatientMobileLookup
+            value={phone}
+            onChange={(d) => { setPhone(d); setPatientId(undefined); }}
+            onPick={(p) => {
+              setName(p.name);
+              setPhone(p.mobile ?? "");
+              setAge(displayAge(p));
+              setGender(p.sex?.toLowerCase().startsWith("f") ? "F" : "M");
+              setPatientId(p.id);
+            }}
+            label={null}
+            placeholder="Mobile"
+            wrapStyle={{ flex: "0 0 150px" }}
+            inputStyle={{ ...inp, width: "100%", boxSizing: "border-box" }}
+          />
           <input value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Age" style={{ ...inp, flex: "0 0 60px" }} />
           <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inp, flex: "0 0 60px" }}>
             <option value="M">M</option>
