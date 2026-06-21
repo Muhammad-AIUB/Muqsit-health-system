@@ -206,6 +206,8 @@ function useMuqsitStore() {
           name: ptName.trim() || "Unnamed patient",
           hospitalId: ptHospitalId || undefined,
           age: ptAge ? Number(ptAge) : undefined,
+          // Header age is always manual — base it to this year so it auto-increments.
+          ageAsOfYear: ptAge ? new Date().getFullYear() : undefined,
           sex: ptGender || undefined,
           mobile: ptPhone || undefined,
           fullAddress: ptAddress || undefined,

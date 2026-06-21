@@ -1,5 +1,6 @@
 import type { Patient, PatientInput } from "@/lib/api";
 import type { PtInfo } from "@/types";
+import { displayAge } from "@/lib/age";
 
 // API Patient → Patient Settings form state.
 export function patientToPtInfo(p: Patient): PtInfo {
@@ -8,7 +9,9 @@ export function patientToPtInfo(p: Patient): PtInfo {
     hospitalId: p.hospitalId ?? "",
     bloodGroup: p.bloodGroup ?? "",
     dob: p.dob ? p.dob.slice(0, 10) : "",
-    age: p.age != null ? String(p.age) : "",
+    // Show the auto-incremented age (DOB-based, or base age + years elapsed) so
+    // the form matches the header. Saving then re-bases it to the current year.
+    age: displayAge(p),
     sex: p.sex ?? "Male",
     ethnicity: p.ethnicity ?? "",
     religion: p.religion ?? "Islam",
@@ -27,12 +30,16 @@ export function patientToPtInfo(p: Patient): PtInfo {
 // Patient Settings form state → API create/update payload.
 export function ptInfoToInput(pi: PtInfo): PatientInput {
   const ageNum = pi.age ? parseInt(pi.age, 10) : NaN;
+  const hasManualAge = !pi.dob && !Number.isNaN(ageNum);
   return {
     name: pi.name.trim(),
     hospitalId: pi.hospitalId.trim() || null,
     bloodGroup: pi.bloodGroup || null,
     dob: pi.dob || null,
     age: Number.isNaN(ageNum) ? null : ageNum,
+    // Stamp the current year as the base for a manually-typed age so it ticks up
+    // each year. DOB-driven age needs no base (cleared to null).
+    ageAsOfYear: hasManualAge ? new Date().getFullYear() : null,
     sex: pi.sex || null,
     ethnicity: pi.ethnicity || null,
     religion: pi.religion || null,

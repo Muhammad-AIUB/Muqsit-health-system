@@ -6,7 +6,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import type { OeData } from "@/types";
 
 export default function OePopup() {
-  const { showOePopup, setShowOePopup, oeData, setOeData, setOnExamination } = useMuqsit();
+  const { showOePopup, setShowOePopup, oeData, setOeData, setOnExamination, setPtWeight } = useMuqsit();
 
   const oeD = oeData;
   const setOe = (field: keyof OeData, val: string) =>
@@ -69,6 +69,9 @@ export default function OePopup() {
     if (oeD.diseaseHistory) results.push("Disease Hx: " + oeD.diseaseHistory);
     if (oeD.surgicalHistory) results.push("Surgical Hx: " + oeD.surgicalHistory);
     setOnExamination(results);
+    // 3.docx: weight can be loaded from On-examination — push the effective kg
+    // value (entered, or derived from lb) into the header Weight field.
+    if (effWKg > 0) setPtWeight(String(effWKg));
     setShowOePopup(false);
   };
 
