@@ -14,7 +14,9 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
-import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, setActiveWorkstationId, type Workstation } from "@/lib/api";
+import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
+import { patientToPtInfo } from "@/lib/patientForm";
+import { displayAge } from "@/lib/age";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import type {
   Page,
@@ -305,6 +307,34 @@ function useMuqsitStore() {
     setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
   }, []);
 
+  // Load a saved patient into the editor (header + settings form), starting from
+  // a clean clinical slate. Galleries / health-monitoring / family tree are
+  // hydrated by the currentPatientId effect below. Used by the mobile-lookup
+  // dropdown (and the Patients list). Age is shown auto-incremented.
+  const loadPatient = useCallback((p: Patient) => {
+    resetEditor();
+    setPtName(p.name);
+    setPtAge(displayAge(p));
+    setPtGender(p.sex || "");
+    setPtPhone(p.mobile || "");
+    setPtAddress(p.fullAddress || "");
+    setPtHospitalId(p.hospitalId || "");
+    setPtInfo(patientToPtInfo(p));
+    setWatchPatient(p.watched);
+    setCurrentPatientId(p.id);
+  }, [resetEditor]);
+
+  // Convenience: load by id (fetches first). Returns the patient, or null.
+  const loadPatientById = useCallback(async (id: string): Promise<Patient | null> => {
+    try {
+      const p = await patientsApi.get(id);
+      loadPatient(p);
+      return p;
+    } catch {
+      return null;
+    }
+  }, [loadPatient]);
+
   // ── Active workstation (the practice the user is currently working in) ──
   // `null` until chosen. Switching scopes every API request to that doctor
   // (via the X-Workstation header) and starts a clean editor for that practice.
@@ -493,7 +523,7 @@ function useMuqsitStore() {
     hmDrugs, setHmDrugs, oeData, setOeData,
     // handlers + derived
     handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
-    resetEditor, filteredDrugs, monthlyCost, allFieldValues, leftFields,
+    resetEditor, loadPatient, loadPatientById, filteredDrugs, monthlyCost, allFieldValues, leftFields,
     activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
     can, canEditLabel, isAssistantMode,
   };
