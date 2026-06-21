@@ -288,6 +288,10 @@ model Patient {
   bloodGroup       String?
   dob              DateTime?
   age              Int?
+  // The calendar year the manual `age` was recorded. With no DOB, displayed age
+  // is `age + (currentYear - ageAsOfYear)` so it ticks up by 1 every new year
+  // (53 recorded in 2024 → 54 in 2025 → 55 in 2026). Null/0 ⇒ no auto-increment.
+  ageAsOfYear      Int?
   sex              String?
   ethnicity        String?
   religion         String?

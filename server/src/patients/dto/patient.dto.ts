@@ -21,6 +21,8 @@ export class CreatePatientDto {
   @IsOptional() @IsString() bloodGroup?: string;
   @IsOptional() @IsString() dob?: string;
   @IsOptional() @Type(() => Number) @IsInt() age?: number;
+  // Calendar year the manual age was recorded (powers age auto-increment).
+  @IsOptional() @Type(() => Number) @IsInt() ageAsOfYear?: number;
   @IsOptional() @IsString() sex?: string;
   @IsOptional() @IsString() ethnicity?: string;
   @IsOptional() @IsString() religion?: string;
@@ -45,4 +47,24 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsOptional() @IsArray() @IsString({ each: true }) hmSelectedDrugs?: string[];
   // Family tree — array of { name, mobile, nid, sex, relation }.
   @IsOptional() @IsArray() familyMembers?: Record<string, unknown>[];
+}
+
+// Create a NEW patient related to an EXISTING one, writing reciprocal family-tree
+// links to both. `relation` is the NEW patient's role relative to the existing
+// patient (X is T's <relation>) — son | daughter | spouse | father | mother |
+// brother | sister. See PatientsService.linkNew for the gender-aware mapping.
+export class LinkPatientDto {
+  @IsString() existingId!: string;
+
+  @IsString() @MinLength(1) @MaxLength(160) name!: string;
+
+  @IsString() relation!: string;
+
+  @IsOptional() @IsString() mobile?: string;
+  @IsOptional() @IsString() sex?: string;
+  @IsOptional() @IsString() hospitalId?: string;
+  @IsOptional() @IsString() dob?: string;
+  @IsOptional() @Type(() => Number) @IsInt() age?: number;
+  @IsOptional() @Type(() => Number) @IsInt() ageAsOfYear?: number;
+  @IsOptional() @IsString() fullAddress?: string;
 }

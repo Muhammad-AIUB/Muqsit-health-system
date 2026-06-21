@@ -10,7 +10,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PatientsService } from './patients.service';
-import { CreatePatientDto, UpdatePatientDto } from './dto/patient.dto';
+import {
+  CreatePatientDto,
+  LinkPatientDto,
+  UpdatePatientDto,
+} from './dto/patient.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkstationGuard } from '../workstations/workstation.guard';
 import { WorkstationDoctorId } from '../workstations/workstation.decorator';
@@ -30,6 +34,19 @@ export class PatientsController {
   @Get('watched')
   watched(@WorkstationDoctorId() doctorId: string) {
     return this.patients.listWatched(doctorId);
+  }
+
+  // Every patient on a given phone number (prescription mobile-lookup dropdown).
+  // Declared before ':id' so the literal path isn't captured as an id.
+  @Get('by-mobile')
+  byMobile(@WorkstationDoctorId() doctorId: string, @Query('mobile') mobile = '') {
+    return this.patients.findByMobile(doctorId, mobile);
+  }
+
+  // Create a new patient related to an existing one, with reciprocal family links.
+  @Post('link')
+  link(@WorkstationDoctorId() doctorId: string, @Body() dto: LinkPatientDto) {
+    return this.patients.linkNew(doctorId, dto);
   }
 
   @Get(':id')

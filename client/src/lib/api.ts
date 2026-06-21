@@ -60,6 +60,8 @@ export interface Patient {
   bloodGroup: string | null;
   dob: string | null;
   age: number | null;
+  // Calendar year the manual age was recorded — powers age auto-increment.
+  ageAsOfYear: number | null;
   sex: string | null;
   ethnicity: string | null;
   religion: string | null;
@@ -77,7 +79,7 @@ export interface Patient {
   reportImages: string[];
   hmDrugDates: Record<string, { sf: string; upto: string }> | null;
   hmSelectedDrugs: string[];
-  familyMembers: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string }>;
+  familyMembers: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
   doctorId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -89,6 +91,7 @@ export interface PatientInput {
   bloodGroup?: string | null;
   dob?: string | null;
   age?: number | null;
+  ageAsOfYear?: number | null;
   sex?: string | null;
   ethnicity?: string | null;
   religion?: string | null;
@@ -106,7 +109,23 @@ export interface PatientInput {
   reportImages?: string[];
   hmDrugDates?: Record<string, { sf: string; upto: string }>;
   hmSelectedDrugs?: string[];
-  familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string }>;
+  familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
+}
+
+// Create a NEW patient related to an EXISTING one, with reciprocal family links.
+// `relation` is the new patient's role relative to the existing one (X is T's
+// <relation>): son | daughter | spouse | father | mother | brother | sister.
+export interface LinkPatientInput {
+  existingId: string;
+  name: string;
+  relation: string;
+  mobile?: string;
+  sex?: string;
+  hospitalId?: string;
+  dob?: string;
+  age?: number;
+  ageAsOfYear?: number;
+  fullAddress?: string;
 }
 
 export class ApiError extends Error {
@@ -482,7 +501,15 @@ export const patientsApi = {
   list: (search?: string) =>
     apiFetch<Patient[]>(`/patients${search ? `?search=${encodeURIComponent(search)}` : ""}`),
   watched: () => apiFetch<Patient[]>("/patients/watched"),
+  // Every patient sharing a phone number (prescription mobile-lookup dropdown).
+  byMobile: (mobile: string) =>
+    apiFetch<Patient[]>(`/patients/by-mobile?mobile=${encodeURIComponent(mobile)}`),
   get: (id: string) => apiFetch<Patient>(`/patients/${id}`),
+  link: (input: LinkPatientInput) =>
+    apiFetch<{ newPatient: Patient; existing: Patient }>("/patients/link", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   create: (input: PatientInput) =>
     apiFetch<Patient>("/patients", { method: "POST", body: JSON.stringify(input) }),
   update: (id: string, input: Partial<PatientInput>) =>
