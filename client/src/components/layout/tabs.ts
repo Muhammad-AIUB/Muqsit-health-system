@@ -14,7 +14,7 @@ export const TABS: TabDef[] = [
   { id: "opd", label: "OPD", icon: "▤" },
   { id: "ipd", label: "IPD", icon: "▥" },
   { id: "patients", label: "Patients", icon: "◉" },
-  { id: "message", label: "Message", icon: "◈" },
+  { id: "message", label: "Supervised", icon: "◈" },
   { id: "research", label: "Research companion", icon: "🔬", disabled: true },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
@@ -23,7 +23,7 @@ export const MOBILE_TABS: TabDef[] = [
   { id: "prescription", label: "Rx", icon: "℞" },
   { id: "opd", label: "OPD", icon: "▤" },
   { id: "ipd", label: "IPD", icon: "▥" },
-  { id: "message", label: "Message", icon: "◈" },
+  { id: "message", label: "Supervised", icon: "◈" },
   { id: "research", label: "Research", icon: "🔬", disabled: true },
   { id: "settings", label: "More", icon: "⋯" },
 ];

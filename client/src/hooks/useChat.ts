@@ -25,3 +25,39 @@ export function useSendChat(patientId: string | null) {
     onSuccess: () => qc.invalidateQueries({ queryKey: chatKey(patientId ?? "none") }),
   });
 }
+
+// ── Supervising doctors (per patient) ───────────────────────
+const supKey = (patientId: string) => ["patient-supervisors", patientId];
+
+export function useSupervisors(patientId: string | null) {
+  return useQuery({
+    queryKey: supKey(patientId ?? "none"),
+    queryFn: () => patientChatApi.listSupervisors(patientId as string),
+    enabled: !!patientId,
+  });
+}
+
+export function useAddSupervisor(patientId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (identifier: string) => patientChatApi.addSupervisor(patientId as string, identifier),
+    onSuccess: () => qc.invalidateQueries({ queryKey: supKey(patientId ?? "none") }),
+  });
+}
+
+export function useRemoveSupervisor(patientId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (doctorId: string) => patientChatApi.removeSupervisor(patientId as string, doctorId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: supKey(patientId ?? "none") }),
+  });
+}
+
+// Patients other doctors assigned the signed-in user to supervise.
+export function useSupervisedPatients() {
+  return useQuery({
+    queryKey: ["supervised-patients"],
+    queryFn: () => patientChatApi.supervised(),
+    refetchOnWindowFocus: true,
+  });
+}

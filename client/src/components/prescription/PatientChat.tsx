@@ -14,10 +14,14 @@ import { formatActivityTime } from "@/lib/activityFormat";
 
 const isImageUrl = (u: string) => /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(u);
 
-export default function PatientChat() {
+export default function PatientChat({ patientId: pidProp, patientName }: { patientId?: string | null; patientName?: string } = {}) {
   const { currentPatientId, ptName } = useMuqsit();
-  const { data: messages = [], isLoading } = usePatientChat(currentPatientId);
-  const send = useSendChat(currentPatientId);
+  // Use the explicit patient when given (e.g. the Supervised-patients view),
+  // otherwise the editor's loaded patient.
+  const currentPatient = pidProp !== undefined ? pidProp : currentPatientId;
+  const displayName = patientName !== undefined ? patientName : ptName;
+  const { data: messages = [], isLoading } = usePatientChat(currentPatient);
+  const send = useSendChat(currentPatient);
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ url: string; name: string } | null>(null);
@@ -30,7 +34,7 @@ export default function PatientChat() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
-  if (!currentPatientId) return null;
+  if (!currentPatient) return null;
 
   const onAttach = async (file?: File) => {
     if (!file) return;
@@ -64,7 +68,7 @@ export default function PatientChat() {
         Patient discussion
       </div>
       <div style={{ fontSize: 11, color: C.n[500], textAlign: "center", marginBottom: 12 }}>
-        Team chat for {ptName.trim() || "this patient"} — primary, assistants &amp; supervising doctors.
+        Team chat for {displayName.trim() || "this patient"} — primary, assistants &amp; supervising doctors.
       </div>
 
       <div ref={scrollRef} style={{ background: C.n[50], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 12, maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>

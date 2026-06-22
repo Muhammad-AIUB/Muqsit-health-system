@@ -9,6 +9,7 @@ import { ptInfoToInput } from "@/lib/patientForm";
 import type { PtInfo } from "@/types";
 import Pill from "@/components/common/Pill";
 import Lock from "@/components/common/Lock";
+import SupervisingDoctors from "./SupervisingDoctors";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
 const ethnicities = ["South Asian","Caucasian / European descent","African / African-American","East Asian","Southeast Asian","Middle Eastern / Arab","Native American / Indigenous Peoples","Pacific Islander / Polynesian","Hispanic / Latino","Aboriginal / Indigenous Australian","Jewish (Ashkenazi, Sephardic, Mizrahi)","Mediterranean","Scandinavian / Northern European","Black Caribbean","Mixed Ethnicity (Multiracial)"];
@@ -308,20 +309,7 @@ export default function PatientSettingsView() {
 
       {ptSettingsTab === "doctors" && (
         <Lock locked={!can("pt.doctors")}><div>
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Supervising doctor list</div>
-          <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16 }}>
-            {[{ name: "Dr. Rahman (You)", role: "Primary", spec: "General Medicine", status: "Active" },
-              { name: "Dr. Farzana Akter", role: "Consultant", spec: "Cardiology", status: "Active" },
-              { name: "Dr. Kamal Hossain", role: "Referred", spec: "Gastroenterology", status: "Pending" },
-            ].map((doc, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < 2 ? "0.5px solid " + C.n[200] : "none" }}>
-                <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.pri[50], color: C.pri[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 500 }}>{doc.name.charAt(4) + doc.name.charAt(5)}</div>
-                <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500 }}>{doc.name}</div><div style={{ fontSize: 10, color: C.n[600] }}>{doc.spec} · {doc.role}</div></div>
-                <Pill bg={doc.status === "Active" ? C.pri[50] : C.warn[50]} fg={doc.status === "Active" ? C.pri[600] : C.warn[800]}>{doc.status}</Pill>
-              </div>
-            ))}
-            <button style={{ marginTop: 12, padding: "8px 16px", borderRadius: 6, border: "1px dashed " + C.n[300], background: "transparent", color: C.pri[400], fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>+ Add supervising doctor</button>
-          </div>
+          <SupervisingDoctors />
         </div></Lock>
       )}
 
