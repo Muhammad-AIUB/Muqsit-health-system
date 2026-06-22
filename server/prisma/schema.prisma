@@ -88,6 +88,11 @@ model User {
   // Activity feed entries this user (doctor) created.
   activityLogs ActivityLog[]
 
+  // Per-patient chat messages this user authored, and the patients this user
+  // (as a doctor) has been assigned to supervise.
+  chatMessages       PatientChatMessage[] @relation("ChatAuthor")
+  supervisedPatients PatientSupervisor[]  @relation("SupervisingDoctor")
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -323,11 +328,47 @@ model Patient {
   opdVisits     OpdVisit[]
   ipdAdmissions IpdAdmission[]
 
+  // Per-patient team chat thread, and the doctors assigned to supervise this
+  // patient (they get cross-doctor access to the chat).
+  chatMessages PatientChatMessage[]
+  supervisors  PatientSupervisor[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([doctorId])
   @@index([name])
+}
+
+// One message in a patient's team chat. Visible to the patient's owner doctor,
+// that doctor's active assistants, and any assigned supervising doctor.
+model PatientChatMessage {
+  id            String   @id @default(cuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User     @relation("ChatAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorName    String   // snapshot of the author's display name at send time
+  body          String   @default("")
+  attachmentUrl String?  // optional image/file (hosted URL)
+  createdAt     DateTime @default(now())
+
+  @@index([patientId])
+}
+
+// Assigns a doctor to supervise a specific patient — grants them access to that
+// patient's chat (and a "Supervised patients" view) across the doctor boundary.
+model PatientSupervisor {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  String
+  doctor    User     @relation("SupervisingDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([patientId, doctorId])
+  @@index([patientId])
+  @@index([doctorId])
 }
 
 // ── OPD queue ────────────────────────────────────────────────

@@ -517,6 +517,51 @@ export const patientsApi = {
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
 };
 
+// ── Per-patient team chat + supervising doctors (4.docx) ─────
+export interface ChatMessage {
+  id: string;
+  patientId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  attachmentUrl: string | null;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface SupervisorRecord {
+  doctorId: string;
+  name: string;
+  email: string;
+  createdAt?: string;
+}
+
+export interface SupervisedPatient {
+  id: string;
+  name: string;
+  age: number | null;
+  ageAsOfYear: number | null;
+  dob: string | null;
+  sex: string | null;
+  mobile: string | null;
+  hospitalId: string | null;
+  ownerName: string;
+}
+
+export const patientChatApi = {
+  list: (patientId: string) =>
+    apiFetch<ChatMessage[]>(`/patients/${patientId}/chat`),
+  send: (patientId: string, input: { body?: string; attachmentUrl?: string }) =>
+    apiFetch<ChatMessage>(`/patients/${patientId}/chat`, { method: "POST", body: JSON.stringify(input) }),
+  listSupervisors: (patientId: string) =>
+    apiFetch<SupervisorRecord[]>(`/patients/${patientId}/supervisors`),
+  addSupervisor: (patientId: string, identifier: string) =>
+    apiFetch<SupervisorRecord>(`/patients/${patientId}/supervisors`, { method: "POST", body: JSON.stringify({ identifier }) }),
+  removeSupervisor: (patientId: string, doctorId: string) =>
+    apiFetch<{ doctorId: string }>(`/patients/${patientId}/supervisors/${doctorId}`, { method: "DELETE" }),
+  supervised: () => apiFetch<SupervisedPatient[]>("/supervised"),
+};
+
 // ── Prescriptions ───────────────────────────────────────────
 export interface RxItemInput {
   drug: string;

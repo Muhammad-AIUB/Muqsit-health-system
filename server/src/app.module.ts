@@ -20,6 +20,7 @@ import { TemplatesModule } from './templates/templates.module';
 import { ActivityModule } from './activity/activity.module';
 import { MedicinesModule } from './medicines/medicines.module';
 import { WorkstationsModule } from './workstations/workstations.module';
+import { PatientChatModule } from './patient-chat/patient-chat.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { WorkstationsModule } from './workstations/workstations.module';
     ActivityModule,
     MedicinesModule,
     WorkstationsModule,
+    PatientChatModule,
   ],
   controllers: [],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
