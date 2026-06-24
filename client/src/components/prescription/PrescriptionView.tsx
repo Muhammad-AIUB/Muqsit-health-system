@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -124,18 +125,25 @@ function ReportsSection() {
   // patient is selected, so currentPatientId is always set here.
   const { currentPatientId } = useMuqsit();
   const { data: feed = [], isLoading } = useActivityFeed(currentPatientId);
+  // Show oldest → newest (latest at the bottom, like a chat); scroll up for older.
+  const ordered = [...feed].reverse();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [ordered.length]);
 
   return (
     <div style={{ marginTop: 22, paddingTop: 16, borderTop: `0.5px solid ${C.n[200]}` }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: C.n[800], textAlign: "center", marginBottom: 12 }}>Notification, Charts &amp; Reports</div>
 
-      <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, maxHeight: 260, overflowY: "auto" }}>
+      <div ref={scrollRef} style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, maxHeight: 260, overflowY: "auto" }}>
         {isLoading && feed.length === 0 ? (
           <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>Loading activity…</div>
         ) : feed.length === 0 ? (
           <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>No activity yet — adds and saves will show here with name, date &amp; time.</div>
         ) : (
-          feed.map((a, i) => (
+          ordered.map((a, i) => (
             <div key={a.id} style={{ display: "flex", gap: 10, padding: "9px 14px", borderTop: i === 0 ? "none" : `0.5px solid ${C.n[100]}` }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.action === "saved" ? C.pri[400] : C.info[400], flexShrink: 0, marginTop: 5 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
