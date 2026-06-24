@@ -11,9 +11,17 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   const {
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate,
-    ptHospitalId, setPtHospitalId, setPtInfo,
+    ptHospitalId, setPtHospitalId, setPtInfo, currentPatientId,
     monthlyCost, watchPatient, toggleWatch, activeTab, setActiveTab,
   } = useMuqsit();
+
+  // Once a patient is loaded, their identity fields are read-only here — edits
+  // go through Patient Settings. (Weight & Date stay editable: they're
+  // per-visit, not stored patient attributes.)
+  const locked = !!currentPatientId;
+  const lk = (base: CSSProperties): CSSProperties =>
+    locked ? { ...base, background: C.n[100], color: C.n[600], cursor: "not-allowed" } : base;
+  const lockTitle = locked ? "Edit from Patient Settings" : undefined;
 
   // Age / Gender are shared with the Patient Settings form (ptInfo). Mirror
   // header edits into ptInfo so the two views always show the same value.
@@ -24,17 +32,17 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: mobile ? 10 : 14, marginBottom: mobile ? 10 : 14 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: mobile ? 6 : 10 }}>
-        <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={inputSm} /></div>
-        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={inputSm} /></div>
+        <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
+        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
         <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Gender</label>
-          <select value={ptGender} onChange={(e) => onGender(e.target.value)} style={{ ...inputSm, padding: "6px 6px", cursor: "pointer" }}>
+          <select value={ptGender} onChange={(e) => onGender(e.target.value)} disabled={locked} title={lockTitle} style={lk({ ...inputSm, padding: "6px 6px", cursor: locked ? "not-allowed" : "pointer" })}>
             <option value="">—</option>
             <option>Male</option>
             <option>Female</option>
             <option>Other</option>
           </select>
         </div>
-        <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={inputSm} /></div>
+        <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
         <div style={{ flex: "0 0 60px" }}><label style={fieldLabel}>Weight</label><input value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
         <div style={{ flex: "0 0 130px" }}><label style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
         <MobileLookupField mobile={mobile} />
@@ -47,7 +55,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         {/* Hospital ID — a normal inline field, in line with the others */}
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 140px" }}>
           <label style={fieldLabel}>Hospital ID</label>
-          <input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={{ ...inputSm, width: "100%", boxSizing: "border-box" }} />
+          <input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={lk({ ...inputSm, width: "100%", boxSizing: "border-box" })} readOnly={locked} title={lockTitle} />
         </div>
         <div style={{ flex: mobile ? "1 1 100%" : "0 0 auto", display: "flex", alignItems: "flex-end", gap: 6, paddingBottom: 1 }}>
           <button onClick={() => setActiveTab("pt-settings")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "pt-settings" ? C.info[400] : C.n[200]}`, background: activeTab === "pt-settings" ? C.info[50] : C.n[0], color: activeTab === "pt-settings" ? C.info[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
