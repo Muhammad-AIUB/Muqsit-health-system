@@ -25,8 +25,6 @@ export default function OpdView() {
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("M");
   const [type, setType] = useState("New");
-  // Filter the queue by prescription completion.
-  const [rxFilter, setRxFilter] = useState("all");
   // Set when a patient is chosen from the mobile lookup — ties the visit to them.
   const [patientId, setPatientId] = useState<string | undefined>(undefined);
 
@@ -49,23 +47,13 @@ export default function OpdView() {
 
   const inp = { padding: "7px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 12, outline: "none", fontFamily: font } as const;
 
-  // Queue rows after applying the completion filter.
-  const shown = rxFilter === "all" ? queue : queue.filter((p) => p.rxStatus === rxFilter);
-
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ fontSize: 16, fontWeight: 500 }}>OPD queue management</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <select value={rxFilter} onChange={(e) => setRxFilter(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-            <option value="all">All prescriptions</option>
-            <option value="incomplete">Incomplete</option>
-            <option value="complete">Complete</option>
-          </select>
-          <button onClick={() => setShowAdd((s) => !s)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font }}>
+        <button onClick={() => setShowAdd((s) => !s)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font }}>
           {showAdd ? "Close" : "+ Add to queue"}
         </button>
-        </div>
       </div>
 
       {showAdd && (
@@ -111,23 +99,25 @@ export default function OpdView() {
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
         {isLoading && <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Loading queue…</div>}
         {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the OPD queue. Is the API running?</div>}
-        {!isLoading && !error && shown.length === 0 && (
-          <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>
-            {rxFilter === "all" ? "Queue is empty — add a patient above." : `No ${rxFilter} prescriptions.`}
-          </div>
+        {!isLoading && !error && queue.length === 0 && (
+          <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Queue is empty — add a patient above.</div>
         )}
-        {shown.map((p, i) => {
+        {queue.map((p, i) => {
           const color = typeColor(p.type);
           return (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < shown.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
               <div style={{ width: 34, height: 34, borderRadius: "50%", background: colorOf(color).bg, color: colorOf(color).fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{initials(p.name)}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
                 <div style={{ fontSize: 11, color: C.n[600] }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{p.gender ?? "—"}</div>
               </div>
-              {p.type && p.type !== "New" && p.type !== "Rx" && (
+              {p.rxStatus === "incomplete" ? (
+                <Pill bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
+              ) : p.rxStatus === "complete" ? (
+                <Pill bg={C.pri[50]} fg={C.pri[600]}>Complete</Pill>
+              ) : p.type && p.type !== "New" && p.type !== "Rx" ? (
                 <Pill bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
-              )}
+              ) : null}
               <Pill bg={C.n[100]} fg={C.n[800]}>{p.token}</Pill>
               {p.status === "waiting" ? (
                 <>
