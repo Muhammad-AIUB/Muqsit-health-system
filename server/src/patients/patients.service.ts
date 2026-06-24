@@ -114,6 +114,34 @@ export class PatientsService {
     });
   }
 
+  // Family-tree members (across the doctor's patients) whose number matches —
+  // shown as info-only rows in the mobile lookup ("this number is X's father").
+  async relativesByMobile(
+    doctorId: string,
+    mobile: string,
+  ): Promise<Array<{ patientId: string; patientName: string; name: string; relation: string; sex: string; mobile: string }>> {
+    const m = mobile.trim();
+    if (!m) return [];
+    const rows = await this.prisma.$queryRaw<
+      Array<{ patientId: string; patientName: string; member: Record<string, unknown> }>
+    >`
+      SELECT p."id" AS "patientId", p."name" AS "patientName", fm.value AS member
+      FROM "Patient" p, jsonb_array_elements(p."familyMembers") fm
+      WHERE p."doctorId" = ${doctorId}
+        AND jsonb_typeof(p."familyMembers") = 'array'
+        AND fm.value->>'mobile' = ${m}
+      LIMIT 20
+    `;
+    return rows.map((r) => ({
+      patientId: r.patientId,
+      patientName: r.patientName,
+      name: String(r.member?.name ?? ''),
+      relation: String(r.member?.relation ?? ''),
+      sex: String(r.member?.sex ?? ''),
+      mobile: String(r.member?.mobile ?? ''),
+    }));
+  }
+
   create(doctorId: string, dto: CreatePatientDto): Promise<Patient> {
     const { dob, ...rest } = dto;
     // Loose cast: `ageAsOfYear` may not be in the generated client yet (the DB

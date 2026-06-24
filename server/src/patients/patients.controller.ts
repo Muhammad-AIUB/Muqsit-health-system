@@ -43,6 +43,12 @@ export class PatientsController {
     return this.patients.findByMobile(doctorId, mobile);
   }
 
+  // Family-tree members across the doctor's patients matching a number (info only).
+  @Get('relatives-by-mobile')
+  relativesByMobile(@WorkstationDoctorId() doctorId: string, @Query('mobile') mobile = '') {
+    return this.patients.relativesByMobile(doctorId, mobile);
+  }
+
   // Create a new patient related to an existing one, with reciprocal family links.
   @Post('link')
   link(@WorkstationDoctorId() doctorId: string, @Body() dto: LinkPatientDto) {

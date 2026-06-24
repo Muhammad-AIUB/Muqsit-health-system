@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, font } from "@/theme";
 import { inputSm, fieldLabel } from "@/theme/styles";
-import { patientsApi, type Patient } from "@/lib/api";
+import { patientsApi, type Patient, type RelativeMatch } from "@/lib/api";
 import { displayAge } from "@/lib/age";
 
 // Reusable mobile-first patient lookup (3.docx). Typing a full 11-digit number
@@ -31,6 +31,7 @@ export default function PatientMobileLookup({
   label = "Mobile", placeholder = "01XXXXXXXXX", wrapStyle, inputStyle,
 }: Props) {
   const [matches, setMatches] = useState<Patient[]>([]);
+  const [relatives, setRelatives] = useState<RelativeMatch[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<
@@ -42,9 +43,10 @@ export default function PatientMobileLookup({
 
   const digits = cleanDigits(value);
 
-  // Debounced exact lookup once a complete 11-digit number is present.
+  // Debounced exact lookup once a complete 11-digit number is present. Also
+  // surfaces family-tree members on this number (info-only — not patients).
   useEffect(() => {
-    if (digits.length < 11) { setMatches([]); return; }
+    if (digits.length < 11) { setMatches([]); setRelatives([]); return; }
     let cancel = false;
     setLoading(true);
     const t = setTimeout(() => {
@@ -53,6 +55,10 @@ export default function PatientMobileLookup({
         .then((rows) => { if (!cancel) { setMatches(rows); setOpen(true); } })
         .catch(() => { if (!cancel) setMatches([]); })
         .finally(() => { if (!cancel) setLoading(false); });
+      patientsApi
+        .relativesByMobile(digits)
+        .then((rows) => { if (!cancel) setRelatives(rows); })
+        .catch(() => { if (!cancel) setRelatives([]); });
     }, 250);
     return () => { cancel = true; clearTimeout(t); };
   }, [digits]);
@@ -96,6 +102,16 @@ export default function PatientMobileLookup({
                 {p.sex ? ` · ${p.sex}` : ""}
               </span>
             </button>
+          ))}
+          {/* Family-tree members on this number — info only, not clickable. */}
+          {!loading && relatives.map((r, i) => (
+            <div key={`rel-${i}`} style={rowInfo}>
+              <span style={{ fontSize: 12.5, color: C.n[800] }}>
+                <span style={{ fontWeight: 600 }}>{r.relation || "Relative"}</span>
+                {r.name ? ` · ${r.name}` : ""} · {r.mobile}
+              </span>
+              <span style={{ fontSize: 11, color: C.n[500] }}>{r.patientName ? `${r.patientName}'s family` : "in a family tree"}</span>
+            </div>
           ))}
           {!loading && anchor && (
             <button onClick={() => { setModal({ kind: "related", anchor }); setOpen(false); }} style={rowAction} type="button">
@@ -326,6 +342,12 @@ const rowAction: CSSProperties = {
   fontSize: 12, fontWeight: 500, fontFamily: font,
 };
 const rowMuted: CSSProperties = { padding: "9px 13px", fontSize: 12, color: C.n[500] };
+// Family-tree match — info only (no pointer, not a button).
+const rowInfo: CSSProperties = {
+  display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, width: "100%",
+  padding: "8px 13px", borderBottom: `0.5px solid ${C.n[100]}`, background: C.n[50],
+  textAlign: "left", fontFamily: font, cursor: "default",
+};
 const errBox: CSSProperties = {
   marginTop: 12, fontSize: 12, color: C.danger[800], background: C.danger[50],
   border: `1px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px",

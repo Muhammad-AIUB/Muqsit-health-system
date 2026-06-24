@@ -117,6 +117,16 @@ export interface PatientInput {
   incompleteRx?: Record<string, unknown> | null;
 }
 
+// A family-tree member matching a searched number (shown info-only in lookup).
+export interface RelativeMatch {
+  patientId: string;
+  patientName: string;
+  name: string;
+  relation: string;
+  sex: string;
+  mobile: string;
+}
+
 // Create a NEW patient related to an EXISTING one, with reciprocal family links.
 // `relation` is the new patient's role relative to the existing one (X is T's
 // <relation>): son | daughter | spouse | father | mother | brother | sister.
@@ -510,6 +520,9 @@ export const patientsApi = {
   // Every patient sharing a phone number (prescription mobile-lookup dropdown).
   byMobile: (mobile: string) =>
     apiFetch<Patient[]>(`/patients/by-mobile?mobile=${encodeURIComponent(mobile)}`),
+  // Family-tree members (across patients) matching a number — info only.
+  relativesByMobile: (mobile: string) =>
+    apiFetch<RelativeMatch[]>(`/patients/relatives-by-mobile?mobile=${encodeURIComponent(mobile)}`),
   get: (id: string) => apiFetch<Patient>(`/patients/${id}`),
   link: (input: LinkPatientInput) =>
     apiFetch<{ newPatient: Patient; existing: Patient }>("/patients/link", {
