@@ -221,7 +221,7 @@ export default function PatientSettingsView() {
             </div>
             <div style={piRow}>
               <div style={{ flex: "1 1 160px" }}><div style={piLbl}>1st degree relative mobile *</div><input style={piInp} value={pI.relativeMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("relativeMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
-              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Relation</div><input style={piInp} value={pI.relativeRelation} onChange={(e) => setPi("relativeRelation", e.target.value)} placeholder="e.g. Brother, Sister, Father, Mother" /></div>
+              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Relation</div><select style={piSel} value={pI.relativeRelation} onChange={(e) => setPi("relativeRelation", e.target.value)}><option value="">Select relation…</option><option>Father</option><option>Mother</option><option>Sister</option><option>Brother</option><option>Son</option><option>Daughter</option></select></div>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Financial</div>
