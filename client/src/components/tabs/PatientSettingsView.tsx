@@ -223,6 +223,7 @@ export default function PatientSettingsView() {
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Contact numbers</div>
             <div style={piRow}>
               <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Patient mobile * (11 digit)</div><input style={piInp} value={pI.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) { setPi("mobile", v); setPtPhone(v); } }} placeholder="01XXXXXXXXX" maxLength={11} />{pI.mobile && pI.mobile.length !== 11 && <div style={{ fontSize: 9, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}</div>
+              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>NID number</div><input style={piInp} value={pI.nid} onChange={(e) => setPi("nid", e.target.value.replace(/\D/g, ""))} placeholder="National ID" /></div>
               <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Spouse mobile (11 digit)</div><input style={piInp} value={pI.spouseMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("spouseMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
             </div>
             <div style={piRow}>
@@ -340,7 +341,7 @@ export default function PatientSettingsView() {
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
               <div><span style={{ color: C.n[600] }}>Name: </span><span style={{ fontWeight: 500 }}>{ptName || "—"}</span></div>
               <div><span style={{ color: C.n[600] }}>Mobile: </span><span style={{ fontWeight: 500 }}>{ptPhone || "—"}</span></div>
-              <div><span style={{ color: C.n[600] }}>NID: </span><span style={{ color: C.n[500] }}>Not provided</span></div>
+              <div><span style={{ color: C.n[600] }}>NID: </span><span style={{ fontWeight: 500 }}>{pI.nid || "—"}</span></div>
               <div><span style={{ color: C.n[600] }}>Sex: </span><span style={{ fontWeight: 500 }}>{ptGender}</span></div>
             </div>
           </div>

@@ -67,6 +67,7 @@ export interface Patient {
   ethnicity: string | null;
   religion: string | null;
   mobile: string | null;
+  nid: string | null;
   spouseMobile: string | null;
   relativeMobile: string | null;
   relativeRelation: string | null;
@@ -98,6 +99,7 @@ export interface PatientInput {
   ethnicity?: string | null;
   religion?: string | null;
   mobile?: string | null;
+  nid?: string | null;
   spouseMobile?: string | null;
   relativeMobile?: string | null;
   relativeRelation?: string | null;

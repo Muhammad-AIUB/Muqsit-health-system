@@ -66,6 +66,7 @@ export interface PtInfo {
   ethnicity: string;
   religion: string;
   mobile: string;
+  nid: string;
   spouseMobile: string;
   relativeMobile: string;
   relativeRelation: string;

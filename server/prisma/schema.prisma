@@ -301,6 +301,7 @@ model Patient {
   ethnicity        String?
   religion         String?
   mobile           String?
+  nid              String? // patient's national ID (searchable)
   spouseMobile     String?
   relativeMobile   String?
   relativeRelation String?

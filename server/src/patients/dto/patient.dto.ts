@@ -27,6 +27,7 @@ export class CreatePatientDto {
   @IsOptional() @IsString() ethnicity?: string;
   @IsOptional() @IsString() religion?: string;
   @IsOptional() @IsString() mobile?: string;
+  @IsOptional() @IsString() nid?: string;
   @IsOptional() @IsString() spouseMobile?: string;
   @IsOptional() @IsString() relativeMobile?: string;
   @IsOptional() @IsString() relativeRelation?: string;

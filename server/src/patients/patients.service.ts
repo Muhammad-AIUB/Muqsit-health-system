@@ -84,6 +84,7 @@ export class PatientsService {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { mobile: { contains: q } },
+        { nid: { contains: q } },
       ];
     }
     return this.prisma.patient.findMany({ where, orderBy: { updatedAt: 'desc' } });
