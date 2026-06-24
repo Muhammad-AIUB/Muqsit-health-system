@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import {
   Body,
   Controller,
+  Header,
   MessageEvent,
   Post,
   Sse,
@@ -24,7 +25,12 @@ import {
 export class MirrorController {
   constructor(private readonly mirror: MirrorService) {}
 
+  // X-Accel-Buffering disables nginx proxy buffering for this response so SSE
+  // events flush to the browser immediately (without it, a buffering reverse
+  // proxy holds the stream and real-time mirroring never arrives).
   @Sse('stream')
+  @Header('X-Accel-Buffering', 'no')
+  @Header('Cache-Control', 'no-cache, no-transform')
   stream(@CurrentUser() user: AuthenticatedUser): Observable<MessageEvent> {
     const connId = randomUUID();
     const subject = this.mirror.register(user.id, connId);
