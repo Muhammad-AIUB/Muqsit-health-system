@@ -393,6 +393,20 @@ function useMuqsitStore() {
   // renders for a signed-in doctor). `draftReadyRef` then unlocks auto-save so
   // the empty initial state can't overwrite the stored draft before it loads.
   useEffect(() => {
+    // On a FRESH login (not a same-session reload) start blank and gated — the
+    // mobile-first flow requires entering a number before anything shows. We
+    // also clear the stored draft so a reload right after login stays blank
+    // until a patient is chosen.
+    const fresh = typeof window !== "undefined" && window.sessionStorage.getItem("mhs_fresh_login") === "1";
+    if (fresh) {
+      window.sessionStorage.removeItem("mhs_fresh_login");
+      resetEditor();
+      setCurrentPatientId(null);
+      void prescriptionDraftApi.save({}).catch(() => {});
+      draftReadyRef.current = true;
+      return;
+    }
+
     let cancelled = false;
     prescriptionDraftApi
       .get()
