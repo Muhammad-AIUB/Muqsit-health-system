@@ -190,12 +190,14 @@ export class PatientsService {
 
   async update(doctorId: string, id: string, dto: UpdatePatientDto): Promise<Patient> {
     await this.get(doctorId, id); // ownership check
-    const { dob, hmDrugDates, hmSelectedDrugs, familyMembers, ...rest } = dto;
+    const { dob, hmDrugDates, hmSelectedDrugs, familyMembers, incompleteRx, ...rest } = dto;
     // Loose cast: new columns may not yet be in the generated client; the DB
     // columns exist so Postgres accepts them at runtime.
     const extra = rest as Record<string, unknown>;
     if (hmSelectedDrugs !== undefined) extra.hmSelectedDrugs = hmSelectedDrugs;
     if (familyMembers !== undefined) extra.familyMembers = familyMembers as Prisma.InputJsonValue;
+    if (incompleteRx !== undefined)
+      extra.incompleteRx = incompleteRx === null ? Prisma.DbNull : (incompleteRx as Prisma.InputJsonValue);
     return this.prisma.patient.update({
       where: { id },
       data: {

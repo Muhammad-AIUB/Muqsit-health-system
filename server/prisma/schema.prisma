@@ -320,6 +320,11 @@ model Patient {
   hmSelectedDrugs  String[]  @default([])
   // Patient family tree — array of { name, mobile, nid, sex, relation }.
   familyMembers    Json      @default("[]")
+  // Saved-but-not-printed prescription editor snapshot. Set while the doctor is
+  // mid-prescription (before "Save & print"); restored when the patient is
+  // looked up again; cleared once a prescription is completed. Null ⇒ nothing
+  // pending (the visit is complete or never started).
+  incompleteRx     Json?
 
   doctorId String?
   doctor   User?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
@@ -387,6 +392,9 @@ model OpdVisit {
   type   String @default("New") // New | Follow-up | Urgent
   token  String
   status String @default("waiting") // waiting | done
+  // Prescription completion for this visit: incomplete (started, not printed) |
+  // complete (Save & print done). Null for manually-queued visits.
+  rxStatus String? // incomplete | complete
 
   createdAt DateTime @default(now())
 

@@ -81,6 +81,7 @@ export interface Patient {
   hmDrugDates: Record<string, { sf: string; upto: string }> | null;
   hmSelectedDrugs: string[];
   familyMembers: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
+  incompleteRx: Record<string, unknown> | null;
   doctorId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -111,6 +112,7 @@ export interface PatientInput {
   hmDrugDates?: Record<string, { sf: string; upto: string }>;
   hmSelectedDrugs?: string[];
   familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
+  incompleteRx?: Record<string, unknown> | null;
 }
 
 // Create a NEW patient related to an EXISTING one, with reciprocal family links.
@@ -629,6 +631,7 @@ export interface OpdVisit {
   type: string;
   token: string;
   status: string;
+  rxStatus: string | null;
   createdAt: string;
 }
 
@@ -647,6 +650,9 @@ export const opdApi = {
     apiFetch<OpdVisit>("/opd", { method: "POST", body: JSON.stringify(input) }),
   setStatus: (id: string, status: "waiting" | "done") =>
     apiFetch<OpdVisit>(`/opd/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  // Flag a patient's queue entry incomplete / complete (upserts today's visit).
+  setRxStatus: (input: { patientId: string; rxStatus: "incomplete" | "complete"; name?: string; phone?: string; age?: number; gender?: string }) =>
+    apiFetch<OpdVisit>("/opd/rx-status", { method: "POST", body: JSON.stringify(input) }),
 };
 
 // ── IPD ward ────────────────────────────────────────────────

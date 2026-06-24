@@ -20,3 +20,15 @@ export class UpdateOpdStatusDto {
   @IsIn(['waiting', 'done'])
   status!: string;
 }
+
+// Upsert today's queue entry for a patient and set its prescription status.
+// Used to flag an incomplete prescription (started, not printed) and to mark it
+// complete once "Save & print" runs.
+export class SetRxStatusDto {
+  @IsString() patientId!: string;
+  @IsIn(['incomplete', 'complete']) rxStatus!: string;
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @Type(() => Number) @IsInt() age?: number;
+  @IsOptional() @IsString() gender?: string;
+}

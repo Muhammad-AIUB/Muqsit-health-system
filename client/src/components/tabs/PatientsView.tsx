@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatients, useDeletePatient } from "@/hooks/usePatients";
-import { patientToPtInfo } from "@/lib/patientForm";
 import type { Patient } from "@/lib/api";
 import type { PtInfo } from "@/types";
 
@@ -59,8 +58,7 @@ const smallBtn = (filled: boolean) => ({
 
 export default function PatientsView() {
   const {
-    setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab,
-    setPtInfo, setCurrentPatientId, setPtSettingsTab, setWatchPatient, resetEditor,
+    setActiveTab, setPtInfo, setCurrentPatientId, setPtSettingsTab, resetEditor, loadPatient,
   } = useMuqsit();
 
   const { data: patients = [], isLoading, isError, error } = usePatients();
@@ -69,16 +67,8 @@ export default function PatientsView() {
   // Surveillance = real `watched` flag from the database.
   const watchedPatients = patients.filter((p) => p.watched);
 
-  const loadHeader = (p: Patient) => {
-    resetEditor(); // every patient is different — start the editor clean
-    setPtName(p.name);
-    setPtAge(p.age != null ? String(p.age) : "");
-    setPtGender(p.sex || "Male");
-    setPtPhone(p.mobile || "");
-    setPtInfo(patientToPtInfo(p));
-    setCurrentPatientId(p.id);
-    setWatchPatient(p.watched); // sync the "Keep eye" checkbox with the record
-  };
+  // Full load — sets the header and restores any in-progress (not printed) Rx.
+  const loadHeader = (p: Patient) => loadPatient(p);
 
   const openForPrescription = (p: Patient) => {
     loadHeader(p);

@@ -13,7 +13,7 @@ const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 export default function OpdView() {
-  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId, setPtInfo, resetEditor } = useMuqsit();
+  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId, setPtInfo, resetEditor, loadPatientById } = useMuqsit();
   const { data: queue = [], isLoading, error } = useOpdQueue();
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
@@ -111,31 +111,41 @@ export default function OpdView() {
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
                 <div style={{ fontSize: 11, color: C.n[600] }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{p.gender ?? "—"}</div>
               </div>
-              <Pill bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
+              {p.rxStatus === "incomplete" ? (
+                <Pill bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
+              ) : p.rxStatus === "complete" ? (
+                <Pill bg={C.pri[50]} fg={C.pri[600]}>Complete</Pill>
+              ) : p.type && p.type !== "New" && p.type !== "Rx" ? (
+                <Pill bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
+              ) : null}
               <Pill bg={C.n[100]} fg={C.n[800]}>{p.token}</Pill>
               {p.status === "waiting" ? (
                 <>
                   <button
                     onClick={() => {
-                      resetEditor(); // start clean — don't carry the last patient's clinical data
-                      const sex = p.gender === "F" ? "Female" : "Male";
-                      const age = p.age != null ? String(p.age) : "";
-                      setPtName(p.name);
-                      setPtAge(age);
-                      setPtGender(sex);
-                      if (p.phone) setPtPhone(p.phone);
-                      setCurrentPatientId(p.patientId);
-                      // Tie Patient Settings + health monitoring to this patient
-                      // (pre-fill the form from the queue entry instead of blank).
-                      setPtInfo({
-                        name: p.name, hospitalId: "", bloodGroup: "", dob: "", age, sex,
-                        ethnicity: "", religion: "Islam", mobile: p.phone ?? "",
-                        spouseMobile: "", relativeMobile: "", relativeRelation: "",
-                        district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
-                      });
+                      // A saved patient → full load (restores any incomplete Rx);
+                      // otherwise pre-fill the editor from the queue snapshot.
+                      if (p.patientId) {
+                        void loadPatientById(p.patientId);
+                      } else {
+                        resetEditor();
+                        const sex = p.gender === "F" ? "Female" : "Male";
+                        const age = p.age != null ? String(p.age) : "";
+                        setPtName(p.name);
+                        setPtAge(age);
+                        setPtGender(sex);
+                        if (p.phone) setPtPhone(p.phone);
+                        setCurrentPatientId(p.patientId);
+                        setPtInfo({
+                          name: p.name, hospitalId: "", bloodGroup: "", dob: "", age, sex,
+                          ethnicity: "", religion: "Islam", mobile: p.phone ?? "",
+                          spouseMobile: "", relativeMobile: "", relativeRelation: "",
+                          district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
+                        });
+                        setRxItems([]);
+                        setActiveTemplate(null);
+                      }
                       setActiveTab("prescription");
-                      setRxItems([]);
-                      setActiveTemplate(null);
                     }}
                     style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, cursor: "pointer", fontFamily: font }}
                   >

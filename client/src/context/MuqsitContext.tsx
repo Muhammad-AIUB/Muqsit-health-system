@@ -15,7 +15,7 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
-import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
+import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
@@ -253,6 +253,18 @@ function useMuqsitStore() {
       });
       setSavedMsg("Prescription saved!");
       ok = true;
+      // "Save & print" = complete: clear the patient's incomplete draft and flag
+      // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
+      if (pid) {
+        rxCompletedRef.current = pid;
+        rxFlaggedRef.current = null;
+        void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
+        void opdApi.setRxStatus({
+          patientId: pid, rxStatus: "complete",
+          name: ptName.trim() || undefined, phone: ptPhone || undefined,
+          age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["opd"] })).catch(() => {});
+      }
     } catch (e) {
       setSavedMsg(e instanceof ApiError ? `Save failed: ${e.message}` : "Save failed. Is the API running?");
     }
@@ -310,10 +322,36 @@ function useMuqsitStore() {
     setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
   }, []);
 
+  // Apply a saved editor snapshot (header + clinical) — used to restore a
+  // patient's in-progress, not-yet-printed prescription (incompleteRx).
+  const applyEditorSnapshot = useCallback((d: Record<string, unknown>) => {
+    const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
+    const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
+    str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
+    str("ptAddress", setPtAddress); str("ptWeight", setPtWeight); str("ptDate", setPtDate);
+    str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
+    arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
+    arr("history", setHistory); arr("investigation", setInvestigation);
+    arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
+    arr("note", setNote); arr("provisionalDiagnosis", setProvisionalDiagnosis);
+    arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
+    arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
+    if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
+    str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
+    if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
+    if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
+    if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
+  }, []);
+
+  // Tracks the loaded patient's prescription lifecycle so the auto-save below
+  // doesn't re-flag a just-completed visit as incomplete.
+  const rxFlaggedRef = useRef<string | null>(null);   // patient already flagged incomplete in OPD
+  const rxCompletedRef = useRef<string | null>(null); // patient whose Rx was just completed
+
   // Load a saved patient into the editor (header + settings form), starting from
-  // a clean clinical slate. Galleries / health-monitoring / family tree are
-  // hydrated by the currentPatientId effect below. Used by the mobile-lookup
-  // dropdown (and the Patients list). Age is shown auto-incremented.
+  // a clean clinical slate. If the patient has an in-progress (not printed)
+  // prescription saved, restore it. Galleries / health-monitoring / family tree
+  // are hydrated by the currentPatientId effect below.
   const loadPatient = useCallback((p: Patient) => {
     resetEditor();
     setPtName(p.name);
@@ -325,7 +363,15 @@ function useMuqsitStore() {
     setPtInfo(patientToPtInfo(p));
     setWatchPatient(p.watched);
     setCurrentPatientId(p.id);
-  }, [resetEditor]);
+    rxCompletedRef.current = null;
+    const inc = p.incompleteRx;
+    if (inc && typeof inc === "object" && Object.keys(inc).length > 0) {
+      applyEditorSnapshot(inc as Record<string, unknown>);
+      rxFlaggedRef.current = p.id; // already saved as incomplete
+    } else {
+      rxFlaggedRef.current = null;
+    }
+  }, [resetEditor, applyEditorSnapshot]);
 
   // Convenience: load by id (fetches first). Returns the patient, or null.
   const loadPatientById = useCallback(async (id: string): Promise<Patient | null> => {
@@ -405,7 +451,17 @@ function useMuqsitStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-save the live editor to the server (debounced) on any change.
+  // True once the editor holds real prescription work (any clinical detail or a
+  // medicine) — distinguishes a started-but-unprinted visit from an empty one.
+  const hasRxContent =
+    rxItems.length > 0 ||
+    [chiefComplaints, previousComplaints, history, investigation, drugHistory,
+      onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+      advice, adviceTest].some((a) => a.length > 0);
+
+  // Auto-save the live editor to the server (debounced) on any change. While a
+  // patient is loaded with real content, also persist it as that patient's
+  // incomplete (not-yet-printed) prescription and flag them "Incomplete" in OPD.
   useEffect(() => {
     if (!draftReadyRef.current) return;
     const snapshot: Record<string, unknown> = {
@@ -415,9 +471,24 @@ function useMuqsitStore() {
       rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
       invImages, oeData, currentPatientId,
     };
-    const t = setTimeout(() => { void prescriptionDraftApi.save(snapshot).catch((e) => console.warn("[draft] save failed:", e)); }, 1200);
+    const t = setTimeout(() => {
+      void prescriptionDraftApi.save(snapshot).catch((e) => console.warn("[draft] save failed:", e));
+      if (currentPatientId && hasRxContent && rxCompletedRef.current !== currentPatientId) {
+        const pid = currentPatientId;
+        void patientsApi.update(pid, { incompleteRx: snapshot }).catch(() => {});
+        if (rxFlaggedRef.current !== pid) {
+          rxFlaggedRef.current = pid;
+          void opdApi.setRxStatus({
+            patientId: pid, rxStatus: "incomplete",
+            name: ptName.trim() || undefined, phone: ptPhone || undefined,
+            age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
+          }).then(() => queryClient.invalidateQueries({ queryKey: ["opd"] })).catch(() => {});
+        }
+      }
+    }, 1200);
     return () => clearTimeout(t);
   }, [
+    hasRxContent,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,

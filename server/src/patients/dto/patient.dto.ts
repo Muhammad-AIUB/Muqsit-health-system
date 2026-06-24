@@ -47,6 +47,8 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsOptional() @IsArray() @IsString({ each: true }) hmSelectedDrugs?: string[];
   // Family tree — array of { name, mobile, nid, sex, relation }.
   @IsOptional() @IsArray() familyMembers?: Record<string, unknown>[];
+  // Saved-but-not-printed prescription editor snapshot (null clears it).
+  @IsOptional() incompleteRx?: Record<string, unknown> | null;
 }
 
 // Create a NEW patient related to an EXISTING one, writing reciprocal family-tree
