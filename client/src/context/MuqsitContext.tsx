@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -424,6 +425,58 @@ function useMuqsitStore() {
     invImages, oeData, currentPatientId,
   ]);
 
+  // ── Device mirroring (real-time multi-device sync, primary only) ──────────
+  // A serialisable snapshot of the mirrorable app state (navigation + the
+  // prescription editor + the loaded patient) that gets pushed to the user's
+  // other devices, and applied here when one of them changes.
+  const [mirrorOn, setMirrorOn] = useState(false);
+  const [mirrorConnId, setMirrorConnId] = useState<string | null>(null);
+  const mirrorApplyingRef = useRef(false);
+
+  const mirrorSnapshot = useMemo(() => ({
+    activeTab, view, ptSettingsTab, currentPatientId,
+    ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
+    chiefComplaints, previousComplaints, history, investigation, drugHistory,
+    onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+    rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    invImages, oeData,
+  }), [
+    activeTab, view, ptSettingsTab, currentPatientId,
+    ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
+    chiefComplaints, previousComplaints, history, investigation, drugHistory,
+    onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+    rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    invImages, oeData,
+  ]);
+
+  // Apply a snapshot received from another device. Guarded so applying it
+  // doesn't immediately re-publish (echo).
+  const applyMirrorSnapshot = useCallback((d: Record<string, unknown>) => {
+    mirrorApplyingRef.current = true;
+    const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
+    const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
+    if (typeof d.activeTab === "string") setActiveTab(d.activeTab as TabId);
+    if (d.view === "desktop" || d.view === "mobile") setView(d.view);
+    if (typeof d.ptSettingsTab === "string") setPtSettingsTab(d.ptSettingsTab as string);
+    setCurrentPatientId(typeof d.currentPatientId === "string" ? d.currentPatientId : null);
+    str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
+    str("ptAddress", setPtAddress); str("ptWeight", setPtWeight); str("ptDate", setPtDate);
+    str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
+    arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
+    arr("history", setHistory); arr("investigation", setInvestigation);
+    arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
+    arr("note", setNote); arr("provisionalDiagnosis", setProvisionalDiagnosis);
+    arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
+    arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
+    if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
+    str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
+    if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
+    if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
+    if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
+    // Release the echo guard after the batched state settles.
+    setTimeout(() => { mirrorApplyingRef.current = false; }, 300);
+  }, [setActiveTab]);
+
   // Toggle "Keep eye on this patient" — persists when a saved patient is loaded.
   const toggleWatch = () => {
     const next = !watchPatient;
@@ -509,6 +562,8 @@ function useMuqsitStore() {
     resetEditor, loadPatient, loadPatientById, filteredDrugs, monthlyCost, allFieldValues, leftFields,
     activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
     can, canEditLabel, isAssistantMode,
+    // device mirroring
+    mirrorOn, setMirrorOn, mirrorConnId, setMirrorConnId, mirrorSnapshot, applyMirrorSnapshot, mirrorApplyingRef,
   };
 }
 

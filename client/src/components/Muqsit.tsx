@@ -7,6 +7,7 @@ import type { View } from "@/types";
 import DesktopShell from "./layout/DesktopShell";
 import MobileShell from "./layout/MobileShell";
 import WorkstationSwitcher from "./layout/WorkstationSwitcher";
+import DeviceMirror from "./layout/DeviceMirror";
 
 const VIEWS: View[] = ["desktop", "mobile"];
 
@@ -38,6 +39,9 @@ function MuqsitInner() {
 
       {/* Practice picker — auto-selects when there's one, forces a choice when many. */}
       <WorkstationSwitcher />
+
+      {/* Real-time multi-device mirror driver (primary only) — renders nothing. */}
+      <DeviceMirror />
     </div>
   );
 }

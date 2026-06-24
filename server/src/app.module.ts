@@ -21,6 +21,7 @@ import { ActivityModule } from './activity/activity.module';
 import { MedicinesModule } from './medicines/medicines.module';
 import { WorkstationsModule } from './workstations/workstations.module';
 import { PatientChatModule } from './patient-chat/patient-chat.module';
+import { MirrorModule } from './mirror/mirror.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { PatientChatModule } from './patient-chat/patient-chat.module';
     MedicinesModule,
     WorkstationsModule,
     PatientChatModule,
+    MirrorModule,
   ],
   controllers: [],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

@@ -6,6 +6,7 @@ export interface AuthenticatedUser {
   name: string;
   displayName?: string | null;
   role: string;
+  accountTier?: string;
 }
 
 export const CurrentUser = createParamDecorator(

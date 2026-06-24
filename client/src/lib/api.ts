@@ -10,7 +10,7 @@
 
 import { compressImage } from "./compressImage";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
 // ── Types ───────────────────────────────────────────────────
 export interface AuthUser {
@@ -19,6 +19,7 @@ export interface AuthUser {
   name: string;
   displayName?: string | null;
   role: string;
+  accountTier?: string;
 }
 
 export interface AuthResponse {
@@ -516,6 +517,16 @@ export const patientsApi = {
   update: (id: string, input: Partial<PatientInput>) =>
     apiFetch<Patient>(`/patients/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
+};
+
+// ── Device mirroring (real-time multi-device sync, primary only) ─────
+export const mirrorApi = {
+  streamUrl: () => `${API_URL}/mirror/stream`,
+  publish: (connId: string, type: string, payload: unknown) =>
+    apiFetch<{ ok: boolean }>("/mirror/publish", {
+      method: "POST",
+      body: JSON.stringify({ connId, type, payload }),
+    }),
 };
 
 // ── Per-patient team chat + supervising doctors (4.docx) ─────
