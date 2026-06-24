@@ -92,8 +92,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         </PatientGate>
         <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
-        <ReportsSection />
-        <PatientChat />
+        {gateOpen && <><ReportsSection /><PatientChat /></>}
       </>
     );
   }
@@ -112,8 +111,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         <button onClick={previewPdf} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Preview PDF</button>
       </div>
       {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}
-      <ReportsSection />
-      <PatientChat />
+      {gateOpen && <><ReportsSection /><PatientChat /></>}
     </>
   );
 }
