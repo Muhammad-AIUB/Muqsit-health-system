@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
@@ -123,6 +123,10 @@ export default function PatientSettingsView() {
   const updatePatient = useUpdatePatient();
   const saving = createPatient.isPending || updatePatient.isPending;
   const [formMsg, setFormMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  // Existing patients open read-only; "Edit" unlocks the fields, "Save" persists
+  // and re-locks. A brand-new patient starts editable.
+  const [editing, setEditing] = useState(!currentPatientId);
+  useEffect(() => { setEditing(!currentPatientId); setFormMsg(null); }, [currentPatientId]);
 
   const pI = ptInfo;
   const setPi = <K extends keyof PtInfo>(f: K, v: PtInfo[K]) => setPtInfo((prev) => ({ ...prev, [f]: v }));
@@ -158,6 +162,7 @@ export default function PatientSettingsView() {
       if (pI.mobile) setPtPhone(pI.mobile);
       setPtAddress(pI.fullAddress);
       setPtHospitalId(pI.hospitalId);
+      setEditing(false); // re-lock after a successful save
       setFormMsg({ text: currentPatientId ? "Patient updated!" : "Patient created!", ok: true });
     } catch (e) {
       setFormMsg({ text: e instanceof Error ? e.message : "Save failed", ok: false });
@@ -196,6 +201,7 @@ export default function PatientSettingsView() {
             </span>
           </div>
           <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16 }}>
+            <fieldset disabled={!editing} style={{ border: "none", margin: 0, padding: 0, minWidth: 0, opacity: editing ? 1 : 0.6 }}>
             <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
               <PatientPhotoCorner />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -292,9 +298,15 @@ export default function PatientSettingsView() {
               </div>
             </div>
 
+            </fieldset>
             <div style={{ display: "flex", gap: 12, marginTop: 8, alignItems: "center" }}>
-              <button onClick={savePatient} disabled={saving} style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1, fontFamily: "inherit" }}>
-                {saving ? "Saving…" : currentPatientId ? "Update patient" : "Create patient"}
+              {currentPatientId && (
+                <button onClick={() => { setEditing(true); setFormMsg(null); }} disabled={editing} style={{ padding: "10px 24px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: editing ? C.n[400] : C.info[800], fontSize: 12, fontWeight: 500, cursor: editing ? "default" : "pointer", fontFamily: "inherit" }}>
+                  Edit
+                </button>
+              )}
+              <button onClick={savePatient} disabled={saving || !editing} style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: (saving || !editing) ? C.n[200] : C.pri[400], color: (saving || !editing) ? C.n[500] : "#fff", fontSize: 12, fontWeight: 500, cursor: (saving || !editing) ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                {saving ? "Saving…" : "Save"}
               </button>
               {formMsg && (
                 <span style={{ fontSize: 12, fontWeight: 500, color: formMsg.ok ? C.pri[600] : C.danger[800] }}>{formMsg.text}</span>
