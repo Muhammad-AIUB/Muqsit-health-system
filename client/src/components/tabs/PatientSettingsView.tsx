@@ -115,6 +115,7 @@ export default function PatientSettingsView() {
     familyMembers, saveFamilyMembers, showFamilyForm, setShowFamilyForm,
     familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptName, ptGender, ptPhone, setPtName, setPtAge, setPtGender, setPtPhone,
+    setPtAddress, setPtHospitalId,
     currentPatientId, setCurrentPatientId, hmDrugs, watchPatient, can,
   } = useMuqsit();
 
@@ -149,10 +150,14 @@ export default function PatientSettingsView() {
           await patientsApi.update(created.id, carryOver).catch(() => {});
         }
       }
+      // Mirror the saved patient into the (locked) prescription header so it
+      // auto-fills from Patient Settings.
       if (pI.name) setPtName(pI.name);
       if (piAge || pI.age) setPtAge(piAge || pI.age);
       if (pI.sex) setPtGender(pI.sex);
       if (pI.mobile) setPtPhone(pI.mobile);
+      setPtAddress(pI.fullAddress);
+      setPtHospitalId(pI.hospitalId);
       setFormMsg({ text: currentPatientId ? "Patient updated!" : "Patient created!", ok: true });
     } catch (e) {
       setFormMsg({ text: e instanceof Error ? e.message : "Save failed", ok: false });
