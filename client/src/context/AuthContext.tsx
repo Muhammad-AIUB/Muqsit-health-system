@@ -59,10 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (identifier: string, password: string, remember: boolean) => {
     const res = await authApi.login(identifier, password, remember);
-    // Signal a FRESH login (vs a same-session reload) so the prescription editor
-    // starts blank and gated — mobile-first: nothing shows until a number is
-    // entered. The draft still restores on a plain page reload.
-    try { window.sessionStorage.setItem("mhs_fresh_login", "1"); } catch { /* ignore */ }
     setUser(res.user);
   };
 

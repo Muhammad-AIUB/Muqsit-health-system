@@ -393,47 +393,14 @@ function useMuqsitStore() {
   // renders for a signed-in doctor). `draftReadyRef` then unlocks auto-save so
   // the empty initial state can't overwrite the stored draft before it loads.
   useEffect(() => {
-    // On a FRESH login (not a same-session reload) start blank and gated — the
-    // mobile-first flow requires entering a number before anything shows. We
-    // also clear the stored draft so a reload right after login stays blank
-    // until a patient is chosen.
-    const fresh = typeof window !== "undefined" && window.sessionStorage.getItem("mhs_fresh_login") === "1";
-    if (fresh) {
-      window.sessionStorage.removeItem("mhs_fresh_login");
-      resetEditor();
-      setCurrentPatientId(null);
-      void prescriptionDraftApi.save({}).catch(() => {});
-      draftReadyRef.current = true;
-      return;
-    }
-
-    let cancelled = false;
-    prescriptionDraftApi
-      .get()
-      .then((res) => {
-        if (cancelled) return;
-        const d = (res.data ?? {}) as Record<string, unknown>;
-        const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
-        const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
-        str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
-        str("ptAddress", setPtAddress); str("ptWeight", setPtWeight); str("ptDate", setPtDate);
-        str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
-        arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
-        arr("history", setHistory); arr("investigation", setInvestigation);
-        arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
-        arr("note", setNote); arr("provisionalDiagnosis", setProvisionalDiagnosis);
-        arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
-        arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
-        if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
-        str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
-        if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
-        if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
-        if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
-        if (typeof d.currentPatientId === "string") setCurrentPatientId(d.currentPatientId);
-      })
-      .catch((e) => console.warn("[draft] load failed — editor will not restore on reload:", e))
-      .finally(() => { if (!cancelled) draftReadyRef.current = true; });
-    return () => { cancelled = true; };
+    // Mobile-first: the prescription ALWAYS starts blank and gated — on login
+    // and on reload alike. A previous patient is never auto-restored; the doctor
+    // enters a mobile number and picks a patient each time they arrive. (The
+    // draft table is still written by the auto-save below, but no longer
+    // re-hydrated into the editor.)
+    resetEditor();
+    setCurrentPatientId(null);
+    draftReadyRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
