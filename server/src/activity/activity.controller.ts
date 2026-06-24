@@ -17,8 +17,12 @@ export class ActivityController {
   constructor(private readonly activity: ActivityService) {}
 
   @Get()
-  list(@WorkstationDoctorId() doctorId: string, @Query('limit') limit?: string) {
-    return this.activity.list(doctorId, limit ? Number(limit) : undefined);
+  list(
+    @WorkstationDoctorId() doctorId: string,
+    @Query('limit') limit?: string,
+    @Query('patientId') patientId?: string,
+  ) {
+    return this.activity.list(doctorId, limit ? Number(limit) : undefined, patientId || undefined);
   }
 
   @Post()

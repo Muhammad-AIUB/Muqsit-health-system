@@ -36,11 +36,12 @@ export class ActivityService {
   }
 
   // Most recent first, capped — the feed shows a rolling window, shared across
-  // the whole practice (doctor + assistants).
-  async list(userId: string, limit = 50): Promise<ActivityLog[]> {
+  // the whole practice (doctor + assistants). When `patientId` is given, it's
+  // scoped to that one patient's entries.
+  async list(userId: string, limit = 50, patientId?: string): Promise<ActivityLog[]> {
     const doctorId = await this.practiceDoctorId(userId);
     return this.prisma.activityLog.findMany({
-      where: { doctorId },
+      where: { doctorId, ...(patientId ? { patientId } : {}) },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(limit, 1), 200),
     });

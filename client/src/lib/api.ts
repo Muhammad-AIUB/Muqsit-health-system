@@ -427,7 +427,8 @@ export interface LogActivityInput {
 }
 
 export const activityApi = {
-  list: (limit = 50) => apiFetch<ActivityRecord[]>(`/activity?limit=${limit}`),
+  list: (limit = 50, patientId?: string) =>
+    apiFetch<ActivityRecord[]>(`/activity?limit=${limit}${patientId ? `&patientId=${encodeURIComponent(patientId)}` : ""}`),
   log: (input: LogActivityInput) =>
     apiFetch<ActivityRecord>("/activity", { method: "POST", body: JSON.stringify(input) }),
 };

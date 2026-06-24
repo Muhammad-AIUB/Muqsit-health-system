@@ -7,11 +7,12 @@ import { useMuqsit } from "@/context/MuqsitContext";
 const ACTIVITY_KEY = ["activity"];
 
 // The live feed — polled so a doctor sees their assistant's actions (and their
-// own from another tab) without a manual refresh.
-export function useActivityFeed() {
+// own from another tab) without a manual refresh. Scoped to one patient when a
+// patientId is passed (the prescription feed shows only the loaded patient).
+export function useActivityFeed(patientId?: string | null) {
   return useQuery({
-    queryKey: ACTIVITY_KEY,
-    queryFn: () => activityApi.list(50),
+    queryKey: [...ACTIVITY_KEY, patientId ?? "all"],
+    queryFn: () => activityApi.list(50, patientId ?? undefined),
     refetchInterval: 8000,
     refetchOnWindowFocus: true,
   });

@@ -120,7 +120,10 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
 // Live activity feed: who (doctor / assistant) added or saved what, with the
 // date + time. Polled, so it stays current without a manual refresh.
 function ReportsSection() {
-  const { data: feed = [], isLoading } = useActivityFeed();
+  // Only the loaded patient's activity — this section renders only when a
+  // patient is selected, so currentPatientId is always set here.
+  const { currentPatientId } = useMuqsit();
+  const { data: feed = [], isLoading } = useActivityFeed(currentPatientId);
 
   return (
     <div style={{ marginTop: 22, paddingTop: 16, borderTop: `0.5px solid ${C.n[200]}` }}>
