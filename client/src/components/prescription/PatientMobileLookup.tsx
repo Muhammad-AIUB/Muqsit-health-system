@@ -78,6 +78,14 @@ export default function PatientMobileLookup({
   // this number, otherwise the first match.
   const anchor = matches.find((p) => p.id === currentPatientId) ?? matches[0] ?? null;
 
+  // Family-tree rows are info-only and only worth showing for people who are NOT
+  // already a patient on this number (otherwise the same person shows twice).
+  // De-duplicate by name + relation too.
+  const patientNames = new Set(matches.map((p) => p.name.trim().toLowerCase()));
+  const shownRelatives = relatives
+    .filter((r) => r.name && !patientNames.has(r.name.trim().toLowerCase()))
+    .filter((r, i, arr) => arr.findIndex((x) => x.name.trim().toLowerCase() === r.name.trim().toLowerCase() && x.relation === r.relation) === i);
+
   return (
     <div ref={boxRef} style={{ position: "relative", ...wrapStyle }}>
       {label && <label style={fieldLabel}>{label}</label>}
@@ -104,7 +112,7 @@ export default function PatientMobileLookup({
             </button>
           ))}
           {/* Family-tree members on this number — info only, not clickable. */}
-          {!loading && relatives.map((r, i) => (
+          {!loading && shownRelatives.map((r, i) => (
             <div key={`rel-${i}`} style={rowInfo}>
               <span style={{ fontSize: 12.5, color: C.n[800] }}>
                 <span style={{ fontWeight: 600 }}>{r.relation || "Relative"}</span>
