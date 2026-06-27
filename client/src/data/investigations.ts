@@ -8,7 +8,7 @@ const txt = (names: string[]): InvTest[] => names.map((name) => ({ name, fields:
 export const INV_CATS: InvCat[] = [
   {cat:"Favourite",tests:[]},
   {cat:"Hematology",tests:[
-    {name:"CBC",fields:[{l:"RBC",t:"num",u1:"million/uL"},{l:"Hb",t:"num",u1:"g/dL"},{l:"Hct",t:"num",u1:"%"},{l:"MCV",t:"num",u1:"fL"},{l:"MCH",t:"num",u1:"pg"},{l:"MCHC",t:"num",u1:"g/dL"},{l:"RDW",t:"num",u1:"%"},{l:"WBC",t:"num",u1:"cells/uL"},{l:"Neutrophils",t:"num",u1:"%"},{l:"Lymphocytes",t:"num",u1:"%"},{l:"Monocytes",t:"num",u1:"%"},{l:"Eosinophils",t:"num",u1:"%"},{l:"Basophils",t:"num",u1:"%"},{l:"PLT",t:"num",u1:"/uL"},{l:"MPV",t:"num",u1:"fL"}]},
+    {name:"CBC",fields:[{l:"RBC",t:"num",u1:"million/uL"},{l:"Hb",t:"num",u1:"g/dL"},{l:"Hct",t:"num",u1:"%"},{l:"MCV",t:"num",u1:"fL"},{l:"MCH",t:"num",u1:"pg"},{l:"MCHC",t:"num",u1:"g/dL"},{l:"RDW",t:"num",u1:"%"},{l:"WBC",t:"num",u1:"cells/uL"},{l:"Neutrophils",t:"num",u1:"%"},{l:"Lymphocytes",t:"num",u1:"%"},{l:"Monocytes",t:"num",u1:"%"},{l:"Eosinophils",t:"num",u1:"%"},{l:"Basophils",t:"num",u1:"%"},{l:"Neutrophil count",t:"num",u1:"cells/uL"},{l:"Lymphocyte count",t:"num",u1:"cells/uL"},{l:"Monocyte count",t:"num",u1:"cells/uL"},{l:"Eosinophil count",t:"num",u1:"cells/uL"},{l:"PLT",t:"num",u1:"/uL"},{l:"MPV",t:"num",u1:"fL"}]},
     {name:"ESR",fields:[{l:"Value",t:"num",u1:"mm/1st hr"}]},
     {name:"Prothrombin Time",fields:[{l:"Patient",t:"num",u1:"sec"},{l:"Test",t:"num",u1:"sec"},{l:"INR",t:"num",u1:""}]},
     {name:"APTT",fields:[{l:"Value",t:"num",u1:"sec"}]},
