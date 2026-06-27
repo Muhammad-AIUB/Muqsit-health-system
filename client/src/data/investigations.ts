@@ -135,6 +135,7 @@ export const INV_CATS: InvCat[] = [
     {name:"ASMA",fields:[{l:"Result",t:"dd",opts:["Positive","Negative"]}]},
     {name:"Anti-RNP",fields:[{l:"Result",t:"dd",opts:["Positive","Negative"]}]},
     {name:"Anti-Centromere",fields:[{l:"Result",t:"dd",opts:["Positive","Negative"]}]},
+    {name:"AMA",fields:[{l:"Result",t:"dd",opts:["Positive","Negative"]}]},
     {name:"AMA (M2)",fields:[{l:"Result",t:"dd",opts:["Positive","Negative"]}]},
     {name:"Anti-LKM1",fields:[{l:"Result",t:"dd",opts:["Positive","Negative"]}]},
     {name:"Anti-Histone",fields:[{l:"Result",t:"dd",opts:["Positive","Negative"]}]},
