@@ -170,10 +170,10 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1d9e75; padding-bottom: 12px; }
   .brand { display: flex; align-items: center; gap: 10px; }
   .logo { width: 40px; height: 40px; border-radius: 9px; background: #1d9e75; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
-  .brand h1 { font-size: 15px; margin: 0; color: #0f6e56; }
-  .brand p { margin: 3px 0 0; font-size: 10px; color: #6b6b6b; }
-  .byline { display: flex; align-items: center; gap: 5px; }
-  .exort { height: 14px; width: auto; display: block; }
+  .brand h1 { font-size: 12px; margin: 0; color: #0f6e56; }
+  .brand p { margin: 4px 0 0; font-size: 10px; color: #6b6b6b; }
+  .byline { display: flex; align-items: center; gap: 6px; }
+  .exort { height: 26px; width: auto; display: block; }
   .doctor { text-align: right; font-size: 12px; color: #333; }
   .doctor b { font-size: 14px; color: #0f6e56; }
   .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 12.5px; margin: 14px 0 6px; }
