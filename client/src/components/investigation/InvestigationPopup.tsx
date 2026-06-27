@@ -6,6 +6,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
 import type { InvTest } from "@/types";
 import { uploadImage } from "@/lib/api";
+import { parseFlexibleDate } from "@/lib/dateInput";
 import CalcRenderer from "./CalcRenderer";
 import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
@@ -484,6 +485,10 @@ export default function InvestigationPopup() {
         {/* Calendar */}
         <div style={{ padding: "6px 20px 5px", borderBottom: "0.5px solid " + C.n[200], background: C.n[0] }}>
           <div style={{ maxWidth: 620, margin: "0 auto" }}>
+          {/* Type-to-jump date box — DDMMYY (e.g. 060625 → 06/06/2025). */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+            <QuickDateBox onPick={handleCalDateChange} />
+          </div>
           {/* Selected date display */}
           <div style={{ textAlign: "center", marginBottom: 5 }}>
             <span style={{ fontSize: 16, fontWeight: 600, color: C.pri[600], letterSpacing: "0.02em" }}>{String(calDate.getDate()).padStart(2, "0")}</span>
@@ -863,5 +868,34 @@ export default function InvestigationPopup() {
         </div>{/* /Main column */}
       </div>
     </div>
+  );
+}
+
+// Small type-to-jump date box for the investigation calendar. Type DDMMYY (or a
+// slashed date) and it jumps the calendar to that date the moment a full,
+// valid date is entered — no clicking needed. e.g. 060625 → 06/06/2025.
+function QuickDateBox({ onPick }: { onPick: (d: Date) => void }) {
+  const [text, setText] = useState("");
+  const jump = (v: string) => {
+    const iso = parseFlexibleDate(v);
+    if (!iso) return;
+    const d = new Date(iso + "T00:00:00");
+    if (!Number.isNaN(d.getTime())) onPick(d);
+  };
+  return (
+    <input
+      value={text}
+      onChange={(e) => { const v = e.target.value; setText(v); jump(v); }}
+      onKeyDown={(e) => { if (e.key === "Enter") { jump(text); (e.target as HTMLInputElement).blur(); } }}
+      onBlur={() => setText("")}
+      placeholder="Type date — ddmmyy"
+      inputMode="numeric"
+      title="Type a date as DDMMYY (e.g. 060625 → 06/06/2025) — jumps the calendar instantly"
+      style={{
+        width: 150, textAlign: "center", padding: "3px 8px", borderRadius: 6,
+        border: "0.5px solid " + C.n[300], fontSize: 11, outline: "none",
+        background: C.n[0], color: C.n[900], fontFamily: "inherit",
+      }}
+    />
   );
 }
