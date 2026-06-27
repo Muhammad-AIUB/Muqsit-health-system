@@ -123,7 +123,7 @@ export default function PatientRecordsView() {
       )}
 
       <Gallery
-        title="All prescriptions"
+        title="All prescriptions(Image)"
         addLabel="Add more prescription image"
         items={rxItems}
         busy={busyRx}
@@ -136,7 +136,7 @@ export default function PatientRecordsView() {
       />
 
       <Gallery
-        title="All reports"
+        title="All reports(image)"
         addLabel="Add more reports"
         items={reportItems}
         busy={busyReport}
