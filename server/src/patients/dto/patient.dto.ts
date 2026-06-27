@@ -48,6 +48,8 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsOptional() @IsArray() @IsString({ each: true }) hmSelectedDrugs?: string[];
   // Family tree — array of { name, mobile, nid, sex, relation }.
   @IsOptional() @IsArray() familyMembers?: Record<string, unknown>[];
+  // Persistent investigation history — array of { date, category, test, value }.
+  @IsOptional() @IsArray() investigationSummary?: Record<string, unknown>[];
   // Saved-but-not-printed prescription editor snapshot (null clears it).
   @IsOptional() incompleteRx?: Record<string, unknown> | null;
 }

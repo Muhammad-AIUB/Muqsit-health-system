@@ -18,6 +18,7 @@ import { drugDB, templateRx } from "@/data/drugs";
 import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
+import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import type {
   Page,
@@ -144,6 +145,8 @@ function useMuqsitStore() {
   const [showOePopup, setShowOePopup] = useState(false);
   const [ptSettingsTab, setPtSettingsTab] = useState("info");
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  // Persistent per-patient investigation history (records-page summary).
+  const [investigationSummary, setInvestigationSummary] = useState<InvFinding[]>([]);
   const [showFamilyForm, setShowFamilyForm] = useState(false);
   const [familyRelation, setFamilyRelation] = useState("");
   const [familyForm, setFamilyForm] = useState<FamilyForm>({ name: "", mobile: "", nid: "", sex: "" });
@@ -253,6 +256,16 @@ function useMuqsitStore() {
       });
       setSavedMsg("Prescription saved!");
       ok = true;
+      // Merge this visit's investigation findings into the patient's permanent
+      // investigation history (records-page summary).
+      if (pid) {
+        const parsed = parseInvestigationEntries(investigation);
+        if (parsed.length) {
+          const merged = mergeFindings(investigationSummary, parsed);
+          setInvestigationSummary(merged);
+          void patientsApi.update(pid, { investigationSummary: merged }).catch(() => {});
+        }
+      }
       // "Save & print" = complete: clear the patient's incomplete draft and flag
       // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
       if (pid) {
@@ -277,7 +290,7 @@ function useMuqsitStore() {
   useEffect(() => {
     if (!currentPatientId) {
       setRxImages([]); setReportImages([]);
-      setHmDrugs(new Set()); setFamilyMembers([]);
+      setHmDrugs(new Set()); setFamilyMembers([]); setInvestigationSummary([]);
       return;
     }
     let cancelled = false;
@@ -289,6 +302,7 @@ function useMuqsitStore() {
           setReportImages(p.reportImages ?? []);
           setHmDrugs(new Set(p.hmSelectedDrugs ?? []));
           setFamilyMembers((p.familyMembers as FamilyMember[]) ?? []);
+          setInvestigationSummary((p.investigationSummary as InvFinding[]) ?? []);
         }
       })
       .catch(() => {});
@@ -427,6 +441,12 @@ function useMuqsitStore() {
   const saveFamilyMembers = useCallback((next: FamilyMember[]) => {
     setFamilyMembers(next);
     if (currentPatientId) void patientsApi.update(currentPatientId, { familyMembers: next }).catch(() => {});
+  }, [currentPatientId]);
+
+  // Persist the patient's investigation history (records-page summary + Add).
+  const saveInvestigationSummary = useCallback((next: InvFinding[]) => {
+    setInvestigationSummary(next);
+    if (currentPatientId) void patientsApi.update(currentPatientId, { investigationSummary: next }).catch(() => {});
   }, [currentPatientId]);
 
   // ── Server-side prescription draft ──────────────────────────
@@ -640,6 +660,7 @@ function useMuqsitStore() {
     invImages, setInvImages,
     rxImages, setRxImages, reportImages, setReportImages, saveRxImages, saveReportImages,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
+    investigationSummary, setInvestigationSummary, saveInvestigationSummary,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptInfo, setPtInfo, currentPatientId, setCurrentPatientId,
     eventsPatient, setEventsPatient, eventMsg, setEventMsg, rcQuery, setRcQuery,

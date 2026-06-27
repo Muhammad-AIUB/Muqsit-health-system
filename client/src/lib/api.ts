@@ -82,6 +82,7 @@ export interface Patient {
   hmDrugDates: Record<string, { sf: string; upto: string }> | null;
   hmSelectedDrugs: string[];
   familyMembers: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
+  investigationSummary: Array<{ date: string; category: string; test: string; value: string }>;
   incompleteRx: Record<string, unknown> | null;
   doctorId: string | null;
   createdAt: string;
@@ -114,6 +115,7 @@ export interface PatientInput {
   hmDrugDates?: Record<string, { sf: string; upto: string }>;
   hmSelectedDrugs?: string[];
   familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
+  investigationSummary?: Array<{ date: string; category: string; test: string; value: string }>;
   incompleteRx?: Record<string, unknown> | null;
 }
 
