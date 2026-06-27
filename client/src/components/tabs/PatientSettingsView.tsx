@@ -200,10 +200,11 @@ export default function PatientSettingsView() {
               {currentPatientId ? "Editing existing" : "New patient"}
             </span>
           </div>
-          <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16 }}>
-            <fieldset disabled={!editing} style={{ border: "none", margin: 0, padding: 0, minWidth: 0, opacity: editing ? 1 : 0.6 }}>
-            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <PatientPhotoCorner />
+          <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16, display: "flex", gap: 16, alignItems: "flex-start" }}>
+            {/* Photo lives OUTSIDE the disabled fieldset so it can be uploaded any
+                time (it saves immediately, independent of the Edit/Save flow). */}
+            <PatientPhotoCorner />
+            <fieldset disabled={!editing} style={{ flex: 1, minWidth: 0, border: "none", margin: 0, padding: 0, opacity: editing ? 1 : 0.6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
@@ -218,7 +219,6 @@ export default function PatientSettingsView() {
                   <div style={{ flex: "0 0 130px" }}><div style={piLbl}>Blood group &amp; Rh</div><select style={piSel} value={pI.bloodGroup} onChange={(e) => setPi("bloodGroup", e.target.value)}><option value="">—</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Other</option></select></div>
                 </div>
               </div>
-            </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Contact numbers</div>
             <div style={piRow}>
