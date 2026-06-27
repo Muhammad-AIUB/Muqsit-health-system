@@ -11,7 +11,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   const {
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate,
-    ptHospitalId, setPtHospitalId, setPtInfo, currentPatientId,
+    ptHospitalId, setPtHospitalId, setPtInfo, ptInfo, currentPatientId,
     monthlyCost, watchPatient, toggleWatch, activeTab, setActiveTab,
   } = useMuqsit();
 
@@ -32,6 +32,22 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: mobile ? 10 : 14, marginBottom: mobile ? 10 : 14 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: mobile ? 6 : 10 }}>
+        {/* Patient profile photo — uploaded in Patient Settings, shown here. */}
+        <div style={{ flex: "0 0 auto" }}>
+          <label style={fieldLabel}>Photo</label>
+          <div
+            onClick={() => setActiveTab("pt-settings")}
+            title={ptInfo.picture ? "Patient photo — change in Patient Settings" : "Add a photo in Patient Settings"}
+            style={{ width: mobile ? 44 : 54, height: mobile ? 44 : 54, borderRadius: 10, overflow: "hidden", border: `0.5px solid ${C.n[200]}`, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+          >
+            {ptInfo.picture ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={ptInfo.picture} alt="Patient" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <span style={{ fontSize: mobile ? 18 : 22, color: C.n[400] }}>👤</span>
+            )}
+          </div>
+        </div>
         <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
         <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
         <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Gender</label>
