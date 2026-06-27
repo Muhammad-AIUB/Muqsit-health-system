@@ -440,14 +440,31 @@ function useMuqsitStore() {
   // renders for a signed-in doctor). `draftReadyRef` then unlocks auto-save so
   // the empty initial state can't overwrite the stored draft before it loads.
   useEffect(() => {
-    // Mobile-first: the prescription ALWAYS starts blank and gated — on login
-    // and on reload alike. A previous patient is never auto-restored; the doctor
-    // enters a mobile number and picks a patient each time they arrive. (The
-    // draft table is still written by the auto-save below, but no longer
-    // re-hydrated into the editor.)
-    resetEditor();
-    setCurrentPatientId(null);
-    draftReadyRef.current = true;
+    // On a FRESH login: blank & gated (mobile-first — enter a number first), and
+    // clear the stored draft. On a plain page RELOAD (no login): restore the
+    // draft so the loaded patient + editor survive the refresh.
+    const fresh = typeof window !== "undefined" && window.sessionStorage.getItem("mhs_fresh_login") === "1";
+    if (fresh) {
+      window.sessionStorage.removeItem("mhs_fresh_login");
+      resetEditor();
+      setCurrentPatientId(null);
+      void prescriptionDraftApi.save({}).catch(() => {});
+      draftReadyRef.current = true;
+      return;
+    }
+
+    let cancelled = false;
+    prescriptionDraftApi
+      .get()
+      .then((res) => {
+        if (cancelled) return;
+        const d = (res.data ?? {}) as Record<string, unknown>;
+        applyEditorSnapshot(d);
+        if (typeof d.currentPatientId === "string") setCurrentPatientId(d.currentPatientId);
+      })
+      .catch((e) => console.warn("[draft] load failed — editor will not restore on reload:", e))
+      .finally(() => { if (!cancelled) draftReadyRef.current = true; });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

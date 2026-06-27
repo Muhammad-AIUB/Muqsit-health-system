@@ -59,6 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (identifier: string, password: string, remember: boolean) => {
     const res = await authApi.login(identifier, password, remember);
+    // Mark a FRESH login so the prescription editor starts blank & gated. A plain
+    // page reload (no login) does NOT set this, so the loaded patient is restored.
+    try { window.sessionStorage.setItem("mhs_fresh_login", "1"); } catch { /* ignore */ }
     setUser(res.user);
   };
 
