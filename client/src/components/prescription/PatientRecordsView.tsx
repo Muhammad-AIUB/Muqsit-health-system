@@ -15,15 +15,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
-
-const DATE_RE = /^(\d{2}\/\d{2}\/\d{4}):(.*)$/;
+import { parseInvestigationEntries, mergeFindings, groupByDate, type InvFinding } from "@/lib/investigationSummary";
+import InvestigationDownload from "./InvestigationDownload";
 
 export default function PatientRecordsView() {
   const {
     currentPatientId,
     rxImages, saveRxImages, reportImages, saveReportImages,
-    investigation,
+    investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
   } = useMuqsit();
+  const [showDownload, setShowDownload] = useState(false);
 
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
   const [busyRx, setBusyRx] = useState(false);
@@ -85,32 +86,18 @@ export default function PatientRecordsView() {
     saveReportImages(orderedIds.map((id) => byId.get(id)).filter((u): u is string => !!u));
   };
 
-  // ── Investigation findings grouped by date (newest first) ──
-  const summary = useMemo(() => {
-    const seen = new Set<string>();
-    const textItems = investigation.filter((it) => {
-      if (it.indexOf("[image attached]") >= 0) return false;
-      if (seen.has(it)) return false;
-      seen.add(it);
-      return true;
-    });
-    const groups: { date: string; items: string[] }[] = [];
-    for (const item of textItems) {
-      const m = item.match(DATE_RE);
-      const date = m ? m[1] : "";
-      const rest = m ? m[2] : item;
-      let g = groups.find((x) => x.date === date);
-      if (!g) { g = { date, items: [] }; groups.push(g); }
-      g.items.push(rest);
-    }
-    const toTs = (d: string) => {
-      if (!d) return 0;
-      const [dd, mm, yy] = d.split("/").map(Number);
-      return new Date(yy, mm - 1, dd).getTime();
-    };
-    groups.sort((a, b) => toTs(b.date) - toTs(a.date));
-    return groups;
-  }, [investigation]);
+  // ── Full investigation history: the patient's saved findings + the live
+  // editor's findings, de-duplicated and grouped by date (newest first). ──
+  const allFindings = useMemo(
+    () => mergeFindings(investigationSummary ?? [], parseInvestigationEntries(investigation)),
+    [investigationSummary, investigation],
+  );
+  const summary = useMemo(() => groupByDate(allFindings), [allFindings]);
+
+  const removeFinding = (f: InvFinding) =>
+    saveInvestigationSummary((investigationSummary ?? []).filter(
+      (x) => !(x.date === f.date && x.test === f.test && x.value === f.value),
+    ));
 
   const openViewer = (urls: string[], index: number) => setViewer({ urls, index });
 
@@ -150,17 +137,26 @@ export default function PatientRecordsView() {
 
       {/* Investigation reports summary */}
       <div style={{ marginTop: 8 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], marginBottom: 10 }}>Investigation reports summary</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>Investigation reports summary</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: currentPatientId ? C.pri[400] : C.n[200], color: currentPatientId ? "#fff" : C.n[500], fontSize: 12, fontWeight: 500, cursor: currentPatientId ? "pointer" : "not-allowed", fontFamily: font }}>+ Add</button>
+            <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ padding: "6px 14px", borderRadius: 7, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: allFindings.length ? C.pri[600] : C.n[400], fontSize: 12, fontWeight: 500, cursor: allFindings.length ? "pointer" : "not-allowed", fontFamily: font }}>⬇ Download</button>
+          </div>
+        </div>
         {summary.length === 0 ? (
-          <div style={{ fontSize: 13, color: C.n[500] }}>No investigation findings entered yet.</div>
+          <div style={{ fontSize: 13, color: C.n[500] }}>No investigation findings entered yet. Use <b>+ Add</b> to record results.</div>
         ) : (
           <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px" }}>
             {summary.map((g, gi) => (
               <div key={gi} style={{ marginBottom: gi < summary.length - 1 ? 12 : 0 }}>
                 {g.date && <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{g.date}</div>}
                 <div style={{ paddingLeft: 16 }}>
-                  {g.items.map((rest, idx) => (
-                    <div key={idx} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>{rest}</div>
+                  {g.items.map((f, idx) => (
+                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
+                      <span style={{ flex: 1 }}><span style={{ color: C.n[500] }}>{f.category} · </span>{f.test}: <b style={{ fontWeight: 600 }}>{f.value}</b></span>
+                      <button onClick={() => removeFinding(f)} title="Remove from history" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 13, padding: "0 4px" }}>×</button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -168,6 +164,10 @@ export default function PatientRecordsView() {
           </div>
         )}
       </div>
+
+      {showDownload && (
+        <InvestigationDownload findings={allFindings} onClose={() => setShowDownload(false)} />
+      )}
 
       {/* Lightbox with ←/→ navigation */}
       {viewer && (

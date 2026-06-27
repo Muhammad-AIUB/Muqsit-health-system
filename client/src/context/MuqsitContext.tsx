@@ -449,6 +449,27 @@ function useMuqsitStore() {
     if (currentPatientId) void patientsApi.update(currentPatientId, { investigationSummary: next }).catch(() => {});
   }, [currentPatientId]);
 
+  // "Add" on the records page opens the investigation popup in SUMMARY mode:
+  // whatever is entered goes only to the patient's investigation history, not
+  // the current prescription. We snapshot the editor's findings, let the popup
+  // write as usual, then on close move the additions to the summary and restore.
+  const [invSummaryMode, setInvSummaryMode] = useState(false);
+  const invSnapshotRef = useRef<string[]>([]);
+  const openInvForSummary = useCallback(() => {
+    invSnapshotRef.current = [...investigation];
+    setInvSummaryMode(true);
+    setShowInvPopup(true);
+  }, [investigation]);
+  useEffect(() => {
+    if (showInvPopup || !invSummaryMode) return; // only act when it CLOSES in summary mode
+    const additions = investigation.filter((e) => !invSnapshotRef.current.includes(e));
+    const parsed = parseInvestigationEntries(additions);
+    if (parsed.length) saveInvestigationSummary(mergeFindings(investigationSummary, parsed));
+    setInvestigation(invSnapshotRef.current); // keep the prescription untouched
+    setInvSummaryMode(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInvPopup]);
+
   // ── Server-side prescription draft ──────────────────────────
   // The whole editor (header + clinical sections + investigation findings +
   // medicines + advice) is auto-saved to the server as the doctor types, so a
@@ -660,7 +681,7 @@ function useMuqsitStore() {
     invImages, setInvImages,
     rxImages, setRxImages, reportImages, setReportImages, saveRxImages, saveReportImages,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
-    investigationSummary, setInvestigationSummary, saveInvestigationSummary,
+    investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptInfo, setPtInfo, currentPatientId, setCurrentPatientId,
     eventsPatient, setEventsPatient, eventMsg, setEventMsg, rcQuery, setRcQuery,
