@@ -158,7 +158,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
       {/* Notebook writing pad */}
       <div
         style={{
-          background: `repeating-linear-gradient(${C.n[0]}, ${C.n[0]} ${ROW_H - 1}px, ${C.n[200]} ${ROW_H - 1}px, ${C.n[200]} ${ROW_H}px)`,
+          background: C.n[0],
           minHeight: minHeight ?? "100%",
           paddingTop: 4,
         }}
@@ -169,7 +169,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
           const isHead = row.isMedicine && !row.continuation;
           const isCont = row.continuation;
           return (
-            <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, minHeight: ROW_H, zIndex: acRow === idx ? 5 : undefined }}>
+            <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
               {/* Checkbox (optional) + serial — only for medicine head rows */}
               <div style={{ width: showCheck ? 44 : 26, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
                 {isHead && (
