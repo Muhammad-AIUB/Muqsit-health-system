@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C, font } from "@/theme";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, FOOD_HINT } from "@/lib/rxShorthand";
@@ -41,6 +41,48 @@ export const contRow = (): Row => ({ drug: "", dose: "", food: "", duration: "",
 
 const ROW_H = 40;
 
+// Dose / food / duration cell: an auto-growing textarea so long instructions
+// like "2-4 tea spoon full at night, can take 2-3 times a day" wrap onto extra
+// lines (growing that row) instead of being clipped to a fixed-width box.
+const cellArea: CSSProperties = {
+  border: "none", outline: "none", background: "transparent",
+  fontSize: 13.5, color: C.n[900], fontFamily: font,
+  padding: "7px 4px", lineHeight: 1.35, resize: "none", overflow: "hidden",
+  textAlign: "center", display: "block", boxSizing: "border-box",
+  minHeight: ROW_H - 8, flexShrink: 0,
+};
+
+function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, refCb, style }: {
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  placeholder: string;
+  title?: string;
+  refCb: (el: HTMLTextAreaElement | null) => void;
+  style: CSSProperties;
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const resize = () => {
+    const el = ref.current;
+    if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; }
+  };
+  useEffect(resize, [value]);
+  return (
+    <textarea
+      ref={(el) => { ref.current = el; refCb(el); }}
+      rows={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      title={title}
+      style={style}
+    />
+  );
+}
+
 interface Props {
   rows: Row[];
   setRows: Dispatch<SetStateAction<Row[]>>;
@@ -54,9 +96,9 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
   const [acRow, setAcRow] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const doseRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const foodRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const durRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const doseRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const foodRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const durRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
   const { results: acItems } = useMedicineSearch(acRow != null ? rows[acRow]?.drug ?? "" : "");
 
@@ -127,7 +169,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
           const isHead = row.isMedicine && !row.continuation;
           const isCont = row.continuation;
           return (
-            <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, height: ROW_H, zIndex: acRow === idx ? 5 : undefined }}>
+            <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, minHeight: ROW_H, zIndex: acRow === idx ? 5 : undefined }}>
               {/* Checkbox (optional) + serial — only for medicine head rows */}
               <div style={{ width: showCheck ? 44 : 26, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
                 {isHead && (
@@ -227,33 +269,33 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
               {/* Dose + food + duration — medicine rows */}
               {row.isMedicine && (
                 <>
-                  <input
-                    ref={(el) => { doseRefs.current[idx] = el; }}
+                  <AutoCell
+                    refCb={(el) => { doseRefs.current[idx] = el; }}
                     value={row.dose}
-                    onChange={(e) => updateRow(idx, { dose: e.target.value })}
+                    onChange={(v) => updateRow(idx, { dose: v })}
                     onBlur={() => updateRow(idx, { dose: parseDose(row.dose) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { updateRow(idx, { dose: parseDose(row.dose) }); foodRefs.current[idx]?.focus(); } }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: parseDose(row.dose) }); foodRefs.current[idx]?.focus(); } }}
                     placeholder="dose"
-                    style={{ ...lineInput, width: 88, textAlign: "center" }}
+                    style={{ ...cellArea, width: 88 }}
                   />
-                  <input
-                    ref={(el) => { foodRefs.current[idx] = el; }}
+                  <AutoCell
+                    refCb={(el) => { foodRefs.current[idx] = el; }}
                     value={row.food}
-                    onChange={(e) => updateRow(idx, { food: e.target.value })}
+                    onChange={(v) => updateRow(idx, { food: v })}
                     onBlur={() => updateRow(idx, { food: parseFood(row.food) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { updateRow(idx, { food: parseFood(row.food) }); durRefs.current[idx]?.focus(); } }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: parseFood(row.food) }); durRefs.current[idx]?.focus(); } }}
                     placeholder="food"
                     title={FOOD_HINT}
-                    style={{ ...lineInput, width: 132, textAlign: "center" }}
+                    style={{ ...cellArea, width: 132 }}
                   />
-                  <input
-                    ref={(el) => { durRefs.current[idx] = el; }}
+                  <AutoCell
+                    refCb={(el) => { durRefs.current[idx] = el; }}
                     value={row.duration}
-                    onChange={(e) => updateRow(idx, { duration: e.target.value })}
+                    onChange={(v) => updateRow(idx, { duration: v })}
                     onBlur={() => updateRow(idx, { duration: parseDuration(row.duration) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { updateRow(idx, { duration: parseDuration(row.duration) }); drugRefs.current[idx + 1]?.focus(); } }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: parseDuration(row.duration) }); drugRefs.current[idx + 1]?.focus(); } }}
                     placeholder="duration"
-                    style={{ ...lineInput, width: 96, textAlign: "center" }}
+                    style={{ ...cellArea, width: 96 }}
                   />
                 </>
               )}
