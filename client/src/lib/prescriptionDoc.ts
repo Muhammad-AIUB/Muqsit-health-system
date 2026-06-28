@@ -53,6 +53,14 @@ const esc = (s: string) =>
 const cleanItem = (s: string) =>
   esc(s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "").replace(/\s+—\s+/g, "  ·  "));
 
+// Drug history on the printout: show only the medicine name (no dose/food/
+// duration). Tapering continuation lines carry no name and are dropped.
+const drugNameOnly = (s: string): string => {
+  if (/^(Current|Past)\(cont\):/.test(s)) return "";
+  const body = s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "");
+  return esc(body.split(" — ")[0].trim());
+};
+
 // One A4 sheet. `privacyCopy` produces the public-safe copy: masked identity,
 // no clinical assessment, no personal advice — only the medicines + tests the
 // patient needs to act on.
@@ -69,7 +77,9 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
           (c) => `
         <div class="block">
           <div class="block-title">${esc(c.label)}</div>
-          <ul>${c.items.map((it) => `<li>${cleanItem(it)}</li>`).join("")}</ul>
+          <ul>${(c.label === "Drug history"
+            ? c.items.map(drugNameOnly).filter(Boolean).map((n) => `<li>${n}</li>`)
+            : c.items.map((it) => `<li>${cleanItem(it)}</li>`)).join("")}</ul>
         </div>`,
         )
         .join("");
