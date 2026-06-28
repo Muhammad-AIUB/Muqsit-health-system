@@ -45,7 +45,8 @@ export default function InvestigationPopup() {
   // Inline edit of an added result (keyed by the result string).
   const [editItem, setEditItem] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
-  // Manual "tag this image to a result" picker in the report viewer.
+  // Drag-to-tag: which test card is the report image currently hovering over.
+  const [dropTest, setDropTest] = useState<string | null>(null);
 
   // Jump-to-test from a search result: clicking a chip switches category and
   // then scrolls that test card into view + briefly flashes it. Refs are keyed
@@ -368,6 +369,14 @@ export default function InvestigationPopup() {
                     <button onClick={() => setRotation((r) => (r + 90) % 360)} title="Rotate right" style={zoomBtn}>↻</button>
                     <a href={invImages[imgKey]} target="_blank" rel="noreferrer" title="Open full image" style={{ ...zoomBtn, textDecoration: "none" }}>⤤</a>
                   </div>
+                  {invImages[imgKey] && (
+                    <div
+                      draggable
+                      onDragStart={(e) => { e.dataTransfer.setData("text/mhs-report-image", invImages[imgKey] || ""); e.dataTransfer.effectAllowed = "copy"; }}
+                      title="Drag onto a test's “Add report image” to tag this report there"
+                      style={{ position: "absolute", top: 8, right: 8, zIndex: 3, background: C.pri[400], color: "#fff", fontSize: 10.5, fontWeight: 600, padding: "5px 11px", borderRadius: 999, cursor: "grab", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 5 }}
+                    >⠿ Drag to tag</div>
+                  )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
                   <button onClick={() => { setReportIdx(Math.max(0, repIdx - 1)); setZoom(1); setRotation(0); }} disabled={repIdx === 0} style={navBtn(repIdx === 0)}>‹ Previous</button>
@@ -565,9 +574,25 @@ export default function InvestigationPopup() {
                       background: C.pri[50], color: C.pri[600], fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                     }}>Normal</button>
                     {(
-                      <label style={{
-                        padding: "4px 12px", borderRadius: 6, border: "none",
-                        background: C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                      <label
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+                        onDragEnter={() => setDropTest(test.name)}
+                        onDragLeave={() => setDropTest((t) => (t === test.name ? null : t))}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDropTest(null);
+                          const url = e.dataTransfer.getData("text/mhs-report-image");
+                          if (!url) return;
+                          const dateStr = formatCalDate(calDate);
+                          setInvImages((prev) => ({ ...prev, [dateStr + ":" + test.name]: url }));
+                          const entry = dateStr + ":" + test.name + ":[image attached]";
+                          setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
+                          logInv(`${test.name} report image (${dateStr})`, url);
+                        }}
+                        style={{
+                        padding: "4px 12px", borderRadius: 6,
+                        border: dropTest === test.name ? "2px dashed #fff" : "none",
+                        background: dropTest === test.name ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                         display: "inline-flex", alignItems: "center", gap: 4,
                       }}>
                         <span>Add report image</span>
