@@ -54,6 +54,8 @@ export default function DrugHistoryField({ items, setItems, onAdd }: Props) {
 
   const rows = tab === "Current" ? current : past;
   const setRows = tab === "Current" ? setCurrent : setPast;
+  // Number of medicines recorded (exclude notes + tapering continuation lines).
+  const drugCount = items.filter((i) => !isNoteStored(i) && !isContStored(i)).length;
 
   const handleOpen = () => {
     setCurrent([...items.filter((i) => prefixOf(i) === "Current").map(toRow), emptyRow()]);
@@ -122,14 +124,14 @@ export default function DrugHistoryField({ items, setItems, onAdd }: Props) {
             onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
         ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, flex: 1, alignItems: "center", paddingTop: 2 }}>
-            {items.map((item, idx) => (
-              <span key={idx} style={{ fontSize: 11, color: C.n[800], background: C.n[100], padding: "2px 8px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 8, fontWeight: 700, color: prefixOf(item) === "Current" ? C.pri[600] : C.warn[800], background: prefixOf(item) === "Current" ? C.pri[50] : C.warn[50], padding: "1px 4px", borderRadius: 3 }}>{prefixOf(item) === "Current" ? "C" : "P"}</span>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripPrefix(item)}</span>
-                <button onClick={(e) => { e.stopPropagation(); setItems(items.filter((_, i) => i !== idx)); }} style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
-              </span>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 2 }}>
+            {/* Names are hidden here — click to view/edit them in the popup. */}
+            <button onClick={handleOpen} title="View / edit drug history"
+              style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[400]}`, padding: "2px 10px", borderRadius: 999, cursor: "pointer", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 5 }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.pri[100] ?? C.pri[50])}
+              onMouseLeave={(e) => (e.currentTarget.style.background = C.pri[50])}>
+              💊 {drugCount} drug{drugCount === 1 ? "" : "s"} · view
+            </button>
             <button onClick={handleOpen} style={{ width: 18, height: 18, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>+</button>
           </div>
         )}
