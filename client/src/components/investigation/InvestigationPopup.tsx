@@ -45,8 +45,9 @@ export default function InvestigationPopup() {
   // Inline edit of an added result (keyed by the result string).
   const [editItem, setEditItem] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
-  // Drag-to-tag: which test card is the report image currently hovering over.
-  const [dropTest, setDropTest] = useState<string | null>(null);
+  // Long-press drag-to-tag: a floating chip follows the cursor; `over` is the
+  // test card (data-droptest) currently under it.
+  const [lpDrag, setLpDrag] = useState<{ url: string; x: number; y: number; over: string | null } | null>(null);
 
   // Jump-to-test from a search result: clicking a chip switches category and
   // then scrolls that test card into view + briefly flashes it. Refs are keyed
@@ -94,6 +95,12 @@ export default function InvestigationPopup() {
   // Drag-to-pan the (zoomed) report image: hold left mouse and move.
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  // Long-press drag-to-tag refs (read by pan handlers + document listeners
+  // without re-binding).
+  const lpActiveRef = useRef(false);
+  const lpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lpUrlRef = useRef("");
+  const lpStartRef = useRef<{ x: number; y: number } | null>(null);
   const onPanStart = (e: React.MouseEvent) => {
     const el = scrollRef.current;
     if (!el) return;
@@ -102,6 +109,7 @@ export default function InvestigationPopup() {
     e.preventDefault();
   };
   const onPanMove = (e: React.MouseEvent) => {
+    if (lpActiveRef.current) return; // a long-press tag-drag is in progress
     const el = scrollRef.current;
     if (!el || !dragRef.current) return;
     el.scrollLeft = dragRef.current.sl - (e.clientX - dragRef.current.x);
@@ -119,6 +127,79 @@ export default function InvestigationPopup() {
     const yyyy = d.getFullYear();
     return dd + "/" + mm + "/" + yyyy;
   };
+
+  // ── Long-press drag-to-tag ────────────────────────────────
+  // Hold the report image still for ~300ms → a "tag" chip attaches to the
+  // cursor; release over a test's "Add report image" (data-droptest) to tag the
+  // open report image to that test for the selected date. Moving before the
+  // timer fires is treated as a pan, so panning still works.
+  const LP_MS = 300;
+  const tagReportToTest = (testName: string, url: string) => {
+    if (!url) return;
+    const dateStr = formatCalDate(calDate);
+    setInvImages((prev) => ({ ...prev, [dateStr + ":" + testName]: url }));
+    const entry = dateStr + ":" + testName + ":[image attached]";
+    setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
+    logInv(`${testName} report image (${dateStr})`, url);
+  };
+  const endLongPress = () => {
+    lpActiveRef.current = false;
+    lpStartRef.current = null;
+    document.body.style.userSelect = "";
+    setLpDrag(null);
+  };
+  const cancelLongPress = () => {
+    if (lpTimerRef.current) { clearTimeout(lpTimerRef.current); lpTimerRef.current = null; }
+    lpStartRef.current = null;
+  };
+  const startLongPress = (e: React.MouseEvent, url: string) => {
+    if (e.button !== 0 || !url) return;
+    const sx = e.clientX, sy = e.clientY;
+    lpUrlRef.current = url;
+    lpStartRef.current = { x: sx, y: sy };
+    cancelLongPress();
+    lpStartRef.current = { x: sx, y: sy };
+    lpTimerRef.current = setTimeout(() => {
+      lpActiveRef.current = true;
+      dragRef.current = null; // stop any armed pan
+      document.body.style.userSelect = "none";
+      setLpDrag({ url, x: sx, y: sy, over: null });
+    }, LP_MS);
+  };
+  const moveBeforePress = (e: React.MouseEvent) => {
+    const s = lpStartRef.current;
+    if (!s || lpActiveRef.current) return;
+    if (Math.abs(e.clientX - s.x) > 8 || Math.abs(e.clientY - s.y) > 8) cancelLongPress();
+  };
+
+  const lpActive = !!lpDrag;
+  useEffect(() => {
+    if (!lpActive) return;
+    const targetAt = (x: number, y: number): string | null => {
+      const el = document.elementFromPoint(x, y) as HTMLElement | null;
+      const t = el?.closest?.("[data-droptest]") as HTMLElement | null;
+      return t?.getAttribute("data-droptest") ?? null;
+    };
+    const onMove = (e: MouseEvent) => {
+      const over = targetAt(e.clientX, e.clientY);
+      setLpDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY, over } : d));
+    };
+    const onUp = (e: MouseEvent) => {
+      const name = targetAt(e.clientX, e.clientY);
+      if (name) tagReportToTest(name, lpUrlRef.current);
+      endLongPress();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") endLongPress(); };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("keydown", onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lpActive]);
 
   // Pool entries are "dd/mm/yyyy:Report N:[image attached]" — uploaded images
   // tagged to the date they were added on, but still shown in the viewer for
@@ -330,6 +411,11 @@ export default function InvestigationPopup() {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
+      {lpDrag && (
+        <div style={{ position: "fixed", left: lpDrag.x + 14, top: lpDrag.y + 14, zIndex: 3000, pointerEvents: "none", background: lpDrag.over ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 999, boxShadow: "0 8px 20px rgba(0,0,0,0.35)", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+          🏷 {lpDrag.over ? `Tag → ${lpDrag.over}` : "Drop on a test…"}
+        </div>
+      )}
       <div onClick={(e) => e.stopPropagation()} style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
 
         {/* Left reports pane — half-screen viewer shown once reports are uploaded */}
@@ -355,8 +441,11 @@ export default function InvestigationPopup() {
                     style={{ position: "absolute", inset: 0, overflow: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", cursor: "grab", userSelect: "none" }}
                   >
                     {invImages[imgKey] && (
-                      <img src={invImages[imgKey]} alt={name} draggable
-                        onDragStart={(e) => { e.dataTransfer.setData("text/mhs-report-image", invImages[imgKey] || ""); e.dataTransfer.effectAllowed = "copy"; }}
+                      <img src={invImages[imgKey]} alt={name} draggable={false}
+                        onMouseDown={(e) => startLongPress(e, invImages[imgKey] || "")}
+                        onMouseMove={moveBeforePress}
+                        onMouseUp={cancelLongPress}
+                        onMouseLeave={cancelLongPress}
                         style={{ width: `${zoom * 100}%`, maxWidth: "none", height: "auto", display: "block", flexShrink: 0, transform: `rotate(${rotation}deg)`, transition: "width 0.12s, transform 0.15s", cursor: "grab" }} />
                     )}
                   </div>
@@ -373,11 +462,9 @@ export default function InvestigationPopup() {
                   </div>
                   {invImages[imgKey] && (
                     <div
-                      draggable
-                      onDragStart={(e) => { e.dataTransfer.setData("text/mhs-report-image", invImages[imgKey] || ""); e.dataTransfer.effectAllowed = "copy"; }}
-                      title="Drag onto a test's “Add report image” to tag this report there"
-                      style={{ position: "absolute", top: 8, right: 8, zIndex: 3, background: C.pri[400], color: "#fff", fontSize: 10.5, fontWeight: 600, padding: "5px 11px", borderRadius: 999, cursor: "grab", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 5 }}
-                    >⠿ Drag to tag</div>
+                      title="Long-press the image, then drag onto a test's “Add report image” to tag it"
+                      style={{ position: "absolute", top: 8, right: 8, zIndex: 3, background: C.pri[400], color: "#fff", fontSize: 10.5, fontWeight: 600, padding: "5px 11px", borderRadius: 999, boxShadow: "0 2px 8px rgba(0,0,0,0.25)", userSelect: "none", pointerEvents: "none", display: "inline-flex", alignItems: "center", gap: 5 }}
+                    >⠿ Long-press to tag</div>
                   )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
@@ -577,24 +664,11 @@ export default function InvestigationPopup() {
                     }}>Normal</button>
                     {(
                       <label
-                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-                        onDragEnter={() => setDropTest(test.name)}
-                        onDragLeave={() => setDropTest((t) => (t === test.name ? null : t))}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setDropTest(null);
-                          const url = e.dataTransfer.getData("text/mhs-report-image");
-                          if (!url) return;
-                          const dateStr = formatCalDate(calDate);
-                          setInvImages((prev) => ({ ...prev, [dateStr + ":" + test.name]: url }));
-                          const entry = dateStr + ":" + test.name + ":[image attached]";
-                          setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
-                          logInv(`${test.name} report image (${dateStr})`, url);
-                        }}
+                        data-droptest={test.name}
                         style={{
                         padding: "4px 12px", borderRadius: 6,
-                        border: dropTest === test.name ? "2px dashed #fff" : "none",
-                        background: dropTest === test.name ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                        border: lpDrag?.over === test.name ? "2px dashed #fff" : "none",
+                        background: lpDrag?.over === test.name ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                         display: "inline-flex", alignItems: "center", gap: 4,
                       }}>
                         <span>Add report image</span>
