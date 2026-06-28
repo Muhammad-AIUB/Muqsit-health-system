@@ -27,7 +27,6 @@ export default function PatientRecordsView() {
   const [showDownload, setShowDownload] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [undo, setUndo] = useState<{ prev: InvFinding[]; label: string } | null>(null);
-  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
   const [busyRx, setBusyRx] = useState(false);
@@ -98,23 +97,20 @@ export default function PatientRecordsView() {
   const summary = useMemo(() => groupByDate(allFindings), [allFindings]);
 
   // Delete a finding from the patient's saved history (edit mode only), keeping
-  // a one-step undo for ~8s so an accidental delete can be reversed.
+  // a one-step undo. The offer stays until the user acts on it (undo / dismiss /
+  // leave Edit mode) — it never disappears on its own.
   const removeFinding = (f: InvFinding) => {
     const prev = investigationSummary ?? [];
     saveInvestigationSummary(prev.filter(
       (x) => !(x.date === f.date && x.test === f.test && x.value === f.value),
     ));
-    if (undoTimer.current) clearTimeout(undoTimer.current);
     setUndo({ prev, label: `${f.test}: ${f.value}` });
-    undoTimer.current = setTimeout(() => setUndo(null), 8000);
   };
   const undoRemove = () => {
     if (!undo) return;
-    if (undoTimer.current) clearTimeout(undoTimer.current);
     saveInvestigationSummary(undo.prev);
     setUndo(null);
   };
-  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
   const openViewer = (urls: string[], index: number) => setViewer({ urls, index });
 
@@ -176,7 +172,7 @@ export default function PatientRecordsView() {
           <div style={{ display: "flex", gap: 8 }}>
             {summary.length > 0 && (
               editingSummary
-                ? <button onClick={() => setEditingSummary(false)} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>Done</button>
+                ? <button onClick={() => { setEditingSummary(false); setUndo(null); }} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>Done</button>
                 : <button onClick={() => setEditingSummary(true)} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>✎ Edit</button>
             )}
             <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: currentPatientId ? C.pri[400] : C.n[200], color: currentPatientId ? "#fff" : C.n[500], fontSize: 12, fontWeight: 500, cursor: currentPatientId ? "pointer" : "not-allowed", fontFamily: font }}>+ Add</button>
@@ -210,7 +206,10 @@ export default function PatientRecordsView() {
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
               <span>Removed <b style={{ fontWeight: 600, color: C.n[900] }}>{undo.label}</b></span>
             </span>
-            <button className="inv-undo-btn" onClick={undoRemove}>↺ Undo</button>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <button className="inv-undo-btn" onClick={undoRemove}>↺ Undo</button>
+              <button onClick={() => setUndo(null)} title="Dismiss" aria-label="Dismiss" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 17, lineHeight: 1, padding: "2px 5px", borderRadius: 6 }}>×</button>
+            </span>
           </div>
         )}
       </div>
