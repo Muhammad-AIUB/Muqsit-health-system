@@ -18,6 +18,7 @@ export default function InvestigationPopup() {
     showInvPopup, setShowInvPopup, calDate, setCalDate, showMonthPicker, setShowMonthPicker,
     invSearch, setInvSearch, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
     investigation, setInvestigation, invImages, setInvImages,
+    reportImages, saveReportImages,
   } = useMuqsit();
 
   // Mirror investigation adds into the activity feed (Notification, Charts &
@@ -136,9 +137,11 @@ export default function InvestigationPopup() {
       return m ? Math.max(mx, parseInt(m[1], 10)) : mx;
     }, 0);
     const arr = Array.from(files);
+    const uploaded: string[] = [];
     for (let i = 0; i < arr.length; i++) {
       try {
         const url = await uploadImage(arr[i]);
+        uploaded.push(url);
         const num = maxIdx + i + 1;
         const imgKey = dateStr + ":Report " + num;
         setInvImages((prev) => ({ ...prev, [imgKey]: url }));
@@ -150,6 +153,12 @@ export default function InvestigationPopup() {
       } catch (e) {
         console.warn("[investigation] report image upload failed:", e);
       }
+    }
+    // Also surface every uploaded report in the patient's "All reports" gallery
+    // on the records page (deduped against what's already there).
+    if (uploaded.length) {
+      const fresh = uploaded.filter((u) => !reportImages.includes(u));
+      if (fresh.length) saveReportImages([...reportImages, ...fresh]);
     }
   };
 
