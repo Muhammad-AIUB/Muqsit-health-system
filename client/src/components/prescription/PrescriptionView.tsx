@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -8,6 +8,7 @@ import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
 import { uploadImage } from "@/lib/api";
 import { usePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
 import { useActivityFeed, useActivityLog } from "@/hooks/useActivity";
+import { usePatientChat } from "@/hooks/useChat";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
@@ -157,68 +158,54 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   );
 }
 
-// ── Notification, Charts & Reports ──────────────────────────
-// Live activity feed: who (doctor / assistant) added or saved what, with the
-// date + time. Polled, so it stays current without a manual refresh.
+// ── Notifications, Chats & Reports ──────────────────────────
+// One live feed merging the activity log (who added/saved what, with the detail)
+// and the team chat, newest first. Polled, so it stays current without refresh.
 function ReportsSection() {
   // Only the loaded patient's activity — this section renders only when a
   // patient is selected, so currentPatientId is always set here.
   const { currentPatientId } = useMuqsit();
   const { data: feed = [], isLoading } = useActivityFeed(currentPatientId);
-  // Group activity by section so everything added under one heading (e.g.
-  // "Drug history") sits together, even when added at different times. Items
-  // within a group read oldest → newest; the most recently touched section
-  // floats to the top.
-  const groups = useMemo(() => {
-    const map = new Map<string, typeof feed>();
-    for (const a of [...feed].reverse()) {
-      const key = a.section || "Other";
-      const arr = map.get(key);
-      if (arr) arr.push(a); else map.set(key, [a]);
-    }
-    return Array.from(map.entries())
-      .map(([section, items]) => ({
-        section,
-        items,
-        latest: Math.max(...items.map((x) => new Date(x.createdAt).getTime())),
-      }))
-      .sort((a, b) => b.latest - a.latest);
-  }, [feed]);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const { data: chat = [] } = usePatientChat(currentPatientId);
+
+  const items = useMemo(() => {
+    const acts = feed.map((a) => ({
+      id: a.id, createdAt: a.createdAt, kind: "activity" as const,
+      name: a.actorName, action: a.action, section: a.section, detail: a.detail, imageUrl: a.imageUrl,
+    }));
+    const msgs = chat.map((c) => ({
+      id: `chat-${c.id}`, createdAt: c.createdAt, kind: "chat" as const,
+      name: c.authorName, body: c.body, attachmentUrl: c.attachmentUrl,
+    }));
+    return [...acts, ...msgs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [feed, chat]);
 
   return (
     <div style={{ marginTop: 22, paddingTop: 16, borderTop: `0.5px solid ${C.n[200]}` }}>
-      <div style={{ fontSize: 13, fontWeight: 500, color: C.n[800], textAlign: "center", marginBottom: 12 }}>Notification, Charts &amp; Reports</div>
+      <div style={{ fontSize: 13, fontWeight: 500, color: C.n[800], textAlign: "center", marginBottom: 12 }}>Notifications, Chats &amp; Reports</div>
 
-      <div ref={scrollRef} style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, maxHeight: 300, overflowY: "auto" }}>
-        {isLoading && feed.length === 0 ? (
-          <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>Loading activity…</div>
-        ) : feed.length === 0 ? (
-          <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>No activity yet — adds and saves will show here with name, date &amp; time.</div>
+      <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, maxHeight: 300, overflowY: "auto" }}>
+        {isLoading && items.length === 0 ? (
+          <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>Nothing yet — adds, saves &amp; chat messages will show here with name, date &amp; time.</div>
         ) : (
-          groups.map((g) => (
-            <div key={g.section}>
-              <div style={{ position: "sticky", top: 0, zIndex: 1, background: C.n[50], borderBottom: `0.5px solid ${C.n[200]}`, padding: "6px 14px", fontSize: 11.5, fontWeight: 700, color: C.n[700], textTransform: "uppercase", letterSpacing: "0.03em", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>{g.section}</span>
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: C.n[600], background: C.n[100], borderRadius: 999, padding: "1px 8px" }}>{g.items.length}</span>
+          items.map((it, idx) => (
+            <div key={it.id} style={{ display: "flex", gap: 10, padding: "9px 14px", borderTop: idx === 0 ? "none" : `0.5px solid ${C.n[100]}` }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: it.kind === "chat" ? C.info[400] : it.action === "saved" ? C.pri[400] : C.warn[800], flexShrink: 0, marginTop: 6 }} />
+              <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.n[800], lineHeight: 1.55 }}>
+                <span style={{ color: C.n[500] }}>{formatActivityTime(it.createdAt)}: </span>
+                <b style={{ color: C.n[900] }}>{it.name}</b>{" "}
+                {it.kind === "chat" ? (
+                  <>: message : <span style={{ fontStyle: "italic", color: C.n[700] }}>“{it.body || "(attachment)"}”</span>
+                    {it.attachmentUrl && <> <a href={it.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎</a></>}
+                  </>
+                ) : (
+                  <>{it.action === "saved" ? "saved" : "added"} {it.section}: <span style={{ fontWeight: 600 }}>{it.detail}</span>
+                    {it.imageUrl && <> <a href={it.imageUrl} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎 View image</a></>}
+                  </>
+                )}
               </div>
-              {g.items.map((a, idx) => (
-                <div key={a.id} style={{ display: "flex", gap: 10, padding: "8px 14px 8px 18px", borderTop: idx === 0 ? "none" : `0.5px solid ${C.n[100]}` }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.action === "saved" ? C.pri[400] : C.info[400], flexShrink: 0, marginTop: 5 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, color: C.n[800], lineHeight: 1.5 }}>
-                      <b style={{ color: C.n[900] }}>{a.actorName}</b> {a.action === "saved" ? "saved" : "added"} <span style={{ fontWeight: 600 }}>{a.detail}</span>
-                      {a.patientName && <span style={{ color: C.n[600] }}> · {a.patientName}</span>}
-                    </div>
-                    <div style={{ fontSize: 11, color: C.n[500], marginTop: 1, display: "flex", alignItems: "center", gap: 8 }}>
-                      <span>{formatActivityTime(a.createdAt)}</span>
-                      {a.imageUrl && (
-                        <a href={a.imageUrl} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎 View image</a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           ))
         )}
