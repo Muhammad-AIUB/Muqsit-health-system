@@ -18,7 +18,7 @@ export default function InvestigationPopup() {
     showInvPopup, setShowInvPopup, calDate, setCalDate, showMonthPicker, setShowMonthPicker,
     invSearch, setInvSearch, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
     investigation, setInvestigation, invImages, setInvImages,
-    reportImages, saveReportImages,
+    reportImages: galleryReportImages, saveReportImages,
   } = useMuqsit();
 
   // Mirror investigation adds into the activity feed (Notification, Charts &
@@ -157,8 +157,8 @@ export default function InvestigationPopup() {
     // Also surface every uploaded report in the patient's "All reports" gallery
     // on the records page (deduped against what's already there).
     if (uploaded.length) {
-      const fresh = uploaded.filter((u) => !reportImages.includes(u));
-      if (fresh.length) saveReportImages([...reportImages, ...fresh]);
+      const fresh = uploaded.filter((u) => !galleryReportImages.includes(u));
+      if (fresh.length) saveReportImages([...galleryReportImages, ...fresh]);
     }
   };
 
