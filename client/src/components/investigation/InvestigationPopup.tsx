@@ -46,7 +46,6 @@ export default function InvestigationPopup() {
   const [editItem, setEditItem] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
   // Manual "tag this image to a result" picker in the report viewer.
-  const [tagOpen, setTagOpen] = useState(false);
 
   // Jump-to-test from a search result: clicking a chip switches category and
   // then scrolls that test card into view + briefly flashes it. Refs are keyed
@@ -381,43 +380,6 @@ export default function InvestigationPopup() {
                   border: `1px solid ${C.danger[100]}`, background: C.danger[50], color: C.danger[800],
                 }}>🗑 Delete this report</button>
 
-                {/* Tag / Edit — attach this image to any added result */}
-                <button onClick={() => setTagOpen((o) => !o)} style={{
-                  marginTop: 6, padding: "7px 12px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-                  fontSize: 11, fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  border: `1px solid ${tagOpen ? C.pri[400] : C.info[100]}`, background: tagOpen ? C.pri[50] : C.info[50], color: C.info[800],
-                }}>🏷 Tag / Edit</button>
-                {tagOpen && (
-                  <div style={{ marginTop: 6, border: `0.5px solid ${C.n[200]}`, borderRadius: 8, background: C.n[0], padding: 8, maxHeight: 180, overflowY: "auto" }}>
-                    <div style={{ fontSize: 10, color: C.n[600], marginBottom: 6 }}>Tag this image to a result:</div>
-                    {textResults.length === 0 ? (
-                      <div style={{ fontSize: 11, color: C.n[500] }}>No results yet — add a test result first.</div>
-                    ) : (
-                      textResults.map((r, i) => {
-                        const p = r.split(":");
-                        const targetKey = p.length >= 2 ? `${p[0]}:${p[1]}` : p[0];
-                        const tagged = invImages[targetKey] === invImages[imgKey] && !!invImages[imgKey];
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => {
-                              const dataUrl = invImages[imgKey];
-                              if (dataUrl) setInvImages((prev) => ({ ...prev, [targetKey]: dataUrl }));
-                              setInvestigation((prev) => {
-                                const te = targetKey + ":[image attached]";
-                                return prev.indexOf(te) === -1 ? prev.concat([te]) : prev;
-                              });
-                              setTagOpen(false);
-                            }}
-                            style={{ display: "block", width: "100%", textAlign: "left", padding: "5px 8px", borderRadius: 5, marginBottom: 3, cursor: "pointer", fontFamily: "inherit", fontSize: 11, border: `0.5px solid ${tagged ? C.pri[400] : C.n[200]}`, background: tagged ? C.pri[50] : C.n[0], color: C.n[800] }}
-                          >
-                            {tagged ? "✓ " : ""}{r}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
                 <div style={{ display: "flex", gap: 6, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
                   {reportImages.map((e2, i) => {
                     const k2 = e2.replace(":[image attached]", "");
