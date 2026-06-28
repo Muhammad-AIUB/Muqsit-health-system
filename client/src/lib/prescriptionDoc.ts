@@ -187,11 +187,11 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .block-title { font-size: 11px; font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
   ul { margin: 0; padding-left: 16px; }
   li { font-size: 12.5px; line-height: 1.5; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 7px 6px; border-bottom: 0.5px solid #eee; vertical-align: top; }
-  .rx-no { width: 24px; color: #999; font-size: 12px; }
-  .rx-drug { font-weight: 600; font-size: 13px; }
-  .rx-mid { font-size: 12.5px; color: #333; white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { padding: 7px 6px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+  .rx-no { width: 22px; color: #999; font-size: 12px; }
+  .rx-drug { width: 25%; font-weight: 600; font-size: 13px; }
+  .rx-mid { width: 25%; font-size: 12.5px; color: #333; white-space: normal; }
   .rx-note { font-size: 12.5px; color: #444; font-style: italic; }
   .followup { margin-top: 18px; font-size: 12.5px; }
   .followup b { color: #0f6e56; }
