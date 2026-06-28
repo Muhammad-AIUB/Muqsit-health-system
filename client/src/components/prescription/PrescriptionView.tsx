@@ -49,7 +49,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         { label: "Chief complaints", items: m.chiefComplaints },
         { label: "Previous complaints", items: m.previousComplaints.map(formatPc) },
         { label: "History", items: m.history },
-        { label: "Investigation findings", items: m.investigation },
+        { label: "Investigation findings", items: m.investigation.filter((s) => !s.includes("[image attached]") && !/^\d{2}\/\d{2}\/\d{4}:Report \d+(:|$)/i.test(s)) },
         { label: "Drug history", items: m.drugHistory },
         { label: "On examination", items: m.onExamination },
         { label: "Note / plan", items: m.note },
