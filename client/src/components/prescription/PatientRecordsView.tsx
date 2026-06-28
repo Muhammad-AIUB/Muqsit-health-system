@@ -154,6 +154,23 @@ export default function PatientRecordsView() {
 
       {/* Investigation reports summary */}
       <div style={{ marginTop: 8 }}>
+        <style>{`
+          .inv-row{display:flex;align-items:center;gap:10px;border-radius:7px;padding:3px 7px;margin:0 -7px;transition:background .12s ease}
+          .inv-row.editing:hover{background:${C.danger[50]}}
+          .inv-del{width:25px;height:25px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+            border:1px solid ${C.danger[100]};background:${C.danger[50]};color:${C.danger[400]};font-size:15px;line-height:1;
+            cursor:pointer;transition:all .12s ease;flex-shrink:0;padding:0;font-family:inherit}
+          .inv-del:hover{background:${C.danger[400]};border-color:${C.danger[400]};color:#fff;transform:translateY(-1px);box-shadow:0 2px 7px ${C.danger[100]}}
+          .inv-del:active{transform:translateY(0)}
+          .inv-del:focus-visible{outline:2px solid ${C.danger[400]};outline-offset:2px}
+          .inv-undo{animation:invUndoIn .18s ease}
+          @keyframes invUndoIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+          .inv-undo-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid ${C.pri[400]};background:${C.n[0]};
+            color:${C.pri[600]};font-weight:600;font-size:12.5px;padding:6px 15px;border-radius:999px;cursor:pointer;
+            transition:all .12s ease;font-family:inherit}
+          .inv-undo-btn:hover{background:${C.pri[50]}}
+          .inv-undo-btn:focus-visible{outline:2px solid ${C.pri[400]};outline-offset:2px}
+        `}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>Investigation reports summary</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -175,10 +192,10 @@ export default function PatientRecordsView() {
                 {g.date && <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{g.date}</div>}
                 <div style={{ paddingLeft: 16 }}>
                   {g.items.map((f, idx) => (
-                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
+                    <div key={idx} className={`inv-row${editingSummary ? " editing" : ""}`} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
                       <span style={{ flex: 1 }}><span style={{ color: C.n[500] }}>{f.category} · </span>{f.test}: <b style={{ fontWeight: 600 }}>{f.value}</b></span>
                       {editingSummary && (
-                        <button onClick={() => removeFinding(f)} title="Delete from history" style={{ background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, color: C.danger[400], cursor: "pointer", fontSize: 13, lineHeight: 1, width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
+                        <button className="inv-del" onClick={() => removeFinding(f)} title="Delete from history" aria-label="Delete finding">×</button>
                       )}
                     </div>
                   ))}
@@ -188,9 +205,12 @@ export default function PatientRecordsView() {
           </div>
         )}
         {undo && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 8, fontSize: 12.5, color: C.n[700], background: C.n[50], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px" }}>
-            <span>Removed <b style={{ fontWeight: 600 }}>{undo.label}</b></span>
-            <button onClick={undoRemove} style={{ background: "none", border: "none", color: C.pri[600], fontWeight: 600, cursor: "pointer", fontSize: 12.5, fontFamily: font }}>↶ Undo</button>
+          <div className="inv-undo" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: "0 2px 8px rgba(15,23,32,0.06)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
+              <span>Removed <b style={{ fontWeight: 600, color: C.n[900] }}>{undo.label}</b></span>
+            </span>
+            <button className="inv-undo-btn" onClick={undoRemove}>↺ Undo</button>
           </div>
         )}
       </div>
