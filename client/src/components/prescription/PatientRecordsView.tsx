@@ -25,6 +25,9 @@ export default function PatientRecordsView() {
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
   } = useMuqsit();
   const [showDownload, setShowDownload] = useState(false);
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [undo, setUndo] = useState<{ prev: InvFinding[]; label: string } | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
   const [busyRx, setBusyRx] = useState(false);
@@ -94,10 +97,24 @@ export default function PatientRecordsView() {
   );
   const summary = useMemo(() => groupByDate(allFindings), [allFindings]);
 
-  const removeFinding = (f: InvFinding) =>
-    saveInvestigationSummary((investigationSummary ?? []).filter(
+  // Delete a finding from the patient's saved history (edit mode only), keeping
+  // a one-step undo for ~8s so an accidental delete can be reversed.
+  const removeFinding = (f: InvFinding) => {
+    const prev = investigationSummary ?? [];
+    saveInvestigationSummary(prev.filter(
       (x) => !(x.date === f.date && x.test === f.test && x.value === f.value),
     ));
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo({ prev, label: `${f.test}: ${f.value}` });
+    undoTimer.current = setTimeout(() => setUndo(null), 8000);
+  };
+  const undoRemove = () => {
+    if (!undo) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    saveInvestigationSummary(undo.prev);
+    setUndo(null);
+  };
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
   const openViewer = (urls: string[], index: number) => setViewer({ urls, index });
 
@@ -140,6 +157,11 @@ export default function PatientRecordsView() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>Investigation reports summary</div>
           <div style={{ display: "flex", gap: 8 }}>
+            {summary.length > 0 && (
+              editingSummary
+                ? <button onClick={() => setEditingSummary(false)} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>Done</button>
+                : <button onClick={() => setEditingSummary(true)} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>✎ Edit</button>
+            )}
             <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: currentPatientId ? C.pri[400] : C.n[200], color: currentPatientId ? "#fff" : C.n[500], fontSize: 12, fontWeight: 500, cursor: currentPatientId ? "pointer" : "not-allowed", fontFamily: font }}>+ Add</button>
             <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ padding: "6px 14px", borderRadius: 7, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: allFindings.length ? C.pri[600] : C.n[400], fontSize: 12, fontWeight: 500, cursor: allFindings.length ? "pointer" : "not-allowed", fontFamily: font }}>⬇ Download</button>
           </div>
@@ -155,12 +177,20 @@ export default function PatientRecordsView() {
                   {g.items.map((f, idx) => (
                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
                       <span style={{ flex: 1 }}><span style={{ color: C.n[500] }}>{f.category} · </span>{f.test}: <b style={{ fontWeight: 600 }}>{f.value}</b></span>
-                      <button onClick={() => removeFinding(f)} title="Remove from history" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 13, padding: "0 4px" }}>×</button>
+                      {editingSummary && (
+                        <button onClick={() => removeFinding(f)} title="Delete from history" style={{ background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, color: C.danger[400], cursor: "pointer", fontSize: 13, lineHeight: 1, width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {undo && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 8, fontSize: 12.5, color: C.n[700], background: C.n[50], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px" }}>
+            <span>Removed <b style={{ fontWeight: 600 }}>{undo.label}</b></span>
+            <button onClick={undoRemove} style={{ background: "none", border: "none", color: C.pri[600], fontWeight: 600, cursor: "pointer", fontSize: 12.5, fontFamily: font }}>↶ Undo</button>
           </div>
         )}
       </div>
