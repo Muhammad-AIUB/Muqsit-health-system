@@ -19,6 +19,8 @@ import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, 
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
+import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
+import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import type {
   Page,
@@ -147,6 +149,7 @@ function useMuqsitStore() {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   // Persistent per-patient investigation history (records-page summary).
   const [investigationSummary, setInvestigationSummary] = useState<InvFinding[]>([]);
+  const [onExaminationSummary, setOnExaminationSummary] = useState<OeFinding[]>([]);
   const [showFamilyForm, setShowFamilyForm] = useState(false);
   const [familyRelation, setFamilyRelation] = useState("");
   const [familyForm, setFamilyForm] = useState<FamilyForm>({ name: "", mobile: "", nid: "", sex: "" });
@@ -265,6 +268,13 @@ function useMuqsitStore() {
           setInvestigationSummary(merged);
           void patientsApi.update(pid, { investigationSummary: merged }).catch(() => {});
         }
+        // Same for on-examination: keep a dated record of this visit's findings.
+        const oeAdds = oeEntriesForDate(onExamination, isoToDdmmyyyy(ptDate));
+        if (oeAdds.length) {
+          const mergedOe = mergeOe(onExaminationSummary, oeAdds);
+          setOnExaminationSummary(mergedOe);
+          void patientsApi.update(pid, { onExaminationSummary: mergedOe }).catch(() => {});
+        }
       }
       // "Save & print" = complete: clear the patient's incomplete draft and flag
       // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
@@ -290,7 +300,7 @@ function useMuqsitStore() {
   useEffect(() => {
     if (!currentPatientId) {
       setRxImages([]); setReportImages([]);
-      setHmDrugs(new Set()); setFamilyMembers([]); setInvestigationSummary([]);
+      setHmDrugs(new Set()); setFamilyMembers([]); setInvestigationSummary([]); setOnExaminationSummary([]);
       return;
     }
     let cancelled = false;
@@ -303,6 +313,7 @@ function useMuqsitStore() {
           setHmDrugs(new Set(p.hmSelectedDrugs ?? []));
           setFamilyMembers((p.familyMembers as FamilyMember[]) ?? []);
           setInvestigationSummary((p.investigationSummary as InvFinding[]) ?? []);
+          setOnExaminationSummary((p.onExaminationSummary as OeFinding[]) ?? []);
         }
       })
       .catch(() => {});
@@ -447,6 +458,12 @@ function useMuqsitStore() {
   const saveInvestigationSummary = useCallback((next: InvFinding[]) => {
     setInvestigationSummary(next);
     if (currentPatientId) void patientsApi.update(currentPatientId, { investigationSummary: next }).catch(() => {});
+  }, [currentPatientId]);
+
+  // Persist the patient's on-examination history (records-page summary).
+  const saveOnExaminationSummary = useCallback((next: OeFinding[]) => {
+    setOnExaminationSummary(next);
+    if (currentPatientId) void patientsApi.update(currentPatientId, { onExaminationSummary: next }).catch(() => {});
   }, [currentPatientId]);
 
   // "Add" on the records page opens the investigation popup in SUMMARY mode:
@@ -682,6 +699,7 @@ function useMuqsitStore() {
     rxImages, setRxImages, reportImages, setReportImages, saveRxImages, saveReportImages,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,
+    onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptInfo, setPtInfo, currentPatientId, setCurrentPatientId,
     eventsPatient, setEventsPatient, eventMsg, setEventMsg, rcQuery, setRcQuery,

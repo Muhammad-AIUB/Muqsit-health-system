@@ -324,6 +324,9 @@ model Patient {
   // Persistent investigation history — array of { date, category, test, value }.
   // Merged from saved prescriptions and the records-page "Add" button.
   investigationSummary Json  @default("[]")
+  // Persistent on-examination history — array of { date, text }. Merged from
+  // saved prescriptions; shown on the records page grouped by date.
+  onExaminationSummary Json  @default("[]")
   // Saved-but-not-printed prescription editor snapshot. Set while the doctor is
   // mid-prescription (before "Save & print"); restored when the patient is
   // looked up again; cleared once a prescription is completed. Null ⇒ nothing

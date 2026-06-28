@@ -16,6 +16,7 @@ import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
 import { parseInvestigationEntries, mergeFindings, groupByDate, type InvFinding } from "@/lib/investigationSummary";
+import { groupOeByDate, type OeFinding } from "@/lib/onExaminationSummary";
 import InvestigationDownload from "./InvestigationDownload";
 
 export default function PatientRecordsView() {
@@ -23,10 +24,13 @@ export default function PatientRecordsView() {
     currentPatientId,
     rxImages, saveRxImages, reportImages, saveReportImages,
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
+    onExaminationSummary, saveOnExaminationSummary,
   } = useMuqsit();
   const [showDownload, setShowDownload] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [undo, setUndo] = useState<{ prev: InvFinding[]; label: string } | null>(null);
+  const [oeEditing, setOeEditing] = useState(false);
+  const [oeUndo, setOeUndo] = useState<{ prev: OeFinding[]; label: string } | null>(null);
 
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
   const [busyRx, setBusyRx] = useState(false);
@@ -112,6 +116,19 @@ export default function PatientRecordsView() {
     setUndo(null);
   };
 
+  // ── On-examination history: dated findings recorded from saved visits. ──
+  const oeGroups = useMemo(() => groupOeByDate(onExaminationSummary ?? []), [onExaminationSummary]);
+  const removeOe = (f: OeFinding) => {
+    const prev = onExaminationSummary ?? [];
+    saveOnExaminationSummary(prev.filter((x) => !(x.date === f.date && x.text === f.text)));
+    setOeUndo({ prev, label: f.text });
+  };
+  const undoOe = () => {
+    if (!oeUndo) return;
+    saveOnExaminationSummary(oeUndo.prev);
+    setOeUndo(null);
+  };
+
   const openViewer = (urls: string[], index: number) => setViewer({ urls, index });
 
   return (
@@ -147,6 +164,51 @@ export default function PatientRecordsView() {
         orientation="portrait"
         emptyText="No report images yet. Upload photos of the patient's lab/investigation reports."
       />
+
+      {/* On examination — dated history of vitals/findings written per visit */}
+      <div style={{ marginTop: 8, marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>On examination</div>
+          {oeGroups.length > 0 && (
+            oeEditing
+              ? <button onClick={() => { setOeEditing(false); setOeUndo(null); }} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>Done</button>
+              : <button onClick={() => setOeEditing(true)} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>✎ Edit</button>
+          )}
+        </div>
+        {oeGroups.length === 0 ? (
+          <div style={{ fontSize: 13, color: C.n[500] }}>No on-examination findings yet. They are recorded here with the visit date each time you fill <b>On examination</b> in a prescription and save.</div>
+        ) : (
+          <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
+            {oeGroups.map((g, gi) => (
+              <div key={gi} style={{ marginBottom: gi < oeGroups.length - 1 ? 12 : 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{g.date}</div>
+                <div style={{ paddingLeft: 16 }}>
+                  {g.items.map((f, idx) => (
+                    <div key={idx} className={`inv-row${oeEditing ? " editing" : ""}`} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
+                      <span style={{ flex: 1 }}>{f.text}</span>
+                      {oeEditing && (
+                        <button className="inv-del" onClick={() => removeOe(f)} title="Delete from history" aria-label="Delete finding">×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {oeUndo && (
+          <div className="inv-undo" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: "0 2px 8px rgba(15,23,32,0.06)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
+              <span>Removed <b style={{ fontWeight: 600, color: C.n[900] }}>{oeUndo.label}</b></span>
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <button className="inv-undo-btn" onClick={undoOe}>↺ Undo</button>
+              <button onClick={() => setOeUndo(null)} title="Dismiss" aria-label="Dismiss" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 17, lineHeight: 1, padding: "2px 5px", borderRadius: 6 }}>×</button>
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Investigation reports summary */}
       <div style={{ marginTop: 8 }}>

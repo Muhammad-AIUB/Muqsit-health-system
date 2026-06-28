@@ -50,6 +50,8 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsOptional() @IsArray() familyMembers?: Record<string, unknown>[];
   // Persistent investigation history — array of { date, category, test, value }.
   @IsOptional() @IsArray() investigationSummary?: Record<string, unknown>[];
+  // Persistent on-examination history — array of { date, text }.
+  @IsOptional() @IsArray() onExaminationSummary?: Record<string, unknown>[];
   // Saved-but-not-printed prescription editor snapshot (null clears it).
   @IsOptional() incompleteRx?: Record<string, unknown> | null;
 }
