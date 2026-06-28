@@ -175,24 +175,6 @@ export default function InvestigationPopup() {
     return url;
   };
 
-  // Tag the currently-open report image to a test (the date + test name) on
-  // data entry. It's a COPY — the report stays in the pool and the viewer stays
-  // exactly where it is, so several tests can be read off the same report.
-  const tagOpenImage = (testName: string) => {
-    const pool = investigation.filter(isPoolEntry);
-    if (pool.length === 0) return;
-    const idx = Math.min(reportIdx, pool.length - 1);
-    const poolKey = pool[idx].replace(":[image attached]", "");
-    const dataUrl = invImages[poolKey];
-    if (!dataUrl) return;
-    const targetKey = formatCalDate(calDate) + ":" + testName;
-    setInvImages((prev) => ({ ...prev, [targetKey]: dataUrl }));
-    setInvestigation((prev) => {
-      const te = targetKey + ":[image attached]";
-      return prev.indexOf(te) === -1 ? prev.concat([te]) : prev;
-    });
-  };
-
   // ── Shared result-entry helpers (used by single-test add, calc, normal and
   // the bulk auto-save) — one place for the form→findings string protocol. ──
 
@@ -620,22 +602,7 @@ export default function InvestigationPopup() {
                       padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.pri[100]}`,
                       background: C.pri[50], color: C.pri[600], fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                     }}>Normal</button>
-                    {reportImages.length > 0 && showReports ? (() => {
-                      // A report image is open on the left → let the doctor tag
-                      // THAT image to this test (replaces the old auto-tag).
-                      const openPoolKey = reportImages[repIdx]?.replace(":[image attached]", "");
-                      const openImg = openPoolKey ? invImages[openPoolKey] : undefined;
-                      const myKey = formatCalDate(calDate) + ":" + test.name;
-                      const tagged = !!openImg && invImages[myKey] === openImg;
-                      return (
-                        <button onClick={() => tagOpenImage(test.name)} title="Tag the report image shown on the left to this test" style={{
-                          padding: "4px 12px", borderRadius: 6,
-                          border: `0.5px solid ${tagged ? C.pri[400] : C.info[100]}`,
-                          background: tagged ? C.pri[50] : C.info[50], color: tagged ? C.pri[600] : C.info[800],
-                          fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                        }}>{tagged ? "✓ Image tagged" : "⬅ Left image corresponds to this report"}</button>
-                      );
-                    })() : (
+                    {(
                       <label style={{
                         padding: "4px 12px", borderRadius: 6, border: "none",
                         background: C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
