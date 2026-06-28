@@ -355,7 +355,9 @@ export default function InvestigationPopup() {
                     style={{ position: "absolute", inset: 0, overflow: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", cursor: "grab", userSelect: "none" }}
                   >
                     {invImages[imgKey] && (
-                      <img src={invImages[imgKey]} alt={name} draggable={false} style={{ width: `${zoom * 100}%`, maxWidth: "none", height: "auto", display: "block", flexShrink: 0, transform: `rotate(${rotation}deg)`, transition: "width 0.12s, transform 0.15s" }} />
+                      <img src={invImages[imgKey]} alt={name} draggable
+                        onDragStart={(e) => { e.dataTransfer.setData("text/mhs-report-image", invImages[imgKey] || ""); e.dataTransfer.effectAllowed = "copy"; }}
+                        style={{ width: `${zoom * 100}%`, maxWidth: "none", height: "auto", display: "block", flexShrink: 0, transform: `rotate(${rotation}deg)`, transition: "width 0.12s, transform 0.15s", cursor: "grab" }} />
                     )}
                   </div>
                   {/* Zoom + rotate controls */}
