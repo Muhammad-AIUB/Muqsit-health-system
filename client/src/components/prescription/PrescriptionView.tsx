@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
+import { uploadImage } from "@/lib/api";
 import { usePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
 import { useActivityFeed, useActivityLog } from "@/hooks/useActivity";
 import { formatActivityTime } from "@/lib/activityFormat";
@@ -14,6 +15,32 @@ import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
 import PatientChat from "./PatientChat";
+
+// Render the printable prescription HTML to a PNG File via an off-screen iframe
+// (isolates the print stylesheet from the app). Returns null if it can't render.
+async function capturePrescriptionImage(html: string): Promise<File | null> {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:900px;height:1300px;border:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(iframe);
+  try {
+    const doc = iframe.contentDocument;
+    if (!doc) return null;
+    doc.open(); doc.write(html); doc.close();
+    await new Promise((r) => setTimeout(r, 350));            // let layout settle
+    if (doc.fonts) { try { await doc.fonts.ready; } catch { /* ignore */ } }
+    await Promise.all(Array.from(doc.images).map((img) =>    // wait for the logo
+      img.complete ? null : new Promise((res) => { img.onload = img.onerror = () => res(null); })));
+    const sheet = (doc.querySelector(".sheet") as HTMLElement) ?? doc.body;
+    const html2canvas = (await import("html2canvas")).default;
+    const canvas = await html2canvas(sheet, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false, windowWidth: 900, windowHeight: Math.max(1300, sheet.scrollHeight) });
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/png", 0.95));
+    if (!blob) return null;
+    return new File([blob], `prescription-${Date.now()}.png`, { type: "image/png" });
+  } finally {
+    document.body.removeChild(iframe);
+  }
+}
 
 export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   const m = useMuqsit();
@@ -27,19 +54,14 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   // Assistants need the "Save and print" grant to save a prescription.
   const canSave = m.can("rx.savePrint") && gateOpen;
 
-  // Save, then record it on the activity feed (only if the save succeeded).
-  const handleSave = async () => {
-    const ok = await savePrescription();
-    if (ok) logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
-  };
-
-  const previewPdf = () => {
+  // Build the printable prescription HTML from the current editor state.
+  const buildHtml = () => {
     const followUp =
       m.followUpNum && Number(m.followUpNum) > 0
         ? `${m.followUpNum} ${m.followUpUnit}${Number(m.followUpNum) > 1 ? "s" : ""}${m.followUpMandatory ? " (mandatory)" : ""}`
         : "";
 
-    const html = buildPrescriptionHtml({
+    return buildPrescriptionHtml({
       doctorName: user?.displayName?.trim() || user?.name || "Doctor",
       patient: {
         name: m.ptName, age: m.ptAge, gender: m.ptGender,
@@ -74,13 +96,31 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         footerHeight: layout.footerHeight,
       } : undefined,
     });
+  };
 
+  // Save, record on the activity feed, then snapshot the printed prescription as
+  // an image into the patient's "All prescriptions" gallery. The snapshot is
+  // best-effort — a capture/upload failure never undoes a successful save.
+  const handleSave = async () => {
+    const ok = await savePrescription();
+    if (!ok) return;
+    logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
+    try {
+      const file = await capturePrescriptionImage(buildHtml());
+      if (file) {
+        const url = await uploadImage(file);
+        m.saveRxImages([...m.rxImages, url]);
+      }
+    } catch { /* ignore — image snapshot is optional */ }
+  };
+
+  const previewPdf = () => {
     const w = window.open("", "_blank", "width=860,height=1000");
     if (!w) {
       window.alert("Please allow pop-ups to preview the prescription.");
       return;
     }
-    w.document.write(html);
+    w.document.write(buildHtml());
     w.document.close();
   };
 
