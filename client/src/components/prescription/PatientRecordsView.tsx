@@ -182,7 +182,7 @@ export default function PatientRecordsView() {
         {summary.length === 0 ? (
           <div style={{ fontSize: 13, color: C.n[500] }}>No investigation findings entered yet. Use <b>+ Add</b> to record results.</div>
         ) : (
-          <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px" }}>
+          <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
             {summary.map((g, gi) => (
               <div key={gi} style={{ marginBottom: gi < summary.length - 1 ? 12 : 0 }}>
                 {g.date && <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{g.date}</div>}

@@ -9,12 +9,13 @@ import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/l
 const pad = (n: number) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
 const isoToMs = (iso: string) => (iso ? new Date(iso + "T00:00:00").getTime() : null);
+const dmyMs = (d: string) => { const [dd, mm, yy] = d.split("/").map(Number); return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0; };
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // Download the patient's investigation history as PDF or Excel, filtered by date
 // window + category, grouped by date or category (3.docx records request).
 export default function InvestigationDownload({ findings, onClose }: { findings: InvFinding[]; onClose: () => void }) {
-  const { ptName, ptAge, ptPhone, ptAddress, ptInfo } = useMuqsit();
+  const { ptName, ptAge, ptGender, ptWeight, ptPhone, ptAddress, ptInfo } = useMuqsit();
   const [dateMode, setDateMode] = useState<"all" | "6m" | "12m" | "custom">("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -42,11 +43,6 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
     ["NID", ptInfo.nid || "—"],
     ["Address", ptAddress || "—"],
   ];
-
-  const ordered = () =>
-    groupMode === "date"
-      ? groupByDate(filtered).flatMap((g) => g.items)
-      : groupByCategory(filtered).flatMap((g) => g.items);
 
   const downloadPdf = () => {
     let body = "";
@@ -91,16 +87,35 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
     w.document.close();
   };
 
+  // Excel in the clinic's own layout: a demographics header block on top, then
+  // an investigations matrix — one row per test, dates running across columns,
+  // each cell the value for that test on that date (blank if none).
   const downloadXlsx = () => {
+    const rows = filtered;
+    const dateList = Array.from(new Set(rows.map((f) => f.date))).sort((a, b) => dmyMs(a) - dmyMs(b));
+    const testList: string[] = [];
+    const cell = new Map<string, string[]>(); // `${test}||${date}` -> values
+    for (const f of rows) {
+      if (!testList.includes(f.test)) testList.push(f.test);
+      const k = `${f.test}||${f.date}`;
+      cell.set(k, [...(cell.get(k) ?? []), f.value]);
+    }
+
     const aoa: (string | number)[][] = [];
-    aoa.push(["Investigation reports summary"]);
-    aoa.push(["Printed", todayStr()]);
-    demo.forEach(([k, v]) => aoa.push([k, v]));
+    // Demographics block — header row + value row (matches my-format.xlsx).
+    const DEMO = ["Name", "Age", "Sex", "income", "domicile", "religion", "occupation", "weight", "height", "education", "DM", "HTN", "DL", "BA"];
+    aoa.push(DEMO);
+    aoa.push([ptName || "", ptAge || "", ptGender || "", "", "", "", "", ptWeight || "", "", "", "", "", "", ""]);
     aoa.push([]);
-    aoa.push(["Date", "Category", "Test", "Value"]);
-    ordered().forEach((f) => aoa.push([f.date, f.category, f.test, f.value]));
+    aoa.push([]);
+    // Investigations matrix — tests down, dates across.
+    aoa.push(["", ...dateList]);
+    for (const t of testList) {
+      aoa.push([t, ...dateList.map((d) => (cell.get(`${t}||${d}`) ?? []).join(", "))]);
+    }
+
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 26 }, { wch: 30 }];
+    ws["!cols"] = [{ wch: 22 }, ...dateList.map(() => ({ wch: 13 }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Investigations");
     const safe = (ptName || "patient").replace(/[^a-z0-9]+/gi, "_");
