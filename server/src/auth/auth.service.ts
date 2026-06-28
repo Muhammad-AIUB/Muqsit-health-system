@@ -37,6 +37,12 @@ export interface SessionResult {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  // Grace window during which a just-rotated (already-revoked) refresh token is
+  // accepted as a concurrent-refresh race rather than treated as theft. Covers
+  // client + admin + multi-tab firing /auth/refresh together. Short on purpose
+  // so a genuine stolen-token replay is still caught once the window passes.
+  private static readonly ROTATION_GRACE_MS = 30_000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
@@ -226,6 +232,33 @@ export class AuthService {
     if (!record) throw new UnauthorizedException('Invalid refresh token');
 
     if (record.revokedAt) {
+      // A revoked token was presented. Usually that means theft — but a very
+      // common BENIGN case is a concurrent-rotation race: the client app and
+      // the admin app (and multiple tabs) share ONE refresh cookie because
+      // they all call the same API host. When two of them refresh at almost
+      // the same moment, the first rotates the token and the second arrives a
+      // beat later still holding the just-revoked one. Nuking the whole family
+      // here logs every device out on an ordinary reload.
+      //
+      // So: if this token was revoked only moments ago AND the family still
+      // has a live successor (i.e. it was rotated, not logged out / evicted),
+      // treat it as that harmless race and issue a fresh token instead of
+      // killing the session. A genuine replay long after rotation — or any
+      // replay against an already dead family (logout / admin evict / prior
+      // theft kill) — still falls through to the family-revoke below.
+      const sinceRevokedMs = Date.now() - record.revokedAt.getTime();
+      if (sinceRevokedMs <= AuthService.ROTATION_GRACE_MS && record.expiresAt > new Date()) {
+        const liveSuccessor = await this.prisma.refreshToken.findFirst({
+          where: { family: record.family, revokedAt: null, expiresAt: { gt: new Date() } },
+          select: { id: true },
+        });
+        if (liveSuccessor) {
+          const persistent = this.wasPersistent(record.createdAt, record.expiresAt);
+          const tokens = await this.startSession(record.user, record.family, meta, persistent);
+          return { tokens, user: this.publicUser(record.user) };
+        }
+      }
+
       // Reuse of a revoked token → kill the whole family.
       await this.prisma.refreshToken.updateMany({
         where: { family: record.family, revokedAt: null },

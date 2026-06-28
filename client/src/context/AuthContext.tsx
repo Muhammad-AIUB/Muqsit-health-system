@@ -34,22 +34,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 200 if the cookie is valid, and apiFetch will silently refresh once
   // before giving up.
   useEffect(() => {
-    authApi
-      .me()
-      .then(setUser)
-      .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) {
-          // Definitive: no valid session (and the silent refresh inside
-          // apiFetch also failed). Treat as signed out.
-          setUser(null);
-        } else {
-          // Transient — server down / restarting in dev / CORS. Don't wipe a
-          // session over a blip; just log it. (On first load there's no user
-          // yet, so this simply leaves us logged out until the server is back.)
-          console.error("Failed to restore session (transient)", e);
+    let cancelled = false;
+    (async () => {
+      // Up to 5 tries with backoff. A 401 is the ONLY definitive "signed out"
+      // signal (apiFetch already tried a silent refresh). Anything else —
+      // server restarting during dev HMR, a brief network blip, CORS hiccup —
+      // is transient: retry instead of bouncing the user to /login. The app
+      // shows its loading state while !ready, so the user just sees a short
+      // delay rather than a login flash on reload.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const u = await authApi.me();
+          if (!cancelled) { setUser(u); setReady(true); }
+          return;
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 401) {
+            if (!cancelled) { setUser(null); setReady(true); }
+            return;
+          }
+          if (attempt < 4) await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
         }
-      })
-      .finally(() => setReady(true));
+      }
+      if (!cancelled) {
+        console.error("Failed to restore session after retries (transient)");
+        setReady(true);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // When the API layer detects an unrecoverable 401 (refresh also failed),
