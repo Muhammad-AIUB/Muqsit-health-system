@@ -49,7 +49,7 @@ const cellArea: CSSProperties = {
   fontSize: 13.5, color: C.n[900], fontFamily: font,
   padding: "7px 4px", lineHeight: 1.35, resize: "none", overflow: "hidden",
   textAlign: "center", display: "block", boxSizing: "border-box",
-  minHeight: ROW_H - 8, flexShrink: 0,
+  minHeight: ROW_H - 8,
 };
 
 function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, refCb, style }: {
@@ -266,9 +266,12 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                 )}
               </div>
 
-              {/* Dose + food + duration — medicine rows */}
+              {/* Dose + food + duration share a flexible region: each cell's
+                  width follows its content length, so a long value borrows room
+                  from its emptier neighbours (and vice versa) and stays on as
+                  few lines as possible instead of stacking in a narrow column. */}
               {row.isMedicine && (
-                <>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "1 1 340px", minWidth: 210 }}>
                   <AutoCell
                     refCb={(el) => { doseRefs.current[idx] = el; }}
                     value={row.dose}
@@ -276,7 +279,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                     onBlur={() => updateRow(idx, { dose: parseDose(row.dose) })}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: parseDose(row.dose) }); foodRefs.current[idx]?.focus(); } }}
                     placeholder="dose"
-                    style={{ ...cellArea, width: 88 }}
+                    style={{ ...cellArea, flex: `${Math.max(10, row.dose.length)} 1 0`, minWidth: 52 }}
                   />
                   <AutoCell
                     refCb={(el) => { foodRefs.current[idx] = el; }}
@@ -286,7 +289,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: parseFood(row.food) }); durRefs.current[idx]?.focus(); } }}
                     placeholder="food"
                     title={FOOD_HINT}
-                    style={{ ...cellArea, width: 132 }}
+                    style={{ ...cellArea, flex: `${Math.max(10, row.food.length)} 1 0`, minWidth: 52 }}
                   />
                   <AutoCell
                     refCb={(el) => { durRefs.current[idx] = el; }}
@@ -295,9 +298,9 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                     onBlur={() => updateRow(idx, { duration: parseDuration(row.duration) })}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: parseDuration(row.duration) }); drugRefs.current[idx + 1]?.focus(); } }}
                     placeholder="duration"
-                    style={{ ...cellArea, width: 96 }}
+                    style={{ ...cellArea, flex: `${Math.max(10, row.duration.length)} 1 0`, minWidth: 52 }}
                   />
-                </>
+                </div>
               )}
 
               {editMode && (started || isCont) && (
