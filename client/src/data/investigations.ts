@@ -203,7 +203,7 @@ export const INV_CATS: InvCat[] = [
     {name:"Echo",fields:[{l:"Type",t:"dd",opts:["2D","3D","4D"]},{l:"EF",t:"num",u1:"%"},{l:"Report",t:"text"}]},
     {name:"Histopathology",fields:[{l:"Source",t:"text"},{l:"Report",t:"text"}]},
     {name:"Endoscopy",fields:[{l:"Report",t:"text"}]},
-    {name:"FibroScan",fields:[{l:"kPa",t:"num",u1:"kPa"},{l:"CAP",t:"num",u1:"dB/m"}]},
+    {name:"FibroScan",fields:[{l:"CAP",t:"num",u1:"dB/m"},{l:"kPa",t:"num",u1:"kPa"}]},
     {name:"Color Doppler USG",fields:[{l:"Region",t:"text"},{l:"Report",t:"text"}]},
     {name:"Mammography",fields:[{l:"Side",t:"dd",opts:["Right","Left","Both"]},{l:"BIRADS",t:"dd",opts:["0","1","2","3","4","5","6"]},{l:"Report",t:"text"}]},
     {name:"DEXA Scan",fields:[{l:"Site",t:"text"},{l:"T-score",t:"num",u1:""},{l:"Z-score",t:"num",u1:""}]},
