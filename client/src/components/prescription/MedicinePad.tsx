@@ -67,7 +67,10 @@ function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, refC
     const el = ref.current;
     if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; }
   };
-  useEffect(resize, [value]);
+  // Re-measure on every render: the cell's width can change when a sibling
+  // (dose/food/duration) gains or loses text and the flexible widths rebalance,
+  // which changes how many lines this value wraps to — so height must follow.
+  useEffect(resize);
   return (
     <textarea
       ref={(el) => { ref.current = el; refCb(el); }}
