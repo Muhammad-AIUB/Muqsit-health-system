@@ -71,8 +71,11 @@ export default function IpdView() {
       <button onClick={() => setShowAdd((s) => !s)} style={{ position: "absolute", top: 0, right: 0, padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font, zIndex: 1 }}>
         {showAdd ? "Close" : "+ Admit patient"}
       </button>
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 500 }}>IPD ward management</div>
+        <button disabled title="Nursing Genie — coming soon" style={{ padding: "6px 14px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[100], color: C.n[400], fontSize: 12.5, fontWeight: 500, cursor: "not-allowed", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          🧞 Nursing Genie <span style={{ fontSize: 9, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
+        </button>
       </div>
 
       {showAdd && (
