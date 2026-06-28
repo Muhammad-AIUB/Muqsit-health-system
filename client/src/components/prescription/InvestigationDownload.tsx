@@ -53,7 +53,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
     if (groupMode === "date") {
       body = groupByDate(filtered).map((g) =>
         `<div class="grp"><div class="gh">${esc(g.date)}</div>${g.items.map((f) =>
-          `<div class="row"><span class="t">${esc(f.category)} &middot; ${esc(f.test)}</span><span class="v">${esc(f.value)}</span></div>`).join("")}</div>`).join("");
+          `<div class="row"><span class="t">${esc(f.test)}</span><span class="v">${esc(f.value)}</span></div>`).join("")}</div>`).join("");
     } else {
       body = groupByCategory(filtered).map((g) =>
         `<div class="grp"><div class="gh">${esc(g.category)}</div>${g.items.map((f) =>

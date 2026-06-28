@@ -189,7 +189,7 @@ export default function PatientRecordsView() {
                 <div style={{ paddingLeft: 16 }}>
                   {g.items.map((f, idx) => (
                     <div key={idx} className={`inv-row${editingSummary ? " editing" : ""}`} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
-                      <span style={{ flex: 1 }}><span style={{ color: C.n[500] }}>{f.category} · </span>{f.test}: <b style={{ fontWeight: 600 }}>{f.value}</b></span>
+                      <span style={{ flex: 1 }}>{f.test}: <b style={{ fontWeight: 600 }}>{f.value}</b></span>
                       {editingSummary && (
                         <button className="inv-del" onClick={() => removeFinding(f)} title="Delete from history" aria-label="Delete finding">×</button>
                       )}
