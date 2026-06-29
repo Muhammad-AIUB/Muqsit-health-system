@@ -6,6 +6,7 @@ import { useAdmitIpd, useIpdList, useSetIpdStatus } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
+import { useMuqsit } from "@/context/MuqsitContext";
 
 const STATUSES = ["Stable", "Observation", "Critical", "Discharge"] as const;
 const statusColor = (s: string) =>
@@ -18,6 +19,7 @@ export default function IpdView() {
   const { data: admissions = [], isLoading, error } = useIpdList();
   const admit = useAdmitIpd();
   const setStatus = useSetIpdStatus();
+  const { loadPatientById, setActiveTab } = useMuqsit();
 
   // Detail view: clicking a patient opens the full admission sheet.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -45,6 +47,21 @@ export default function IpdView() {
   const q = search.trim();
   const filtered = q ? admissions.filter((a) => (a.mobile ?? "").includes(q)) : admissions;
 
+  // The patient the three tabs act on: whoever the search narrows to (a single
+  // admitted patient with a linked record). Load them, then open the same view.
+  const target = filtered.length === 1 ? filtered[0] : null;
+  const targetPid = target?.patientId;
+  const openPatientTab = async (tab: "pt-settings" | "idsp" | "pt-records") => {
+    if (!targetPid) return;
+    await loadPatientById(targetPid);
+    setActiveTab(tab);
+  };
+  const tabsTitle = targetPid
+    ? `Open ${target?.name}`
+    : filtered.length > 1
+      ? "Search a patient's mobile number to pick one"
+      : "No linked patient record";
+
   const mobileInvalid = mobile.length > 0 && mobile.length !== 11;
 
   const submitAdmit = async () => {
@@ -65,6 +82,7 @@ export default function IpdView() {
   };
 
   const inp = { padding: "7px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 12, outline: "none", fontFamily: font } as const;
+  const navBtn = (disabled: boolean) => ({ padding: "7px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: disabled ? C.n[100] : C.n[0], color: disabled ? C.n[400] : C.n[700], fontSize: 11.5, fontWeight: 500, cursor: disabled ? "not-allowed" : "pointer", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" } as const);
 
   // Full admission detail (opened by clicking a patient).
   const openAdmission = admissions.find((a) => a.id === openId) ?? null;
@@ -119,6 +137,13 @@ export default function IpdView() {
         <div style={{ background: C.pri[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.pri[600] }}>Occupied</div><div style={{ fontSize: 22, fontWeight: 500, color: C.pri[600] }}>{occupied}</div></div>
         <div style={{ background: C.danger[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.danger[800] }}>Critical</div><div style={{ fontSize: 22, fontWeight: 500, color: C.danger[800] }}>{critical}</div></div>
         <div style={{ background: C.info[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.info[800] }}>Discharge</div><div style={{ fontSize: 22, fontWeight: 500, color: C.info[800] }}>{discharge}</div></div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        <button onClick={() => void openPatientTab("pt-settings")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}>⊕ Patient Settings</button>
+        <button onClick={() => void openPatientTab("idsp")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}>◎ Integrated health monitoring and overview</button>
+        <button onClick={() => void openPatientTab("pt-records")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}>🗂 Patient&apos;s Prescriptions and reports</button>
+        {targetPid && <span style={{ fontSize: 11, color: C.n[500], alignSelf: "center" }}>for <b style={{ color: C.n[700] }}>{target?.name}</b></span>}
       </div>
 
       <div style={{ marginBottom: 10 }}>

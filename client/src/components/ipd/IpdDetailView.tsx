@@ -46,7 +46,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // We borrow them for this admission while the detail is open (loading the
   // admission's findings on enter, restoring the prescription draft on leave),
   // so the IPD investigation field is the *same* popup as the prescription page.
-  const { investigation, setInvestigation, invImages, setInvImages, setShowInvPopup, loadPatientById, setActiveTab } = useMuqsit();
+  const { investigation, setInvestigation, invImages, setInvImages, setShowInvPopup } = useMuqsit();
 
   const c = admission.clinical ?? {};
   const [age, setAge] = useState(admission.age != null ? String(admission.age) : "");
@@ -62,17 +62,6 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admission.id]);
-
-  // Open the same patient views the prescription header offers (Settings / Health
-  // monitoring / Records). Load the linked patient first, then switch the tab —
-  // and drop the investigation snapshot so unmount doesn't clobber the loaded
-  // patient's findings.
-  const openPatientTab = async (tab: "pt-settings" | "idsp" | "pt-records") => {
-    if (!admission.patientId) return;
-    snapRef.current = null;
-    await loadPatientById(admission.patientId);
-    setActiveTab(tab);
-  };
 
   // Chip-list sections (same UX as the prescription page).
   const [diagnosis, setDiagnosis] = useState<string[]>(c.diagnosis ?? (admission.diagnosis ? [admission.diagnosis] : []));
@@ -151,9 +140,6 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
       {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <button onClick={onBack} style={btnBack}>← Back to ward</button>
-        <button onClick={() => void openPatientTab("pt-settings")} disabled={!admission.patientId} title={admission.patientId ? undefined : "Admit via mobile lookup to link a patient record"} style={navBtn(!admission.patientId)}>⊕ Patient Settings</button>
-        <button onClick={() => void openPatientTab("idsp")} disabled={!admission.patientId} title={admission.patientId ? undefined : "Admit via mobile lookup to link a patient record"} style={navBtn(!admission.patientId)}>◎ Integrated health monitoring and overview</button>
-        <button onClick={() => void openPatientTab("pt-records")} disabled={!admission.patientId} title={admission.patientId ? undefined : "Admit via mobile lookup to link a patient record"} style={navBtn(!admission.patientId)}>🗂 Patient&apos;s Prescriptions and reports</button>
         <div style={{ flex: 1 }} />
         {savedMsg && <span style={{ fontSize: 12, color: savedMsg === "Saved!" ? C.pri[600] : C.danger[800] }}>{savedMsg}</span>}
         <button onClick={() => void save()} disabled={update.isPending} style={btnSave}>{update.isPending ? "Saving…" : "Save"}</button>
@@ -303,5 +289,4 @@ function Vital({ label, placeholder, value, onChange }: { label: string; placeho
 const vLbl: CSSProperties = { fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
 const hInp = (w: number): CSSProperties => ({ padding: "3px 6px", borderRadius: 5, border: `0.5px solid ${C.n[200]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", width: w });
 const btnBack: CSSProperties = { padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font };
-const navBtn = (disabled: boolean): CSSProperties => ({ padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: disabled ? C.n[100] : C.n[0], color: disabled ? C.n[400] : C.n[700], fontSize: 11.5, fontWeight: 500, cursor: disabled ? "not-allowed" : "pointer", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" });
 const btnSave: CSSProperties = { padding: "7px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: font };
