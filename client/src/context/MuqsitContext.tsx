@@ -275,6 +275,9 @@ function useMuqsitStore() {
           setOnExaminationSummary(mergedOe);
           void patientsApi.update(pid, { onExaminationSummary: mergedOe }).catch(() => {});
         }
+        // Persist the (date-stamped) drug history so it carries across visits;
+        // the Current/Distant-past split is derived from the date on load.
+        void patientsApi.update(pid, { drugHistory }).catch(() => {});
       }
       // "Save & print" = complete: clear the patient's incomplete draft and flag
       // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
@@ -314,6 +317,7 @@ function useMuqsitStore() {
           setFamilyMembers((p.familyMembers as FamilyMember[]) ?? []);
           setInvestigationSummary((p.investigationSummary as InvFinding[]) ?? []);
           setOnExaminationSummary((p.onExaminationSummary as OeFinding[]) ?? []);
+          setDrugHistory((p.drugHistory as string[]) ?? []);
         }
       })
       .catch(() => {});
@@ -464,6 +468,12 @@ function useMuqsitStore() {
   const saveOnExaminationSummary = useCallback((next: OeFinding[]) => {
     setOnExaminationSummary(next);
     if (currentPatientId) void patientsApi.update(currentPatientId, { onExaminationSummary: next }).catch(() => {});
+  }, [currentPatientId]);
+
+  // Persist the patient's date-stamped drug history (carries across visits).
+  const saveDrugHistory = useCallback((next: string[]) => {
+    setDrugHistory(next);
+    if (currentPatientId) void patientsApi.update(currentPatientId, { drugHistory: next }).catch(() => {});
   }, [currentPatientId]);
 
   // "Add" on the records page opens the investigation popup in SUMMARY mode:
@@ -700,6 +710,7 @@ function useMuqsitStore() {
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,
     onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,
+    saveDrugHistory,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptInfo, setPtInfo, currentPatientId, setCurrentPatientId,
     eventsPatient, setEventsPatient, eventMsg, setEventMsg, rcQuery, setRcQuery,

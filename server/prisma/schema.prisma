@@ -327,6 +327,9 @@ model Patient {
   // Persistent on-examination history — array of { date, text }. Merged from
   // saved prescriptions; shown on the records page grouped by date.
   onExaminationSummary Json  @default("[]")
+  // Persistent drug history — date-stamped entry strings ("dd/mm/yyyy: Drug — …").
+  // Current vs distant-past is derived from the date vs the current visit date.
+  drugHistory Json  @default("[]")
   // Saved-but-not-printed prescription editor snapshot. Set while the doctor is
   // mid-prescription (before "Save & print"); restored when the patient is
   // looked up again; cleared once a prescription is completed. Null ⇒ nothing

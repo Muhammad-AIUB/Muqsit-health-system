@@ -53,11 +53,13 @@ const esc = (s: string) =>
 const cleanItem = (s: string) =>
   esc(s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "").replace(/\s+—\s+/g, "  ·  "));
 
-// Drug history on the printout: show only the medicine name (no dose/food/
-// duration). Tapering continuation lines carry no name and are dropped.
+// Drug history on the printout: show only the medicine name (no date/dose/food/
+// duration). Entries are date-stamped ("dd/mm/yyyy: Drug — …") — legacy
+// "Current:/Past:" entries are handled too. Tapering continuation lines carry no
+// name and are dropped.
 const drugNameOnly = (s: string): string => {
-  if (/^(Current|Past)\(cont\):/.test(s)) return "";
-  const body = s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "");
+  if (/^(\d{2}\/\d{2}\/\d{4}|Current|Past)\(cont\):/.test(s)) return "";
+  const body = s.replace(/^(\d{2}\/\d{2}\/\d{4}|Current|Past)(\(note\)|\(cont\))?:\s*/, "");
   return esc(body.split(" — ")[0].trim());
 };
 
@@ -78,7 +80,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
         <div class="block">
           <div class="block-title">${esc(c.label)}</div>
           <ul>${(c.label === "Drug history"
-            ? c.items.map(drugNameOnly).filter(Boolean).map((n) => `<li>${n}</li>`)
+            ? [...new Set(c.items.map(drugNameOnly).filter(Boolean))].map((n) => `<li>${n}</li>`)
             : c.items.map((it) => `<li>${cleanItem(it)}</li>`)).join("")}</ul>
         </div>`,
         )

@@ -219,7 +219,7 @@ export class PatientsService {
 
   async update(doctorId: string, id: string, dto: UpdatePatientDto): Promise<Patient> {
     await this.get(doctorId, id); // ownership check
-    const { dob, hmDrugDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, incompleteRx, ...rest } = dto;
+    const { dob, hmDrugDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, drugHistory, incompleteRx, ...rest } = dto;
     // Loose cast: new columns may not yet be in the generated client; the DB
     // columns exist so Postgres accepts them at runtime.
     const extra = rest as Record<string, unknown>;
@@ -227,6 +227,7 @@ export class PatientsService {
     if (familyMembers !== undefined) extra.familyMembers = familyMembers as Prisma.InputJsonValue;
     if (investigationSummary !== undefined) extra.investigationSummary = investigationSummary as Prisma.InputJsonValue;
     if (onExaminationSummary !== undefined) extra.onExaminationSummary = onExaminationSummary as Prisma.InputJsonValue;
+    if (drugHistory !== undefined) extra.drugHistory = drugHistory as Prisma.InputJsonValue;
     if (incompleteRx !== undefined)
       extra.incompleteRx = incompleteRx === null ? Prisma.DbNull : (incompleteRx as Prisma.InputJsonValue);
     return this.prisma.patient.update({

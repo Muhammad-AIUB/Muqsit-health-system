@@ -84,6 +84,7 @@ export interface Patient {
   familyMembers: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
   investigationSummary: Array<{ date: string; category: string; test: string; value: string }>;
   onExaminationSummary: Array<{ date: string; text: string }>;
+  drugHistory: string[];
   incompleteRx: Record<string, unknown> | null;
   doctorId: string | null;
   createdAt: string;
@@ -118,6 +119,7 @@ export interface PatientInput {
   familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
   investigationSummary?: Array<{ date: string; category: string; test: string; value: string }>;
   onExaminationSummary?: Array<{ date: string; text: string }>;
+  drugHistory?: string[];
   incompleteRx?: Record<string, unknown> | null;
 }
 
