@@ -22,5 +22,11 @@ export const fieldLabel: CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.05em",
   marginBottom: 4,
-  display: "block",
+  // Reserve a uniform two-line height with the text pinned to the bottom, so
+  // short labels and ones that wrap (e.g. "Total monthly approximate cost") all
+  // align — keeping every input on the same baseline.
+  display: "flex",
+  alignItems: "flex-end",
+  minHeight: 26,
+  lineHeight: 1.2,
 };

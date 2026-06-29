@@ -31,7 +31,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
 
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: mobile ? 10 : 14, marginBottom: mobile ? 10 : 14 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: mobile ? 6 : 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: mobile ? 6 : 10 }}>
         {/* Patient profile photo — uploaded in Patient Settings, shown here. */}
         <div style={{ flex: "0 0 auto" }}>
           <label style={fieldLabel}>Photo</label>
@@ -64,7 +64,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         <MobileLookupField mobile={mobile} />
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 150px" }}>
           <label style={fieldLabel}>Total monthly approximate cost</label>
-          <div style={{ padding: "6px 10px", borderRadius: 6, fontSize: 14, fontWeight: 600, background: monthlyCost > 0 ? C.pri[50] : C.n[100], border: `0.5px solid ${monthlyCost > 0 ? C.pri[100] : C.n[200]}`, color: monthlyCost > 0 ? C.pri[600] : C.n[500], display: "flex", alignItems: "center", gap: 4, minHeight: 30 }}>
+          <div style={{ padding: "6px 10px", borderRadius: 6, fontSize: 13.5, fontWeight: 600, background: monthlyCost > 0 ? C.pri[50] : C.n[100], border: `0.5px solid ${monthlyCost > 0 ? C.pri[100] : C.n[200]}`, color: monthlyCost > 0 ? C.pri[600] : C.n[500], display: "flex", alignItems: "center", gap: 4, height: 29, boxSizing: "border-box" }}>
             <span style={{ fontSize: 11, fontWeight: 400 }}>৳</span>{monthlyCost > 0 ? monthlyCost.toFixed(1) : "0.0"}
           </div>
         </div>
