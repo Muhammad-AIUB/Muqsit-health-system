@@ -63,7 +63,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         <div style={{ flex: "0 0 130px" }}><label style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
         <MobileLookupField mobile={mobile} />
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 150px" }}>
-          <label style={fieldLabel}>Total monthly cost</label>
+          <label style={fieldLabel}>Total monthly approximate cost</label>
           <div style={{ padding: "6px 10px", borderRadius: 6, fontSize: 14, fontWeight: 600, background: monthlyCost > 0 ? C.pri[50] : C.n[100], border: `0.5px solid ${monthlyCost > 0 ? C.pri[100] : C.n[200]}`, color: monthlyCost > 0 ? C.pri[600] : C.n[500], display: "flex", alignItems: "center", gap: 4, minHeight: 30 }}>
             <span style={{ fontSize: 11, fontWeight: 400 }}>৳</span>{monthlyCost > 0 ? monthlyCost.toFixed(1) : "0.0"}
           </div>
