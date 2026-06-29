@@ -35,20 +35,15 @@ export default function IpdView() {
   // Set when a patient is chosen from the mobile lookup — ties the admission to them.
   const [patientId, setPatientId] = useState<string | undefined>(undefined);
 
-  // Search the ward list by mobile / name / hospital id (like the Rx page).
+  // Search the ward list by mobile number (like the Rx page).
   const [search, setSearch] = useState("");
 
   const occupied = admissions.filter((a) => a.status !== "Discharge").length;
   const critical = admissions.filter((a) => a.status === "Critical").length;
   const discharge = admissions.filter((a) => a.status === "Discharge").length;
 
-  const q = search.trim().toLowerCase();
-  const filtered = q
-    ? admissions.filter((a) =>
-        (a.mobile ?? "").toLowerCase().includes(q) ||
-        a.name.toLowerCase().includes(q) ||
-        (a.hospitalId ?? "").toLowerCase().includes(q))
-    : admissions;
+  const q = search.trim();
+  const filtered = q ? admissions.filter((a) => (a.mobile ?? "").includes(q)) : admissions;
 
   const mobileInvalid = mobile.length > 0 && mobile.length !== 11;
 
@@ -127,7 +122,7 @@ export default function IpdView() {
       </div>
 
       <div style={{ marginBottom: 10 }}>
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Search admitted patients by mobile / name / hospital ID…" style={{ ...inp, width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 12.5 }} />
+        <input value={search} onChange={(e) => setSearch(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="🔍 Search admitted patients by mobile number…" style={{ ...inp, width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 12.5 }} />
       </div>
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
