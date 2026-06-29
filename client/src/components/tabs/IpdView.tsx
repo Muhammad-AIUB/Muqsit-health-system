@@ -35,9 +35,20 @@ export default function IpdView() {
   // Set when a patient is chosen from the mobile lookup — ties the admission to them.
   const [patientId, setPatientId] = useState<string | undefined>(undefined);
 
+  // Search the ward list by mobile / name / hospital id (like the Rx page).
+  const [search, setSearch] = useState("");
+
   const occupied = admissions.filter((a) => a.status !== "Discharge").length;
   const critical = admissions.filter((a) => a.status === "Critical").length;
   const discharge = admissions.filter((a) => a.status === "Discharge").length;
+
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? admissions.filter((a) =>
+        (a.mobile ?? "").toLowerCase().includes(q) ||
+        a.name.toLowerCase().includes(q) ||
+        (a.hospitalId ?? "").toLowerCase().includes(q))
+    : admissions;
 
   const mobileInvalid = mobile.length > 0 && mobile.length !== 11;
 
@@ -115,19 +126,23 @@ export default function IpdView() {
         <div style={{ background: C.info[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.info[800] }}>Discharge</div><div style={{ fontSize: 22, fontWeight: 500, color: C.info[800] }}>{discharge}</div></div>
       </div>
 
+      <div style={{ marginBottom: 10 }}>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Search admitted patients by mobile / name / hospital ID…" style={{ ...inp, width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 12.5 }} />
+      </div>
+
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
         {isLoading && <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Loading ward…</div>}
         {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the ward. Is the API running?</div>}
-        {!isLoading && !error && admissions.length === 0 && (
-          <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>No admissions — admit a patient above.</div>
+        {!isLoading && !error && filtered.length === 0 && (
+          <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>{q ? "No admitted patient matches your search." : "No admissions — admit a patient above."}</div>
         )}
-        {admissions.map((p, i) => {
+        {filtered.map((p, i) => {
           const color = statusColor(p.status);
           const where = [p.hospitalId && `ID ${p.hospitalId}`, p.roomNo && `Room ${p.roomNo}`, p.wardNo && `Ward ${p.wardNo}`, p.floorBuilding, p.mobile]
             .filter(Boolean)
             .join(" · ");
           return (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < admissions.length - 1 ? `0.5px solid ${C.n[200]}` : "none" }}>
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < filtered.length - 1 ? `0.5px solid ${C.n[200]}` : "none" }}>
               <div onClick={() => setOpenId(p.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, cursor: "pointer", minWidth: 0 }}>
                 <div style={{ width: 40, height: 26, borderRadius: 6, background: C.info[50], color: C.info[800], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{p.bed}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
