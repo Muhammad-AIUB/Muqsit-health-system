@@ -154,6 +154,9 @@ function useMuqsitStore() {
   const [familyRelation, setFamilyRelation] = useState("");
   const [familyForm, setFamilyForm] = useState<FamilyForm>({ name: "", mobile: "", nid: "", sex: "" });
   const [ptInfo, setPtInfo] = useState<PtInfo>(initialPtInfo);
+  // Patient-settings form unlock: existing patients open read-only until
+  // "Edit" is pressed. Lives here (not in the view) so it can be mirrored.
+  const [ptEditing, setPtEditing] = useState(true);
   // id of the patient currently loaded for editing (null = creating a new one)
   const [currentPatientId, setCurrentPatientId] = useState<string | null>(null);
 
@@ -596,6 +599,11 @@ function useMuqsitStore() {
     onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     invImages, oeData,
+    // Patient settings: the info form, its Edit/locked state, family tree
+    ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
+    // Popups / pickers, so opening one shows up on the other device too
+    showOePopup, showInvPopup, invActiveCat, invFormData, invSearch,
+    showDrugPicker, drugSearch,
   }), [
     activeTab, view, ptSettingsTab, currentPatientId,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
@@ -603,6 +611,9 @@ function useMuqsitStore() {
     onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     invImages, oeData,
+    ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
+    showOePopup, showInvPopup, invActiveCat, invFormData, invSearch,
+    showDrugPicker, drugSearch,
   ]);
 
   // Apply a snapshot received from another device. Guarded so applying it
@@ -629,9 +640,30 @@ function useMuqsitStore() {
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
     if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
     if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
+    // Patient settings form + family tree
+    if (d.ptInfo && typeof d.ptInfo === "object") setPtInfo(d.ptInfo as PtInfo);
+    if (typeof d.ptEditing === "boolean") setPtEditing(d.ptEditing);
+    if (Array.isArray(d.familyMembers)) setFamilyMembers(d.familyMembers as FamilyMember[]);
+    if (typeof d.showFamilyForm === "boolean") setShowFamilyForm(d.showFamilyForm);
+    str("familyRelation", setFamilyRelation);
+    if (d.familyForm && typeof d.familyForm === "object") setFamilyForm(d.familyForm as FamilyForm);
+    // Popups / pickers
+    if (typeof d.showOePopup === "boolean") setShowOePopup(d.showOePopup);
+    if (typeof d.showInvPopup === "boolean") setShowInvPopup(d.showInvPopup);
+    str("invActiveCat", setInvActiveCat); str("invSearch", setInvSearch);
+    if (d.invFormData && typeof d.invFormData === "object") setInvFormData(d.invFormData as Record<string, string>);
+    if (typeof d.showDrugPicker === "boolean") setShowDrugPicker(d.showDrugPicker);
+    str("drugSearch", setDrugSearch);
     // Release the echo guard after the batched state settles.
     setTimeout(() => { mirrorApplyingRef.current = false; }, 300);
   }, [setActiveTab]);
+
+  // Loading/clearing a patient re-locks the settings form — unless the change
+  // came from a mirror snapshot, which carries its own ptEditing.
+  useEffect(() => {
+    if (mirrorApplyingRef.current) return;
+    setPtEditing(!currentPatientId);
+  }, [currentPatientId]);
 
   // Toggle "Keep eye on this patient" — persists when a saved patient is loaded.
   const toggleWatch = () => {
@@ -712,7 +744,7 @@ function useMuqsitStore() {
     onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,
     saveDrugHistory,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
-    ptInfo, setPtInfo, currentPatientId, setCurrentPatientId,
+    ptInfo, setPtInfo, ptEditing, setPtEditing, currentPatientId, setCurrentPatientId,
     eventsPatient, setEventsPatient, eventMsg, setEventMsg, rcQuery, setRcQuery,
     rcFilter, setRcFilter, rcSelected, setRcSelected, watchPatient, setWatchPatient,
     hmDrugs, setHmDrugs, oeData, setOeData,

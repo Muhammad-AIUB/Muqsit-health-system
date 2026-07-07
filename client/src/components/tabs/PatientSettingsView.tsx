@@ -117,6 +117,7 @@ export default function PatientSettingsView() {
     ptName, ptGender, ptPhone, setPtName, setPtAge, setPtGender, setPtPhone,
     setPtAddress, setPtHospitalId,
     currentPatientId, setCurrentPatientId, hmDrugs, watchPatient, can,
+    ptEditing: editing, setPtEditing: setEditing,
   } = useMuqsit();
 
   const createPatient = useCreatePatient();
@@ -124,9 +125,10 @@ export default function PatientSettingsView() {
   const saving = createPatient.isPending || updatePatient.isPending;
   const [formMsg, setFormMsg] = useState<{ text: string; ok: boolean } | null>(null);
   // Existing patients open read-only; "Edit" unlocks the fields, "Save" persists
-  // and re-locks. A brand-new patient starts editable.
-  const [editing, setEditing] = useState(!currentPatientId);
-  useEffect(() => { setEditing(!currentPatientId); setFormMsg(null); }, [currentPatientId]);
+  // and re-locks. A brand-new patient starts editable. The editing flag lives in
+  // context (ptEditing) so device mirroring can sync it; re-locking on patient
+  // change happens there too.
+  useEffect(() => { setFormMsg(null); }, [currentPatientId]);
 
   const pI = ptInfo;
   const setPi = <K extends keyof PtInfo>(f: K, v: PtInfo[K]) => setPtInfo((prev) => ({ ...prev, [f]: v }));
