@@ -396,8 +396,12 @@ function useMuqsitStore() {
     setWatchPatient(p.watched);
     setCurrentPatientId(p.id);
     rxCompletedRef.current = null;
+    // A patient from ANOTHER practice (opened as their supervising doctor) gets
+    // a FRESH prescription — never the owner's in-progress draft. The owner's
+    // saved prescriptions stay hidden too (those queries scope to the owner).
+    const supervised = !!p.doctorId && !!activeWsRef.current && p.doctorId !== activeWsRef.current;
     const inc = p.incompleteRx;
-    if (inc && typeof inc === "object" && Object.keys(inc).length > 0) {
+    if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
       applyEditorSnapshot(inc as Record<string, unknown>);
       rxFlaggedRef.current = p.id; // already saved as incomplete
     } else {

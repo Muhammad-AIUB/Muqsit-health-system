@@ -97,19 +97,30 @@ export class PatientsService {
     });
   }
 
+  // A patient is accessible when they belong to this doctor OR this doctor was
+  // assigned as a supervising doctor on them (4.docx). Supervisors see the
+  // patient's info and prescribe fresh — the owner's prescriptions stay scoped
+  // to the owner because prescription queries filter by their own doctorId.
+  private accessibleWhere(doctorId: string) {
+    return { OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] };
+  }
+
   async get(doctorId: string, id: string): Promise<Patient> {
-    const patient = await this.prisma.patient.findFirst({ where: { id, doctorId } });
+    const patient = await this.prisma.patient.findFirst({
+      where: { id, ...this.accessibleWhere(doctorId) },
+    });
     if (!patient) throw new NotFoundException('Patient not found');
     return patient;
   }
 
   // Every patient sharing a phone number, newest first. Powers the prescription
   // mobile-lookup dropdown (one number can map to several family members).
+  // Includes patients this doctor supervises.
   findByMobile(doctorId: string, mobile: string): Promise<Patient[]> {
     const m = mobile.trim();
     if (!m) return Promise.resolve([]);
     return this.prisma.patient.findMany({
-      where: { doctorId, mobile: m },
+      where: { mobile: m, ...this.accessibleWhere(doctorId) },
       orderBy: { updatedAt: 'desc' },
     });
   }
@@ -218,7 +229,7 @@ export class PatientsService {
   }
 
   async update(doctorId: string, id: string, dto: UpdatePatientDto): Promise<Patient> {
-    await this.get(doctorId, id); // ownership check
+    await this.get(doctorId, id); // ownership-or-supervisor check
     const { dob, hmDrugDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, drugHistory, incompleteRx, ...rest } = dto;
     // Loose cast: new columns may not yet be in the generated client; the DB
     // columns exist so Postgres accepts them at runtime.
@@ -241,7 +252,10 @@ export class PatientsService {
   }
 
   async remove(doctorId: string, id: string): Promise<{ id: string }> {
-    await this.get(doctorId, id); // ownership check
+    // Deleting stays OWNER-ONLY — a supervising doctor must never be able to
+    // delete another practice's patient.
+    const owned = await this.prisma.patient.findFirst({ where: { id, doctorId }, select: { id: true } });
+    if (!owned) throw new NotFoundException('Patient not found');
     await this.prisma.patient.delete({ where: { id } });
     return { id };
   }

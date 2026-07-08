@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { inputSm, fieldLabel } from "@/theme/styles";
 import { patientsApi, type Patient, type RelativeMatch } from "@/lib/api";
 import { displayAge } from "@/lib/age";
+import { useMuqsit } from "@/context/MuqsitContext";
 
 // Reusable mobile-first patient lookup (3.docx). Typing a full 11-digit number
 // surfaces every patient on it; the consumer's `onPick` fires when one is
@@ -30,6 +31,7 @@ export default function PatientMobileLookup({
   value, onChange, onPick, currentPatientId = null,
   label = "Mobile", placeholder = "01XXXXXXXXX", wrapStyle, inputStyle,
 }: Props) {
+  const { activeWorkstationId } = useMuqsit();
   const [matches, setMatches] = useState<Patient[]>([]);
   const [relatives, setRelatives] = useState<RelativeMatch[]>([]);
   const [open, setOpen] = useState(false);
@@ -103,7 +105,13 @@ export default function PatientMobileLookup({
           {loading && <div style={rowMuted}>Searching…</div>}
           {!loading && matches.map((p) => (
             <button key={p.id} onClick={() => pick(p)} style={rowBtn} type="button">
-              <span style={{ fontWeight: 600, color: C.n[900], fontSize: 12.5 }}>{p.name}</span>
+              <span style={{ fontWeight: 600, color: C.n[900], fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                {p.name}
+                {/* Another practice's patient this doctor supervises (4.docx). */}
+                {!!p.doctorId && !!activeWorkstationId && p.doctorId !== activeWorkstationId && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 999, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.03em" }}>Supervised</span>
+                )}
+              </span>
               <span style={{ fontSize: 11, color: C.n[500] }}>
                 {p.mobile}
                 {displayAge(p) ? ` · ${displayAge(p)}y` : ""}

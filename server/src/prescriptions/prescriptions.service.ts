@@ -8,9 +8,11 @@ export class PrescriptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(doctorId: string, dto: CreatePrescriptionDto): Promise<Prescription> {
-    // Ownership check — the patient must belong to this doctor.
+    // The patient must belong to this doctor OR be supervised by them (4.docx —
+    // a supervising doctor prescribes fresh; the row carries their own doctorId,
+    // so each doctor's prescriptions stay scoped to themselves).
     const patient = await this.prisma.patient.findFirst({
-      where: { id: dto.patientId, doctorId },
+      where: { id: dto.patientId, OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] },
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
