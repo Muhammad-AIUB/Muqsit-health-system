@@ -13,7 +13,7 @@ import { useWorkstations } from "@/hooks/useWorkstations";
 export default function WorkstationSwitcher() {
   const { activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation } = useMuqsit();
   const { logout } = useAuth();
-  const { data: workstations = [], isLoading } = useWorkstations();
+  const { data: workstations = [], isLoading, isSuccess, isError, refetch } = useWorkstations();
 
   useEffect(() => {
     if (isLoading || activeWorkstationId || workstations.length === 0) return;
@@ -21,10 +21,24 @@ export default function WorkstationSwitcher() {
     else setShowWorkstations(true);
   }, [isLoading, workstations, activeWorkstationId, selectWorkstation, setShowWorkstations]);
 
+  // The workstation list couldn't be fetched (server restarting, network blip,
+  // token refresh race right after login). That is NOT "you have no
+  // workstation" — never show the upgrade gate on an error, or a primary
+  // account sees the secondary message. Offer a retry instead.
+  if (isError) {
+    return (
+      <div style={{ position: "fixed", bottom: 18, left: "50%", transform: "translateX(-50%)", zIndex: 3000, fontFamily: font, background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, color: C.n[700] }}>
+        <span>Couldn&apos;t load your workstations.</span>
+        <button onClick={() => void refetch()} style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: font }}>Retry</button>
+      </div>
+    );
+  }
+
   // A secondary user who isn't anyone's assistant has nowhere to work — the whole
   // app is blurred behind an upgrade message (they can only be added as an
-  // assistant, or purchase the account).
-  if (!isLoading && workstations.length === 0) {
+  // assistant, or purchase the account). Only after a SUCCESSFUL fetch that
+  // really returned zero workstations.
+  if (isSuccess && workstations.length === 0) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: "rgba(248,248,246,0.55)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
         <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.18)", padding: "30px 28px" }}>
