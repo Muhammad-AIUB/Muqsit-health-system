@@ -69,8 +69,9 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
   .pt span{color:#6b6b6b}
   .grp{margin-bottom:12px}
   .gh{font-size:12px;font-weight:700;color:#0f6e56;border-bottom:1px solid #1d9e75;padding-bottom:2px;margin-bottom:4px}
-  .row{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0;border-bottom:0.5px solid #eee}
-  .t{color:#333}.v{font-weight:600;color:#0f6e56;white-space:nowrap;padding-left:14px}
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;font-size:12.5px;padding:3px 0;border-bottom:0.5px solid #eee}
+  .t{color:#333;flex:0 0 auto;max-width:38%;overflow-wrap:anywhere}
+  .v{font-weight:600;color:#0f6e56;flex:1 1 auto;min-width:0;text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
   @media print{.toolbar{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0}}
 </style></head><body>
   <div class="toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button><button onclick="window.close()">Close</button></div>
