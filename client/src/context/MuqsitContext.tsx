@@ -18,6 +18,7 @@ import { drugDB, templateRx } from "@/data/drugs";
 import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
+import { useAuth } from "@/context/AuthContext";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
@@ -69,6 +70,11 @@ const initialOeData: OeData = {
 // ── The store hook (single source of truth) ─────────────────
 function useMuqsitStore() {
   const queryClient = useQueryClient();
+  // The signed-in user — used (via ref, so callbacks stay stable) to tell a
+  // SUPERVISED patient (owned by another doctor) from an owned one.
+  const { user: authUser } = useAuth();
+  const authIdRef = useRef<string | null>(null);
+  useEffect(() => { authIdRef.current = authUser?.id ?? null; }, [authUser]);
   const [page, setPage] = useState<Page>("login");
   const [view, setView] = useState<View>("desktop");
 
@@ -399,7 +405,10 @@ function useMuqsitStore() {
     // A patient from ANOTHER practice (opened as their supervising doctor) gets
     // a FRESH prescription — never the owner's in-progress draft. The owner's
     // saved prescriptions stay hidden too (those queries scope to the owner).
-    const supervised = !!p.doctorId && !!activeWsRef.current && p.doctorId !== activeWsRef.current;
+    // Effective doctor = chosen workstation, else the signed-in user themselves
+    // (covers loads that happen before a workstation is selected).
+    const effectiveDoctor = activeWsRef.current ?? authIdRef.current;
+    const supervised = !!p.doctorId && !!effectiveDoctor && p.doctorId !== effectiveDoctor;
     const inc = p.incompleteRx;
     if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
       applyEditorSnapshot(inc as Record<string, unknown>);
@@ -531,11 +540,26 @@ function useMuqsitStore() {
     let cancelled = false;
     prescriptionDraftApi
       .get()
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return;
         const d = (res.data ?? {}) as Record<string, unknown>;
+        const pid = typeof d.currentPatientId === "string" ? d.currentPatientId : null;
+        // Guard: if the draft points at a SUPERVISED patient (another doctor's),
+        // never restore its editor content — that would resurrect the owner's
+        // prescription. Reload the patient fresh instead (blank Rx, header only).
+        if (pid) {
+          try {
+            const p = await patientsApi.get(pid);
+            const me = authIdRef.current;
+            if (p.doctorId && me && p.doctorId !== me && !cancelled) {
+              loadPatient(p);
+              return;
+            }
+          } catch { /* patient unreachable in own context — restore as before */ }
+        }
+        if (cancelled) return;
         applyEditorSnapshot(d);
-        if (typeof d.currentPatientId === "string") setCurrentPatientId(d.currentPatientId);
+        if (pid) setCurrentPatientId(pid);
       })
       .catch((e) => console.warn("[draft] load failed — editor will not restore on reload:", e))
       .finally(() => { if (!cancelled) draftReadyRef.current = true; });

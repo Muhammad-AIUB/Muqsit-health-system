@@ -15,11 +15,14 @@ export default function WorkstationSwitcher() {
   const { logout } = useAuth();
   const { data: workstations = [], isLoading, isSuccess, isError } = useWorkstations();
 
+  // Auto-select silently — never force the panel open. Own workspace wins when
+  // the user has one; otherwise the first assisted practice. Switching is always
+  // available from the 🏥 pill in the top bar.
   useEffect(() => {
     if (isLoading || activeWorkstationId || workstations.length === 0) return;
-    if (workstations.length === 1) selectWorkstation(workstations[0]);
-    else setShowWorkstations(true);
-  }, [isLoading, workstations, activeWorkstationId, selectWorkstation, setShowWorkstations]);
+    const own = workstations.find((w) => w.role === "owner") ?? workstations[0];
+    selectWorkstation(own);
+  }, [isLoading, workstations, activeWorkstationId, selectWorkstation]);
 
   // A fetch failure is handled inside useWorkstations (silent retries with
   // backoff — the query never errors out to the UI). Render nothing while the
