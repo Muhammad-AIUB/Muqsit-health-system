@@ -13,7 +13,7 @@ import { useWorkstations } from "@/hooks/useWorkstations";
 export default function WorkstationSwitcher() {
   const { activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation } = useMuqsit();
   const { logout } = useAuth();
-  const { data: workstations = [], isLoading, isSuccess, isError, refetch } = useWorkstations();
+  const { data: workstations = [], isLoading, isSuccess, isError } = useWorkstations();
 
   useEffect(() => {
     if (isLoading || activeWorkstationId || workstations.length === 0) return;
@@ -21,18 +21,10 @@ export default function WorkstationSwitcher() {
     else setShowWorkstations(true);
   }, [isLoading, workstations, activeWorkstationId, selectWorkstation, setShowWorkstations]);
 
-  // The workstation list couldn't be fetched (server restarting, network blip,
-  // token refresh race right after login). That is NOT "you have no
-  // workstation" — never show the upgrade gate on an error, or a primary
-  // account sees the secondary message. Offer a retry instead.
-  if (isError) {
-    return (
-      <div style={{ position: "fixed", bottom: 18, left: "50%", transform: "translateX(-50%)", zIndex: 3000, fontFamily: font, background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, color: C.n[700] }}>
-        <span>Couldn&apos;t load your workstations.</span>
-        <button onClick={() => void refetch()} style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: font }}>Retry</button>
-      </div>
-    );
-  }
+  // A fetch failure is handled inside useWorkstations (silent retries with
+  // backoff — the query never errors out to the UI). Render nothing while the
+  // list isn't loaded yet; the app stays fully usable in the meantime.
+  if (isError) return null;
 
   // A secondary user who isn't anyone's assistant has nowhere to work — the whole
   // app is blurred behind an upgrade message (they can only be added as an
