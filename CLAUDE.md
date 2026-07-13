@@ -10,6 +10,7 @@ Doctors prescribe real medication to real patients through this system. **Every 
 4. **Print/PDF output is a legal medical document.** Prescriptions and reports must fit the printable page, never overlap or truncate values, and show exactly what the doctor entered. Test the print preview after touching `prescriptionDoc.ts` or any download.
 5. **International professional healthcare UX.** Calm clinical visual language (the `C` palette), no accidental-destruction paths, clear empty/loading/error states, forgiving inputs (flexible date entry, shorthand parsing), and graceful behavior on flaky networks (silent retry, never a false "you have no access" wall).
 6. **Verify before claiming done.** Minimum bar for every change: `npx tsc --noEmit` clean in each touched app, the affected flow exercised (locally at :3000/:4000), and honest reporting if anything was not verified.
+7. **Keep these CLAUDE.md files current.** Every MAJOR change — a new feature, a new domain concept, a new data format/protocol, a changed access rule, a new workflow or gotcha — must update the relevant CLAUDE.md (root and/or the app's) in the same commit. Stale guidance in a medical system is a hazard: the next session will follow it.
 
 ## What this is
 
