@@ -2,11 +2,15 @@
 
 The doctor-facing SPA. App Router pages are thin shells; almost everything renders through `src/components/Muqsit.tsx` → `TabRouter.tsx` (tab = URL segment) with state in **one large context store**: `src/context/MuqsitContext.tsx` (`MuqsitStore = ReturnType<typeof useMuqsitStore>` — add to the return object and the type follows). Auth lives in `src/context/AuthContext.tsx`; server state in React Query hooks (`src/hooks/`); all HTTP through `src/lib/api.ts` (`apiFetch`: credentials, X-Workstation header, silent 401 refresh).
 
+**Env trap:** `NEXT_PUBLIC_API_URL` must be set in both `.env.local` (dev, gitignored) and **`.env.production` (committed — the deployed build uses it)**. A missing prod value silently points the live site at `localhost:4000`.
+
 ## ⚕️ Clinical-accuracy rules specific to the client
 
 - **Calculators (`src/lib/calculators/`, ~77 of them, wired via `calculator-registry.ts`):** each implements a published clinical score/formula. Never alter a formula, cutoff, unit, or interpretation without the published source; keep severity labels (`success/warning/danger`) consistent with the source. New calculators register in the registry and appear in Investigation "Special Scores".
 - **Investigation catalog (`src/data/investigations.ts`):** the master test list (`INV_CATS`: `{cat, tests:[{name, fields}]}`, some via the `txt([...])` name-only helper). Test names must stay **unique across categories** (duplicates were purged deliberately); field units are clinical facts — verify before editing.
 - **Never round, reformat, or "normalize" an entered clinical value.** Display exactly what the doctor typed.
+- **Medicine search hits the server** (`/medicines/search`, raw `medicines` table). `src/data/drugs.ts` is only an 18-item static fallback for the legacy drug picker / monthly-cost demo — do not treat it as the drug database.
+- **OCR (`src/lib/ocr.ts`, tesseract.js)** verifies the typed NID number against the uploaded NID photo during signup. It is assistive only — never let OCR overwrite what the user typed.
 
 ## Storage string protocols (the data model hiding in strings)
 

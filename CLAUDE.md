@@ -22,11 +22,15 @@ A prescription & practice-management platform for doctors in Bangladesh:
 | `admin/` | Next.js 14 | 3001 | Admin — registrations, account tiers (primary/secondary/premium) |
 | `server/` | NestJS 10 + Prisma 5.22 + PostgreSQL | 4000 | REST API under `/api`, cookie auth, uploads, SSE mirror |
 
-Root is a bare npm workspace shell — each app has its own `package.json`; run commands **inside** `client/`, `server/`, or `admin/`.
+Each app has its own `package.json`; the root one only orchestrates (`concurrently`). `FUNCTIONAL-AUDIT.md` at the root is the living audit/TODO of what works, what's a stub and what doesn't persist — check it when picking up loose ends.
 
 ## Commands
 
 ```bash
+# root
+npm run dev              # api + web + admin together (concurrently)
+npm run install:all      # npm install in all three apps
+
 # server (from server/)
 npm run start:dev        # nodemon dev server on :4000
 npm run build            # nest build
@@ -43,7 +47,7 @@ There is no meaningful automated test suite; the safety net is typecheck + manua
 ## Database & migrations (READ THIS — unusual setup)
 
 - **One shared PostgreSQL lives on the VPS** (`194.233.82.156`). Local dev reaches it through an SSH tunnel the **user** runs: `ssh -L 5432:localhost:5432 root@<vps> -N`. `P1001 Can't reach database server` = the tunnel dropped → ask the user to bring it up; it is never a code bug.
-- **Prisma Migrate is NOT used.** Schema changes = ① edit `schema.prisma`, ② write an **idempotent** SQL file `server/prisma/manual-<name>.sql` (`ADD COLUMN IF NOT EXISTS …`), ③ apply with `npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.prisma`, ④ regenerate the client.
+- **Prisma Migrate is NOT used.** Schema changes = ① edit `schema.prisma`, ② write an **idempotent** SQL file `server/prisma/manual-<name>.sql` (`ADD COLUMN IF NOT EXISTS …`), ③ apply with `npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.prisma`, ④ regenerate the client. The full migration history is the `manual-*.sql` files themselves (~20 of them) — a file existing does NOT guarantee it was applied; verify against the DB when in doubt (`manual-opd-token-unique.sql` / `manual-ipd-bed-unique.sql` were written as optional and may be unapplied).
 - Because the DB is shared, applying a migration locally **also migrates production**. Only additive, idempotent changes.
 - **Windows DLL lock:** `prisma generate` fails (EPERM on the query-engine DLL) while the dev server runs. Kill the process on :4000 first (`netstat -ano | grep :4000` → `taskkill //F //PID <pid>`), generate, restart.
 - Tables created as the `postgres` superuser need `ALTER TABLE "X" OWNER TO exhort_user;` or the app gets `42501 permission denied`. `ALTER TABLE` on existing tables is fine.
