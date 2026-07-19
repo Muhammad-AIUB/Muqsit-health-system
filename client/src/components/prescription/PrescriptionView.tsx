@@ -142,11 +142,21 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   return (
     <>
       <PatientGate open={gateOpen}>
-        <div style={{ display: "grid", gridTemplateColumns: "0.6fr 0.5px 1.4fr", gap: 0 }}>
-          <div style={{ paddingRight: 12 }}><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${C.n[200]}`, color: C.n[800] }}>Clinical assessment</div><LeftColumn /></div>
-          <div style={{ background: C.n[200] }} />
-          <div style={{ paddingLeft: 16 }}><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${C.pri[400]}`, color: C.pri[600] }}>Prescription</div><RightColumn /></div>
+        <div className="rxEditorGrid" style={{ display: "grid", gridTemplateColumns: "0.6fr 0.5px 1.4fr", gap: 0 }}>
+          <div style={{ paddingRight: 12, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${C.n[200]}`, color: C.n[800] }}>Clinical assessment</div><LeftColumn /></div>
+          <div className="rxEditorDivider" style={{ background: C.n[200] }} />
+          <div style={{ paddingLeft: 16, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${C.pri[400]}`, color: C.pri[600] }}>Prescription</div><RightColumn /></div>
         </div>
+        <style>{`
+          /* Tablet & below: stack the two editor columns — the desktop grid gets
+             too cramped (left column ~220px) at ~768px. Phones already use the
+             mobile single-column layout via the mobile prop. */
+          @media (max-width: 860px) {
+            .rxEditorGrid { grid-template-columns: 1fr !important; }
+            .rxEditorGrid > .rxEditorDivider { display: none; }
+            .rxEditorGrid > div { padding-left: 0 !important; padding-right: 0 !important; }
+          }
+        `}</style>
       </PatientGate>
       <div style={{ display: "flex", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
         <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ flex: 1, padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print prescription</button>

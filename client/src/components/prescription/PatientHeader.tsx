@@ -78,7 +78,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           <label style={fieldLabel}>Hospital ID</label>
           <input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={lk({ ...inputSm, width: "100%", boxSizing: "border-box" })} readOnly={locked} title={lockTitle} />
         </div>
-        <div style={{ flex: mobile ? "1 1 100%" : "0 0 auto", display: "flex", alignItems: "flex-end", gap: 6, paddingBottom: 1 }}>
+        <div style={{ flex: mobile ? "1 1 100%" : "1 1 auto", display: "flex", alignItems: "flex-end", gap: 6, rowGap: 6, flexWrap: "wrap", paddingBottom: 1 }}>
           <button onClick={() => setActiveTab("pt-settings")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "pt-settings" ? C.info[400] : C.n[200]}`, background: activeTab === "pt-settings" ? C.info[50] : C.n[0], color: activeTab === "pt-settings" ? C.info[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
             <span style={{ fontSize: 13 }}>⊕</span> Patient Settings
           </button>

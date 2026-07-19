@@ -172,7 +172,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
           const isHead = row.isMedicine && !row.continuation;
           const isCont = row.continuation;
           return (
-            <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
+            <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
               {/* Checkbox (optional) + serial — only for medicine head rows */}
               <div style={{ width: showCheck ? 44 : 26, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
                 {isHead && (
@@ -227,7 +227,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                 )}
 
                 {!isCont && acRow === idx && (acItems.length > 0 || (looksLikeMedicine(row.drug) && !row.isMedicine)) && (
-                  <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, minWidth: 320, maxWidth: 440, background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: 240, overflowY: "auto" }}>
+                  <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, minWidth: 200, maxWidth: "min(440px, 88vw)", background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: 240, overflowY: "auto" }}>
                     {/* Not in the database, but it looks like a medicine — offer to treat it as one. */}
                     {looksLikeMedicine(row.drug) && !row.isMedicine && (
                       <button
@@ -274,7 +274,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                   from its emptier neighbours (and vice versa) and stays on as
                   few lines as possible instead of stacking in a narrow column. */}
               {row.isMedicine && (
-                <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "1 1 340px", minWidth: 210 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "1 1 240px", minWidth: 0 }}>
                   <AutoCell
                     refCb={(el) => { doseRefs.current[idx] = el; }}
                     value={row.dose}

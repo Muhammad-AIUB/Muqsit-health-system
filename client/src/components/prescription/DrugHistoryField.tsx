@@ -174,7 +174,7 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", gap: 8, padding: "12px 20px 4px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, rowGap: 8, padding: "12px 20px 4px" }}>
               <button onClick={() => setTab("current")}
                 style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${tab === "current" ? C.pri[400] : C.n[200]}`, background: tab === "current" ? C.pri[50] : C.n[0], color: tab === "current" ? C.pri[600] : C.n[600], fontSize: 12.5, fontWeight: tab === "current" ? 600 : 400, cursor: "pointer", fontFamily: font }}>
                 Current medications{current.filter((r) => r.isMedicine && !r.continuation && r.drug.trim()).length ? ` (${current.filter((r) => r.isMedicine && !r.continuation && r.drug.trim()).length})` : ""}
