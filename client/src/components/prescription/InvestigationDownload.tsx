@@ -149,7 +149,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
             <button onClick={() => setDateMode("custom")} style={seg(dateMode === "custom")}>Select dates</button>
           </div>
           {dateMode === "custom" && (
-            <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, rowGap: 8, alignItems: "center", marginTop: 10 }}>
               <label style={{ fontSize: 12, color: C.n[600] }}>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inp} /></label>
               <label style={{ fontSize: 12, color: C.n[600] }}>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inp} /></label>
             </div>

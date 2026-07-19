@@ -248,8 +248,8 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
               const isVaso = name === "vasopressin";
               const units = isVaso ? ["units/min", "units/hr"] : ["mcg/kg/min", "mcg/min", "mg/hr", "mcg/hr", "ng/kg/min"];
               return (
-                <div key={name} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ flex: "0 0 120px", fontSize: 11, color: C.n[700], textTransform: "capitalize" }}>{name}</span>
+                <div key={name} style={{ display: "flex", flexWrap: "wrap", gap: 6, rowGap: 4, alignItems: "center" }}>
+                  <span style={{ flex: "0 0 90px", fontSize: 11, color: C.n[700], textTransform: "capitalize" }}>{name}</span>
                   <input type="number" inputMode="decimal" placeholder="dose" value={drugDoses[name] || ""}
                     onChange={(e) => setDrugDoses((p) => ({ ...p, [name]: e.target.value }))} style={{ ...inp, flex: 1 }} />
                   <select value={drugUnits[name] || units[0]} onChange={(e) => setDrugUnits((p) => ({ ...p, [name]: e.target.value }))}

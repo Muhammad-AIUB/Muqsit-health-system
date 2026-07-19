@@ -339,7 +339,16 @@ export default function InvestigationPopup() {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
+      <div onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
+        <style>{`
+          @media (max-width: 820px) {
+            .invModal { flex-direction: column !important; width: 100% !important; }
+            .invReports { width: 100% !important; flex-shrink: 1 !important; max-height: 38vh; border-right: none !important; border-bottom: 0.5px solid ${C.n[200]}; }
+            .invBody { flex-direction: column !important; overflow-y: auto !important; }
+            .invSidebar { width: 100% !important; max-height: 150px; flex-shrink: 1 !important; border-right: none !important; border-bottom: 0.5px solid ${C.n[200]}; }
+            .invResults { width: 100% !important; flex-shrink: 1 !important; border-left: none !important; border-top: 0.5px solid ${C.n[200]}; }
+          }
+        `}</style>
 
         {/* Left reports pane — half-screen viewer shown once reports are uploaded */}
         {reportImages.length > 0 && showReports && (() => {
@@ -348,7 +357,7 @@ export default function InvestigationPopup() {
           const pm = imgKey.match(/^(.*):Report (\d+)$/);
           const name = pm ? `Report ${pm[2]} (${pm[1]})` : imgKey;
           return (
-            <div style={{ width: "38%", flexShrink: 0, borderRight: `0.5px solid ${C.n[200]}`, background: C.n[50], display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div className="invReports" style={{ width: "38%", flexShrink: 0, borderRight: `0.5px solid ${C.n[200]}`, background: C.n[50], display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div style={{ padding: "14px 16px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: C.n[0] }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>Reports ({reportImages.length})</span>
                 <span style={{ fontSize: 11, color: C.n[500], overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140 }}>{name}</span>
@@ -419,12 +428,12 @@ export default function InvestigationPopup() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, minHeight: 0 }}>
 
         {/* Header — title + actions (show/hide reports, add images, close) */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8, padding: "12px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 500, color: C.n[900] }}>Investigation report findings</div>
             <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Enter test results — select a category, fill values, and add</div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, rowGap: 8 }}>
             {reportImages.length > 0 && (
               <button onClick={() => setShowReports((s) => !s)} style={{
                 padding: "7px 12px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
@@ -463,8 +472,8 @@ export default function InvestigationPopup() {
             <span style={{ fontSize: 10, color: C.n[500], marginLeft: 8 }}>{calDate.toLocaleDateString("en-US", { weekday: "long" })}</span>
           </div>
           {/* Nav row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-            <div style={{ display: "flex", gap: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6, rowGap: 6, marginBottom: 5 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, rowGap: 4 }}>
               {navLeft.map((b) => (
                 <button key={b.l} onClick={b.fn} style={{ padding: "2px 7px", borderRadius: 4, border: "1px solid " + b.c[400], background: b.c[50], color: b.c[800] || b.c[600], fontSize: 9, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.02em" }}>{b.l}</button>
               ))}
@@ -547,9 +556,9 @@ export default function InvestigationPopup() {
         </div>
 
         {/* Body */}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
+        <div className="invBody" style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
           {/* Category sidebar */}
-          <div style={{ width: 160, borderRight: `0.5px solid ${C.n[200]}`, padding: "8px 0", overflowY: "auto", flexShrink: 0 }}>
+          <div className="invSidebar" style={{ width: 160, borderRight: `0.5px solid ${C.n[200]}`, padding: "8px 0", overflowY: "auto", flexShrink: 0 }}>
             {INV_CATS.map((c) => (
               <button key={c.cat} onClick={() => setInvActiveCat(c.cat)} style={{
                 display: "block", width: "100%", padding: "8px 16px", border: "none", cursor: "pointer",
@@ -773,7 +782,7 @@ export default function InvestigationPopup() {
 
           {/* Added results — right-side panel */}
           {textResults.length > 0 && (
-            <div style={{ width: 290, flexShrink: 0, borderLeft: `0.5px solid ${C.n[200]}`, background: C.n[0], overflowY: "auto", padding: "12px 14px" }}>
+            <div className="invResults" style={{ width: 290, flexShrink: 0, borderLeft: `0.5px solid ${C.n[200]}`, background: C.n[0], overflowY: "auto", padding: "12px 14px" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.n[700], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Added results ({textResults.length})</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {textResults.map((item, idx) => {

@@ -157,12 +157,12 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       {/* POPUP MODAL */}
       {open && (
         <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16,
           background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 1000,
         }} onClick={cancel}>
           <div onClick={(e) => e.stopPropagation()} style={{
-            width: 520, maxHeight: "80vh", background: C.n[0], borderRadius: 14,
+            width: "min(520px, 100%)", maxWidth: "100%", maxHeight: "80vh", background: C.n[0], borderRadius: 14,
             border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
             display: "flex", flexDirection: "column", overflow: "hidden",
           }}>

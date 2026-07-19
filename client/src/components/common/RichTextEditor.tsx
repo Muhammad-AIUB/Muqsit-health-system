@@ -475,7 +475,7 @@ const panelStyle: React.CSSProperties = {
   top: "calc(100% + 4px)",
   left: 0,
   zIndex: 50,
-  width: 250,
+  width: "min(250px, calc(100vw - 24px))",
   background: C.n[0],
   border: `0.5px solid ${C.n[200]}`,
   borderRadius: 10,
