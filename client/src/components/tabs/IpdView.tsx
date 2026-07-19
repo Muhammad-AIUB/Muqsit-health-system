@@ -92,13 +92,15 @@ export default function IpdView() {
 
   return (
     <div style={{ position: "relative" }}>
-      <button onClick={() => setShowAdd((s) => !s)} style={{ position: "absolute", top: 0, right: 0, padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font, zIndex: 1 }}>
-        {showAdd ? "Close" : "+ Admit patient"}
-      </button>
-      <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 500 }}>IPD ward management</div>
-        <button disabled title="Nursing Genie — coming soon" style={{ padding: "6px 14px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[100], color: C.n[400], fontSize: 12.5, fontWeight: 500, cursor: "not-allowed", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 6 }}>
-          🧞 Nursing Genie <span style={{ fontSize: 9, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
+      <div style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8 }}>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>IPD ward management</div>
+          <button disabled title="Nursing Genie — coming soon" style={{ padding: "6px 14px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[100], color: C.n[400], fontSize: 12.5, fontWeight: 500, cursor: "not-allowed", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            🧞 Nursing Genie <span style={{ fontSize: 9, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
+          </button>
+        </div>
+        <button onClick={() => setShowAdd((s) => !s)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font }}>
+          {showAdd ? "Close" : "+ Admit patient"}
         </button>
       </div>
 
@@ -133,7 +135,7 @@ export default function IpdView() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
         <div style={{ background: C.pri[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.pri[600] }}>Occupied</div><div style={{ fontSize: 22, fontWeight: 500, color: C.pri[600] }}>{occupied}</div></div>
         <div style={{ background: C.danger[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.danger[800] }}>Critical</div><div style={{ fontSize: 22, fontWeight: 500, color: C.danger[800] }}>{critical}</div></div>
         <div style={{ background: C.info[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.info[800] }}>Discharge</div><div style={{ fontSize: 22, fontWeight: 500, color: C.info[800] }}>{discharge}</div></div>
@@ -162,7 +164,7 @@ export default function IpdView() {
             .filter(Boolean)
             .join(" · ");
           return (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: i < filtered.length - 1 ? `0.5px solid ${C.n[200]}` : "none" }}>
+            <div key={p.id} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, padding: "10px 0", borderBottom: i < filtered.length - 1 ? `0.5px solid ${C.n[200]}` : "none" }}>
               <div onClick={() => setOpenId(p.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, cursor: "pointer", minWidth: 0 }}>
                 <div style={{ width: 40, height: 26, borderRadius: 6, background: C.info[50], color: C.info[800], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{p.bed}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
