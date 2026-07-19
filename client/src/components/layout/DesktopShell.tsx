@@ -22,11 +22,11 @@ export default function DesktopShell() {
 
   return (
     <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 12, overflow: "hidden", background: C.n[50], position: "relative" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", height: 48, background: C.n[0], borderBottom: `0.5px solid ${C.n[200]}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 700 }}>MHS+</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 18px", minHeight: 48, flexWrap: "wrap", rowGap: 6, background: C.n[0], borderBottom: `0.5px solid ${C.n[200]}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", rowGap: 6, minWidth: 0 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>MHS+</div>
           <span style={{ fontSize: 14, fontWeight: 500, marginRight: 20 }}>Muqsit Health System</span>
-          <div style={{ display: "flex", gap: 1 }}>
+          <div style={{ display: "flex", gap: 1, flexWrap: "wrap", rowGap: 4 }}>
             {TABS.map((t) => {
               const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));
               return (
@@ -39,7 +39,7 @@ export default function DesktopShell() {
             })}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <MirrorToggle />
           <WorkstationIndicator />
           <PatientSearch />
