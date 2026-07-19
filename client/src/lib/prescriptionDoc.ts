@@ -126,7 +126,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   <div class="sheet">
     <div class="head">
       <div class="brand">
-        <div><h1>Muqsit Health System</h1><p class="byline">brought to you by <img src="/exort-logo.png" alt="Exort" class="exort" /></p></div>
+        <div><h1>Muqsit Health System</h1></div>
       </div>
     </div>
 
