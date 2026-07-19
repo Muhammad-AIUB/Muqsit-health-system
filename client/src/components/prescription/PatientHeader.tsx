@@ -15,6 +15,11 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
     monthlyCost, watchPatient, toggleWatch, activeTab, setActiveTab,
   } = useMuqsit();
 
+  // A patient photo can 404 (deleted upload, flaky clinic network) — fall back
+  // to the placeholder glyph instead of a broken-image icon. Reset on change.
+  const [photoError, setPhotoError] = useState(false);
+  useEffect(() => setPhotoError(false), [ptInfo.picture]);
+
   // Once a patient is loaded, their identity fields are read-only here — edits
   // go through Patient Settings. (Weight & Date stay editable: they're
   // per-visit, not stored patient attributes.)
@@ -40,9 +45,9 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             title={ptInfo.picture ? "Patient photo — change in Patient Settings" : "Add a photo in Patient Settings"}
             style={{ width: mobile ? 44 : 54, height: mobile ? 44 : 54, borderRadius: 10, overflow: "hidden", border: `0.5px solid ${C.n[200]}`, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
           >
-            {ptInfo.picture ? (
+            {ptInfo.picture && !photoError ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={ptInfo.picture} alt="Patient" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={ptInfo.picture} alt="Patient" onError={() => setPhotoError(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
               <span style={{ fontSize: mobile ? 18 : 22, color: C.n[400] }}>👤</span>
             )}
