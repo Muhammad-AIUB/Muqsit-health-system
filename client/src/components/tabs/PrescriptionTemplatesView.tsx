@@ -51,7 +51,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
   if (cat) {
     return (
       <div style={{ fontFamily: font, maxWidth: 1000 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, marginBottom: 18 }}>
           <button onClick={() => { exitRemove(); setCat(null); }} style={btnBack}>← Back</button>
           <div style={{ fontSize: 16, fontWeight: 500 }}>{CATEGORY_LABEL[cat]}</div>
 

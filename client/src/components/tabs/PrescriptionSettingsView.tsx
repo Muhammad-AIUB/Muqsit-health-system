@@ -181,7 +181,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
   return (
     <div style={{ fontFamily: font, maxWidth: 980 }}>
       {/* ── Top bar ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, marginBottom: 16 }}>
         <button onClick={() => setMode(null)} style={btnBack}>← Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
         <span style={{ fontSize: 11, fontWeight: 600, color: isOpd ? C.pri[800] : C.info[800], background: isOpd ? C.pri[50] : C.info[50], borderRadius: 6, padding: "4px 10px" }}>
@@ -265,12 +265,13 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
 
       {/* ── Step content ── */}
       {step === "page" ? (
-        <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: 22, display: "grid", gridTemplateColumns: "260px 1fr", gap: 30 }}>
+        <div className="psPageGrid" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: 22, display: "grid", gridTemplateColumns: "260px 1fr", gap: 30 }}>
+          <style>{`@media (max-width: 720px){ .psPageGrid{ grid-template-columns: 1fr !important; gap: 20px !important; } }`}</style>
           <PagePreview form={form} unitShort={unitShort} />
 
           <div>
             <SectionTitle right={<UnitToggle unit={unit} onChange={switchUnit} />}>Page Size</SectionTitle>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px 18px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "16px 18px" }}>
               <NumField label={`Total Height (${unitWord})`} value={form.totalHeight} onChange={setField("totalHeight")} />
               <NumField label={`Left Margin (${unitWord})`} value={form.leftMargin} onChange={setField("leftMargin")} />
               <NumField label={`Header Height (${unitWord})`} value={form.headerHeight} onChange={setField("headerHeight")} />
@@ -326,7 +327,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
           </div>
 
           {headerSplit ? (
-            <div style={{ display: "flex", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 11, color: C.n[600], marginBottom: 6 }}>Left section</div>
                 <RichTextEditor value={headerLeftHtml} onChange={setHeaderLeftHtml} minHeight={220} placeholder="Left section…" />
@@ -701,7 +702,7 @@ function BodySection({
         <UnitToggle unit={unit} onChange={onUnitChange} />
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
+      <div style={{ display: "flex", justifyContent: "safe center", gap: 4, overflowX: "auto" }}>
         <BodyVRuler value={leftTop} onChange={setLeftTop} u={u} />
 
         <div>

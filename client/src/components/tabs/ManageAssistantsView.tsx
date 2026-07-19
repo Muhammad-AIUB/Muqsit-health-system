@@ -249,7 +249,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
                     <div style={{ fontSize: 11, color: C.n[600], marginTop: 2 }}>{contactLine(a)}</div>
                     <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>{a.permissions.length} permission{a.permissions.length === 1 ? "" : "s"} granted</div>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, rowGap: 6 }}>
                     <button onClick={() => openEditor(a)} style={btn(C.info[50], C.info[800])}>{isEditing ? "Close" : "Edit permissions"}</button>
                     <button onClick={() => toggleSuspend(a)} style={btn(C.warn[50], C.warn[800])}>{a.status === "active" ? "Suspend" : "Reinstate"}</button>
                     <button onClick={() => handleRemove(a)} style={btn(C.danger[50], C.danger[800])}>Remove</button>
@@ -262,7 +262,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
                       Your default access is pre-ticked. Add or remove to give {a.name.split(" ")[0]} different permissions, then Save.
                     </div>
                     <PermissionGrid selected={draft} onToggle={toggleInSet(setDraft)} />
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, rowGap: 8, marginTop: 4 }}>
                       <button onClick={() => saveAccess(a)} disabled={updateAssistant.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: updateAssistant.isPending ? 0.6 : 1 }}>
                         {updateAssistant.isPending ? "Saving…" : "Save"}
                       </button>

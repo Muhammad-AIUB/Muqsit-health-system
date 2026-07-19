@@ -81,7 +81,8 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
 
       {/* Browse and add */}
       <div style={{ fontSize: 13, fontWeight: 600, color: C.n[800], marginBottom: 8 }}>Add to favourites</div>
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+      <div className="favBrowse" style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+        <style>{`@media (max-width: 560px){ .favBrowse{ flex-direction: column; } .favBrowse > div:first-of-type{ width: 100% !important; max-height: 220px !important; } }`}</style>
         {/* Category sidebar */}
         <div style={{ width: 170, flexShrink: 0, border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "6px 0", maxHeight: 460, overflowY: "auto" }}>
           {browseCats.map((c) => (

@@ -242,8 +242,10 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
                 key={i}
                 style={{
                   display: "flex",
+                  flexWrap: "wrap",
                   alignItems: "stretch",
                   gap: 12,
+                  rowGap: 10,
                   padding: 10,
                   borderRadius: 10,
                   border: `0.5px solid ${C.n[200]}`,
@@ -437,7 +439,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Row({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>{children}</div>;
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>{children}</div>;
 }
 
 function Label({ children }: { children: React.ReactNode }) {
