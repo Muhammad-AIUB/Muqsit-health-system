@@ -12,8 +12,17 @@ import { useWorkstations } from "@/hooks/useWorkstations";
 // Auto-selects when there's only one; forces a choice when there are several.
 export default function WorkstationSwitcher() {
   const { activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation } = useMuqsit();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { data: workstations = [], isLoading, isSuccess, isError } = useWorkstations();
+
+  // A purchased tier (primary/premium) ALWAYS owns its own workstation, so it
+  // must NEVER be shown the "secondary — upgrade" gate. If the list ever comes
+  // back empty for such an account (a transient read, a tier desync after an
+  // admin change, a backend hiccup), treat it as an anomaly — not an upgrade
+  // prompt — and keep the app usable in the user's own context instead of a
+  // false "you have no access" wall. The gate stays intact for real secondary
+  // accounts, which legitimately have no own workstation.
+  const isPurchasedTier = user?.accountTier === "primary" || user?.accountTier === "premium";
 
   // Auto-select silently — never force the panel open. Own workspace wins when
   // the user has one; otherwise the first assisted practice. Switching is always
@@ -33,7 +42,7 @@ export default function WorkstationSwitcher() {
   // app is blurred behind an upgrade message (they can only be added as an
   // assistant, or purchase the account). Only after a SUCCESSFUL fetch that
   // really returned zero workstations.
-  if (isSuccess && workstations.length === 0) {
+  if (isSuccess && workstations.length === 0 && !isPurchasedTier) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: "rgba(248,248,246,0.55)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
         <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.18)", padding: "30px 28px" }}>
