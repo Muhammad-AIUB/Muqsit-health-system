@@ -87,13 +87,6 @@ export default function LoginPage() {
         padding: 24,
       }}
     >
-      {/* ── Platform brand (top-left): Exort logo + tagline ── */}
-      <div style={{ position: "absolute", top: 22, left: 30, display: "flex", alignItems: "center", gap: 10 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/exort-logo.png" alt="Exort" style={{ height: 26, width: "auto", display: "block" }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: C.n[600], letterSpacing: "0.06em", textDecoration: "underline", textUnderlineOffset: 3 }}>Do better</span>
-      </div>
-
       <div style={{ width: 400, maxWidth: "100%" }}>
         {/* ── Brand ── */}
         <div style={{ textAlign: "center", marginBottom: 26 }}>
