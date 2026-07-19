@@ -187,7 +187,7 @@ export default function PatientSettingsView() {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "0.5px solid " + C.n[200], paddingBottom: 8 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, rowGap: 6, marginBottom: 16, borderBottom: "0.5px solid " + C.n[200], paddingBottom: 8 }}>
         <button onClick={() => setPtSettingsTab("info")} style={psTabStyle("info")}>Patient information</button>
         <button onClick={() => {}} style={psTabStyle("security")} title="Coming soon">Data security level</button>
         <button onClick={() => setPtSettingsTab("doctors")} style={psTabStyle("doctors")}>Supervising doctor list</button>
@@ -202,7 +202,7 @@ export default function PatientSettingsView() {
               {currentPatientId ? "Editing existing" : "New patient"}
             </span>
           </div>
-          <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16, display: "flex", gap: 16, alignItems: "flex-start" }}>
+          <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16, display: "flex", flexWrap: "wrap", gap: 16, rowGap: 12, alignItems: "flex-start" }}>
             {/* Photo lives OUTSIDE the disabled fieldset so it can be uploaded any
                 time (it saves immediately, independent of the Edit/Save flow). */}
             <PatientPhotoCorner />
@@ -400,9 +400,9 @@ export default function PatientSettingsView() {
 
           {/* Add family member modal */}
           {showFamilyForm && (
-            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
               onClick={() => setShowFamilyForm(false)}>
-              <div onClick={(e) => e.stopPropagation()} style={{ width: 460, background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflow: "hidden" }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflowX: "hidden", overflowY: "auto" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "0.5px solid " + C.n[200], display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>Add {familyRelation.toLowerCase()}</div>

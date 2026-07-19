@@ -229,9 +229,9 @@ export default function PatientRecordsView() {
           .inv-undo-btn:hover{background:${C.pri[50]}}
           .inv-undo-btn:focus-visible{outline:2px solid ${C.pri[400]};outline-offset:2px}
         `}</style>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>Investigation reports summary</div>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, rowGap: 8, marginBottom: 10 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], minWidth: 0 }}>Investigation reports summary</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {summary.length > 0 && (
               editingSummary
                 ? <button onClick={() => { setEditingSummary(false); setUndo(null); }} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>Done</button>
@@ -360,9 +360,9 @@ function Gallery({
 
   return (
     <div style={{ marginBottom: 22 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>{title}</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, rowGap: 8, marginBottom: 10 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], minWidth: 0 }}>{title}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {busy && <span style={{ fontSize: 11, color: C.n[500] }}>Uploading…</span>}
           {editing ? (
             <>

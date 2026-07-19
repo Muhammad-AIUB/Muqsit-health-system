@@ -153,7 +153,7 @@ export default function PatientsView() {
             {patients.map((p, i) => (
               <div key={p.id} style={{ borderBottom: i < patients.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
                 <PatientRow p={toRow(p)} rightSlot={
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, rowGap: 6, flexShrink: 0 }}>
                     <button onClick={() => openForPrescription(p)} style={smallBtn(true)}>Open</button>
                     <button onClick={() => editPatient(p)} style={smallBtn(false)}>Edit</button>
                     <button onClick={() => handleDelete(p)} disabled={deletePatient.isPending} style={{ ...smallBtn(false), color: C.danger[800], borderColor: C.danger[100] }}>Delete</button>

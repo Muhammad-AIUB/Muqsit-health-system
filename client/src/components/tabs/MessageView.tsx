@@ -32,7 +32,8 @@ export default function MessageView() {
           <div style={{ fontSize: 12, marginTop: 4 }}>When a doctor adds you as a supervising doctor on a patient, it appears here.</div>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 14, alignItems: "start" }}>
+        <div className="msgGrid" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 14, alignItems: "start" }}>
+          <style>{`@media (max-width: 680px){ .msgGrid{ grid-template-columns: 1fr !important; } }`}</style>
           <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, overflow: "hidden" }}>
             {patients.map((p, i) => {
               const on = p.id === selId;

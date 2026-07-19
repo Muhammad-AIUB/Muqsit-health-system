@@ -160,7 +160,7 @@ export default function HealthMonitoringView() {
       </div>
 
       {/* ── PANELS 1/2/3 ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 10, marginBottom: 14, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 14, alignItems: "start" }}>
         {/* 1 · Drugs from Drug history, each with Start-from / Upto */}
         <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "12px 14px" }}>
           <div style={panelTitle}>💊 Drugs <span style={{ color: C.n[400], fontWeight: 400 }}>· from drug history</span></div>
