@@ -4,11 +4,26 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Without this the root element defaults to Times New Roman — visible on any
+     element that doesn't inherit the body font. */
+  font-family: "DM Sans", "Outfit", system-ui, sans-serif;
+}
+
 body {
   font-family: "DM Sans", "Outfit", system-ui, sans-serif;
   background: #f8f8f6;
   /* Uniformly scales the whole UI (text + spacing) up by 12% */
   zoom: 1.12;
+}
+
+/* Form controls don't inherit font-family by default — align them with the app
+   font instead of the user-agent default (which renders as Arial). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 .app-root {
