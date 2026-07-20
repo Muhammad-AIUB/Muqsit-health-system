@@ -54,7 +54,9 @@ There is no meaningful automated test suite; the safety net is typecheck + manua
 
 ## Deployment — automatic, never manual
 
-Every push to `main` triggers `.github/workflows/deploy.yml`: SSH to the VPS (`/root/muqsit`), `git pull`, install+build client/server (+admin non-fatally), `pm2 restart all`. Takes ~2–3 min; watch the GitHub Actions tab. **Never instruct manual deploys.** The workflow does NOT run DB migrations — those are applied through the tunnel as above. Prod URLs: `muqsithealthsystem.com` (client), `api.muqsithealthsystem.com/api` (API), `admin.muqsithealthsystem.com` (admin).
+Every push to `main` triggers `.github/workflows/deploy.yml`: SSH to the VPS (`/root/muqsit`), discard any local lockfile drift, `git pull`, install+build client/server (+admin non-fatally), `pm2 restart all`. Takes ~2–3 min; watch the GitHub Actions tab. **Never instruct manual deploys.** The workflow does NOT run DB migrations — those are applied through the tunnel as above. Prod URLs: `muqsithealthsystem.com` (client), `api.muqsithealthsystem.com/api` (API), `admin.muqsithealthsystem.com` (admin).
+
+- **Lockfile-drift gotcha:** the VPS's own `npm install` can regenerate a `package-lock.json` with platform-specific entries, leaving it locally modified and blocking the next deploy's `git pull` (`error: Your local changes ... would be overwritten by merge` — happened 2026-07-20). The workflow now runs `git checkout -- client/package-lock.json server/package-lock.json admin/package-lock.json` before pulling, so this shouldn't recur. If it ever does: SSH in, `git checkout -- <path>/package-lock.json`, `git pull`, then re-run the failed Action (don't build/restart by hand).
 
 ## Domain concepts (shared vocabulary)
 
@@ -69,5 +71,6 @@ Every push to `main` triggers `.github/workflows/deploy.yml`: SSH to the VPS (`/
 
 - Dates shown/stored in strings are `dd/mm/yyyy`; `ptDate` is ISO internally (`isoToDdmmyyyy` to convert). Flexible input: `ddmmyy` shorthand (e.g. `030626`).
 - Commit messages: conventional-commit style (`fix(scope): …`), ending with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. Work lands directly on `main` (user-authorized); push after every verified change.
+- **Multiple GitHub accounts on this machine.** Commits/pushes to this repo must be attributed to `Muhammad-AIUB <mjubayer.aiub20@gmail.com>` — never another account present on the machine (e.g. `unidevgoQA`), even if that's the one `gh`/git currently has active. Before pushing, check both `git config user.email` and `gh auth status` (active account) show Muhammad-AIUB; if not, stop and have the user switch (`gh auth switch` / `gh auth login`) rather than pushing under the wrong identity. Re-authoring already-committed-but-unpushed commits: `git rebase <base> --exec 'git commit --amend --reset-author --no-edit'` after fixing `git config user.name/user.email`.
 - The user (product owner, a physician) communicates in Bangla — reply in Bangla; keep code/comments in English.
 - Per-app details live in `client/CLAUDE.md`, `server/CLAUDE.md`, `admin/CLAUDE.md` — read the one for the area you touch.
