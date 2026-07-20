@@ -18,7 +18,13 @@ jobs:
           command_timeout: 10m
           script: |
             set -e
-            cd /root/muqsit && git pull origin main
+            cd /root/muqsit
+            # npm install regenerates package-lock.json with platform-specific
+            # entries on the VPS, leaving these files locally modified and
+            # blocking the next pull. They're safely discarded — npm install
+            # right below regenerates them anyway.
+            git checkout -- client/package-lock.json server/package-lock.json admin/package-lock.json 2>/dev/null || true
+            git pull origin main
             cd client && npm install && npm run build && cd ..
             cd server && npm install && npx prisma generate && npm run build && cd ..
             # Admin build is non-fatal so it can never block the core client/server deploy.
