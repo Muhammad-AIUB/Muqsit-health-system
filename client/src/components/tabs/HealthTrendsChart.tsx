@@ -16,21 +16,43 @@ interface Props {
 }
 
 const DEFAULT_TRACK_LIMIT = 5;
-// Only shades actually defined in theme/index.ts — several referenced shades
-// elsewhere in the app (C.pri[300], C.n[400], C.warn[200]...) are undefined
-// at runtime, so this rotation is deliberately restricted to real ones.
-const SERIES_COLORS = [C.pri[400], C.info[400], C.warn[400], C.danger[400], C.pri[600], C.warn[600], C.info[800], C.danger[800], C.pri[800]];
+// C.pri[400] and C.warn[400] are deliberately absent: they mean "medication
+// bar" and "symptom bar". Keeping them out of the line palette stops a lab
+// series from taking on a colour that already carries a different meaning.
+// Only shades that actually exist in theme/index.ts are listed — several
+// shades referenced elsewhere in the app resolve to undefined at runtime.
+const SERIES_COLORS = [C.info[400], C.danger[400], C.pri[600], C.warn[600], C.info[800], C.danger[800], C.pri[800], C.warn[800]];
 
 const paramKey = (p: ChartableParam) => `${p.test}::${p.field}`;
 
-// Deterministic on the parameter's identity, not its position in the
-// currently-selected list — so toggling one checkbox never reassigns
-// another series' color.
-const seriesColor = (p: ChartableParam) => {
-  const key = paramKey(p);
+const hashIndex = (key: string) => {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
-  return SERIES_COLORS[Math.abs(h) % SERIES_COLORS.length];
+  return Math.abs(h) % SERIES_COLORS.length;
+};
+
+// A parameter's preferred colour is a stable hash of its identity, so it does
+// not shift as other series are toggled. But two visible series must never
+// share a colour, so a collision falls through to the next free slot —
+// resolved in a fixed key order rather than selection order.
+const assignSeriesColors = (params: ChartableParam[]): Map<string, string> => {
+  const out = new Map<string, string>();
+  const used = new Set<string>();
+  for (const p of [...params].sort((a, b) => paramKey(a).localeCompare(paramKey(b)))) {
+    const start = hashIndex(paramKey(p));
+    let color = SERIES_COLORS[start];
+    for (let i = 1; i <= SERIES_COLORS.length && used.has(color); i++) {
+      color = SERIES_COLORS[(start + i) % SERIES_COLORS.length];
+    }
+    used.add(color);
+    out.set(paramKey(p), color);
+  }
+  return out;
+};
+
+const msToDdmmyyyy = (ms: number): string => {
+  const d = new Date(ms);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 
 const ddmmyyyyMs = (d: string): number => {
@@ -106,15 +128,22 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
   const visibleSymptoms = symptomRanges.filter((r) => selectedSymptoms?.has(r.name));
 
   const tracks = [
-    ...visibleDrugs.map((r) => ({ kind: "drug" as const, name: r.name, start: ddmmyyyyMs(r.start), end: ddmmyyyyMs(r.end) })),
-    ...visibleSymptoms.map((r) => ({ kind: "symptom" as const, name: r.name, start: isoMs(r.start), end: isoMs(r.end) })),
+    ...visibleDrugs.map((r) => ({ kind: "drug" as const, name: r.name, start: ddmmyyyyMs(r.start), end: ddmmyyyyMs(r.end), from: r.start, to: r.end })),
+    ...visibleSymptoms.map((r) => ({ kind: "symptom" as const, name: r.name, start: isoMs(r.start), end: isoMs(r.end), from: isoToDdmmyyyy(r.start), to: isoToDdmmyyyy(r.end) })),
   ];
 
   const allMs = [
     ...visibleParams.flatMap((x) => x.points.map((p) => ddmmyyyyMs(p.date))),
     ...tracks.flatMap((t) => [t.start, t.end]),
   ];
+  const seriesColors = assignSeriesColors(visibleParams.map((v) => v.param));
+  const colorFor = (p: ChartableParam) => seriesColors.get(paramKey(p)) ?? SERIES_COLORS[0];
+
   const range = computeTimeRange(allMs);
+  // Actual data extent (the axis range itself is padded, so it would overstate
+  // the window). Month labels get thinned on wide ranges, so state it plainly.
+  const dataFrom = allMs.length ? Math.min(...allMs) : null;
+  const dataTo = allMs.length ? Math.max(...allMs) : null;
 
   const LW = 150, PR = 16, SVG_W = 800, RH = 28, PB = 30;
   const hasPlot = visibleParams.length > 0;
@@ -122,13 +151,16 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
   const PLOT_TOP = 14;
   // Each series gets its own vertical lane rather than sharing one band —
   // two flat/near-identical series would otherwise both normalize to the
-  // same center line and their row labels would collide.
-  const LANE_H = 45;
+  // same center line and their row labels would collide. The lane is taller
+  // than the plotted band (LANE_PAD) so value labels have somewhere to go.
+  const LANE_H = 68, LANE_PAD = 15;
   const PLOT_H = hasPlot ? visibleParams.length * LANE_H : 0;
   const GANTT_TOP = PLOT_TOP + PLOT_H + (hasPlot && hasGantt ? 20 : 0);
   const bodyBottom = GANTT_TOP + tracks.length * RH;
   const chartH = Math.max(80, bodyBottom + PB);
   const areaW = SVG_W - LW - PR;
+  const PLOT_L = LW, PLOT_R = SVG_W - PR;
+  const LABEL_HALF_W = 22; // ~half a "423mg/dL"-sized label at 9px
   const toX = makeToX(range, LW, areaW);
   const months = monthTicks(range, toX);
   const today = new Date();
@@ -139,13 +171,14 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
       <div style={{ fontSize: 12, fontWeight: 600, color: C.n[700], marginBottom: 4 }}>Health trend chart</div>
       <div style={{ fontSize: 10.5, color: C.n[500], marginBottom: 12 }}>
         Medication and symptom bars span first → last recorded mention for that name — not necessarily continuous use.
+        A dot marks a name recorded on one date only.
       </div>
 
       {(hasPlot || hasGantt) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 8, fontSize: 10.5 }}>
           {visibleParams.map(({ param }) => (
             <span key={paramKey(param)} style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.n[700] }}>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: seriesColor(param), display: "inline-block", flexShrink: 0 }} />
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: colorFor(param), display: "inline-block", flexShrink: 0 }} />
               {param.label}
             </span>
           ))}
@@ -176,44 +209,79 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
               </g>
             ))}
             <line x1={LW} y1={bodyBottom} x2={SVG_W - PR} y2={bodyBottom} stroke={C.n[300]} strokeWidth={0.5} />
+            {/* Hairline between stacked parameters — each has its own scale,
+                so they must not read as one continuous plot. */}
+            {visibleParams.slice(1).map((_, i) => (
+              <line key={`lane-${i}`} x1={LW} x2={SVG_W - PR} y1={PLOT_TOP + (i + 1) * LANE_H} y2={PLOT_TOP + (i + 1) * LANE_H} stroke={C.n[100]} strokeWidth={0.5} />
+            ))}
             {todayInRange && (
               <>
                 <line x1={toX(today.getTime())} y1={PLOT_TOP} x2={toX(today.getTime())} y2={bodyBottom} stroke="#f87171" strokeWidth={1} strokeDasharray="3,3" />
-                <text x={toX(today.getTime()) + 3} y={PLOT_TOP + 8} fontSize={8} fill="#f87171">Today</text>
+                <text
+                  x={toX(today.getTime()) + (toX(today.getTime()) > PLOT_R - 30 ? -3 : 3)}
+                  y={PLOT_TOP - 4}
+                  textAnchor={toX(today.getTime()) > PLOT_R - 30 ? "end" : "start"}
+                  fontSize={8}
+                  fill="#f87171"
+                >
+                  Today
+                </text>
               </>
             )}
 
             {hasPlot && visibleParams.map(({ param, points }, si) => {
-              const color = seriesColor(param);
+              const color = colorFor(param);
               const vals = points.map((p) => p.value);
               const vmin = Math.min(...vals), vmax = Math.max(...vals);
               const vspan = vmax - vmin;
               const laneTop = PLOT_TOP + si * LANE_H;
               const yOf = (v: number) => {
                 const norm = vspan > 0 ? (v - vmin) / vspan : 0.5;
-                return laneTop + LANE_H - 10 - norm * (LANE_H - 20);
+                return laneTop + LANE_H - LANE_PAD - norm * (LANE_H - 2 * LANE_PAD);
               };
-              const pxs = points.map((p) => ({ x: toX(ddmmyyyyMs(p.date)), y: yOf(p.value), label: p.label }));
-              // Stagger label height when consecutive points sit too close
-              // horizontally to read their text side by side — common for
-              // closely-spaced visits (e.g. daily inpatient monitoring).
-              const MIN_LABEL_X_GAP = 34;
-              let lastLabelX = -Infinity, flip = false;
+              const pxs = points.map((p) => ({ x: toX(ddmmyyyyMs(p.date)), y: yOf(p.value), label: p.label, date: p.date }));
+              // Place each value label in the first offset that collides with
+              // nothing already placed and stays inside this parameter's lane.
+              // A fixed stagger is not enough: two readings recorded on the
+              // SAME date share an x but differ in y, so a constant offset can
+              // still land them on top of each other — and two overlapping lab
+              // values are unreadable, not merely untidy.
+              const OFFSETS = [-7, 13, -18, 24, -29, 35];
+              const LINE_H = 10;
+              const placed: { x: number; y: number }[] = [];
               const labeled = pxs.map((p) => {
-                flip = p.x - lastLabelX < MIN_LABEL_X_GAP ? !flip : false;
-                lastLabelX = p.x;
-                return { ...p, dy: flip ? -16 : -7 };
+                // A label must NEVER be clipped by the plot edge either — a
+                // half-cut "11g/dL" reads as "1g/dL". Anchor it inward rather
+                // than centring it on a point sitting near either end.
+                const anchor = p.x + LABEL_HALF_W > PLOT_R ? "end" : p.x - LABEL_HALF_W < PLOT_L ? "start" : "middle";
+                let dy = OFFSETS[0];
+                for (const off of OFFSETS) {
+                  const ly = p.y + off;
+                  if (ly < laneTop + 8 || ly > laneTop + LANE_H - 2) continue;
+                  if (placed.some((q) => Math.abs(q.x - p.x) < LABEL_HALF_W * 2 && Math.abs(q.y - ly) < LINE_H)) continue;
+                  dy = off;
+                  break;
+                }
+                placed.push({ x: p.x, y: p.y + dy });
+                return { ...p, dy, anchor };
               });
               return (
                 <g key={paramKey(param)}>
                   <polyline points={pxs.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke={color} strokeWidth={1.75} />
-                  {labeled.map((p, i) => (
-                    <g key={i}>
-                      <circle cx={p.x} cy={p.y} r={2.5} fill={color} />
-                      <text x={p.x} y={p.y + p.dy} textAnchor="middle" fontSize={9} fill={color}>{p.label}</text>
-                    </g>
-                  ))}
-                  <text x={LW - 8} y={pxs[0].y + 3} textAnchor="end" fontSize={10} fontWeight={600} fill={color}>{param.label}</text>
+                  {labeled.map((p, i) => {
+                    // The most recent reading is what gets scanned first.
+                    const latest = i === labeled.length - 1;
+                    return (
+                      <g key={i}>
+                        <title>{`${param.label} · ${p.date} · ${p.label}`}</title>
+                        <circle cx={p.x} cy={p.y} r={latest ? 4 : 2.5} fill={color} />
+                        <text x={p.x} y={p.y + p.dy} textAnchor={p.anchor} fontSize={9} fontWeight={latest ? 700 : 400} fill={color}>{p.label}</text>
+                      </g>
+                    );
+                  })}
+                  <text x={LW - 8} y={laneTop + LANE_H / 2 + 3} textAnchor="end" fontSize={10} fontWeight={600} fill={color}>
+                    {param.label.length > 22 ? param.label.slice(0, 21) + "…" : param.label}
+                  </text>
                 </g>
               );
             })}
@@ -222,17 +290,31 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
               const cy = GANTT_TOP + idx * RH + RH / 2;
               const x1 = toX(t.start), x2 = toX(t.end);
               const color = t.kind === "drug" ? C.pri[400] : C.warn[400];
+              // Recorded on a single date only: draw a point, not a stub bar.
+              // A 6px-wide bar reads as "used for a short period", which is a
+              // claim the data doesn't support — there is just one mention.
+              const singleMention = x2 - x1 < 3;
               return (
                 <g key={`${t.kind}-${t.name}`}>
                   {idx % 2 === 0 && <rect x={LW} y={GANTT_TOP + idx * RH} width={areaW} height={RH} fill={C.n[50]} />}
                   <text x={LW - 8} y={cy + 4} textAnchor="end" fontSize={10} fill={C.n[700]}>
                     {t.name.length > 20 ? t.name.slice(0, 19) + "…" : t.name}
                   </text>
-                  <rect x={x1} y={cy - 7} width={Math.max(6, x2 - x1)} height={14} rx={4} fill={color} opacity={0.85} />
+                  <title>{singleMention ? `${t.name} · recorded ${t.from}` : `${t.name} · ${t.from} – ${t.to}`}</title>
+                  {singleMention ? (
+                    <circle cx={x1} cy={cy} r={5} fill={color} opacity={0.85} />
+                  ) : (
+                    <rect x={x1} y={cy - 7} width={x2 - x1} height={14} rx={4} fill={color} opacity={0.85} />
+                  )}
                 </g>
               );
             })}
           </svg>
+          {dataFrom != null && dataTo != null && (
+            <div style={{ fontSize: 9.5, color: C.n[500], textAlign: "right", marginTop: 2 }}>
+              Showing {msToDdmmyyyy(dataFrom)} – {msToDdmmyyyy(dataTo)} · hover any point or bar for its date
+            </div>
+          )}
         </div>
       )}
 
