@@ -6,25 +6,26 @@ import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { patientsApi, prescriptionsApi } from "@/lib/api";
 import { cellToDate, normaliseDateCell, type DrugDateMap } from "@/lib/hmDates";
+import { drugMentionRanges } from "@/lib/drugHistorySummary";
+import { symptomMentionRanges } from "@/lib/symptomSummary";
+import { computeTimeRange, makeToX, monthTicks, isInRange } from "@/lib/timelineGeometry";
+import HealthTrendsChart from "./HealthTrendsChart";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dedupe = (xs: string[]) => Array.from(new Set(xs.map((x) => x.trim()).filter(Boolean)));
 
-export default function HealthMonitoringView() {
-  const { drugHistory, currentPatientId, hmDrugs, setHmDrugs } = useMuqsit();
+const todayDdmmyyyy = (() => {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+})();
 
-  // ── Panel 1: drugs from the Drug history (Current + Past heads) ──
-  const historyDrugs = useMemo(() => {
-    const names: string[] = [];
-    for (const entry of drugHistory) {
-      // Only medicine heads ("Current:" / "Past:") — skip continuations/notes.
-      const m = entry.match(/^(Current|Past):\s*(.+)$/);
-      if (!m) continue;
-      const name = m[2].split(" — ")[0].trim();
-      if (name && !names.includes(name)) names.push(name);
-    }
-    return names;
-  }, [drugHistory]);
+export default function HealthMonitoringView() {
+  const { drugHistory, investigationSummary, currentPatientId, hmDrugs, setHmDrugs } = useMuqsit();
+
+  // ── Panel 1: drugs from the Drug history, current + legacy formats ──
+  // (previously matched only the legacy "Current:"/"Past:" format, so any
+  // patient using the current dd/mm/yyyy format got a silently empty list)
+  const drugRanges = useMemo(() => drugMentionRanges(drugHistory, todayDdmmyyyy), [drugHistory]);
+  const historyDrugs = useMemo(() => drugRanges.map((r) => r.name), [drugRanges]);
 
   // ── Panels 2 & 3: symptoms + tests from ALL of this patient's prescriptions ──
   const { data: prescriptions } = useQuery({
@@ -34,6 +35,7 @@ export default function HealthMonitoringView() {
   });
   const allSymptoms = useMemo(() => dedupe((prescriptions ?? []).flatMap((p) => p.chiefComplaints ?? [])), [prescriptions]);
   const allTests = useMemo(() => dedupe((prescriptions ?? []).flatMap((p) => p.adviceTest ?? [])), [prescriptions]);
+  const symptomRanges = useMemo(() => symptomMentionRanges(prescriptions ?? []), [prescriptions]);
 
   // ── Per-drug Start-from / Upto dates (persisted on the patient record) ──
   const qc = useQueryClient();
@@ -84,32 +86,15 @@ export default function HealthMonitoringView() {
     })
     .filter((b): b is { name: string; start: Date; end: Date } => b !== null);
 
-  const range = (() => {
-    if (bars.length === 0) return null;
-    const starts = bars.map((b) => b.start.getTime());
-    const ends = bars.map((b) => b.end.getTime());
-    let lo = Math.min(...starts), hi = Math.max(...ends);
-    if (hi - lo < 1000 * 60 * 60 * 24 * 30) hi = lo + 1000 * 60 * 60 * 24 * 30; // ≥1 month wide
-    const pad = (hi - lo) * 0.04;
-    return { lo: lo - pad, hi: hi + pad };
-  })();
+  const range = computeTimeRange(bars.flatMap((b) => [b.start.getTime(), b.end.getTime()]));
 
   const LW = 150, PR = 16, PT = 18, PB = 34, RH = 30, SVG_W = 800;
   const chartH = Math.max(90, bars.length * RH + PT + PB);
   const areaW = SVG_W - LW - PR;
-  const toX = (t: number) => LW + (range ? ((t - range.lo) / (range.hi - range.lo)) * areaW : 0);
+  const toX = makeToX(range, LW, areaW);
 
-  const months: { label: string; x: number }[] = [];
-  if (range) {
-    let mc = new Date(range.lo);
-    mc = new Date(mc.getFullYear(), mc.getMonth(), 1);
-    const end = new Date(range.hi);
-    while (mc <= end) {
-      months.push({ label: `${MONTHS[mc.getMonth()]} ${String(mc.getFullYear()).slice(2)}`, x: toX(mc.getTime()) });
-      mc = new Date(mc.getFullYear(), mc.getMonth() + 1, 1);
-    }
-  }
-  const todayInRange = range && today.getTime() >= range.lo && today.getTime() <= range.hi;
+  const months = monthTicks(range, toX);
+  const todayInRange = isInRange(today.getTime(), range);
 
   const dateInput: React.CSSProperties = { width: 92, padding: "3px 6px", borderRadius: 5, border: `0.5px solid ${C.n[200]}`, fontSize: 10.5, outline: "none", color: C.n[800], background: C.n[0] };
 
@@ -131,7 +116,7 @@ export default function HealthMonitoringView() {
               {months.map((m, i) => (
                 <g key={i}>
                   <line x1={m.x} y1={PT} x2={m.x} y2={chartH - PB} stroke={C.n[200]} strokeWidth={0.5} />
-                  <text x={m.x} y={chartH - PB + 14} textAnchor="middle" fontSize={9} fill={C.n[500]}>{m.label}</text>
+                  {m.showLabel && <text x={m.x} y={chartH - PB + 14} textAnchor="middle" fontSize={9} fill={C.n[500]}>{m.label}</text>}
                 </g>
               ))}
               <line x1={LW} y1={chartH - PB} x2={SVG_W - PR} y2={chartH - PB} stroke={C.n[300]} strokeWidth={0.5} />
@@ -209,6 +194,13 @@ export default function HealthMonitoringView() {
           )}
         </div>
       </div>
+
+      <HealthTrendsChart
+        key={currentPatientId ?? "none"}
+        investigationSummary={investigationSummary}
+        drugRanges={drugRanges}
+        symptomRanges={symptomRanges}
+      />
 
       {/* ── Export ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
