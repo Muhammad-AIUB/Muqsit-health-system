@@ -21,7 +21,16 @@ Controllers touching practice data use `@UseGuards(JwtAuthGuard, WorkstationGuar
 
 If you add a new patient-scoped endpoint, decide explicitly which column of this table it belongs to and mirror the corresponding `where` shape from `patients.service.ts`.
 
-**Narrower than the table above:** `hmDrugDates` / `hmSymptomDates` (the Health-trend-chart duration overrides) are **owner-only**. `patients.controller.ts#update` 403s any request carrying those keys from a non-`owner` workstation, and the `patient.doctorId !== doctorId` check in `patients.service.ts#update` stops supervising doctors (who act under their own workstation, so `role` is `owner`). `hmDrugDates` used to sit in the assistant `RX_LIFECYCLE` bypass set — it was deliberately removed; don't put it back without a permission key.
+**Narrower than the table above:** `hmDrugDates` / `hmSymptomDates` (the Health-trend-chart duration overrides) are **owner-only**, and the two denials come from **different layers** — both load-bearing:
+
+| Caller | Stopped by |
+|---|---|
+| Assistant in the owner's workstation | `patients.controller.ts#update`: `ws.role !== 'owner'` + the key is present → 403 |
+| Supervising doctor | *Not* the controller — they act under their **own** workstation, so `ws.role` is `'owner'`. The `patient.doctorId !== doctorId` check in `patients.service.ts#update` is what stops them |
+
+`hmDrugDates` used to sit in the assistant `RX_LIFECYCLE` bypass set — deliberately removed; don't put it back without a permission key. `PATCH /patients/:id` is the **only** route that accepts `UpdatePatientDto`, and these fields are declared on it alone (not on Create/Link), so `ValidationPipe({ whitelist: true })` strips them everywhere else. One door — keep it that way.
+
+**Deleting a doctor must not delete their patients.** A patient is not the property of the account that registered them: the same person returns to a different doctor and is found again by mobile. `admin.service.ts#hardDelete` therefore does a plain user delete and lets `Patient.doctorId`'s `onDelete: SetNull` keep the row, its demographics and its durable history (`investigationSummary`, `onExaminationSummary`, `drugHistory`, `familyMembers`). That doctor's own `Prescription` rows still cascade, which is consistent — they were never visible to another doctor. **Known gap:** `accessibleWhere()` matches `{ doctorId }` OR an assigned supervisor, so a patient left with `doctorId = null` is retained but **not reachable** through the mobile lookup. Making unowned patients findable exposes PII across practices and needs its own access design — do not bolt it onto a delete path.
 
 ## ⚠️ Rule 3 — ValidationPipe strips unknown fields
 
@@ -49,5 +58,6 @@ If you add a new patient-scoped endpoint, decide explicitly which column of this
 - **The medicine database is a raw Postgres table `medicines` that is NOT in `schema.prisma`** — `medicines.service.ts` queries it with `$queryRaw` (bound params, brand-before-generic ranking). Don't look for a Prisma model, don't let a destructive schema push touch it, and keep any new query parameterized.
 - Email (OTP verification, notifications) is nodemailer over SMTP — `SMTP_HOST/SMTP_USER/SMTP_PASS` env. Without them the transporter is null (dev): signup OTP won't arrive; that's configuration, not a bug.
 - `CORS_ORIGIN` env is a comma list and must include every frontend origin (localhost:3000/3001 + prod domains) — a missing origin looks like random auth failures.
-- Activity log (`activity`) is the doctor-facing audit trail; when adding a feature that records clinical input, log it (`section`, `detail`, optional `imageUrl`) so it appears in "Notifications, Chats & Reports".
-- Uploaded files are on-disk under `uploads/` (served at `/uploads/<file>`) — hosted URLs, never base64 into the DB.
+- Activity log (`activity`) is the doctor-facing audit trail; when adding a feature that records clinical input, log it (`section`, `detail`, optional `imageUrl`) so it appears in "Notifications, Chats & Reports". `detail` is capped at **400 chars** — trim free-text names (a chief complaint is doctor-typed) before interpolating, or the whole log call 400s.
+- Uploaded files are on-disk under `uploads/` (served at `/uploads/<file>`) — hosted URLs, never base64 into the DB. `server/.gitignore` anchors this as `/uploads/`: an unanchored `uploads/` **also matched `src/uploads/`**, the upload module, so a new file added there was silently untracked and never deployed. Keep the leading slash.
+- The upload size limit is **8 MB on purpose**. `compressImage()` on the client returns the ORIGINAL file whenever `createImageBitmap` throws (HEIC on most desktop browsers), for GIFs, and whenever the re-encode isn't smaller — and `upload.service.ts#checkMagic` accepts `heic`/`heif`/`avif` deliberately. iPhone report photos are routinely 3-8 MB; a tighter ceiling rejects real uploads. The hardening that matters is the magic-byte check, not the last few MB.
