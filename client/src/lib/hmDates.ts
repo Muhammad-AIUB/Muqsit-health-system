@@ -11,6 +11,10 @@ export function parseShorthandDate(input: string): { label: string; iso: string 
   const dd = +digits.slice(0, 2), mm = +digits.slice(2, 4), yy = +digits.slice(4, 6);
   if (dd < 1 || dd > 31 || mm < 1 || mm > 12) return null;
   const year = 2000 + yy;
+  // Reject impossible calendar dates (e.g. 31 Feb) so cellToDate doesn't silently
+  // roll them over (new Date("2014-02-31") → 3 Mar) and mis-sort the timeline.
+  const dt = new Date(year, mm - 1, dd);
+  if (dt.getFullYear() !== year || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null;
   const iso = `${year}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
   return { label: `${dd} ${MONTHS[mm - 1]} ${year}`, iso };
 }

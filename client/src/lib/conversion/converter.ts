@@ -166,16 +166,13 @@ export class MedicalUnitConverter {
       // Already in mass concentration, convert to mg/dL
       mgPerDL = inFromCanonical // toCanonical=1 means canonical=mg/dL for concentration-mass
     } else if (from.category === 'concentration-molar') {
-      // µmol/L → mg/dL
-      // µmol/L / (10000/molarMass) = mg/dL
+      // µmol/L → mg/dL. Dimensional analysis:
+      //   µmol/L × (1 mol / 1e6 µmol) × molarMass (g/mol) = g/L
+      //   g/L → mg/dL: × 1000 mg/g × 0.1 L/dL = × 100
+      //   ⇒ mg/dL = µmol/L × molarMass × 1e-6 × 100 = µmol/L × molarMass × 1e-4
+      // (The prior factor of 0.01 was 100× too large.)
       const umolPerL = inFromCanonical // toCanonical=1 means µmol/L for molar
-      mgPerDL = umolPerL * molarMass / 10000 * 1 // µmol/L * g/mol / 1000 / 10 * 1000 / 1
-      // Correction: µmol/L → mmol/L (*0.001) → g/L (*molarMass) → g/dL (/10) → mg/dL (*1000)
-      // = µmol/L * 0.001 * molarMass / 10 * 1000 = µmol/L * molarMass / 100 / 1000 * 1000
-      // Let's be precise: µmol/L * (molarMass g/mol) * (1 mol/1e6 µmol) * (1000 mg/g) * (1 dL / 0.1 L)
-      // = µmol/L * molarMass * 1e-6 * 1000 * 10
-      // = µmol/L * molarMass * 0.01
-      mgPerDL = umolPerL * molarMass * 0.01
+      mgPerDL = umolPerL * molarMass * 1e-4
     } else {
       return value
     }
@@ -186,8 +183,8 @@ export class MedicalUnitConverter {
       const result = mgPerDL / (to.toCanonical as number)
       return this.round(result, to.precision)
     } else if (to.category === 'concentration-molar') {
-      // mg/dL → µmol/L: value / (molarMass * 0.01)
-      const umolPerL = mgPerDL / (molarMass * 0.01)
+      // mg/dL → µmol/L (inverse of the µmol/L → mg/dL factor above).
+      const umolPerL = mgPerDL / (molarMass * 1e-4)
       // Now convert µmol/L to target molar unit
       const result = umolPerL / (to.toCanonical as number)
       return this.round(result, to.precision)

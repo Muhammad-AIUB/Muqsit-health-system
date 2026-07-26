@@ -12,7 +12,7 @@ import PatientMobileLookup from "./PatientMobileLookup";
 export default function MobileLookupField({ mobile }: { mobile?: boolean }) {
   const {
     ptPhone, setPtPhone, setPtInfo, loadPatient, currentPatientId,
-    resetEditor, setCurrentPatientId,
+    resetEditor, setCurrentPatientId, flushEditorDraft,
   } = useMuqsit();
 
   if (currentPatientId) {
@@ -23,7 +23,7 @@ export default function MobileLookupField({ mobile }: { mobile?: boolean }) {
           <input value={ptPhone} readOnly title="Edit from Patient Settings" style={{ ...inputSm, flex: 1, background: C.n[100], color: C.n[600], cursor: "not-allowed" }} />
           <button
             type="button"
-            onClick={() => { resetEditor(); setCurrentPatientId(null); }}
+            onClick={() => { flushEditorDraft(); resetEditor(); setCurrentPatientId(null); }}
             title="Look up a different patient"
             style={{ padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.pri[600], fontSize: 11, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", fontFamily: font }}
           >

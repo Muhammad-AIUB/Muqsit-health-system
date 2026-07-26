@@ -8,8 +8,11 @@ interface CorrectedReticulocyteInput {
 }
 
 function maturationFactor(measuredHct: number): number {
-  if (measuredHct >= 35) return 1.0;
-  if (measuredHct >= 25) return 1.5;
+  // Standard RPI maturation-correction table (Hillman & Finch anchors:
+  // Hct 45→1.0, 35→1.5, 25→2.0, 15→2.5). The previous top cut (≥35→1.0) was
+  // ~5 points too low and over-corrected RPI in the 35-39% band.
+  if (measuredHct >= 40) return 1.0;
+  if (measuredHct >= 30) return 1.5;
   if (measuredHct >= 20) return 2.0;
   return 2.5;
 }

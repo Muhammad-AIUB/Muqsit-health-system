@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
@@ -41,7 +41,17 @@ export class AuthService {
   // accepted as a concurrent-refresh race rather than treated as theft. Covers
   // client + admin + multi-tab firing /auth/refresh together. Short on purpose
   // so a genuine stolen-token replay is still caught once the window passes.
-  private static readonly ROTATION_GRACE_MS = 30_000;
+  // Shortened from 30s to 10s (finding #17): a legitimate multi-tab race
+  // resolves in well under a second, so 10s is ample, while a shorter window
+  // narrows the interval in which a stolen token can be replayed as a "race".
+  private static readonly ROTATION_GRACE_MS = 10_000;
+
+  // A fixed, valid bcrypt hash compared against when no user matches on login,
+  // so the response takes the same time whether or not the identifier exists
+  // (defeats timing-based account enumeration). It is a hash of a random
+  // string; nobody knows the plaintext, so it never matches a real password.
+  private static readonly DUMMY_PASSWORD_HASH =
+    '$2a$10$p07b2amPZs0HiNj06eC7JOhhoQwQWi2dpFXP6Y7oSOg/bkRiz4wdG';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -54,23 +64,21 @@ export class AuthService {
   // ── Registration ──────────────────────────────────────────
   async register(dto: RegisterDto) {
     const existing = await this.users.findByEmail(dto.email);
-    if (existing) {
-      // Verification happens exactly once, at sign-up. An account that never
-      // completed OTP verification is incomplete — replace it and start over.
-      if (!existing.emailVerified && existing.role !== 'admin') {
-        await this.prisma.user.delete({ where: { id: existing.id } });
-      } else {
-        throw new ConflictException('An account with this email already exists');
-      }
+    // A VERIFIED (or admin) account already owns this email. We keep the 409
+    // because the client relies on it to route the user to sign-in.
+    // Tradeoff: this confirms account existence to an unauthenticated caller
+    // (enumeration of verified accounts) — accepted to preserve the client
+    // contract. See finding #31.
+    if (existing && (existing.emailVerified || existing.role === 'admin')) {
+      throw new ConflictException('An account with this email already exists');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    await this.users.create({
-      email: dto.email,
+    // Fields shared by the create and the update-in-place paths.
+    const accountData = {
       name: dto.name,
       passwordHash,
-      role: 'professional',
       mobile: dto.mobile,
       profession: dto.profession,
       registrationNo: dto.registrationNo ?? null,
@@ -85,7 +93,21 @@ export class AuthService {
       emailVerified: false,
       approvalStatus: 'pending',
       accountTier: 'secondary', // every new sign-up starts as secondary
-    });
+    };
+
+    if (existing) {
+      // An existing but still-unverified, non-admin account: reset it in place
+      // and re-issue OTP rather than hard-deleting the pending row. The old
+      // delete+recreate let anyone wipe or hijack a not-yet-verified
+      // registration by re-submitting the same email (griefing). See #31.
+      await this.users.update(existing.id, accountData);
+    } else {
+      await this.users.create({
+        email: dto.email,
+        role: 'professional',
+        ...accountData,
+      });
+    }
 
     // Fire-and-forget: OTP hashing + DB writes + email happen in the
     // background so the user gets their response immediately.
@@ -102,7 +124,9 @@ export class AuthService {
 
   // ── OTP issuing / verification ────────────────────────────
   private async issueOtp(email: string) {
-    const code = (Math.floor(100000 + Math.random() * 900000)).toString();
+    // Use a CSPRNG (crypto.randomInt) so the 6-digit code can't be predicted
+    // from a recoverable Math.random() PRNG state. Upper bound is exclusive.
+    const code = randomInt(100000, 1000000).toString();
     const codeHash = await bcrypt.hash(code, 10);
     const minutes = Number(this.config.get<string>('OTP_EXPIRES_MIN') ?? 10);
     const expiresAt = new Date(Date.now() + minutes * 60 * 1000);
@@ -176,8 +200,13 @@ export class AuthService {
     meta: { ip?: string; userAgent?: string } = {},
   ): Promise<SessionResult> {
     const user = await this.users.findByEmailOrMobile(dto.identifier.trim());
-    if (!user)
+    if (!user) {
+      // Still run a bcrypt.compare against a fixed dummy hash so the response
+      // takes the same time whether or not the identifier is registered —
+      // otherwise the early return would leak account existence via timing.
+      await bcrypt.compare(dto.password, AuthService.DUMMY_PASSWORD_HASH);
       throw new UnauthorizedException('Invalid email/phone or password');
+    }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok)
@@ -185,6 +214,12 @@ export class AuthService {
 
     // Admins skip the verification/approval gates.
     if (user.role !== 'admin') {
+      // A soft-deleted (Trash) account must not be able to obtain a new
+      // session. softDelete only sets deletedAt (approvalStatus stays
+      // 'approved'), so this is the gate that actually enforces Trash.
+      if (user.deletedAt) {
+        throw new ForbiddenException('Your account has been disabled.');
+      }
       if (!user.emailVerified) {
         throw new ForbiddenException(
           'Your registration was not completed. Please sign up again.',
@@ -247,7 +282,21 @@ export class AuthService {
       // replay against an already dead family (logout / admin evict / prior
       // theft kill) — still falls through to the family-revoke below.
       const sinceRevokedMs = Date.now() - record.revokedAt.getTime();
-      if (sinceRevokedMs <= AuthService.ROTATION_GRACE_MS && record.expiresAt > new Date()) {
+      // Bind the grace acceptance to the client that the token was minted for
+      // (finding #17): a genuine concurrent-refresh race comes from the SAME
+      // browser (same User-Agent) that just rotated. A stolen token replayed
+      // from a different client won't match, so it falls through to the
+      // family-revoke below and theft detection fires. We require both sides to
+      // be present so a missing/empty UA can't be used to bypass the binding.
+      const sameClient =
+        !!record.userAgent &&
+        !!meta.userAgent &&
+        record.userAgent === meta.userAgent;
+      if (
+        sinceRevokedMs <= AuthService.ROTATION_GRACE_MS &&
+        record.expiresAt > new Date() &&
+        sameClient
+      ) {
         const liveSuccessor = await this.prisma.refreshToken.findFirst({
           where: { family: record.family, revokedAt: null, expiresAt: { gt: new Date() } },
           select: { id: true },
@@ -258,6 +307,13 @@ export class AuthService {
           return { tokens, user: this.publicUser(record.user) };
         }
       }
+      // NOTE (residual risk, finding #17): within the 10s window a token
+      // replayed from the SAME browser+UA (e.g. an XSS foothold in the victim's
+      // origin) is still accepted as a race and can mint a fresh token. Fully
+      // bounding this — "grace each revoked token at most once" — needs a
+      // per-token replay marker (e.g. a RefreshToken.graceUsedAt column), which
+      // is a schema migration deliberately avoided here. UA-binding + the
+      // shortened window are the robust mitigations available without one.
 
       // Reuse of a revoked token → kill the whole family.
       await this.prisma.refreshToken.updateMany({

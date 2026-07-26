@@ -88,7 +88,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
 
   let rxNo = 0;
   const rxRows = d.rx
-    .filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim())
+    .filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim())
     .map((r) => {
       // Free-typed instruction line — span the whole width, italic, no number.
       if (r.isNote) {
@@ -176,7 +176,11 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
 <title>Prescription — ${esc(d.patient.name || "Patient")}</title>
 <style>
   * { box-sizing: border-box; }
-  @page { size: ${pageW} ${pageH}; margin: 0; }
+  /* Reserve the pre-printed letterhead header/footer band as a PAGE margin, so
+     it is kept clear on every physical page of a multi-page prescription — not
+     just page 1 (a one-time .sheet padding would be overprinted on overflow
+     pages). The on-screen preview keeps the padding for WYSIWYG. */
+  @page { size: ${pageW} ${pageH}; margin: ${padT} ${padR} ${padB} ${padL}; }
   body { font-family: "DM Sans", Arial, sans-serif; color: #1a1a1a; margin: 0; background: #f0f0f0; }
   .sheet { background: #fff; width: ${pageW}; min-height: ${pageH}; margin: 16px auto; padding: ${padT} ${padR} ${padB} ${padL}; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
   .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1d9e75; padding-bottom: 12px; }
@@ -213,7 +217,10 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .toolbar button { background: #fff; color: #0f6e56; border: none; padding: 8px 22px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 0 4px; }
   /* Each sheet starts on its own printed page. */
   .sheet + .sheet { page-break-before: always; }
-  @media print { .toolbar { display: none; } body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: ${pageW}; min-height: ${pageH}; } }
+  /* In print the header/footer band is reserved by the @page margin, so the
+     sheet fills the margined content box with no padding of its own (padding
+     would double-reserve and clip content on overflow pages). */
+  @media print { .toolbar { display: none; } body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
 </style></head>
 <body>
   <div class="toolbar">

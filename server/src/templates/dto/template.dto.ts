@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -25,6 +26,7 @@ export class CreateTemplateDto {
   @IsString() @MinLength(1) @MaxLength(120) name!: string;
 
   @IsArray()
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => TemplateItemDto)
   items!: TemplateItemDto[];
@@ -35,6 +37,7 @@ export class UpdateTemplateDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => TemplateItemDto)
   items?: TemplateItemDto[];

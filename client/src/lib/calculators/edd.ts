@@ -3,7 +3,15 @@ import type { CalculationResult } from '@/types/calculator'
 // Minimal native-Date replacements for the date-fns helpers used below
 // (Muqsit does not depend on date-fns).
 const MS_PER_DAY = 1000 * 60 * 60 * 24
-const parseISO = (s: string): Date => new Date(s)
+// Parse a 'YYYY-MM-DD' date-input string in LOCAL time. `new Date('YYYY-MM-DD')`
+// parses as UTC midnight, which in negative-UTC timezones resolves to the prior
+// calendar day once the local-time getters (addDays/format/today) read it —
+// shifting the EDD and gestational age by one day. Build from components so the
+// parse and every downstream getter share the same (local) calendar frame.
+const parseISO = (s: string): Date => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s)
+}
 const addDays = (d: Date, days: number): Date => {
   const r = new Date(d)
   r.setDate(r.getDate() + days)

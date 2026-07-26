@@ -13,6 +13,11 @@ import { formatActivityTime } from "@/lib/activityFormat";
 // attachment; polled; no edit/delete.
 
 const isImageUrl = (u: string) => /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(u);
+// Only ever emit an href/src for an http(s) URL. A javascript:/data: payload
+// (e.g. a stored-XSS attempt from a supervising doctor) is rendered as plain
+// text instead of a clickable/loadable link so it can never execute.
+const safeUrl = (u?: string | null): string | undefined =>
+  u && /^https?:\/\//i.test(u) ? u : undefined;
 
 export default function PatientChat({ patientId: pidProp, patientName }: { patientId?: string | null; patientName?: string } = {}) {
   const { currentPatientId, ptName } = useMuqsit();
@@ -112,16 +117,24 @@ function Bubble({ m }: { m: ChatMessage }) {
       <div style={{ maxWidth: "80%", background: mine ? C.pri[400] : C.n[0], color: mine ? "#fff" : C.n[900], border: mine ? "none" : `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "7px 11px", fontSize: 12.5, lineHeight: 1.45 }}>
         {!mine && <div style={{ fontSize: 10.5, fontWeight: 700, color: C.pri[600], marginBottom: 2 }}>{m.authorName}</div>}
         {m.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>}
-        {m.attachmentUrl && (
-          isImageUrl(m.attachmentUrl) ? (
-            <a href={m.attachmentUrl} target="_blank" rel="noreferrer">
+        {m.attachmentUrl && (() => {
+          const href = safeUrl(m.attachmentUrl);
+          // Non-http(s) attachment: never make it clickable/loadable — show it
+          // as inert text so a javascript:/data: payload can't execute.
+          if (!href) {
+            return (
+              <div style={{ fontSize: 12, color: mine ? "#fff" : C.n[500], marginTop: m.body ? 4 : 0, wordBreak: "break-word" }}>📎 Attachment</div>
+            );
+          }
+          return isImageUrl(href) ? (
+            <a href={href} target="_blank" rel="noreferrer">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={m.attachmentUrl} alt="attachment" style={{ maxWidth: "100%", borderRadius: 6, marginTop: m.body ? 6 : 0, display: "block" }} />
+              <img src={href} alt="attachment" style={{ maxWidth: "100%", borderRadius: 6, marginTop: m.body ? 6 : 0, display: "block" }} />
             </a>
           ) : (
-            <a href={m.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: mine ? "#fff" : C.info[800], textDecoration: "underline", fontSize: 12, display: "inline-block", marginTop: m.body ? 4 : 0 }}>📎 Attachment</a>
-          )
-        )}
+            <a href={href} target="_blank" rel="noreferrer" style={{ color: mine ? "#fff" : C.info[800], textDecoration: "underline", fontSize: 12, display: "inline-block", marginTop: m.body ? 4 : 0 }}>📎 Attachment</a>
+          );
+        })()}
       </div>
       <div style={{ fontSize: 10, color: C.n[400], marginTop: 2 }}>{formatActivityTime(m.createdAt)}</div>
     </div>

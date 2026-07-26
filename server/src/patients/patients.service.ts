@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -204,8 +204,15 @@ export class PatientsService {
         } as Prisma.PatientUncheckedCreateInput,
       });
 
-      const existingTree = (Array.isArray(existing.familyMembers)
-        ? existing.familyMembers
+      // Re-read the existing patient's family tree INSIDE the transaction with a
+      // row lock, so two concurrent linkNew calls against the same patient
+      // serialize instead of both starting from the same pre-transaction
+      // snapshot (which silently dropped one appended member).
+      const locked = await tx.$queryRaw<Array<{ familyMembers: unknown }>>`
+        SELECT "familyMembers" FROM "Patient" WHERE "id" = ${existing.id} FOR UPDATE
+      `;
+      const existingTree = (Array.isArray(locked[0]?.familyMembers)
+        ? locked[0].familyMembers
         : []) as unknown as FamilyMember[];
       const nextExistingTree: FamilyMember[] = [
         ...existingTree,
@@ -229,7 +236,14 @@ export class PatientsService {
   }
 
   async update(doctorId: string, id: string, dto: UpdatePatientDto): Promise<Patient> {
-    await this.get(doctorId, id); // ownership-or-supervisor check
+    const patient = await this.get(doctorId, id); // ownership-or-supervisor access check
+    // A supervising doctor (accessibleWhere lets them read/prescribe) must never
+    // mutate the OWNER's canonical patient record — demographics, family tree,
+    // clinical history, or the owner's in-progress prescription snapshot
+    // (incompleteRx). Mirror the owner-only rule enforced in remove().
+    if (patient.doctorId !== doctorId) {
+      throw new ForbiddenException('Supervising doctors cannot modify the patient record');
+    }
     const { dob, hmDrugDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, drugHistory, incompleteRx, ...rest } = dto;
     // Loose cast: new columns may not yet be in the generated client; the DB
     // columns exist so Postgres accepts them at runtime.

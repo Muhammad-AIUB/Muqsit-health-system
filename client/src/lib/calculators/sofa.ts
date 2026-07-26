@@ -24,11 +24,12 @@ function scorePulmonary(pao2?: number, fio2?: number, spo2?: number, ventilated?
 
   if (pao2 && fio2 && fio2 > 0) {
     ratio = pao2 / fio2
-  } else if (spo2 && fio2 && fio2 > 0) {
-    // SpO2/FiO2 to PaO2/FiO2 approximation (SCCM 2015)
-    const spo2Fio2 = spo2 / fio2
-    // Approximate: PF = SF × 0.64 (rough)
-    ratio = spo2Fio2 * 0.64
+  } else if (spo2 && fio2 && fio2 > 0 && spo2 <= 97) {
+    // Estimate PaO2/FiO2 from SpO2/FiO2 using the validated Rice et al. (2007)
+    // linear relationship S/F = 64 + 0.84 × (P/F) ⇒ P/F = (S/F − 64) / 0.84.
+    // Only valid for SpO2 ≤ 97% (the SpO2-PaO2 curve plateaus above that).
+    const sf = spo2 / fio2
+    ratio = sf > 64 ? (sf - 64) / 0.84 : 0
   }
 
   if (ratio === undefined) return 0
@@ -59,21 +60,31 @@ function scoreLiver(bilMgDL: number): number {
 }
 
 function scoreCardiovascular(map: number, vasopressor?: string, dose?: number): number {
+  const drug = (vasopressor ?? '').trim().toLowerCase()
+  const hasVaso = drug !== ''
+
+  // On a vasopressor the score is driven by the agent/dose regardless of the
+  // resulting MAP — pressors are titrated to keep MAP ≥ 65-70, so gating on
+  // MAP first (the old bug) scored shocked-but-supported patients as 0.
+  if (hasVaso) {
+    if (drug === 'dobutamine') return 2 // any dose
+    if (drug === 'dopamine') {
+      if (dose === undefined) return 2
+      if (dose <= 5) return 2
+      if (dose <= 15) return 3
+      return 4
+    }
+    if (drug === 'epinephrine' || drug === 'norepinephrine') {
+      // Any epinephrine/norepinephrine is at least score 3; > 0.1 µg/kg/min → 4.
+      if (dose === undefined) return 3
+      return dose <= 0.1 ? 3 : 4
+    }
+    return 2 // unknown agent on board — at least low-dose support
+  }
+
+  // No vasopressor → scored on MAP alone.
   if (map >= 70) return 0
-  if (map < 70 && !vasopressor) return 1
-
-  if (!vasopressor || !dose) return 1
-
-  const drug = vasopressor.toLowerCase()
-  if (drug === 'dopamine' && dose <= 5) return 2
-  if (drug === 'dopamine' && dose > 5 && dose <= 15) return 3
-  if (drug === 'dopamine' && dose > 15) return 4
-  if (drug === 'dobutamine') return 2
-  if (drug === 'epinephrine' && dose <= 0.1) return 3
-  if (drug === 'epinephrine' && dose > 0.1) return 4
-  if (drug === 'norepinephrine' && dose <= 0.1) return 3
-  if (drug === 'norepinephrine' && dose > 0.1) return 4
-  return 2
+  return 1
 }
 
 function scoreNeurological(gcs: number): number {

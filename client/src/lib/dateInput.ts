@@ -25,6 +25,10 @@ export function parseFlexibleDate(input: string): string | null {
   }
 
   if (!dd || !mm || dd > 31 || mm > 12 || Number.isNaN(yy)) return null;
+  // Reject impossible calendar dates (31 Apr, 30 Feb, …): a rebuilt Date whose
+  // components don't round-trip means the day overflowed into the next month.
+  const dt = new Date(yy, mm - 1, dd);
+  if (dt.getFullYear() !== yy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null;
   return `${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
 }
 

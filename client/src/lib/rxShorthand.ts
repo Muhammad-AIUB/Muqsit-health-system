@@ -22,6 +22,12 @@ export function parseDose(raw: string): string {
   if (!s || s.includes("+")) return s;
 
   if (s.includes(".")) {
+    // A plain SINGLE-DIGIT decimal ("1.5", "2.5", "0.25") is a literal dose, not
+    // the multi-slot half shorthand — leave it unchanged. The integer part must
+    // be a single digit so multi-digit compact schedules still tokenize: "10.5"
+    // stays "1+0+1/2" (1 morning, 0 noon, ½ night), NOT the literal 10.5. The
+    // half-slot patterns starting with "." (e.g. ".50.5") also fall through here.
+    if (/^\d\.\d+$/.test(s)) return s;
     const useZeroHalf = s.startsWith("0.5");
     const tokens: string[] = [];
     let i = 0;

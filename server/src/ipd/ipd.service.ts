@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { IpdAdmission, IpdEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -21,9 +21,33 @@ export class IpdService {
   }
 
   create(doctorId: string, dto: CreateAdmissionDto): Promise<IpdAdmission> {
-    return this.prisma.ipdAdmission.create({
-      data: { ...dto, status: dto.status ?? 'Stable', doctorId },
+    return this.prisma.$transaction(async (tx) => {
+      await this.assertBedFree(tx, doctorId, dto.bed);
+      return tx.ipdAdmission.create({
+        data: { ...dto, status: dto.status ?? 'Stable', doctorId },
+      });
     });
+  }
+
+  // Reject if another non-discharged admission for this doctor already occupies
+  // the bed. A partial unique index on (doctorId, bed) WHERE status <> 'Discharge'
+  // is the full guard (see prisma/manual-ipd-bed-unique.sql); this transactional
+  // check keeps behavior correct on its own before the index is applied.
+  private async assertBedFree(
+    tx: Prisma.TransactionClient,
+    doctorId: string,
+    bed: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const occupant = await tx.ipdAdmission.findFirst({
+      where: {
+        doctorId,
+        bed,
+        status: { not: 'Discharge' },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+    });
+    if (occupant) throw new ConflictException(`Bed ${bed} is already occupied.`);
   }
 
   private async owned(doctorId: string, id: string): Promise<IpdAdmission> {
@@ -37,8 +61,16 @@ export class IpdService {
     id: string,
     dto: UpdateAdmissionStatusDto,
   ): Promise<IpdAdmission> {
-    await this.owned(doctorId, id);
-    return this.prisma.ipdAdmission.update({ where: { id }, data: { status: dto.status } });
+    return this.prisma.$transaction(async (tx) => {
+      const admission = await tx.ipdAdmission.findFirst({ where: { id, doctorId } });
+      if (!admission) throw new NotFoundException('Admission not found');
+      // Re-admitting a discharged patient (Discharge → active) must re-check the
+      // bed: it may have been reassigned to someone else while they were out.
+      if (admission.status === 'Discharge' && dto.status !== 'Discharge') {
+        await this.assertBedFree(tx, doctorId, admission.bed, id);
+      }
+      return tx.ipdAdmission.update({ where: { id }, data: { status: dto.status } });
+    });
   }
 
   async update(
@@ -46,13 +78,20 @@ export class IpdService {
     id: string,
     dto: UpdateAdmissionDto,
   ): Promise<IpdAdmission> {
-    await this.owned(doctorId, id);
-    // Loose cast so this compiles before `prisma generate` learns the new
-    // age / sex / clinical columns (regenerate to activate at runtime).
-    const data = { ...dto } as Record<string, unknown>;
-    return this.prisma.ipdAdmission.update({
-      where: { id },
-      data: data as Prisma.IpdAdmissionUpdateInput,
+    return this.prisma.$transaction(async (tx) => {
+      const admission = await tx.ipdAdmission.findFirst({ where: { id, doctorId } });
+      if (!admission) throw new NotFoundException('Admission not found');
+      // Only re-check occupancy when the bed actually changes.
+      if (dto.bed !== undefined && dto.bed !== admission.bed) {
+        await this.assertBedFree(tx, doctorId, dto.bed, id);
+      }
+      // Loose cast so this compiles before `prisma generate` learns the new
+      // age / sex / clinical columns (regenerate to activate at runtime).
+      const data = { ...dto } as Record<string, unknown>;
+      return tx.ipdAdmission.update({
+        where: { id },
+        data: data as Prisma.IpdAdmissionUpdateInput,
+      });
     });
   }
 

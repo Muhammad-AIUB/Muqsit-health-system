@@ -12,11 +12,14 @@ import { UploadService } from './upload.service';
 export class UploadController {
   constructor(private readonly uploads: UploadService) {}
 
-  // Public: registrants upload documents before an account exists.
+  // Public on purpose: the pre-account registration flow uploads documents
+  // (NID / certificate / profile picture) BEFORE any account exists, so a
+  // JwtAuthGuard cannot be applied here. Abuse is bounded by the global
+  // throttler plus the size limit and magic-byte content validation below.
   @Post('image')
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB — reject oversize with a clean 400
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.startsWith('image/')) {
           return cb(new BadRequestException('Only image files are allowed'), false);

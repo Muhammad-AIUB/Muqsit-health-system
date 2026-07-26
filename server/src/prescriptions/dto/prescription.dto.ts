@@ -1,10 +1,12 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsInt,
   IsOptional,
   IsString,
+  MaxLength,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -28,24 +30,25 @@ export class CreatePrescriptionDto {
   @MinLength(1)
   patientId!: string;
 
-  @IsOptional() @IsArray() @IsString({ each: true }) chiefComplaints?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) previousComplaints?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) history?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) investigation?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) drugHistory?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) onExamination?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) note?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) provisionalDiagnosis?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) associatedIllness?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) finalDiagnosis?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) advice?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) adviceTest?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) chiefComplaints?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) previousComplaints?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) history?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) investigation?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) drugHistory?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) onExamination?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) note?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) provisionalDiagnosis?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) associatedIllness?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) finalDiagnosis?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) advice?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) adviceTest?: string[];
 
   @IsOptional() @IsString() followUpNum?: string;
   @IsOptional() @IsString() followUpUnit?: string;
   @IsOptional() @IsBoolean() followUpMandatory?: boolean;
 
   @IsArray()
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => RxItemDto)
   items!: RxItemDto[];

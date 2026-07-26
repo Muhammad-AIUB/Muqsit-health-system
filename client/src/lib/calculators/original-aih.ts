@@ -37,10 +37,18 @@ export function calculateOriginalAIH(input: OriginalAIHInput): CalculationResult
   let label = 'AIH unlikely'
   let severity: 'success' | 'warning' | 'danger' = 'success'
 
-  if (score > 15) {
+  // Revised IAIHG (Alvarez 1999) has two interpretation tables. Once
+  // response-to-therapy points are included, the +2-shifted post-treatment
+  // cutoffs apply (definite >17, probable 12-17); a pure pre-treatment
+  // aggregate uses definite >15, probable ≥10.
+  const posttreatment = Number(input.responseTherapy || 0) > 0
+  const definiteCut = posttreatment ? 17 : 15
+  const probableCut = posttreatment ? 12 : 10
+
+  if (score > definiteCut) {
     label = 'Definite AIH'
     severity = 'danger'
-  } else if (score >= 10) {
+  } else if (score >= probableCut) {
     label = 'Probable AIH'
     severity = 'warning'
   }

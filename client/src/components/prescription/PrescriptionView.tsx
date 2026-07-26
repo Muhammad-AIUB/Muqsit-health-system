@@ -17,6 +17,12 @@ import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
 import PatientChat from "./PatientChat";
 
+// Only ever emit an href for an http(s) URL. A javascript:/data: payload (e.g. a
+// stored-XSS attempt planted on the shared practice feed) yields undefined so
+// the link is inert.
+const safeUrl = (u?: string | null): string | undefined =>
+  u && /^https?:\/\//i.test(u) ? u : undefined;
+
 // Render the printable prescription HTML to a PNG File via an off-screen iframe
 // (isolates the print stylesheet from the app). Returns null if it can't render.
 async function capturePrescriptionImage(html: string): Promise<File | null> {
@@ -208,11 +214,11 @@ function ReportsSection() {
                 <b style={{ color: C.n[900] }}>{it.name}</b>{" "}
                 {it.kind === "chat" ? (
                   <>: message : <span style={{ fontStyle: "italic", color: C.n[700] }}>“{it.body || "(attachment)"}”</span>
-                    {it.attachmentUrl && <> <a href={it.attachmentUrl} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎</a></>}
+                    {safeUrl(it.attachmentUrl) && <> <a href={safeUrl(it.attachmentUrl)} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎</a></>}
                   </>
                 ) : (
                   <>{it.action === "saved" ? "saved" : "added"} {it.section}: <span style={{ fontWeight: 600 }}>{it.detail}</span>
-                    {it.imageUrl && <> <a href={it.imageUrl} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎 View image</a></>}
+                    {safeUrl(it.imageUrl) && <> <a href={safeUrl(it.imageUrl)} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎 View image</a></>}
                   </>
                 )}
               </div>

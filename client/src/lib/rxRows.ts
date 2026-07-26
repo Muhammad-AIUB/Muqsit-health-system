@@ -28,7 +28,10 @@ export function rxItemsFromRows(rows: Row[]): RxItem[] {
       continue;
     }
     if (r.continuation) {
-      if (r.dose.trim() || r.duration.trim()) out.push({ drug: "", dose: r.dose, duration: r.duration, instruction: r.food });
+      // Keep the continuation line when ANY of dose, duration, or the
+      // food/instruction was filled — a tapering step that only changes the
+      // instruction (dose/duration blank) must still print and persist.
+      if (r.dose.trim() || r.duration.trim() || r.food.trim()) out.push({ drug: "", dose: r.dose, duration: r.duration, instruction: r.food });
     } else if (r.drug.trim()) {
       out.push({ drug: r.drug.trim(), dose: r.dose, duration: r.duration, instruction: r.food, sf: r.sf });
     }

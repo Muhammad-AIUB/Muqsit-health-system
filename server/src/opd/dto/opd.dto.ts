@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class CreateOpdVisitDto {
   @IsString()
@@ -8,7 +8,7 @@ export class CreateOpdVisitDto {
 
   @IsOptional() @IsString() patientId?: string;
   @IsOptional() @IsString() phone?: string;
-  @IsOptional() @Type(() => Number) @IsInt() age?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(150) age?: number;
   @IsOptional() @IsString() gender?: string;
 
   @IsOptional()
@@ -29,6 +29,6 @@ export class SetRxStatusDto {
   @IsIn(['incomplete', 'complete']) rxStatus!: string;
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() phone?: string;
-  @IsOptional() @Type(() => Number) @IsInt() age?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(150) age?: number;
   @IsOptional() @IsString() gender?: string;
 }

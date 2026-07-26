@@ -43,6 +43,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     const user = await this.users.findById(payload.sub);
     if (!user) throw new UnauthorizedException();
+    // Re-check account status on every request so an admin suspend / reject /
+    // soft-delete takes effect within one request instead of one access-token
+    // lifetime (findings #5, #16). Admins are exempt. Because validate()
+    // already round-trips to the DB for the user, this adds no extra query.
+    if (
+      user.role !== 'admin' &&
+      (user.deletedAt ||
+        user.approvalStatus === 'suspended' ||
+        user.approvalStatus === 'rejected')
+    ) {
+      throw new UnauthorizedException();
+    }
     return { id: user.id, email: user.email, name: user.name, displayName: user.displayName, role: user.role, accountTier: user.accountTier };
   }
 }

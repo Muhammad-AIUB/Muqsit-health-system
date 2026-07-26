@@ -385,12 +385,35 @@ function useMuqsitStore() {
   // doesn't re-flag a just-completed visit as incomplete.
   const rxFlaggedRef = useRef<string | null>(null);   // patient already flagged incomplete in OPD
   const rxCompletedRef = useRef<string | null>(null); // patient whose Rx was just completed
+  // True while the loaded patient belongs to ANOTHER practice (opened as their
+  // supervising doctor). A supervisor's edits must NEVER be written into the
+  // owner's shared Patient.incompleteRx / OPD flag — only into the supervisor's
+  // own per-user server draft.
+  const supervisedRef = useRef<boolean>(false);
+  // Latest editor snapshot pending debounced save, so a patient/workstation
+  // switch can flush it synchronously before the editor is reset (otherwise the
+  // last <1200 ms of edits are silently discarded).
+  const pendingDraftRef = useRef<{ snapshot: Record<string, unknown>; pid: string | null; supervised: boolean; hasRx: boolean } | null>(null);
 
   // Load a saved patient into the editor (header + settings form), starting from
   // a clean clinical slate. If the patient has an in-progress (not printed)
   // prescription saved, restore it. Galleries / health-monitoring / family tree
   // are hydrated by the currentPatientId effect below.
+  // Synchronously persist the pending editor snapshot for the OUTGOING patient
+  // before we reset the editor for a new one, so the last <1200 ms of edits are
+  // not lost. Never writes the owner's incompleteRx for a supervised patient.
+  const flushEditorDraft = useCallback(() => {
+    if (!draftReadyRef.current) return;
+    const p = pendingDraftRef.current;
+    if (!p) return;
+    void prescriptionDraftApi.save(p.snapshot).catch(() => {});
+    if (p.pid && p.hasRx && !p.supervised && rxCompletedRef.current !== p.pid) {
+      void patientsApi.update(p.pid, { incompleteRx: p.snapshot }).catch(() => {});
+    }
+  }, []);
+
   const loadPatient = useCallback((p: Patient) => {
+    flushEditorDraft();       // persist the outgoing patient's last edits first
     resetEditor();
     setPtName(p.name);
     setPtAge(displayAge(p));
@@ -409,6 +432,7 @@ function useMuqsitStore() {
     // (covers loads that happen before a workstation is selected).
     const effectiveDoctor = activeWsRef.current ?? authIdRef.current;
     const supervised = !!p.doctorId && !!effectiveDoctor && p.doctorId !== effectiveDoctor;
+    supervisedRef.current = supervised; // gate the auto-save's incompleteRx/OPD writes
     const inc = p.incompleteRx;
     if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
       applyEditorSnapshot(inc as Record<string, unknown>);
@@ -416,7 +440,7 @@ function useMuqsitStore() {
     } else {
       rxFlaggedRef.current = null;
     }
-  }, [resetEditor, applyEditorSnapshot]);
+  }, [resetEditor, applyEditorSnapshot, flushEditorDraft]);
 
   // Convenience: load by id (fetches first). Returns the patient, or null.
   const loadPatientById = useCallback(async (id: string): Promise<Patient | null> => {
@@ -439,6 +463,8 @@ function useMuqsitStore() {
     const prev = activeWsRef.current;
     if (prev === ws.doctorId) { setShowWorkstations(false); return; }
     const isFirstSelect = prev === null; // page-load auto-select vs an actual switch
+    // Persist the current practice's pending edits before the header switches.
+    if (!isFirstSelect) flushEditorDraft();
     activeWsRef.current = ws.doctorId;
     setActiveWorkstationId(ws.doctorId);     // module-level → goes out as a header
     setActiveWorkstationState(ws);
@@ -450,7 +476,7 @@ function useMuqsitStore() {
       setCurrentPatientId(null);
     }
     void queryClient.invalidateQueries();    // (re)fetch all data under this doctor
-  }, [resetEditor, queryClient]);
+  }, [resetEditor, queryClient, flushEditorDraft]);
   const activeWorkstationId = activeWorkstation?.doctorId ?? null;
 
   // Permission check for the active workstation. Owner (or before a workstation
@@ -552,12 +578,13 @@ function useMuqsitStore() {
             const p = await patientsApi.get(pid);
             const me = authIdRef.current;
             if (p.doctorId && me && p.doctorId !== me && !cancelled) {
-              loadPatient(p);
+              loadPatient(p); // sets supervisedRef and gives a fresh Rx
               return;
             }
           } catch { /* patient unreachable in own context — restore as before */ }
         }
         if (cancelled) return;
+        supervisedRef.current = false; // own patient (or none) — normal restore
         applyEditorSnapshot(d);
         if (pid) setCurrentPatientId(pid);
       })
@@ -587,9 +614,13 @@ function useMuqsitStore() {
       rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
       invImages, oeData, currentPatientId,
     };
+    // Keep the latest snapshot available for a synchronous flush on switch.
+    pendingDraftRef.current = { snapshot, pid: currentPatientId, supervised: supervisedRef.current, hasRx: hasRxContent };
     const t = setTimeout(() => {
       void prescriptionDraftApi.save(snapshot).catch((e) => console.warn("[draft] save failed:", e));
-      if (currentPatientId && hasRxContent && rxCompletedRef.current !== currentPatientId) {
+      // A supervising doctor's edits go only to their own per-user draft above —
+      // never into the owner's shared Patient.incompleteRx or their OPD queue.
+      if (!supervisedRef.current && currentPatientId && hasRxContent && rxCompletedRef.current !== currentPatientId) {
         const pid = currentPatientId;
         void patientsApi.update(pid, { incompleteRx: snapshot }).catch(() => {});
         if (rxFlaggedRef.current !== pid) {
@@ -622,6 +653,9 @@ function useMuqsitStore() {
 
   const mirrorSnapshot = useMemo(() => ({
     activeTab, view, ptSettingsTab, currentPatientId,
+    // Carry the supervised flag so the receiving device gates the incompleteRx/
+    // OPD auto-save the same way (recomputed alongside currentPatientId).
+    supervised: supervisedRef.current,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
@@ -654,6 +688,10 @@ function useMuqsitStore() {
     if (d.view === "desktop" || d.view === "mobile") setView(d.view);
     if (typeof d.ptSettingsTab === "string") setPtSettingsTab(d.ptSettingsTab as string);
     setCurrentPatientId(typeof d.currentPatientId === "string" ? d.currentPatientId : null);
+    // Keep supervisedRef consistent with the peer device so this device's
+    // auto-save doesn't write the owner's incompleteRx / flag OPD for a
+    // mirror-applied supervised patient (finding: stale supervised flag).
+    supervisedRef.current = d.supervised === true;
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
     str("ptAddress", setPtAddress); str("ptWeight", setPtWeight); str("ptDate", setPtDate);
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
@@ -778,7 +816,7 @@ function useMuqsitStore() {
     hmDrugs, setHmDrugs, oeData, setOeData,
     // handlers + derived
     handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
-    resetEditor, loadPatient, loadPatientById, filteredDrugs, monthlyCost, allFieldValues, leftFields,
+    resetEditor, flushEditorDraft, loadPatient, loadPatientById, filteredDrugs, monthlyCost, allFieldValues, leftFields,
     activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
     can, canEditLabel, isAssistantMode,
     // device mirroring

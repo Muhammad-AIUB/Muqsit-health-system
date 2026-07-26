@@ -1,8 +1,14 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { User } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { AuthService } from '../auth/auth.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 // Public-safe shape of a registration (no password hash).
 export type Registration = Omit<User, 'passwordHash'>;
@@ -15,6 +21,7 @@ export class AdminService {
     private readonly users: UsersService,
     private readonly mail: MailService,
     private readonly auth: AuthService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private strip(user: User): Registration {
@@ -94,8 +101,18 @@ export class AdminService {
     if (!user || user.role !== 'professional') {
       throw new NotFoundException('Registration not found');
     }
-    // Moving an account to a tier is restorative — clear Trash if set.
-    const updated = await this.users.update(id, { accountTier: tier, deletedAt: null });
+    // Moving an account to a tier is restorative for a normal account: pull it
+    // out of Trash and, if it was only pending, approve it so it isn't stranded
+    // in a non-approved state (finding #30). But it must NOT silently lift a
+    // deliberate access denial — a suspended or rejected account keeps that
+    // status until an admin explicitly approves it.
+    const denied =
+      user.approvalStatus === 'suspended' || user.approvalStatus === 'rejected';
+    const updated = await this.users.update(id, {
+      accountTier: tier,
+      deletedAt: null,
+      ...(denied ? {} : { approvalStatus: 'approved', rejectionReason: null }),
+    });
     return this.strip(updated);
   }
 
@@ -117,8 +134,22 @@ export class AdminService {
     if (!user || user.role !== 'professional') {
       throw new NotFoundException('Registration not found');
     }
+    // Permanent deletion is a two-step safety: an account must first be moved
+    // to Trash (soft-delete). Refuse to destroy a live account outright.
+    if (!user.deletedAt) {
+      throw new BadRequestException(
+        'Account must be moved to Trash before it can be permanently deleted.',
+      );
+    }
     await this.auth.revokeAllForUser(id);
-    await this.users.remove(id);
+    // Patient.doctorId is onDelete: SetNull, so deleting the user would orphan
+    // the doctor's patient PII while cascading away their clinical history.
+    // Delete the patients first (they cascade their prescriptions/opd/ipd/chat)
+    // in the same transaction as the user so nothing is left half-destroyed.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.patient.deleteMany({ where: { doctorId: id } });
+      await tx.user.delete({ where: { id } });
+    });
     return { deleted: true };
   }
 
@@ -126,7 +157,11 @@ export class AdminService {
   // suspected device theft, leaked password being rotated, etc.
   async revokeSessions(id: string): Promise<{ revoked: number }> {
     const user = await this.users.findById(id);
-    if (!user) throw new NotFoundException('User not found');
+    // Same role guard as the other admin mutations — an admin must not be able
+    // to force-logout a fellow admin.
+    if (!user || user.role !== 'professional') {
+      throw new NotFoundException('User not found');
+    }
     const revoked = await this.auth.revokeAllForUser(id);
     return { revoked };
   }

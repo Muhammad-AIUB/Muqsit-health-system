@@ -28,6 +28,25 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
   app.use(cookieParser());
+
+  // Lightweight security headers (no extra dependency — helmet is not installed
+  // and the deploy pipeline may not install new deps). Defense-in-depth against
+  // MIME sniffing, clickjacking and referrer leakage; HSTS only in production.
+  // No restrictive CSP here so the SPA and /uploads assets keep working.
+  const isProd = config.get<string>('NODE_ENV') === 'production';
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (isProd) {
+      res.setHeader(
+        'Strict-Transport-Security',
+        'max-age=15552000; includeSubDomains',
+      );
+    }
+    next();
+  });
+
   // Prescription drafts and rich-text layouts can carry sizeable JSON, so lift
   // the body limit well above the ~100 kB express default.
   app.useBodyParser('json', { limit: '8mb' });

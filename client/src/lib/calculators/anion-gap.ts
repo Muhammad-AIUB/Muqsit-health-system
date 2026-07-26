@@ -46,6 +46,10 @@ export function calculateAnionGap(input: AnionGapInput): CalculationResult & {
   let severity: CalculationResult['severity'];
   let interpretation: string;
 
+  // The severity band and the displayed score must describe the SAME value.
+  // When albumin is supplied, the albumin-corrected AG is the clinically
+  // primary number, so display it (and note the uncorrected AG for reference).
+  const isCorrected = correctedAg !== undefined;
   const primaryAg = correctedAg ?? agRound;
   if (primaryAg <= 12) {
     severity = 'success';
@@ -57,10 +61,13 @@ export function calculateAnionGap(input: AnionGapInput): CalculationResult & {
     severity = 'danger';
     interpretation = 'High anion gap (>20 mEq/L) — MUDPILES: methanol, uremia, DKA, propylene glycol, isoniazid, lactic acidosis, ethylene glycol, salicylates';
   }
+  if (isCorrected) {
+    interpretation = `${interpretation} — albumin-corrected AG ${correctedAg} mEq/L (uncorrected ${agRound})`;
+  }
 
   return {
     calculatorId: 'anion-gap',
-    score: agRound,
+    score: primaryAg,
     unit: 'mEq/L',
     severity,
     label: interpretation,

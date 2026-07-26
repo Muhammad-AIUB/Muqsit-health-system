@@ -321,16 +321,20 @@ export const CALCULATORS: Calculator[] = [
     bgColor: 'bg-emerald-50 dark:bg-emerald-950',
     tags: ['FRACTURE Index', 'fracture', 'osteoporosis', 'bone', 'BMD', 'FRAX'],
     inputs: [],
-    calculate: (inputs) =>
-      calculateFRAX({
+    calculate: (inputs) => {
+      // 'none' sentinel = BMD not measured (applies the without-BMD threshold);
+      // any T-score band (including the normal 0-point band) counts as measured.
+      const bmdMeasured = inputs.bmd !== undefined && inputs.bmd !== 'none'
+      return calculateFRAX({
         age: Number(inputs.age ?? 0),
         fractureHistory: Number(inputs.fractureHistory ?? 0),
         motherHipFracture: Number(inputs.motherHipFracture ?? 0),
         weight: Number(inputs.weight ?? 0),
         smoker: Number(inputs.smoker ?? 0),
         chairRise: Number(inputs.chairRise ?? 0),
-        bmd: Number(inputs.bmd ?? 0),
-      }),
+        bmd: bmdMeasured ? Number(inputs.bmd ?? 0) : 0,
+      }, bmdMeasured)
+    },
   },
   {
     id: 'cdai',
@@ -748,15 +752,15 @@ export const CALCULATORS: Calculator[] = [
   },
   {
     id: 'osmolar-gap',
-    title: 'Osmolar Gap',
-    shortTitle: 'Osm Gap',
+    title: 'Stool Osmotic Gap',
+    shortTitle: 'Stool Osm Gap',
     emoji: '🔬',
-    description: 'Calculate osmolar gap to screen for toxic alcohol ingestion or unmeasured osmoles',
+    description: 'Stool osmotic gap to distinguish secretory from osmotic diarrhea (290 − 2×(stool Na + K)). For the serum osmolar gap used in toxic-alcohol screening, use the Serum Osmolality calculator.',
     category: 'renal',
     icon: 'FlaskConical',
     color: 'text-cyan-600',
     bgColor: 'bg-cyan-50',
-    tags: ['osmolar gap', 'toxic alcohol', 'methanol', 'ethylene glycol', 'toxicology'],
+    tags: ['stool osmotic gap', 'diarrhea', 'secretory', 'osmotic', 'gastroenterology'],
     inputs: [
       { id: 'measuredOsm', label: 'Measured Stool Osmolality (mOsm/kg)', type: 'number', required: false, min: 100, max: 400 },
       { id: 'sodium',      label: 'Stool Sodium (mEq/L)',                 type: 'number', required: true,  min: 0,   max: 200 },
@@ -1022,13 +1026,19 @@ export const CALCULATORS: Calculator[] = [
         hdlMgDl: Number(inputs.hdlMgDl),
         tgMgDl:  Number(inputs.tgMgDl),
       });
+      // When TG > 400 the Friedewald estimate is unreliable (underestimates LDL);
+      // surface the warning and never show it as a reassuring "optimal" green.
+      const unreliable = Boolean(result.warning);
       return {
         calculatorId: 'ldl',
         score: result.ldlMgDl,
         unit: 'mg/dL',
-        severity: result.severity,
+        severity: unreliable ? 'warning' : result.severity,
         label: 'LDL Cholesterol',
-        interpretation: result.interpretation,
+        interpretation: unreliable
+          ? `${result.interpretation} — value unreliable (direct LDL or Martin-Hopkins recommended)`
+          : result.interpretation,
+        warnings: result.warning ? [result.warning] : undefined,
       };
     },
   },
@@ -1355,6 +1365,17 @@ export const CALCULATORS: Calculator[] = [
     tags: ['blood volume', 'TBV', 'RBC volume', 'plasma volume', 'Nadler', 'hematocrit', 'hematology'],
     inputs: [],
     calculate: (inputs) => {
+      // The Nadler (adult / child ≥25 kg) formula is sex-specific, so require an
+      // explicit sex rather than silently applying one — a blank sex must not
+      // default to the female (or male) coefficients.
+      if (inputs.patientType === 'adult' && inputs.sex !== 'male' && inputs.sex !== 'female') {
+        return {
+          calculatorId: 'blood-volume',
+          severity: 'neutral',
+          label: 'Incomplete',
+          interpretation: 'Select the patient’s sex — the Nadler formula is sex-specific.',
+        };
+      }
       const result = calculateBloodVolume({
         patientType: inputs.patientType as PatientType,
         sex:         inputs.sex as Sex,
@@ -1987,7 +2008,7 @@ export const CALCULATORS: Calculator[] = [
       { id: 'score', label: 'MoCA Score', type: 'number', required: true },
     ],
     calculate: (inputs) => {
-      const result = calculateMoCA(Number(inputs.score));
+      const result = calculateMoCA(Number(inputs.score), Number(inputs.educationLE12) === 1);
       return {
         calculatorId: 'moca',
         score: result.score,
@@ -2052,7 +2073,10 @@ export const CALCULATORS: Calculator[] = [
       { id: 'bmi',  label: 'BMI',                 type: 'number', required: true },
     ],
     calculate: (inputs) => {
-      const score = Number(inputs.fev1) + Number(inputs.mwd) + Number(inputs.mmrc) + Number(inputs.bmi);
+      // Inputs are Celli-2004 sub-scores (see INPUT_OVERRIDES['bode']); clamp the
+      // 0-10 total defensively so a stray value can't fall through the bands.
+      const raw = Number(inputs.fev1) + Number(inputs.mwd) + Number(inputs.mmrc) + Number(inputs.bmi);
+      const score = Math.max(0, Math.min(10, raw));
       const result = calculateBODE(score);
       return {
         calculatorId: 'bode',

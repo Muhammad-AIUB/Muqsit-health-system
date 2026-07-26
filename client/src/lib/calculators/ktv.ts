@@ -22,15 +22,21 @@ export function calculateKtV(input: KtvInput): {
   let severity: 'success' | 'warning' | 'danger';
   let interpretation: string;
 
+  // NOTE: this is a crude mechanistic K·t/V from nominal dialyzer clearance and
+  // a fixed V = 0.6·weight. It ignores urea generation, ultrafiltration and
+  // post-dialysis rebound, so it OVER-READS relative to the urea-based
+  // (Daugirdas) single-pool Kt/V — treat the thresholds as an optimistic bound.
+  const caveat = ' — crude clearance-based estimate; overreads vs urea-based (Daugirdas) Kt/V';
+
   if (ktv >= 1.4) {
     severity = 'success';
-    interpretation = 'Adequate dialysis (Kt/V >= 1.4)';
+    interpretation = 'Adequate dialysis (Kt/V >= 1.4)' + caveat;
   } else if (ktv >= 1.2) {
-    severity = 'success';
-    interpretation = 'Minimally adequate dialysis (Kt/V >= 1.2, KDOQI minimum target)';
+    severity = 'warning';
+    interpretation = 'Minimally adequate dialysis (Kt/V >= 1.2, KDOQI minimum target)' + caveat;
   } else {
     severity = 'danger';
-    interpretation = 'Inadequate dialysis (Kt/V < 1.2, below KDOQI minimum target)';
+    interpretation = 'Inadequate dialysis (Kt/V < 1.2, below KDOQI minimum target)' + caveat;
   }
 
   return {
@@ -39,7 +45,6 @@ export function calculateKtV(input: KtvInput): {
     severity,
     references: [
       'NKF KDOQI Clinical Practice Guidelines for Hemodialysis Adequacy, 2015',
-      'Daugirdas JT. Second generation logarithmic estimates of single-pool variable volume Kt/V. JASN. 1993',
     ],
   };
 }

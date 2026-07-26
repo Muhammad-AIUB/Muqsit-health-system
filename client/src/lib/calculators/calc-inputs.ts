@@ -11,12 +11,56 @@ import type { CalculatorInput } from '@/types/calculator'
 // ─────────────────────────────────────────────────────────────────────────
 
 export const INPUT_OVERRIDES: Record<string, CalculatorInput[]> = {
+  // BODE index — each variable must be entered as its Celli-2004 sub-score
+  // (FEV₁/6MWD/mMRC → 0-3, BMI → 0-1); the registry sums them to a 0-10 total.
+  'bode': [
+    { id: 'fev1', label: 'FEV₁ (% predicted)', type: 'radio', required: true, options: [ { value: 0, label: '≥65% (0)' }, { value: 1, label: '50–64% (+1)' }, { value: 2, label: '36–49% (+2)' }, { value: 3, label: '≤35% (+3)' } ] },
+    { id: 'mwd', label: '6-minute walk distance', type: 'radio', required: true, options: [ { value: 0, label: '≥350 m (0)' }, { value: 1, label: '250–349 m (+1)' }, { value: 2, label: '150–249 m (+2)' }, { value: 3, label: '≤149 m (+3)' } ] },
+    { id: 'mmrc', label: 'mMRC dyspnea scale', type: 'radio', required: true, options: [ { value: 0, label: '0–1 (0)' }, { value: 1, label: '2 (+1)' }, { value: 2, label: '3 (+2)' }, { value: 3, label: '4 (+3)' } ] },
+    { id: 'bmi', label: 'Body-mass index', type: 'radio', required: true, options: [ { value: 0, label: '>21 kg/m² (0)' }, { value: 1, label: '≤21 kg/m² (+1)' } ] },
+  ],
+  // APACHE II — the registry's calculate() already reads fio2High/pao2/aado2,
+  // but the bare registry inputs never collected them (oxygenation silently
+  // scored 0). Full field set with the oxygenation component wired in.
+  'apache2': [
+    { id: 'age', label: 'Age (years)', type: 'number', required: true, min: 0, max: 120 },
+    { id: 'tempC', label: 'Temperature (°C, rectal)', type: 'number', required: true, min: 20, max: 45 },
+    { id: 'map', label: 'Mean arterial pressure (mmHg)', type: 'number', required: true, min: 0, max: 250 },
+    { id: 'hr', label: 'Heart rate (bpm)', type: 'number', required: true, min: 0, max: 300 },
+    { id: 'rr', label: 'Respiratory rate (breaths/min)', type: 'number', required: true, min: 0, max: 80 },
+    { id: 'fio2High', label: 'FiO₂', type: 'radio', required: true, options: [ { value: 0, label: 'FiO₂ < 50%' }, { value: 1, label: 'FiO₂ ≥ 50%' } ] },
+    { id: 'pao2', label: 'PaO₂ (mmHg) — FiO₂ < 50%', type: 'number', required: true, min: 0, max: 700, dependsOn: { field: 'fio2High', value: 0 } },
+    { id: 'aado2', label: 'A-aDO₂ (mmHg) — FiO₂ ≥ 50%', type: 'number', required: true, min: 0, max: 800, dependsOn: { field: 'fio2High', value: 1 } },
+    { id: 'ph', label: 'Arterial pH', type: 'number', required: true, min: 6.5, max: 8 },
+    { id: 'sodium', label: 'Serum sodium (mmol/L)', type: 'number', required: true, min: 80, max: 200 },
+    { id: 'potassium', label: 'Serum potassium (mmol/L)', type: 'number', required: true, min: 0, max: 12 },
+    { id: 'creatinine', label: 'Serum creatinine (mg/dL)', type: 'number', required: true, min: 0, max: 25 },
+    { id: 'acuteRenalFailure', label: 'Acute renal failure', type: 'radio', required: true, options: [ { value: 0, label: 'No (0)' }, { value: 1, label: 'Yes (doubles creatinine points)' } ] },
+    { id: 'hematocrit', label: 'Hematocrit (%)', type: 'number', required: true, min: 0, max: 80 },
+    { id: 'wbc', label: 'WBC (×10³/µL)', type: 'number', required: true, min: 0, max: 200 },
+    { id: 'gcs', label: 'Glasgow Coma Scale (3–15)', type: 'number', required: true, min: 3, max: 15 },
+    { id: 'chronicHealth', label: 'Severe chronic organ insufficiency / immunocompromise', type: 'radio', required: true, options: [ { value: 0, label: 'No (0)' }, { value: 1, label: 'Yes — nonoperative/emergency post-op (+5)' } ] },
+  ],
+  // GOLD COPD — the registry's calculate() expects small indices (fev1Idx 0-3,
+  // exacerbationIdx 0-3, symptoms 0/1). Collect them as banded radios instead
+  // of raw FEV₁ % / counts (which produced out-of-range grades).
+  'gold-copd': [
+    { id: 'fev1', label: 'FEV₁ (% predicted, post-bronchodilator)', type: 'radio', required: true, options: [ { value: 0, label: '≥80% — GOLD 1' }, { value: 1, label: '50–79% — GOLD 2' }, { value: 2, label: '30–49% — GOLD 3' }, { value: 3, label: '<30% — GOLD 4' } ] },
+    { id: 'symptoms', label: 'Symptom burden', type: 'radio', required: true, options: [ { value: 0, label: 'Lower (mMRC 0–1 / CAT <10)' }, { value: 1, label: 'Higher (mMRC ≥2 / CAT ≥10)' } ] },
+    { id: 'exacerbation', label: 'Exacerbation history (past year)', type: 'radio', required: true, options: [ { value: 0, label: 'None' }, { value: 1, label: '1 moderate, no admission' }, { value: 2, label: '≥1 requiring admission' }, { value: 3, label: '≥2 moderate' } ] },
+  ],
+  // MoCA — collect the raw 0-30 subtotal plus the ≤12-years-education flag so
+  // calculateMoCA can apply the Nasreddine +1 education adjustment.
+  'moca': [
+    { id: 'score', label: 'MoCA raw total (0–30)', type: 'number', required: true, min: 0, max: 30 },
+    { id: 'educationLE12', label: 'Formal education ≤12 years', type: 'radio', required: true, options: [ { value: 0, label: 'No (>12 years)' }, { value: 1, label: 'Yes (+1 adjustment)' } ] },
+  ],
   'aih': [
-    { id: 'anaSma', label: 'ANA or SMA/F-actin', type: 'radio', required: true, options: [ { value: 0, label: 'Negative (0)' }, { value: 1, label: 'Positive or strongly positive (+1)' } ] },
+    { id: 'anaSma', label: 'ANA or SMA/F-actin', type: 'radio', required: true, options: [ { value: 0, label: 'Negative / <1:40 (0)' }, { value: 1, label: '≥1:40 (+1)' }, { value: 2, label: '≥1:80 (+2)' } ] },
     { id: 'lkm1', label: 'LKM1 antibody', type: 'radio', required: true, options: [ { value: 0, label: '<1:40 (0)' }, { value: 2, label: '>=1:40 (+2)' } ] },
     { id: 'sla', label: 'SLA', type: 'radio', required: true, options: [ { value: 0, label: 'Negative (0)' }, { value: 2, label: 'Positive (+2)' } ] },
     { id: 'igg', label: 'IgG', type: 'radio', required: true, options: [ { value: 0, label: 'Normal (0)' }, { value: 1, label: '>Upper limit of normal (+1)' }, { value: 2, label: '>1.1x upper limit of normal (+2)' } ] },
-    { id: 'histology', label: 'Liver histology', type: 'radio', required: true, options: [ { value: 1, label: 'Compatible with AIH (+1)' }, { value: 2, label: 'Typical of AIH (+2)' } ] },
+    { id: 'histology', label: 'Liver histology', type: 'radio', required: true, options: [ { value: 0, label: 'Atypical (0)' }, { value: 1, label: 'Compatible with AIH (+1)' }, { value: 2, label: 'Typical of AIH (+2)' } ] },
     { id: 'viralHepatitis', label: 'Viral hepatitis', type: 'radio', required: true, options: [ { value: 0, label: 'Present (0)' }, { value: 2, label: 'Absent (+2)' } ] },
   ],
   'original-aih': [
@@ -277,7 +321,7 @@ export const INPUT_OVERRIDES: Record<string, CalculatorInput[]> = {
     { id: 'weight', label: 'Weight', type: 'radio', required: true, options: [ { value: 0, label: '>125 lb / >56.7 kg (0)' }, { value: 1, label: '≤125 lb / ≤56.7 kg (+1)' } ] },
     { id: 'smoker', label: 'Current smoker', type: 'radio', required: true, options: [ { value: 0, label: 'No (0)' }, { value: 1, label: 'Yes (+1)' } ] },
     { id: 'chairRise', label: 'Uses arms to stand from chair', type: 'radio', required: true, options: [ { value: 0, label: "No/don't know (0)" }, { value: 2, label: 'Yes (+2)' } ] },
-    { id: 'bmd', label: 'Total hip T-score (optional)', type: 'radio', required: false, options: [ { value: 0, label: '≥-1 (0)' }, { value: 2, label: '-1 to -2 (+2)' }, { value: 3, label: '-2 to -2.5 (+3)' }, { value: 4, label: '<-2.5 (+4)' } ] },
+    { id: 'bmd', label: 'Total hip T-score (optional)', type: 'radio', required: false, options: [ { value: 'none', label: 'Not measured' }, { value: 0, label: '≥-1 / normal (0)' }, { value: 2, label: '-1 to -2 (+2)' }, { value: 3, label: '-2 to -2.5 (+3)' }, { value: 4, label: '<-2.5 (+4)' } ] },
   ],
   'cci': [
     { id: 'prePlt', label: 'Pre-transfusion platelets (×10⁹/L)', type: 'number', required: true, min: 0, max: 1000 },
@@ -289,7 +333,7 @@ export const INPUT_OVERRIDES: Record<string, CalculatorInput[]> = {
   ],
   'blood-volume': [
     { id: 'patientType', label: 'Patient', type: 'select', required: true, options: [ { value: 'preterm', label: 'Preterm neonate' }, { value: 'term', label: 'Term neonate' }, { value: 'infant', label: 'Infant 1-4 months' }, { value: 'child', label: 'Child <25 kg' }, { value: 'adult', label: 'Child ≥25 kg or adult' } ] },
-    { id: 'sex', label: 'Sex', type: 'select', required: false, options: [ { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' } ], dependsOn: { field: 'patientType', value: 'adult' } },
+    { id: 'sex', label: 'Sex', type: 'select', required: true, options: [ { value: '', label: 'Select sex…' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' } ], dependsOn: { field: 'patientType', value: 'adult' } },
     { id: 'heightCm', label: 'Height (cm)', type: 'number', required: false, min: 0, max: 250, dependsOn: { field: 'patientType', value: 'adult' } },
     { id: 'weightKg', label: 'Weight (kg)', type: 'number', required: true, min: 0, max: 300 },
     { id: 'hematocrit', label: 'Hematocrit (%)', type: 'number', required: false, min: 0, max: 70 },
