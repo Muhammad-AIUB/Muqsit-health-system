@@ -38,6 +38,10 @@ The allowance is the whole design — **there is no single correct rule for ever
 
 `parseDateInput` returns `{ok:true,iso}` or `{ok:false,reason:"malformed"|"future"}` — the reason exists because the field has to say *which* rule was broken. `parseFlexibleDate` is the old `string | null` wrapper and still works for callers that don't need the reason.
 
+Separate from the policy, `parseDateInput` also enforces a sanity range: **year 1900 to today + 100**. The policy only decides which century an *ambiguous* 2-digit year belongs to; the range catches a year that is not a date at all however it was typed. `03/03/998` used to parse as year 998 — an age of 1028 — and `prescriptionDoc` prints the date string verbatim onto the prescription.
+
+**Age comes from `lib/age.ts#ageFromDob`, everywhere.** Do not recompute it as `elapsedMs / (365.25 * day)`: leap days accumulate, so that form read 29 for someone born 27 Jul 1996 on their 30th birthday while the header said 30. Age drives dosing — one function.
+
 **All date entry goes through `components/common/DateField.tsx`.** Do not add a native `<input type="date">`: it cannot take the DDMMYY shorthand, which is how doctors actually type, and it bypasses the century policy. `DateField` reverts to the last valid value on a bad parse **and** says why underneath — reverting alone swallowed the reason.
 
 Dates stored **before** this fix keep their wrong century; nothing is rewritten. `isImplausibleDate()` flags them where they render (DOB field, `PatientRecordsView` date headings, the chart's amber note) and the doctor decides. A bulk repair would be its own reviewed migration.

@@ -49,6 +49,13 @@ export default function DateField({
   // Keep in sync with external changes (e.g. loading a patient) while not typing.
   useEffect(() => { if (!focused) setText(isoToDdmmyyyy(value)); }, [value, focused]);
 
+  // Drop a stale rejection note when the field is handed a different date —
+  // loading another patient must not carry the last patient's error with it.
+  // Keyed on `value` alone on purpose: a rejected entry leaves `value` untouched,
+  // so the note it just set survives. Adding `focused` here would wipe the note
+  // in the same tick commit() sets it.
+  useEffect(() => { setNote(null); }, [value]);
+
   const commit = () => {
     setFocused(false);
     const r = parseDateInput(text, futureAllowanceYears);

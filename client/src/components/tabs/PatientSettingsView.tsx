@@ -11,6 +11,7 @@ import Pill from "@/components/common/Pill";
 import Lock from "@/components/common/Lock";
 import DateField from "@/components/common/DateField";
 import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
+import { ageFromDob } from "@/lib/age";
 import SupervisingDoctors from "./SupervisingDoctors";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
@@ -173,10 +174,13 @@ export default function PatientSettingsView() {
     }
   };
 
+  // Calendar age, the same helper the header and the patient list use. Dividing
+  // the elapsed milliseconds by 365.25 days looks equivalent and is not: leap
+  // days accumulate, so someone born 27 Jul 1996 read 29 here on their 30th
+  // birthday while every other screen said 30. Age drives dosing — one function.
   const computeAge = (dob: string) => {
-    if (!dob) return "";
-    const bd = new Date(dob);
-    return String(Math.floor((Date.now() - bd.getTime()) / (365.25 * 24 * 60 * 60 * 1000)));
+    const a = ageFromDob(dob);
+    return a == null ? "" : String(a);
   };
   const piAge = computeAge(pI.dob);
 

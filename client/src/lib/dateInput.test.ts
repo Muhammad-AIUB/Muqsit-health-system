@@ -91,6 +91,20 @@ describe("parseDateInput", () => {
       expect(parseDateInput(bad, YEAR_POLICY.clinical, NOW)).toEqual({ ok: false, reason: "malformed" });
     }
   });
+
+  it("rejects a year outside any plausible range, however it was typed", () => {
+    // 03/03/998 used to pass as year 998 — an age of 1028, printed verbatim on
+    // the prescription, since prescriptionDoc emits the date string as-is.
+    expect(parseDateInput("03/03/998", YEAR_POLICY.clinical, NOW)).toEqual({ ok: false, reason: "malformed" });
+    expect(parseDateInput("03/03/9998", YEAR_POLICY.clinical, NOW)).toEqual({ ok: false, reason: "malformed" });
+    expect(parseDateInput("03/03/1899", YEAR_POLICY.past, NOW)).toEqual({ ok: false, reason: "malformed" });
+  });
+
+  it("keeps the bounds wide enough that no real date trips them", () => {
+    expect(parseDateInput("03/03/1900", YEAR_POLICY.past, NOW)).toEqual({ ok: true, iso: "1900-03-03" });
+    expect(parseDateInput("03/03/1912", YEAR_POLICY.past, NOW)).toEqual({ ok: true, iso: "1912-03-03" });
+    expect(parseDateInput("03/03/2126", YEAR_POLICY.clinical, NOW)).toEqual({ ok: true, iso: "2126-03-03" });
+  });
 });
 
 describe("parseFlexibleDate", () => {

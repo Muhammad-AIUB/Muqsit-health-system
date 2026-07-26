@@ -24,6 +24,18 @@ export function resolveTwoDigitYear(
   return year > nowY + futureAllowanceYears ? year - 100 : year;
 }
 
+// Sanity bounds, independent of the century policy above. The policy only decides
+// which century an AMBIGUOUS 2-digit year belongs to; these catch a year that is
+// not a plausible date at all, however it was typed. `03/03/998` used to sail
+// through as year 998 — an age of 1028, printed verbatim onto a prescription
+// (prescriptionDoc prints the date string as-is).
+//
+// 1900 is the floor the health-trend chart already uses. The ceiling is a
+// century ahead: generous enough that no real clinical date can trip it, tight
+// enough to catch 9998.
+const MIN_YEAR = 1900;
+const MAX_YEARS_AHEAD = 100;
+
 // A bare null cannot say WHY the input failed, and the field has to tell "that is
 // not a date" apart from "a birth date cannot be in the future".
 export type DateParseResult =
@@ -67,6 +79,7 @@ export function parseDateInput(
   }
 
   if (!dd || !mm || dd > 31 || mm > 12 || Number.isNaN(yy)) return { ok: false, reason: "malformed" };
+  if (yy < MIN_YEAR || yy > now.getFullYear() + MAX_YEARS_AHEAD) return { ok: false, reason: "malformed" };
   // Reject impossible calendar dates (31 Apr, 30 Feb, …): a rebuilt Date whose
   // components don't round-trip means the day overflowed into the next month.
   const dt = new Date(yy, mm - 1, dd);

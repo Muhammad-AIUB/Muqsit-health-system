@@ -153,12 +153,14 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, rowGap: 8, alignItems: "center", marginTop: 10 }}>
               {/* A filter bound, not a clinical date — the default clinical
                   allowance is right here, and a future "To" is harmless. */}
-              <div style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
+              {/* Still <label>, so clicking the word focuses the box — the
+                  nested wrapper keeps the implicit association. */}
+              <label style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
                 From <div style={{ width: 130 }}><DateField value={from} onChange={setFrom} style={inp} /></div>
-              </div>
-              <div style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
+              </label>
+              <label style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
                 To <div style={{ width: 130 }}><DateField value={to} onChange={setTo} style={inp} /></div>
-              </div>
+              </label>
             </div>
           )}
         </div>
