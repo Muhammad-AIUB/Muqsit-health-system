@@ -8,9 +8,17 @@ export interface TimeRange { lo: number; hi: number } // epoch ms, already padde
 
 // Range spanning every given epoch-ms point, widened to >=1 month, padded 4%
 // each side. null when there are no points to plot.
-export function computeTimeRange(points: number[]): TimeRange | null {
-  if (points.length === 0) return null;
-  let lo = Math.min(...points), hi = Math.max(...points);
+//
+// floorLo pins the low end to a chosen instant instead of the earliest point —
+// that is how the trend chart's "last 3 months" window works. Points below the
+// floor still legitimately exist (a medication that started before the window
+// and is still running); the caller clips them to the plot edge rather than
+// dropping them, so the floor must NOT be derived from the data.
+export function computeTimeRange(points: number[], floorLo?: number | null): TimeRange | null {
+  if (points.length === 0 && floorLo == null) return null;
+  const lo = floorLo ?? Math.min(...points);
+  let hi = points.length ? Math.max(...points) : lo;
+  if (hi < lo) hi = lo; // every point sits before the floor
   if (hi - lo < 1000 * 60 * 60 * 24 * 30) hi = lo + 1000 * 60 * 60 * 24 * 30; // ≥1 month wide
   const pad = (hi - lo) * 0.04;
   return { lo: lo - pad, hi: hi + pad };

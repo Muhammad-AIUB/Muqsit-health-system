@@ -21,6 +21,8 @@ Controllers touching practice data use `@UseGuards(JwtAuthGuard, WorkstationGuar
 
 If you add a new patient-scoped endpoint, decide explicitly which column of this table it belongs to and mirror the corresponding `where` shape from `patients.service.ts`.
 
+**Narrower than the table above:** `hmDrugDates` / `hmSymptomDates` (the Health-trend-chart duration overrides) are **owner-only**. `patients.controller.ts#update` 403s any request carrying those keys from a non-`owner` workstation, and the `patient.doctorId !== doctorId` check in `patients.service.ts#update` stops supervising doctors (who act under their own workstation, so `role` is `owner`). `hmDrugDates` used to sit in the assistant `RX_LIFECYCLE` bypass set — it was deliberately removed; don't put it back without a permission key.
+
 ## ⚠️ Rule 3 — ValidationPipe strips unknown fields
 
 `main.ts` uses `ValidationPipe({ whitelist: true })`. **Any new field the client sends must be added to the DTO** (`src/*/dto/*.ts`) or it is silently dropped — a classic "saved but nothing persisted" bug. For JSON columns follow the existing pattern in `patients.service.ts#update`: destructure the field, cast via `Prisma.InputJsonValue`, use `Prisma.DbNull` for explicit nulls.

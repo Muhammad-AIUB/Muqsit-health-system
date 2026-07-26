@@ -80,10 +80,19 @@ export class PatientsController {
     // (incompleteRx, drug/investigation/on-exam history, HM dates) are part of
     // the prescribing flow — an assistant with any prescription grant may write
     // them, so we don't 403 those on pt.info (finding #3).
+    // Health-monitoring duration overrides are the OWNER doctor's clinical
+    // reading of the trend chart, not data entry — an assistant must not change
+    // them (hmDrugDates used to sit in RX_LIFECYCLE below, which allowed it).
+    // Supervising doctors act under their own workstation (role 'owner'), so
+    // they are stopped by the patient.doctorId check in patients.service#update.
+    const HM_OVERRIDE_KEYS = new Set(['hmDrugDates', 'hmSymptomDates']);
+    if (ws.role !== 'owner' && Object.keys(dto).some((k) => HM_OVERRIDE_KEYS.has(k))) {
+      throw new ForbiddenException('Only the owner doctor can edit health-monitoring durations');
+    }
     if (ws.role === 'assistant') {
       const RX_LIFECYCLE = new Set([
         'incompleteRx', 'drugHistory', 'investigationSummary',
-        'onExaminationSummary', 'hmDrugDates', 'hmSelectedDrugs',
+        'onExaminationSummary', 'hmSelectedDrugs',
       ]);
       const keys = Object.keys(dto);
       const touchesInfo = keys.some((k) => k !== 'familyMembers' && !RX_LIFECYCLE.has(k));

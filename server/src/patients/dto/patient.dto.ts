@@ -46,7 +46,11 @@ export class CreatePatientDto {
 
 export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
+  // Chart-display override only: never rewrites drugHistory.
   @IsOptional() @IsObject() hmDrugDates?: Record<string, { sf: string; upto: string }>;
+  // Same shape, keyed by the exact chief-complaint text — { [complaint]: { sf, upto } }.
+  // Chart-display override only: never rewrites any Prescription.
+  @IsOptional() @IsObject() hmSymptomDates?: Record<string, { sf: string; upto: string }>;
   // Ticked drug names in the health-monitoring view.
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) hmSelectedDrugs?: string[];
   // Family tree — array of { name, mobile, nid, sex, relation }.

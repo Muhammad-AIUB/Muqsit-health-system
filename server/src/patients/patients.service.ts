@@ -244,7 +244,7 @@ export class PatientsService {
     if (patient.doctorId !== doctorId) {
       throw new ForbiddenException('Supervising doctors cannot modify the patient record');
     }
-    const { dob, hmDrugDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, drugHistory, incompleteRx, ...rest } = dto;
+    const { dob, hmDrugDates, hmSymptomDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, drugHistory, incompleteRx, ...rest } = dto;
     // Loose cast: new columns may not yet be in the generated client; the DB
     // columns exist so Postgres accepts them at runtime.
     const extra = rest as Record<string, unknown>;
@@ -261,6 +261,7 @@ export class PatientsService {
         ...extra,
         ...(dob !== undefined ? { dob: dob ? new Date(dob) : null } : {}),
         ...(hmDrugDates !== undefined ? { hmDrugDates: hmDrugDates as Prisma.InputJsonValue } : {}),
+        ...(hmSymptomDates !== undefined ? { hmSymptomDates: hmSymptomDates as Prisma.InputJsonValue } : {}),
       },
     });
   }

@@ -66,6 +66,7 @@ Every push to `main` triggers `.github/workflows/deploy.yml`: SSH to the VPS (`/
 - **Supervised doctor (4.docx):** per-PATIENT link (`PatientSupervisor`). The supervisor logs into **their own** account, finds the patient by mobile ("SUPERVISED" badge), sees patient info (records/summaries/history) but **never** the owner's prescriptions or draft, and prescribes fresh under their own `doctorId`. No workstation involved.
 - **Visit-date model:** the prescription header Date (`ptDate`) stamps investigation findings, on-examination entries, and drug history. Drug history splits Current vs Distant-past **by date**, automatically, on the next visit.
 - **Incomplete prescription:** editor auto-saves per-doctor drafts; a patient with content but no "Save & print" carries `incompleteRx` and shows an Incomplete badge in OPD; printing completes it.
+- **Duration override (Health trend chart):** the chart's medication and symptom bars are *derived* — a medication spans first→last mention in `drugHistory`, a symptom spans first→last `Prescription.createdAt` carrying that complaint. Neither is the real-world duration, so the owner doctor can override a bar's start/end. Overrides live in `Patient.hmDrugDates` / `Patient.hmSymptomDates` (`{ [name]: { sf, upto } }`, blank side = keep the derived date) and are **display-only** — `drugHistory` and the prescriptions are never rewritten. Overridden bars render dashed and their tooltip shows the recorded range alongside the shown one. Owner-only, enforced server-side.
 
 ## Cross-cutting conventions
 

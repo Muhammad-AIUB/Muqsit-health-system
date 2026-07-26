@@ -19,6 +19,17 @@ These formats are persisted in drafts, prescriptions and patient JSON columns �
 - **Investigation finding:** `dd/mm/yyyy:TestName:value` (parse via `lib/investigationSummary.ts`). Report-pool images: `dd/mm/yyyy:Report N:[image attached]`; test-tagged images use key `dd/mm/yyyy:TestName` in `invImages` + a `…:[image attached]` entry. `[image attached]` / `Report N` rows are filtered out of print and summaries.
 - **Drug history (per-patient `Patient.drugHistory`):** `dd/mm/yyyy: Drug — dose — food — duration`, notes `dd/mm/yyyy(note): …`, tapering `dd/mm/yyyy(cont): dose — food — duration`. Legacy `Current:`/`Past:` prefixes must keep parsing. Current-vs-Distant-past is **derived from the entry date vs `ptDate`** — never store the bucket.
 - **On-examination summary:** `{date, text}` objects (`lib/onExaminationSummary.ts`); investigation summary: `{date, category, test, value}` (`lib/investigationSummary.ts`). Both merge-on-save (deduped), grouped by date newest-first on the records page.
+- **HM duration overrides:** `Patient.hmDrugDates` / `Patient.hmSymptomDates` are both `{ [name]: { sf, upto } }` (`DrugDateMap` in `lib/hmDates.ts`), values parsed by `cellToDate` (DDMMYY shorthand or any parseable date). Keys are the exact drug name from `drugMentionRanges()` / the exact trimmed complaint text from `symptomMentionRanges()`. A blank or unparseable side means "use the derived date" — it does **not** hide the bar (this differs from the pre-2026-07 `hmDrugDates` semantics, when a blank `sf` meant "don't draw"). Orphaned keys (renamed drug, edited complaint text) are ignored, never purged.
+
+## Health monitoring tab (idsp)
+
+`HealthMonitoringView.tsx` is now a thin shell: it derives the ranges and owns the override state/mutations, and `HealthTrendsChart.tsx` does the rendering plus editing. The old "Drug timeline" SVG and its per-drug SF/Upto panel were removed (2026-07) — one chart, one place to edit.
+
+- **Window ≠ filter.** The time dropdown (3m / 6m / 1y / all, default **all**, not persisted) clamps only the LOWER bound. A track whose effective end is inside the window stays visible even if it started years earlier: the bar clips at the plot edge and gets a chevron. Never make a running medication disappear from a narrow window.
+- **Order matters:** apply the override first, then the window. Filtering on recorded dates first would hide a bar the doctor just moved into view.
+- A ticked lab parameter with no in-window reading keeps a (short) lane saying so. A missing lane would read as "never measured".
+- Editing is owner-only (`canEdit` = not assistant mode **and** `patient.doctorId === activeWorkstationId ?? user.id`); the server enforces the same in `patients.controller.ts`. Every edit is written to the activity feed under `Health monitoring`.
+- `hmSelectedDrugs` no longer has a UI writer (the chart's checkboxes are view state). It is still seeded on patient load and carried over by the family-link flow, so the column and its data stay.
 
 ## Editor lifecycle (easy to break — know it)
 

@@ -316,7 +316,12 @@ model Patient {
   prescriptionImages String[] @default([])
   reportImages       String[] @default([])
   // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
+  // Display override for the trend chart's medication bars: a blank/absent side
+  // falls back to the date derived from drugHistory. Never rewrites drugHistory.
   hmDrugDates      Json?
+  // Same shape keyed by the exact chief-complaint text — { [complaint]: { sf, upto } }.
+  // Display override for the trend chart's symptom bars. Never rewrites any Prescription.
+  hmSymptomDates   Json?
   // Health-monitoring ticked drug names — persisted so checkbox state survives reload.
   hmSelectedDrugs  String[]  @default([])
   // Patient family tree — array of { name, mobile, nid, sex, relation }.

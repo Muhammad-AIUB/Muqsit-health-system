@@ -2,17 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { C } from "@/theme";
-import { isoToDdmmyyyy } from "@/lib/dateInput";
 import type { InvFinding } from "@/lib/investigationSummary";
 import { chartableParams, numericSeriesFor, type ChartableParam, type NumericPoint } from "@/lib/numericInvSeries";
 import type { MentionRange } from "@/lib/drugHistorySummary";
 import type { SymptomMentionRange } from "@/lib/symptomSummary";
+import { cellToDate, normaliseDateCell, type DrugDateMap } from "@/lib/hmDates";
 import { computeTimeRange, makeToX, monthTicks, isInRange } from "@/lib/timelineGeometry";
 
 interface Props {
   investigationSummary: InvFinding[];
   drugRanges: MentionRange[];
   symptomRanges: SymptomMentionRange[];
+  // Per-patient duration OVERRIDES. Display-only: the derived range keeps coming
+  // from drugHistory / the prescriptions, and neither is ever rewritten.
+  drugDates: DrugDateMap;
+  symptomDates: DrugDateMap;
+  // Owner doctor only — mirrors the server guard in patients.controller.ts.
+  canEdit: boolean;
+  onSaveDrugDates: (next: DrugDateMap, note: string) => void;
+  onSaveSymptomDates: (next: DrugDateMap, note: string) => void;
 }
 
 const DEFAULT_TRACK_LIMIT = 5;
@@ -22,6 +30,14 @@ const DEFAULT_TRACK_LIMIT = 5;
 // Only shades that actually exist in theme/index.ts are listed — several
 // shades referenced elsewhere in the app resolve to undefined at runtime.
 const SERIES_COLORS = [C.info[400], C.danger[400], C.pri[600], C.warn[600], C.info[800], C.danger[800], C.pri[800], C.warn[800]];
+
+type WindowKey = "3m" | "6m" | "1y" | "all";
+const WINDOW_OPTIONS: { key: WindowKey; label: string }[] = [
+  { key: "3m", label: "Last 3 months" },
+  { key: "6m", label: "Last 6 months" },
+  { key: "1y", label: "Last 1 year" },
+  { key: "all", label: "All available data" },
+];
 
 const paramKey = (p: ChartableParam) => `${p.test}::${p.field}`;
 
@@ -61,7 +77,71 @@ const ddmmyyyyMs = (d: string): number => {
 };
 const isoMs = (d: string): number => new Date(d).getTime() || 0;
 
-export default function HealthTrendsChart({ investigationSummary, drugRanges, symptomRanges }: Props) {
+type TrackKind = "drug" | "symptom";
+
+// One medication/symptom row. `rec*` is what the patient's records actually
+// say; `start`/`end` is what the chart draws after the doctor's override. Both
+// are kept so the tooltip can show them side by side — a chart that silently
+// replaced the recorded range with an opinion would be unsafe to read later.
+interface Track {
+  kind: TrackKind;
+  name: string;
+  recStart: number;
+  recEnd: number;
+  recFrom: string;
+  recTo: string;
+  start: number;
+  end: number;
+  from: string;
+  to: string;
+  overridden: boolean;
+}
+
+const buildTrack = (
+  kind: TrackKind,
+  name: string,
+  recStart: number,
+  recEnd: number,
+  cell: { sf: string; upto: string } | undefined,
+): Track => {
+  const ovStart = cellToDate(cell?.sf ?? "");
+  const ovEnd = cellToDate(cell?.upto ?? "");
+  const start = ovStart ? ovStart.getTime() : recStart;
+  let end = ovEnd ? ovEnd.getTime() : recEnd;
+  if (end < start) end = start; // same clamp the old Drug timeline applied
+  return {
+    kind,
+    name,
+    recStart,
+    recEnd,
+    recFrom: msToDdmmyyyy(recStart),
+    recTo: msToDdmmyyyy(recEnd),
+    start,
+    end,
+    from: msToDdmmyyyy(start),
+    to: msToDdmmyyyy(end),
+    overridden: Boolean(ovStart || ovEnd),
+  };
+};
+
+const cellHasOverride = (cell?: { sf: string; upto: string }) =>
+  Boolean(cellToDate(cell?.sf ?? "") || cellToDate(cell?.upto ?? ""));
+
+// Activity `detail` is capped at 400 chars server-side (activity.dto.ts) and a
+// chief complaint is free text, so the name is trimmed before it goes into the
+// audit line. The stored override always keeps the full, exact key.
+const activityName = (name: string) => (name.length > 120 ? name.slice(0, 119) + "…" : name);
+
+export default function HealthTrendsChart({
+  investigationSummary,
+  drugRanges,
+  symptomRanges,
+  drugDates,
+  symptomDates,
+  canEdit,
+  onSaveDrugDates,
+  onSaveSymptomDates,
+}: Props) {
   // ── Every catalog parameter that actually has ≥1 data point for this patient ──
   const findingsByTest = useMemo(() => {
     const m = new Map<string, InvFinding[]>();
@@ -83,12 +163,28 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
     return out;
   }, [findingsByTest]);
 
-  // ── Picker state — deliberately independent from Panel 1's hmDrugs/hmSelectedDrugs:
-  // that persists server-side on every toggle, and this feature has no server
-  // persistence in v1. null = defaults not yet seeded. ──
+  // ── Picker state — deliberately independent from the drug checkboxes that used
+  // to persist to hmSelectedDrugs on every toggle. Which tracks are on screen is
+  // a viewing choice, not patient data. null = defaults not yet seeded. ──
   const [selectedParams, setSelectedParams] = useState<Set<string> | null>(null);
   const [selectedDrugs, setSelectedDrugs] = useState<Set<string> | null>(null);
   const [selectedSymptoms, setSelectedSymptoms] = useState<Set<string> | null>(null);
+
+  // Time window. Defaults to "all" so the chart opens showing the patient's
+  // whole history — narrowing is always the doctor's deliberate act, never a
+  // default that quietly hides an old but relevant trend. Not persisted.
+  const [windowKey, setWindowKey] = useState<WindowKey>("all");
+
+  // Per-column edit mode + in-progress text. The committed values live on the
+  // patient record; these drafts are only what is currently being typed.
+  const [editDrugs, setEditDrugs] = useState(false);
+  const [editSymptoms, setEditSymptoms] = useState(false);
+  const [drugDraft, setDrugDraft] = useState<DrugDateMap>(drugDates);
+  const [symptomDraft, setSymptomDraft] = useState<DrugDateMap>(symptomDates);
+  const [invalidCells, setInvalidCells] = useState<Set<string>>(new Set());
+
+  useEffect(() => { setDrugDraft(drugDates); }, [drugDates]);
+  useEffect(() => { setSymptomDraft(symptomDates); }, [symptomDates]);
 
   // Guarded on length > 0, not just `!== null` — investigationSummary/
   // drugRanges/symptomRanges can all still be empty on the first render or
@@ -122,39 +218,93 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
     setter(s);
   };
 
-  // ── Visible series/tracks ──
-  const visibleParams = paramSeries.filter((x) => selectedParams?.has(paramKey(x.param)));
-  const visibleDrugs = drugRanges.filter((r) => selectedDrugs?.has(r.name));
-  const visibleSymptoms = symptomRanges.filter((r) => selectedSymptoms?.has(r.name));
+  // ── Effective (post-override) tracks. Overrides are applied BEFORE the window
+  // is, so a bar the doctor just moved into the window shows up and one they
+  // moved out of it disappears — filtering on the recorded dates first would do
+  // the opposite of what they asked for. ──
+  const drugTracks = useMemo(
+    () => drugRanges.map((r) => buildTrack("drug", r.name, ddmmyyyyMs(r.start), ddmmyyyyMs(r.end), drugDates[r.name])),
+    [drugRanges, drugDates],
+  );
+  const symptomTracks = useMemo(
+    () => symptomRanges.map((r) => buildTrack("symptom", r.name, isoMs(r.start), isoMs(r.end), symptomDates[r.name])),
+    [symptomRanges, symptomDates],
+  );
 
-  const tracks = [
-    ...visibleDrugs.map((r) => ({ kind: "drug" as const, name: r.name, start: ddmmyyyyMs(r.start), end: ddmmyyyyMs(r.end), from: r.start, to: r.end })),
-    ...visibleSymptoms.map((r) => ({ kind: "symptom" as const, name: r.name, start: isoMs(r.start), end: isoMs(r.end), from: isoToDdmmyyyy(r.start), to: isoToDdmmyyyy(r.end) })),
+  // ── Time window bounds. Only the LOWER bound is clamped: a doctor can record
+  // a future-dated finding or set an Upto past today, and no window may hide
+  // something that was actually entered. ──
+  const windowLo = useMemo<number | null>(() => {
+    if (windowKey === "all") return null;
+    const d = new Date();
+    if (windowKey === "3m") d.setMonth(d.getMonth() - 3);
+    else if (windowKey === "6m") d.setMonth(d.getMonth() - 6);
+    else d.setFullYear(d.getFullYear() - 1);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, [windowKey]);
+
+  const tickedParams = paramSeries.filter((x) => selectedParams?.has(paramKey(x.param)));
+  const tickedTracks = [
+    ...drugTracks.filter((t) => selectedDrugs?.has(t.name)),
+    ...symptomTracks.filter((t) => selectedSymptoms?.has(t.name)),
   ];
+
+  // A track stays visible when it OVERLAPS the window, not only when it fits
+  // inside it. A drug started two years ago and still running must never vanish
+  // from "last 3 months" — that reads as "the patient is not on it".
+  const tracks = tickedTracks.filter((t) => windowLo == null || t.end >= windowLo);
+
+  // Lab points are filtered to the window, but a ticked parameter never loses
+  // its lane: an empty lane says "no reading here", a missing lane would say
+  // "never measured".
+  const lanes = tickedParams.map(({ param, points }) => ({
+    param,
+    points: windowLo == null ? points : points.filter((p) => ddmmyyyyMs(p.date) >= windowLo),
+    allPoints: points,
+  }));
 
   const allMs = [
-    ...visibleParams.flatMap((x) => x.points.map((p) => ddmmyyyyMs(p.date))),
+    ...lanes.flatMap((x) => x.points.map((p) => ddmmyyyyMs(p.date))),
     ...tracks.flatMap((t) => [t.start, t.end]),
   ];
-  const seriesColors = assignSeriesColors(visibleParams.map((v) => v.param));
+  const today = new Date();
+  // With a window active the axis spans the whole window even when the newest
+  // reading is older than today, so "Today" lands where it belongs.
+  const axisMs = windowLo == null ? allMs : [...allMs, today.getTime()];
+
+  const seriesColors = assignSeriesColors(lanes.map((v) => v.param));
   const colorFor = (p: ChartableParam) => seriesColors.get(paramKey(p)) ?? SERIES_COLORS[0];
 
-  const range = computeTimeRange(allMs);
+  const range = computeTimeRange(axisMs, windowLo);
   // Actual data extent (the axis range itself is padded, so it would overstate
   // the window). Month labels get thinned on wide ranges, so state it plainly.
   const dataFrom = allMs.length ? Math.min(...allMs) : null;
   const dataTo = allMs.length ? Math.max(...allMs) : null;
 
   const LW = 150, PR = 16, SVG_W = 800, RH = 28, PB = 30;
-  const hasPlot = visibleParams.length > 0;
+  const hasPlot = lanes.length > 0;
   const hasGantt = tracks.length > 0;
+  // "Nothing ticked" and "ticked, but nothing inside this window" are different
+  // problems and get different messages.
+  const nothingTicked = tickedParams.length === 0 && tickedTracks.length === 0;
+  const lanesWithData = lanes.filter((l) => l.points.length > 0).length;
+  const emptyWindow = !nothingTicked && lanesWithData === 0 && tracks.length === 0;
   const PLOT_TOP = 14;
   // Each series gets its own vertical lane rather than sharing one band —
   // two flat/near-identical series would otherwise both normalize to the
   // same center line and their row labels would collide. The lane is taller
   // than the plotted band (LANE_PAD) so value labels have somewhere to go.
-  const LANE_H = 68, LANE_PAD = 15;
-  const PLOT_H = hasPlot ? visibleParams.length * LANE_H : 0;
+  // A lane with no in-window reading needs none of that room, so it gets a
+  // short one instead of 68px of white space.
+  const LANE_H = 68, LANE_PAD = 15, EMPTY_LANE_H = 26;
+  const laneTops: number[] = [];
+  let laneAcc = PLOT_TOP;
+  for (const l of lanes) {
+    laneTops.push(laneAcc);
+    laneAcc += l.points.length > 0 ? LANE_H : EMPTY_LANE_H;
+  }
+  const PLOT_H = hasPlot ? laneAcc - PLOT_TOP : 0;
   const GANTT_TOP = PLOT_TOP + PLOT_H + (hasPlot && hasGantt ? 20 : 0);
   const bodyBottom = GANTT_TOP + tracks.length * RH;
   const chartH = Math.max(80, bodyBottom + PB);
@@ -163,31 +313,168 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
   const LABEL_HALF_W = 22; // ~half a "423mg/dL"-sized label at 9px
   const toX = makeToX(range, LW, areaW);
   const months = monthTicks(range, toX);
-  const today = new Date();
   const todayInRange = isInRange(today.getTime(), range);
+
+  const windowLabel = WINDOW_OPTIONS.find((o) => o.key === windowKey)?.label ?? "";
+  const inViewCount = lanesWithData + tracks.length;
+  const tickedCount = tickedParams.length + tickedTracks.length;
+
+  // ── Duration editing ──
+  const cellKey = (kind: TrackKind, name: string, field: "sf" | "upto") => `${kind}:${name}:${field}`;
+
+  const draftFor = (kind: TrackKind, name: string) =>
+    (kind === "drug" ? drugDraft : symptomDraft)[name] ?? { sf: "", upto: "" };
+
+  const clearInvalid = (keys: string[]) =>
+    setInvalidCells((prev) => {
+      if (!keys.some((k) => prev.has(k))) return prev;
+      const next = new Set(prev);
+      for (const k of keys) next.delete(k);
+      return next;
+    });
+
+  const setDraftCell = (kind: TrackKind, name: string, field: "sf" | "upto", value: string) => {
+    const setter = kind === "drug" ? setDrugDraft : setSymptomDraft;
+    setter((prev) => ({ ...prev, [name]: { ...(prev[name] ?? { sf: "", upto: "" }), [field]: value } }));
+    clearInvalid([cellKey(kind, name, field)]);
+  };
+
+  // Commit on blur. Anything non-empty that cellToDate cannot read is flagged
+  // and NOT saved — storing a half-understood date is worse than no override.
+  const commitCell = (kind: TrackKind, name: string, field: "sf" | "upto", track: Track) => {
+    const raw = (draftFor(kind, name)[field] ?? "").trim();
+    const key = cellKey(kind, name, field);
+    if (raw && !cellToDate(raw)) {
+      setInvalidCells((prev) => new Set(prev).add(key));
+      return;
+    }
+    clearInvalid([key]);
+    const normalised = raw ? normaliseDateCell(raw) : "";
+    const base = kind === "drug" ? drugDates : symptomDates;
+    const current = base[name] ?? { sf: "", upto: "" };
+    if (current[field] === normalised) return; // nothing actually changed
+    const nextCell = { ...current, [field]: normalised };
+    const next: DrugDateMap = { ...base, [name]: nextCell };
+    // Both sides cleared → drop the key rather than storing a pair of empty
+    // strings, so "is this overridden?" stays a simple question.
+    if (!nextCell.sf && !nextCell.upto) delete next[name];
+    const label = kind === "drug" ? "medication" : "symptom";
+    const shownFrom = cellToDate(nextCell.sf) ? nextCell.sf : track.recFrom;
+    const shownTo = cellToDate(nextCell.upto) ? nextCell.upto : track.recTo;
+    // Complaint text is free-form and can be long; the activity feed caps
+    // `detail` at 400 chars server-side and would 400 the whole log call.
+    const shown = activityName(name);
+    const note = nextCell.sf || nextCell.upto
+      ? `Adjusted ${label} duration for "${shown}": ${shownFrom} – ${shownTo} (recorded ${track.recFrom} – ${track.recTo})`
+      : `Cleared the ${label} duration override for "${shown}" — back to the recorded ${track.recFrom} – ${track.recTo}`;
+    (kind === "drug" ? onSaveDrugDates : onSaveSymptomDates)(next, note);
+  };
+
+  const resetOverride = (kind: TrackKind, track: Track) => {
+    const base = kind === "drug" ? drugDates : symptomDates;
+    if (!base[track.name]) return;
+    const next: DrugDateMap = { ...base };
+    delete next[track.name];
+    clearInvalid([cellKey(kind, track.name, "sf"), cellKey(kind, track.name, "upto")]);
+    const label = kind === "drug" ? "medication" : "symptom";
+    (kind === "drug" ? onSaveDrugDates : onSaveSymptomDates)(
+      next,
+      `Cleared the ${label} duration override for "${activityName(track.name)}" — back to the recorded ${track.recFrom} – ${track.recTo}`,
+    );
+  };
+
+  const renderEditRow = (kind: TrackKind, track: Track) => {
+    const draft = draftFor(kind, track.name);
+    const sfBad = invalidCells.has(cellKey(kind, track.name, "sf"));
+    const uptoBad = invalidCells.has(cellKey(kind, track.name, "upto"));
+    const overridden = cellHasOverride((kind === "drug" ? drugDates : symptomDates)[track.name]);
+    return (
+      <div key={track.name} style={editRow}>
+        <span style={{ ...checkLabel, flex: "1 1 100%" }} title={track.name}>{track.name}</span>
+        <input
+          value={draft.sf}
+          onChange={(e) => setDraftCell(kind, track.name, "sf", e.target.value)}
+          onBlur={() => commitCell(kind, track.name, "sf", track)}
+          placeholder={track.recFrom}
+          title={sfBad ? "Type DDMMYY, e.g. 030626" : `From — leave empty to keep the recorded ${track.recFrom}`}
+          style={dateInput(sfBad)}
+        />
+        <input
+          value={draft.upto}
+          onChange={(e) => setDraftCell(kind, track.name, "upto", e.target.value)}
+          onBlur={() => commitCell(kind, track.name, "upto", track)}
+          placeholder={track.recTo}
+          title={uptoBad ? "Type DDMMYY, e.g. 030626" : `To — leave empty to keep the recorded ${track.recTo}`}
+          style={dateInput(uptoBad)}
+        />
+        <button
+          type="button"
+          onClick={() => resetOverride(kind, track)}
+          disabled={!overridden}
+          title={overridden ? "Clear the override and go back to the recorded dates" : "Nothing overridden on this row"}
+          style={resetBtn(overridden)}
+        >
+          Reset
+        </button>
+      </div>
+    );
+  };
+
+  const pickerRow = (
+    kind: TrackKind,
+    t: Track,
+    selected: Set<string> | null,
+    setter: (s: Set<string>) => void,
+  ) => (
+    <label key={t.name} style={checkRow}>
+      <input type="checkbox" checked={selected?.has(t.name) ?? false} onChange={() => toggle(selected, setter, t.name)} style={checkInput} />
+      <span style={checkLabel} title={t.name}>{t.name}</span>
+      <span style={rangeHint} title={t.overridden ? `Adjusted by hand · recorded ${t.recFrom} – ${t.recTo}` : undefined}>
+        {t.overridden ? "✎ " : ""}{t.from === t.to ? t.from : `${t.from} – ${t.to}`}
+      </span>
+    </label>
+  );
+
+  const editToggle = (on: boolean, setOn: (v: boolean) => void, label: string) => (
+    <button type="button" onClick={() => setOn(!on)} style={editBtn(on)} title={`${on ? "Finish editing" : "Edit"} ${label} durations`}>
+      {on ? "Done" : "Edit"}
+    </button>
+  );
 
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: C.n[700], marginBottom: 4 }}>Health trend chart</div>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n[700] }}>Health trend chart</div>
+        <select
+          value={windowKey}
+          onChange={(e) => setWindowKey(e.target.value as WindowKey)}
+          title="Time window shown on the chart"
+          style={windowSelect}
+        >
+          {WINDOW_OPTIONS.map((o) => (
+            <option key={o.key} value={o.key}>{o.label}</option>
+          ))}
+        </select>
+      </div>
       <div style={{ fontSize: 10.5, color: C.n[500], marginBottom: 12 }}>
         Medication and symptom bars span first → last recorded mention for that name — not necessarily continuous use.
-        A dot marks a name recorded on one date only.
+        A dot marks a name recorded on one date only. A dashed bar has a duration the doctor set by hand.
       </div>
 
       {(hasPlot || hasGantt) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 8, fontSize: 10.5 }}>
-          {visibleParams.map(({ param }) => (
+          {lanes.map(({ param }) => (
             <span key={paramKey(param)} style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.n[700] }}>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: colorFor(param), display: "inline-block", flexShrink: 0 }} />
               {param.label}
             </span>
           ))}
-          {visibleDrugs.length > 0 && (
+          {tracks.some((t) => t.kind === "drug") && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.n[700] }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: C.pri[400], display: "inline-block", flexShrink: 0 }} /> Medication
             </span>
           )}
-          {visibleSymptoms.length > 0 && (
+          {tracks.some((t) => t.kind === "symptom") && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.n[700] }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: C.warn[400], display: "inline-block", flexShrink: 0 }} /> Symptom
             </span>
@@ -195,9 +482,14 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
         </div>
       )}
 
-      {!hasPlot && !hasGantt ? (
-        <div style={{ textAlign: "center", padding: "36px 0", color: C.n[400], fontSize: 12 }}>
+      {nothingTicked ? (
+        <div style={{ textAlign: "center", padding: "36px 0", color: C.n[500], fontSize: 12 }}>
           Tick a lab parameter, medication or symptom below to visualise it here.
+        </div>
+      ) : emptyWindow ? (
+        <div style={{ textAlign: "center", padding: "36px 0", color: C.n[500], fontSize: 12 }}>
+          Nothing recorded in the {windowLabel.toLowerCase()} for what you have ticked.
+          Choose a wider window to see this patient&apos;s history.
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
@@ -211,8 +503,8 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
             <line x1={LW} y1={bodyBottom} x2={SVG_W - PR} y2={bodyBottom} stroke={C.n[300]} strokeWidth={0.5} />
             {/* Hairline between stacked parameters — each has its own scale,
                 so they must not read as one continuous plot. */}
-            {visibleParams.slice(1).map((_, i) => (
-              <line key={`lane-${i}`} x1={LW} x2={SVG_W - PR} y1={PLOT_TOP + (i + 1) * LANE_H} y2={PLOT_TOP + (i + 1) * LANE_H} stroke={C.n[100]} strokeWidth={0.5} />
+            {laneTops.slice(1).map((top, i) => (
+              <line key={`lane-${i}`} x1={LW} x2={SVG_W - PR} y1={top} y2={top} stroke={C.n[100]} strokeWidth={0.5} />
             ))}
             {todayInRange && (
               <>
@@ -229,12 +521,31 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
               </>
             )}
 
-            {hasPlot && visibleParams.map(({ param, points }, si) => {
+            {lanes.map(({ param, points, allPoints }, si) => {
               const color = colorFor(param);
+              const laneTop = laneTops[si];
+              const shortLabel = param.label.length > 22 ? param.label.slice(0, 21) + "…" : param.label;
+
+              // Ticked, but nothing recorded inside this window. Say so on the
+              // lane instead of dropping it — a missing lane reads as "never
+              // measured", which is a different and more dangerous claim.
+              if (points.length === 0) {
+                const last = allPoints[allPoints.length - 1];
+                return (
+                  <g key={paramKey(param)}>
+                    <text x={LW - 8} y={laneTop + EMPTY_LANE_H / 2 + 3} textAnchor="end" fontSize={10} fontWeight={600} fill={C.n[500]}>
+                      {shortLabel}
+                    </text>
+                    <text x={LW + 8} y={laneTop + EMPTY_LANE_H / 2 + 3} fontSize={9} fill={C.n[500]}>
+                      {last ? `No reading in this window · last was ${last.label} on ${last.date}` : "No reading in this window"}
+                    </text>
+                  </g>
+                );
+              }
+
               const vals = points.map((p) => p.value);
               const vmin = Math.min(...vals), vmax = Math.max(...vals);
               const vspan = vmax - vmin;
-              const laneTop = PLOT_TOP + si * LANE_H;
               const yOf = (v: number) => {
                 const norm = vspan > 0 ? (v - vmin) / vspan : 0.5;
                 return laneTop + LANE_H - LANE_PAD - norm * (LANE_H - 2 * LANE_PAD);
@@ -280,7 +591,7 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
                     );
                   })}
                   <text x={LW - 8} y={laneTop + LANE_H / 2 + 3} textAnchor="end" fontSize={10} fontWeight={600} fill={color}>
-                    {param.label.length > 22 ? param.label.slice(0, 21) + "…" : param.label}
+                    {shortLabel}
                   </text>
                 </g>
               );
@@ -288,39 +599,83 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
 
             {tracks.map((t, idx) => {
               const cy = GANTT_TOP + idx * RH + RH / 2;
-              const x1 = toX(t.start), x2 = toX(t.end);
+              const rawX1 = toX(t.start), rawX2 = toX(t.end);
+              // Clip to the plot, never drop: the bar keeps reporting its true
+              // range in the tooltip and gets a chevron meaning "continues
+              // before this window".
+              const x1 = Math.max(rawX1, PLOT_L);
+              const x2 = Math.min(Math.max(rawX2, PLOT_L), PLOT_R);
+              const clippedLeft = rawX1 < PLOT_L - 0.5;
               const color = t.kind === "drug" ? C.pri[400] : C.warn[400];
               // Recorded on a single date only: draw a point, not a stub bar.
-              // A 6px-wide bar reads as "used for a short period", which is a
-              // claim the data doesn't support — there is just one mention.
-              const singleMention = x2 - x1 < 3;
+              // Tested on the dates themselves rather than on pixel width — a
+              // genuine one-week course on a multi-year axis is also sub-pixel,
+              // and calling that "recorded once" would be a false claim.
+              const singleDate = t.start === t.end;
+              const recorded = t.recFrom === t.recTo ? t.recFrom : `${t.recFrom} – ${t.recTo}`;
+              const tip = t.overridden
+                ? `${t.name} · shown ${t.from === t.to ? t.from : `${t.from} – ${t.to}`} (adjusted) · recorded ${recorded}`
+                : singleDate
+                  ? `${t.name} · recorded ${t.from}`
+                  : `${t.name} · ${t.from} – ${t.to}`;
               return (
                 <g key={`${t.kind}-${t.name}`}>
                   {idx % 2 === 0 && <rect x={LW} y={GANTT_TOP + idx * RH} width={areaW} height={RH} fill={C.n[50]} />}
                   <text x={LW - 8} y={cy + 4} textAnchor="end" fontSize={10} fill={C.n[700]}>
                     {t.name.length > 20 ? t.name.slice(0, 19) + "…" : t.name}
                   </text>
-                  <title>{singleMention ? `${t.name} · recorded ${t.from}` : `${t.name} · ${t.from} – ${t.to}`}</title>
-                  {singleMention ? (
-                    <circle cx={x1} cy={cy} r={5} fill={color} opacity={0.85} />
+                  <title>{tip}</title>
+                  {singleDate ? (
+                    <circle
+                      cx={x1}
+                      cy={cy}
+                      r={5}
+                      fill={t.overridden ? C.n[0] : color}
+                      stroke={color}
+                      strokeWidth={t.overridden ? 1.5 : 0}
+                      strokeDasharray={t.overridden ? "3,2" : undefined}
+                      opacity={0.9}
+                    />
                   ) : (
-                    <rect x={x1} y={cy - 7} width={x2 - x1} height={14} rx={4} fill={color} opacity={0.85} />
+                    <rect
+                      x={x1}
+                      y={cy - 7}
+                      width={Math.max(3, x2 - x1)}
+                      height={14}
+                      rx={4}
+                      fill={color}
+                      fillOpacity={t.overridden ? 0.16 : 0.85}
+                      stroke={t.overridden ? color : "none"}
+                      strokeWidth={t.overridden ? 1.25 : 0}
+                      strokeDasharray={t.overridden ? "4,2.5" : undefined}
+                    />
+                  )}
+                  {clippedLeft && !singleDate && (
+                    <path
+                      d={`M ${PLOT_L + 6} ${cy - 4.5} L ${PLOT_L + 1.5} ${cy} L ${PLOT_L + 6} ${cy + 4.5}`}
+                      fill="none"
+                      stroke={t.overridden ? color : C.n[0]}
+                      strokeWidth={1.5}
+                      strokeLinecap="round"
+                    />
                   )}
                 </g>
               );
             })}
           </svg>
-          {dataFrom != null && dataTo != null && (
-            <div style={{ fontSize: 9.5, color: C.n[500], textAlign: "right", marginTop: 2 }}>
-              Showing {msToDdmmyyyy(dataFrom)} – {msToDdmmyyyy(dataTo)} · hover any point or bar for its date
-            </div>
-          )}
+          <div style={{ fontSize: 9.5, color: C.n[500], textAlign: "right", marginTop: 2 }}>
+            {windowKey === "all"
+              ? dataFrom != null && dataTo != null
+                ? `Showing ${msToDdmmyyyy(dataFrom)} – ${msToDdmmyyyy(dataTo)} · hover any point or bar for its date`
+                : "hover any point or bar for its date"
+              : `${windowLabel} · ${msToDdmmyyyy(windowLo as number)} – ${msToDdmmyyyy(Math.max(today.getTime(), dataTo ?? 0))} · ${inViewCount} of ${tickedCount} ticked items have data in this window · hover any point or bar for its date`}
+          </div>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 12 }}>
         <div>
-          <div style={colTitle}>Lab parameters shown</div>
+          <div style={colHeaderRow}><div style={colTitle}>Lab parameters shown</div></div>
           <div style={{ maxHeight: 190, overflowY: "auto" }}>
             {paramSeries.length === 0 ? (
               <div style={emptyMsg}>No numeric investigation results recorded yet.</div>
@@ -340,50 +695,78 @@ export default function HealthTrendsChart({ investigationSummary, drugRanges, sy
         </div>
 
         <div>
-          <div style={colTitle}>Medications shown</div>
+          <div style={colHeaderRow}>
+            <div style={colTitle}>Medications shown</div>
+            {canEdit && drugTracks.length > 0 && editToggle(editDrugs, setEditDrugs, "medication")}
+          </div>
           <div style={{ maxHeight: 190, overflowY: "auto" }}>
-            {drugRanges.length === 0 ? (
+            {drugTracks.length === 0 ? (
               <div style={emptyMsg}>No drugs in this patient&apos;s drug history yet.</div>
             ) : (
-              [...drugRanges].sort((a, b) => a.name.localeCompare(b.name)).map((r) => (
-                <label key={r.name} style={checkRow}>
-                  <input type="checkbox" checked={selectedDrugs?.has(r.name) ?? false} onChange={() => toggle(selectedDrugs, setSelectedDrugs, r.name)} style={checkInput} />
-                  <span style={checkLabel} title={r.name}>{r.name}</span>
-                  <span style={rangeHint}>{r.start === r.end ? r.start : `${r.start} – ${r.end}`}</span>
-                </label>
-              ))
+              [...drugTracks].sort((a, b) => a.name.localeCompare(b.name)).map((t) =>
+                editDrugs ? renderEditRow("drug", t) : pickerRow("drug", t, selectedDrugs, setSelectedDrugs),
+              )
             )}
           </div>
         </div>
 
         <div>
-          <div style={colTitle}>Symptoms shown</div>
+          <div style={colHeaderRow}>
+            <div style={colTitle}>Symptoms shown</div>
+            {canEdit && symptomTracks.length > 0 && editToggle(editSymptoms, setEditSymptoms, "symptom")}
+          </div>
           <div style={{ maxHeight: 190, overflowY: "auto" }}>
-            {symptomRanges.length === 0 ? (
+            {symptomTracks.length === 0 ? (
               <div style={emptyMsg}>No symptoms recorded for this patient yet.</div>
             ) : (
-              [...symptomRanges].sort((a, b) => a.name.localeCompare(b.name)).map((r) => {
-                const start = isoToDdmmyyyy(r.start), end = isoToDdmmyyyy(r.end);
-                return (
-                  <label key={r.name} style={checkRow}>
-                    <input type="checkbox" checked={selectedSymptoms?.has(r.name) ?? false} onChange={() => toggle(selectedSymptoms, setSelectedSymptoms, r.name)} style={checkInput} />
-                    <span style={checkLabel} title={r.name}>{r.name}</span>
-                    <span style={rangeHint}>{start === end ? start : `${start} – ${end}`}</span>
-                  </label>
-                );
-              })
+              [...symptomTracks].sort((a, b) => a.name.localeCompare(b.name)).map((t) =>
+                editSymptoms ? renderEditRow("symptom", t) : pickerRow("symptom", t, selectedSymptoms, setSelectedSymptoms),
+              )
             )}
           </div>
         </div>
       </div>
+
+      {(editDrugs || editSymptoms) && (
+        <div style={{ fontSize: 10, color: C.n[500], marginTop: 8, lineHeight: 1.5 }}>
+          Type <b>DDMMYY</b> (e.g. <b>030626</b>) or a full date. Leave a box empty to keep the date recorded in this
+          patient&apos;s notes. Editing here only changes the chart — the prescriptions and the drug history are untouched.
+        </div>
+      )}
     </div>
   );
 }
 
-const colTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 };
+const colHeaderRow: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 8, minHeight: 20 };
+const colTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.05em" };
 const emptyMsg: React.CSSProperties = { fontSize: 11, color: C.n[500], padding: "4px 0" };
 const checkRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, marginBottom: 6, cursor: "pointer" };
 const checkInput: React.CSSProperties = { accentColor: C.pri[400], width: 13, height: 13, cursor: "pointer", flexShrink: 0 };
 const checkLabel: React.CSSProperties = { fontSize: 11, color: C.n[800], flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const countBadge: React.CSSProperties = { fontSize: 9.5, color: C.n[500], flexShrink: 0 };
 const rangeHint: React.CSSProperties = { fontSize: 9.5, color: C.n[500], flexShrink: 0, whiteSpace: "nowrap" };
+const windowSelect: React.CSSProperties = {
+  fontSize: 11, fontFamily: "inherit", color: C.n[800], background: C.n[0],
+  border: `0.5px solid ${C.n[300]}`, borderRadius: 6, padding: "4px 8px", cursor: "pointer", outline: "none",
+};
+const editRow: React.CSSProperties = {
+  display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5,
+  marginBottom: 8, paddingBottom: 7, borderBottom: `0.5px solid ${C.n[100]}`,
+};
+const dateInput = (bad: boolean): React.CSSProperties => ({
+  flex: "1 1 76px", minWidth: 0, padding: "3px 6px", borderRadius: 5,
+  border: `0.5px solid ${bad ? C.danger[400] : C.n[200]}`,
+  background: bad ? C.danger[50] : C.n[0],
+  fontFamily: "inherit", fontSize: 10.5, outline: "none", color: C.n[800],
+});
+const editBtn = (on: boolean): React.CSSProperties => ({
+  fontSize: 9.5, fontFamily: "inherit", fontWeight: 600, letterSpacing: "0.03em",
+  color: on ? C.n[0] : C.pri[600], background: on ? C.pri[400] : C.pri[50],
+  border: "none", borderRadius: 5, padding: "3px 8px", cursor: "pointer", flexShrink: 0,
+});
+const resetBtn = (enabled: boolean): React.CSSProperties => ({
+  fontSize: 9.5, fontFamily: "inherit", color: enabled ? C.danger[800] : C.n[300],
+  background: enabled ? C.danger[50] : "transparent",
+  border: `0.5px solid ${enabled ? C.danger[100] : C.n[200]}`,
+  borderRadius: 5, padding: "3px 7px", cursor: enabled ? "pointer" : "default", flexShrink: 0,
+});
