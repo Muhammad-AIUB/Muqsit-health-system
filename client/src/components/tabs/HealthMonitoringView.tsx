@@ -54,11 +54,19 @@ export default function HealthMonitoringView() {
 
   const [drugDates, setDrugDates] = useState<DrugDateMap>(EMPTY_DATES);
   const [symptomDates, setSymptomDates] = useState<DrugDateMap>(EMPTY_DATES);
-  // Seed from the patient record whenever a different patient loads.
+  // Re-seed whenever a different patient loads AND whenever the stored maps
+  // themselves change. Keying on patient.id alone made this component the
+  // source of truth for the whole map, so a refetch (window focus, or this
+  // doctor's other tab / mirrored device saving an override) never reached the
+  // chart — and the next save here would PUT the stale whole map back and drop
+  // the other tab's edit, since the server takes whole-value writes on JSON
+  // columns. Comparing the serialised server value keeps the record authoritative.
+  const serverDrugDates = JSON.stringify(patient?.hmDrugDates ?? null);
+  const serverSymptomDates = JSON.stringify(patient?.hmSymptomDates ?? null);
   useEffect(() => {
     setDrugDates((patient?.hmDrugDates as DrugDateMap) ?? EMPTY_DATES);
     setSymptomDates((patient?.hmSymptomDates as DrugDateMap) ?? EMPTY_DATES);
-  }, [patient?.id, currentPatientId]);
+  }, [patient?.id, currentPatientId, serverDrugDates, serverSymptomDates]);
 
   // A failed save must never leave the chart showing a duration the server does
   // not have: the doctor would read it back as recorded, and on the next visit

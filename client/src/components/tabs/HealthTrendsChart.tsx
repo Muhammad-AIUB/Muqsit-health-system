@@ -129,6 +129,25 @@ const buildTrack = (
 const cellHasOverride = (cell?: { sf: string; upto: string }) =>
   Boolean(cellToDate(cell?.sf ?? "") || cellToDate(cell?.upto ?? ""));
 
+// An override drives the whole shared time axis, so an implausible date does
+// not merely mislabel one bar — it stretches the axis and squeezes every lab
+// value and every other bar into a few unreadable pixels.
+//
+// The DDMMYY shorthand can only express 2000-2099 (parseShorthandDate maps
+// yy → 2000 + yy), so a doctor typing 010198 for "1 Jan 1998" silently gets
+// 2098. Reject that rather than redraw the chart around a typo; a genuine
+// pre-2000 date can still be entered in full (01/01/1998).
+const FUTURE_LIMIT_YEARS = 5;
+const implausibleReason = (d: Date): string | null => {
+  const limit = new Date();
+  limit.setFullYear(limit.getFullYear() + FUTURE_LIMIT_YEARS);
+  if (d.getTime() > limit.getTime()) {
+    return `That date is more than ${FUTURE_LIMIT_YEARS} years away. DDMMYY only writes years 2000-2099 — for an earlier year type the full date, e.g. 01/01/1998.`;
+  }
+  if (d.getFullYear() < 1900) return "That date is before 1900 — type the full date, e.g. 01/01/1998.";
+  return null;
+};
+
 // Activity `detail` is capped at 400 chars server-side (activity.dto.ts) and a
 // chief complaint is free text, so the name is trimmed before it goes into the
 // audit line. The stored override always keeps the full, exact key.
@@ -184,7 +203,8 @@ export default function HealthTrendsChart({
   const [editSymptoms, setEditSymptoms] = useState(false);
   const [drugDraft, setDrugDraft] = useState<DrugDateMap>(drugDates);
   const [symptomDraft, setSymptomDraft] = useState<DrugDateMap>(symptomDates);
-  const [invalidCells, setInvalidCells] = useState<Set<string>>(new Set());
+  // key → why it was rejected, so the field can say what to type instead.
+  const [invalidCells, setInvalidCells] = useState<Map<string, string>>(new Map());
 
   useEffect(() => { setDrugDraft(drugDates); }, [drugDates]);
   useEffect(() => { setSymptomDraft(symptomDates); }, [symptomDates]);
@@ -337,10 +357,13 @@ export default function HealthTrendsChart({
   const clearInvalid = (keys: string[]) =>
     setInvalidCells((prev) => {
       if (!keys.some((k) => prev.has(k))) return prev;
-      const next = new Set(prev);
+      const next = new Map(prev);
       for (const k of keys) next.delete(k);
       return next;
     });
+
+  const flagInvalid = (key: string, reason: string) =>
+    setInvalidCells((prev) => new Map(prev).set(key, reason));
 
   const setDraftCell = (kind: TrackKind, name: string, field: "sf" | "upto", value: string) => {
     const setter = kind === "drug" ? setDrugDraft : setSymptomDraft;
@@ -353,9 +376,17 @@ export default function HealthTrendsChart({
   const commitCell = (kind: TrackKind, name: string, field: "sf" | "upto", track: Track) => {
     const raw = (draftFor(kind, name)[field] ?? "").trim();
     const key = cellKey(kind, name, field);
-    if (raw && !cellToDate(raw)) {
-      setInvalidCells((prev) => new Set(prev).add(key));
-      return;
+    if (raw) {
+      const parsed = cellToDate(raw);
+      if (!parsed) {
+        flagInvalid(key, "Type DDMMYY, e.g. 030626 — or a full date like 03/06/2026");
+        return;
+      }
+      const bad = implausibleReason(parsed);
+      if (bad) {
+        flagInvalid(key, bad);
+        return;
+      }
     }
     clearInvalid([key]);
     const normalised = raw ? normaliseDateCell(raw) : "";
@@ -398,8 +429,8 @@ export default function HealthTrendsChart({
 
   const renderEditRow = (kind: TrackKind, track: Track) => {
     const draft = draftFor(kind, track.name);
-    const sfBad = invalidCells.has(cellKey(kind, track.name, "sf"));
-    const uptoBad = invalidCells.has(cellKey(kind, track.name, "upto"));
+    const sfBad = invalidCells.get(cellKey(kind, track.name, "sf"));
+    const uptoBad = invalidCells.get(cellKey(kind, track.name, "upto"));
     const overridden = cellHasOverride((kind === "drug" ? drugDates : symptomDates)[track.name]);
     return (
       <div key={track.name} style={editRow}>
@@ -409,17 +440,20 @@ export default function HealthTrendsChart({
           onChange={(e) => setDraftCell(kind, track.name, "sf", e.target.value)}
           onBlur={() => commitCell(kind, track.name, "sf", track)}
           placeholder={track.recFrom}
-          title={sfBad ? "Type DDMMYY, e.g. 030626" : `From — leave empty to keep the recorded ${track.recFrom}`}
-          style={dateInput(sfBad)}
+          title={sfBad ?? `From — leave empty to keep the recorded ${track.recFrom}`}
+          style={dateInput(Boolean(sfBad))}
         />
         <input
           value={draft.upto}
           onChange={(e) => setDraftCell(kind, track.name, "upto", e.target.value)}
           onBlur={() => commitCell(kind, track.name, "upto", track)}
           placeholder={track.recTo}
-          title={uptoBad ? "Type DDMMYY, e.g. 030626" : `To — leave empty to keep the recorded ${track.recTo}`}
-          style={dateInput(uptoBad)}
+          title={uptoBad ?? `To — leave empty to keep the recorded ${track.recTo}`}
+          style={dateInput(Boolean(uptoBad))}
         />
+        {(sfBad || uptoBad) && (
+          <div style={{ flex: "1 1 100%", fontSize: 9.5, color: C.danger[800], lineHeight: 1.45 }}>{sfBad ?? uptoBad}</div>
+        )}
         <button
           type="button"
           onClick={() => resetOverride(kind, track)}
