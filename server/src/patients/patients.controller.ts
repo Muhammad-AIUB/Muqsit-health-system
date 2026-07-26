@@ -74,21 +74,33 @@ export class PatientsController {
     @Param('id') id: string,
     @Body() dto: UpdatePatientDto,
   ) {
-    // Server-side backstop mirroring PrescriptionsController. Gate per-field, not
-    // per-request: genuine demographic edits need "pt.info", the family tree
-    // needs "pt.family", but the prescription-lifecycle / records fields
-    // (incompleteRx, drug/investigation/on-exam history, HM dates) are part of
-    // the prescribing flow — an assistant with any prescription grant may write
-    // them, so we don't 403 those on pt.info (finding #3).
-    // Health-monitoring duration overrides are the OWNER doctor's clinical
-    // reading of the trend chart, not data entry — an assistant must not change
-    // them (hmDrugDates used to sit in RX_LIFECYCLE below, which allowed it).
-    // Supervising doctors act under their own workstation (role 'owner'), so
-    // they are stopped by the patient.doctorId check in patients.service#update.
+    // ── Health-monitoring duration overrides: OWNER ONLY ──────────────────
+    // These are the owner doctor's clinical reading of the trend chart, not
+    // data entry, so no assistant grant covers them. hmDrugDates used to sit in
+    // RX_LIFECYCLE below, which allowed any assistant with a prescription grant
+    // to write it — removed deliberately; don't put it back without a key.
+    //
+    // This check does NOT stop a supervising doctor: they act under their OWN
+    // workstation, so ws.role is 'owner' here. They are stopped one layer down
+    // by the `patient.doctorId !== doctorId` check in patients.service#update.
+    // Both layers are load-bearing — removing either opens the boundary.
+    //
+    // PATCH /patients/:id is the only route that accepts UpdatePatientDto, and
+    // these fields are declared on it alone (not on Create/Link), so
+    // ValidationPipe({ whitelist: true }) strips them everywhere else. This is
+    // the single door.
     const HM_OVERRIDE_KEYS = new Set(['hmDrugDates', 'hmSymptomDates']);
     if (ws.role !== 'owner' && Object.keys(dto).some((k) => HM_OVERRIDE_KEYS.has(k))) {
       throw new ForbiddenException('Only the owner doctor can edit health-monitoring durations');
     }
+
+    // ── Assistant per-field gate ──────────────────────────────────────────
+    // Server-side backstop mirroring PrescriptionsController. Gate per-field,
+    // not per-request: genuine demographic edits need "pt.info", the family tree
+    // needs "pt.family", but the prescription-lifecycle / records fields
+    // (incompleteRx, drug/investigation/on-exam history) are part of the
+    // prescribing flow — an assistant with any prescription grant may write
+    // them, so we don't 403 those on pt.info (finding #3).
     if (ws.role === 'assistant') {
       const RX_LIFECYCLE = new Set([
         'incompleteRx', 'drugHistory', 'investigationSummary',
