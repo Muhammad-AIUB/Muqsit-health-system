@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "@/theme";
 import type { InvFinding } from "@/lib/investigationSummary";
 import { chartableParams, numericSeriesFor, type ChartableParam, type NumericPoint } from "@/lib/numericInvSeries";
@@ -230,6 +230,8 @@ export default function HealthTrendsChart({
   const [symptomDraft, setSymptomDraft] = useState<DrugDateMap>(symptomDates);
   // key → why it was rejected, so the field can say what to type instead.
   const [invalidCells, setInvalidCells] = useState<Map<string, string>>(new Map());
+  // Set by Escape so the blur it triggers abandons rather than commits.
+  const cancellingRef = useRef(false);
 
   useEffect(() => { setDrugDraft(drugDates); }, [drugDates]);
   useEffect(() => { setSymptomDraft(symptomDates); }, [symptomDates]);
@@ -424,8 +426,15 @@ export default function HealthTrendsChart({
   // Commit on blur. Anything non-empty that cellToDate cannot read is flagged
   // and NOT saved — storing a half-understood date is worse than no override.
   const commitCell = (kind: TrackKind, name: string, field: "sf" | "upto", track: Track) => {
-    const raw = (draftFor(kind, name)[field] ?? "").trim();
     const key = cellKey(kind, name, field);
+    // Escape sets this immediately before blurring; the abandoned value must not
+    // be committed on the way out.
+    if (cancellingRef.current) {
+      cancellingRef.current = false;
+      clearInvalid([key]);
+      return;
+    }
+    const raw = (draftFor(kind, name)[field] ?? "").trim();
     let normalised = "";
     if (raw) {
       const parsed = cellToDate(raw);
@@ -488,6 +497,33 @@ export default function HealthTrendsChart({
     );
   };
 
+  // Keyboard-only editing: without this, Enter did nothing (there is no form to
+  // submit) so a doctor typing a date and pressing Enter saw no response and had
+  // to know to Tab away, and there was no way to abandon a half-typed date
+  // except to retype the old one. Both just move focus — the existing blur is
+  // still the single commit point.
+  const onCellKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    kind: TrackKind,
+    name: string,
+    field: "sf" | "upto",
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      // blur() runs the commit SYNCHRONOUSLY, before React has flushed the
+      // draft we just reverted — so without this flag Escape would commit the
+      // value being abandoned. With a valid entry that means Escape SAVES
+      // instead of cancelling, which is the opposite of what it promises.
+      cancellingRef.current = true;
+      const stored = (kind === "drug" ? drugDates : symptomDates)[name]?.[field] ?? "";
+      setDraftCell(kind, name, field, stored);
+      e.currentTarget.blur();
+    }
+  };
+
   const renderEditRow = (kind: TrackKind, track: Track) => {
     const draft = draftFor(kind, track.name);
     const sfBad = invalidCells.get(cellKey(kind, track.name, "sf"));
@@ -503,6 +539,7 @@ export default function HealthTrendsChart({
           value={draft.sf}
           onChange={(e) => setDraftCell(kind, track.name, "sf", e.target.value)}
           onBlur={() => commitCell(kind, track.name, "sf", track)}
+          onKeyDown={(e) => onCellKeyDown(e, kind, track.name, "sf")}
           placeholder={track.recFrom}
           aria-label={`${track.name} — duration from`}
           title={sfBad ?? `From — leave empty to keep the recorded ${track.recFrom}`}
@@ -513,6 +550,7 @@ export default function HealthTrendsChart({
           value={draft.upto}
           onChange={(e) => setDraftCell(kind, track.name, "upto", e.target.value)}
           onBlur={() => commitCell(kind, track.name, "upto", track)}
+          onKeyDown={(e) => onCellKeyDown(e, kind, track.name, "upto")}
           placeholder={track.recTo}
           aria-label={`${track.name} — duration to`}
           title={uptoBad ?? `To — leave empty to keep the recorded ${track.recTo}`}
@@ -616,7 +654,22 @@ export default function HealthTrendsChart({
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <svg width="100%" viewBox={`0 0 ${SVG_W} ${chartH}`} style={{ display: "block", minWidth: 360 }}>
+          {/* The plot itself conveys nothing to a screen reader, so it gets one
+              spoken summary. Per-point and per-bar <title> elements below stay
+              readable individually. */}
+          <svg
+            width="100%"
+            viewBox={`0 0 ${SVG_W} ${chartH}`}
+            style={{ display: "block", minWidth: 360 }}
+            role="img"
+            aria-label={
+              `Health trend chart, ${windowKey === "all" ? "all available data" : windowLabel.toLowerCase()}. ` +
+              `${lanes.length} lab ${lanes.length === 1 ? "parameter" : "parameters"}, ` +
+              `${tracks.filter((t) => t.kind === "drug").length} medication and ` +
+              `${tracks.filter((t) => t.kind === "symptom").length} symptom ${tracks.length === 1 ? "bar" : "bars"}` +
+              (dataFrom != null && dataTo != null ? `, spanning ${msToDdmmyyyy(dataFrom)} to ${msToDdmmyyyy(dataTo)}.` : ".")
+            }
+          >
             {months.map((m, i) => (
               <g key={i}>
                 <line x1={m.x} y1={PLOT_TOP} x2={m.x} y2={bodyBottom} stroke={C.n[200]} strokeWidth={0.5} />
