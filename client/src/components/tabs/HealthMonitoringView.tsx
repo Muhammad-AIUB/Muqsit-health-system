@@ -60,26 +60,45 @@ export default function HealthMonitoringView() {
     setSymptomDates((patient?.hmSymptomDates as DrugDateMap) ?? EMPTY_DATES);
   }, [patient?.id, currentPatientId]);
 
+  // A failed save must never leave the chart showing a duration the server does
+  // not have: the doctor would read it back as recorded, and on the next visit
+  // it would be silently gone. So the optimistic value is rolled back and said
+  // out loud, and the activity entry is only written once the save landed.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const SAVE_FAILED = "Could not save that duration — the chart has been put back to what is stored. Check the connection and try again.";
+
+  interface SavePayload { map: DrugDateMap; prev: DrugDateMap; note: string }
+
   const saveDrugDates = useMutation({
-    mutationFn: (map: DrugDateMap) => patientsApi.update(currentPatientId as string, { hmDrugDates: map }),
-    onSuccess: (updated) => qc.setQueryData(["patient", currentPatientId], updated),
+    mutationFn: ({ map }: SavePayload) => patientsApi.update(currentPatientId as string, { hmDrugDates: map }),
+    onSuccess: (updated, vars) => {
+      qc.setQueryData(["patient", currentPatientId], updated);
+      logActivity("Health monitoring", vars.note, "saved");
+    },
+    onError: (_err, vars) => { setDrugDates(vars.prev); setSaveError(SAVE_FAILED); },
   });
   const saveSymptomDates = useMutation({
-    mutationFn: (map: DrugDateMap) => patientsApi.update(currentPatientId as string, { hmSymptomDates: map }),
-    onSuccess: (updated) => qc.setQueryData(["patient", currentPatientId], updated),
+    mutationFn: ({ map }: SavePayload) => patientsApi.update(currentPatientId as string, { hmSymptomDates: map }),
+    onSuccess: (updated, vars) => {
+      qc.setQueryData(["patient", currentPatientId], updated);
+      logActivity("Health monitoring", vars.note, "saved");
+    },
+    onError: (_err, vars) => { setSymptomDates(vars.prev); setSaveError(SAVE_FAILED); },
   });
 
   const onSaveDrugDates = (next: DrugDateMap, note: string) => {
-    setDrugDates(next);
     if (!currentPatientId) return;
-    saveDrugDates.mutate(next);
-    logActivity("Health monitoring", note, "saved");
+    const prev = drugDates;
+    setDrugDates(next);
+    setSaveError(null);
+    saveDrugDates.mutate({ map: next, prev, note });
   };
   const onSaveSymptomDates = (next: DrugDateMap, note: string) => {
-    setSymptomDates(next);
     if (!currentPatientId) return;
-    saveSymptomDates.mutate(next);
-    logActivity("Health monitoring", note, "saved");
+    const prev = symptomDates;
+    setSymptomDates(next);
+    setSaveError(null);
+    saveSymptomDates.mutate({ map: next, prev, note });
   };
 
   // Only the OWNER doctor may adjust durations — an assistant inside this
@@ -105,6 +124,7 @@ export default function HealthMonitoringView() {
         drugDates={drugDates}
         symptomDates={symptomDates}
         canEdit={canEdit}
+        saveError={saveError}
         onSaveDrugDates={onSaveDrugDates}
         onSaveSymptomDates={onSaveSymptomDates}
       />

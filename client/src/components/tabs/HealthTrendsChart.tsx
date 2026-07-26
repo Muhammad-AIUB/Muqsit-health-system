@@ -19,6 +19,8 @@ interface Props {
   symptomDates: DrugDateMap;
   // Owner doctor only — mirrors the server guard in patients.controller.ts.
   canEdit: boolean;
+  // Set when a save was rejected and the shown value rolled back.
+  saveError: string | null;
   onSaveDrugDates: (next: DrugDateMap, note: string) => void;
   onSaveSymptomDates: (next: DrugDateMap, note: string) => void;
 }
@@ -139,6 +141,7 @@ export default function HealthTrendsChart({
   drugDates,
   symptomDates,
   canEdit,
+  saveError,
   onSaveDrugDates,
   onSaveSymptomDates,
 }: Props) {
@@ -236,11 +239,17 @@ export default function HealthTrendsChart({
   // something that was actually entered. ──
   const windowLo = useMemo<number | null>(() => {
     if (windowKey === "all") return null;
-    const d = new Date();
+    const now = new Date();
+    const day = now.getDate();
+    const d = new Date(now.getFullYear(), now.getMonth(), day);
     if (windowKey === "3m") d.setMonth(d.getMonth() - 3);
     else if (windowKey === "6m") d.setMonth(d.getMonth() - 6);
     else d.setFullYear(d.getFullYear() - 1);
-    d.setHours(0, 0, 0, 0);
+    // Month-end overflow: 31 Jul minus 3 months lands on 1 May, not 30 Apr, and
+    // 29 Feb minus a year lands on 1 Mar. That shortens the window by a day and
+    // could drop a reading dated on the boundary, so pull it back to the last
+    // day of the intended month.
+    if (d.getDate() !== day) d.setDate(0);
     return d.getTime();
   }, [windowKey]);
 
@@ -612,10 +621,14 @@ export default function HealthTrendsChart({
               const clippedLeft = rawX1 < PLOT_L - 0.5;
               const color = t.kind === "drug" ? C.pri[400] : C.warn[400];
               // Recorded on a single date only: draw a point, not a stub bar.
-              // Tested on the dates themselves rather than on pixel width — a
-              // genuine one-week course on a multi-year axis is also sub-pixel,
-              // and calling that "recorded once" would be a false claim.
-              const singleDate = t.start === t.end;
+              // Compared on the CALENDAR DAY, not the raw timestamp — a symptom
+              // range comes from Prescription.createdAt, so two visits on the
+              // same day differ by hours and would otherwise draw a 3px "bar"
+              // while the picker row and the tooltip both say one date.
+              // (Pixel width can't decide this either: a real one-week course on
+              // a multi-year axis is also sub-pixel, and calling that "recorded
+              // once" would be a false claim.)
+              const singleDate = t.from === t.to;
               const recorded = t.recFrom === t.recTo ? t.recFrom : `${t.recFrom} – ${t.recTo}`;
               const tip = t.overridden
                 ? `${t.name} · shown ${t.from === t.to ? t.from : `${t.from} – ${t.to}`} (adjusted) · recorded ${recorded}`
@@ -730,6 +743,12 @@ export default function HealthTrendsChart({
           </div>
         </div>
       </div>
+
+      {saveError && (
+        <div style={{ fontSize: 10.5, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
+          {saveError}
+        </div>
+      )}
 
       {(editDrugs || editSymptoms) && (
         <div style={{ fontSize: 10, color: C.n[500], marginTop: 8, lineHeight: 1.5 }}>
