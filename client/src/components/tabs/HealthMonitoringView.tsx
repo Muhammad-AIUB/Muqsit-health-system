@@ -54,6 +54,9 @@ export default function HealthMonitoringView() {
 
   const [drugDates, setDrugDates] = useState<DrugDateMap>(EMPTY_DATES);
   const [symptomDates, setSymptomDates] = useState<DrugDateMap>(EMPTY_DATES);
+  // Cleared on every patient change below: a failure message about the previous
+  // patient sitting over the next patient's chart is worse than no message.
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Re-seed whenever a different patient loads AND whenever the stored maps
   // themselves change. Keying on patient.id alone made this component the
   // source of truth for the whole map, so a refetch (window focus, or this
@@ -68,27 +71,32 @@ export default function HealthMonitoringView() {
     setSymptomDates((patient?.hmSymptomDates as DrugDateMap) ?? EMPTY_DATES);
   }, [patient?.id, currentPatientId, serverDrugDates, serverSymptomDates]);
 
+  useEffect(() => { setSaveError(null); }, [currentPatientId]);
+
   // A failed save must never leave the chart showing a duration the server does
   // not have: the doctor would read it back as recorded, and on the next visit
   // it would be silently gone. So the optimistic value is rolled back and said
   // out loud, and the activity entry is only written once the save landed.
-  const [saveError, setSaveError] = useState<string | null>(null);
   const SAVE_FAILED = "Could not save that duration — the chart has been put back to what is stored. Check the connection and try again.";
 
-  interface SavePayload { map: DrugDateMap; prev: DrugDateMap; note: string }
+  // The patient this write belongs to travels WITH the write. Reading it from a
+  // closure would leave a blur that fires as the doctor switches patients — the
+  // lookup steals focus out of a date box — able to land one patient's override
+  // map on another patient's record. Cheap to carry; impossible to get wrong.
+  interface SavePayload { patientId: string; map: DrugDateMap; prev: DrugDateMap; note: string }
 
   const saveDrugDates = useMutation({
-    mutationFn: ({ map }: SavePayload) => patientsApi.update(currentPatientId as string, { hmDrugDates: map }),
+    mutationFn: ({ patientId, map }: SavePayload) => patientsApi.update(patientId, { hmDrugDates: map }),
     onSuccess: (updated, vars) => {
-      qc.setQueryData(["patient", currentPatientId], updated);
+      qc.setQueryData(["patient", vars.patientId], updated);
       logActivity("Health monitoring", vars.note, "saved");
     },
     onError: (_err, vars) => { setDrugDates(vars.prev); setSaveError(SAVE_FAILED); },
   });
   const saveSymptomDates = useMutation({
-    mutationFn: ({ map }: SavePayload) => patientsApi.update(currentPatientId as string, { hmSymptomDates: map }),
+    mutationFn: ({ patientId, map }: SavePayload) => patientsApi.update(patientId, { hmSymptomDates: map }),
     onSuccess: (updated, vars) => {
-      qc.setQueryData(["patient", currentPatientId], updated);
+      qc.setQueryData(["patient", vars.patientId], updated);
       logActivity("Health monitoring", vars.note, "saved");
     },
     onError: (_err, vars) => { setSymptomDates(vars.prev); setSaveError(SAVE_FAILED); },
@@ -99,14 +107,14 @@ export default function HealthMonitoringView() {
     const prev = drugDates;
     setDrugDates(next);
     setSaveError(null);
-    saveDrugDates.mutate({ map: next, prev, note });
+    saveDrugDates.mutate({ patientId: currentPatientId, map: next, prev, note });
   };
   const onSaveSymptomDates = (next: DrugDateMap, note: string) => {
     if (!currentPatientId) return;
     const prev = symptomDates;
     setSymptomDates(next);
     setSaveError(null);
-    saveSymptomDates.mutate({ map: next, prev, note });
+    saveSymptomDates.mutate({ patientId: currentPatientId, map: next, prev, note });
   };
 
   // Only the OWNER doctor may adjust durations — an assistant inside this
