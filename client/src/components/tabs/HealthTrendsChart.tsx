@@ -359,8 +359,12 @@ export default function HealthTrendsChart({
     // strings, so "is this overridden?" stays a simple question.
     if (!nextCell.sf && !nextCell.upto) delete next[name];
     const label = kind === "drug" ? "medication" : "symptom";
-    const shownFrom = cellToDate(nextCell.sf) ? nextCell.sf : track.recFrom;
-    const shownTo = cellToDate(nextCell.upto) ? nextCell.upto : track.recTo;
+    // The stored cell keeps the doctor's own wording ("26 Jul 2026"), but the
+    // audit line is read alongside every other date in the app, so normalise
+    // both sides to dd/mm/yyyy rather than mixing formats inside one sentence.
+    const ovFrom = cellToDate(nextCell.sf), ovTo = cellToDate(nextCell.upto);
+    const shownFrom = ovFrom ? msToDdmmyyyy(ovFrom.getTime()) : track.recFrom;
+    const shownTo = ovTo ? msToDdmmyyyy(ovTo.getTime()) : track.recTo;
     // Complaint text is free-form and can be long; the activity feed caps
     // `detail` at 400 chars server-side and would 400 the whole log call.
     const shown = activityName(name);
