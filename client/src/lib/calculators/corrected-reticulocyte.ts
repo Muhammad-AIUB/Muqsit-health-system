@@ -7,13 +7,24 @@ interface CorrectedReticulocyteInput {
   normalHct:       number;  // %
 }
 
+// RPI maturation correction, as the Hillman & Finch anchors are banded in the
+// standard published table:
+//
+//   Hct 36-45 % → 1.0    Hct 26-35 % → 1.5
+//   Hct 16-25 % → 2.0    Hct ≤ 15 % → 2.5
+//
+// Each anchor (45/35/25/15) sits at the TOP of its band, so a value falls to
+// the next factor only once it drops below the band floor. Two earlier
+// versions of this function banded it differently — ≥35/≥25/≥20 and then
+// ≥40/≥30/≥20 (midpoints between anchors) — and both disagreed with the
+// published table around Hct 35-39 and below 20. Because the factor DIVIDES
+// the RPI, getting it one band too high understates marrow response and can
+// read a borderline case as hypoproliferative. Do not re-band without the
+// source table in hand.
 function maturationFactor(measuredHct: number): number {
-  // Standard RPI maturation-correction table (Hillman & Finch anchors:
-  // Hct 45→1.0, 35→1.5, 25→2.0, 15→2.5). The previous top cut (≥35→1.0) was
-  // ~5 points too low and over-corrected RPI in the 35-39% band.
-  if (measuredHct >= 40) return 1.0;
-  if (measuredHct >= 30) return 1.5;
-  if (measuredHct >= 20) return 2.0;
+  if (measuredHct >= 36) return 1.0;
+  if (measuredHct >= 26) return 1.5;
+  if (measuredHct >= 16) return 2.0;
   return 2.5;
 }
 

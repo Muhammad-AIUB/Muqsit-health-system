@@ -8,7 +8,6 @@ import { User } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { AuthService } from '../auth/auth.service';
-import { PrismaService } from '../prisma/prisma.service';
 
 // Public-safe shape of a registration (no password hash).
 export type Registration = Omit<User, 'passwordHash'>;
@@ -21,7 +20,6 @@ export class AdminService {
     private readonly users: UsersService,
     private readonly mail: MailService,
     private readonly auth: AuthService,
-    private readonly prisma: PrismaService,
   ) {}
 
   private strip(user: User): Registration {
@@ -142,14 +140,22 @@ export class AdminService {
       );
     }
     await this.auth.revokeAllForUser(id);
-    // Patient.doctorId is onDelete: SetNull, so deleting the user would orphan
-    // the doctor's patient PII while cascading away their clinical history.
-    // Delete the patients first (they cascade their prescriptions/opd/ipd/chat)
-    // in the same transaction as the user so nothing is left half-destroyed.
-    await this.prisma.$transaction(async (tx) => {
-      await tx.patient.deleteMany({ where: { doctorId: id } });
-      await tx.user.delete({ where: { id } });
-    });
+    // A patient is NOT the property of the account that first registered them:
+    // the same person returns to a different doctor and is found again by
+    // mobile number. So removing a doctor must never remove their patients.
+    // Patient.doctorId is onDelete: SetNull — the patient row, its demographics
+    // and its durable clinical history (investigationSummary,
+    // onExaminationSummary, drugHistory, familyMembers) all survive with a null
+    // owner. That doctor's own prescriptions cascade with the account, which is
+    // consistent: they were never visible to any other doctor anyway.
+    //
+    // KNOWN GAP: accessibleWhere() in patients.service.ts matches
+    // `{ doctorId }` OR an assigned supervisor, so a patient left with
+    // doctorId = null is retained but not reachable through the mobile lookup
+    // until a deliberate claim/re-own path exists. Widening the lookup to
+    // unowned patients exposes PII across practices and needs its own access
+    // design — do not add it here as a side effect of a delete.
+    await this.users.remove(id);
     return { deleted: true };
   }
 
