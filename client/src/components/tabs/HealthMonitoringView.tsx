@@ -14,10 +14,14 @@ import HealthTrendsChart from "./HealthTrendsChart";
 
 const dedupe = (xs: string[]) => Array.from(new Set(xs.map((x) => x.trim()).filter(Boolean)));
 
-const todayDdmmyyyy = (() => {
+// Called, not captured at module load. This resolves the date of a legacy
+// "Current:" drug-history entry, and a clinic browser is routinely left open
+// across midnight — a module constant would keep stamping yesterday while the
+// chart's own "Today" line, computed per render, had already moved on.
+const todayDdmmyyyy = () => {
   const d = new Date();
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-})();
+};
 
 const EMPTY_DATES: DrugDateMap = {};
 
@@ -27,7 +31,7 @@ export default function HealthMonitoringView() {
   const logActivity = useActivityLog();
 
   // ── Medication tracks from the Drug history, current + legacy formats ──
-  const drugRanges = useMemo(() => drugMentionRanges(drugHistory, todayDdmmyyyy), [drugHistory]);
+  const drugRanges = useMemo(() => drugMentionRanges(drugHistory, todayDdmmyyyy()), [drugHistory]);
 
   // ── Symptoms + tests from ALL of this patient's prescriptions ──
   const { data: prescriptions } = useQuery({
@@ -174,14 +178,6 @@ export default function HealthMonitoringView() {
         </div>
       </div>
 
-      {/* ── Export ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: C.pri[50], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>↓</div>
-          <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500 }}>Export Patient&apos;s Data</div><div style={{ fontSize: 11, color: C.n[600] }}>Export this patient&apos;s drugs, symptoms and tests</div></div>
-          <span style={{ color: C.n[500], fontSize: 14 }}>→</span>
-        </div>
-      </div>
     </div>
   );
 }

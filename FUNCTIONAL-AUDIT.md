@@ -19,7 +19,7 @@ Audit of what works, what doesn't persist, and what's a stub. Updated as items a
 ## 2. Stub buttons / placeholder views
 - [ ] **Message** tab — placeholder, no messaging.
 - [ ] **Research companion → Compare / Export** — no click handlers.
-- [ ] **Health monitoring → "Export Patient's Data"** card — decorative.
+- [x] **Health monitoring → "Export Patient's Data"** card — was decorative; **removed** (2026-07) rather than left as a button that does nothing on a clinical screen.
 - [ ] **Patient Settings → Data security level** — disabled placeholder.
 - [x] **Settings → Badges / Supervisors & role models** — intentionally disabled ("Coming soon").
 
