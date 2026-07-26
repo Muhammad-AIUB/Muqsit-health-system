@@ -18,7 +18,16 @@ interface SOFAInput {
   urineOutput?: number
 }
 
-function scorePulmonary(pao2?: number, fio2?: number, spo2?: number, ventilated?: boolean): number {
+// Returns the 0-4 sub-score plus whether it could actually be derived. A
+// missing respiratory component scores 0 by SOFA convention, but 0 also means
+// "no respiratory dysfunction" — the two must not be indistinguishable to the
+// reader, so the caller surfaces the difference as a warning.
+function scorePulmonary(
+  pao2?: number,
+  fio2?: number,
+  spo2?: number,
+  ventilated?: boolean,
+): { score: number; estimable: boolean } {
   // PaO2/FiO2 preferred; use SpO2/FiO2 if PaO2 unavailable
   let ratio: number | undefined
 
@@ -32,14 +41,19 @@ function scorePulmonary(pao2?: number, fio2?: number, spo2?: number, ventilated?
     ratio = sf > 64 ? (sf - 64) / 0.84 : 0
   }
 
-  if (ratio === undefined) return 0
+  // Above SpO2 97% the saturation curve is flat, so S/F cannot stand in for
+  // P/F — a patient on FiO2 1.0 reading 98% may still have a P/F near 100.
+  // Score 0, but tell the caller it is unknown rather than normal.
+  if (ratio === undefined) return { score: 0, estimable: false }
 
   // Official SOFA: scores 3 and 4 require respiratory support (ventilation)
-  if (ratio >= 400) return 0
-  if (ratio >= 300) return 1           // 300–399 → 1
-  if (ratio >= 200) return 2           // 200–299 → 2 (regardless of ventilation)
-  if (ratio >= 100) return ventilated ? 3 : 2   // 100–199: 3 only if ventilated
-  return ventilated ? 4 : 2            // <100: 4 only if ventilated
+  let score: number
+  if (ratio >= 400) score = 0
+  else if (ratio >= 300) score = 1             // 300–399 → 1
+  else if (ratio >= 200) score = 2             // 200–299 → 2 (regardless of ventilation)
+  else if (ratio >= 100) score = ventilated ? 3 : 2   // 100–199: 3 only if ventilated
+  else score = ventilated ? 4 : 2              // <100: 4 only if ventilated
+  return { score, estimable: true }
 }
 
 function scorePlatelets(platelets: number): number {
@@ -131,7 +145,8 @@ export function calculateSOFA(input: SOFAInput): CalculationResult {
     creatMgDL = creatinineConvert(input.creatinine, 'µmol/L')
   }
 
-  const pulmonaryScore = scorePulmonary(input.pao2, input.fio2, input.spo2, input.ventilated)
+  const pulmonary = scorePulmonary(input.pao2, input.fio2, input.spo2, input.ventilated)
+  const pulmonaryScore = pulmonary.score
   const plateletsScore = scorePlatelets(input.platelets)
   const liverScore = scoreLiver(bilMgDL)
   const cvScore = scoreCardiovascular(input.map, input.vasopressor, input.vasopressorDose)
@@ -153,9 +168,14 @@ export function calculateSOFA(input: SOFAInput): CalculationResult {
     severity,
     label: `SOFA Score: ${total}`,
     interpretation: `ICU mortality risk: ${mortality.range}`,
+    warnings: pulmonary.estimable
+      ? undefined
+      : [
+          'Respiratory component could not be derived and is counted as 0 — enter PaO₂ with FiO₂, or an SpO₂ of 97% or less (above that the SpO₂ curve is flat and S/F cannot estimate P/F). The total below understates true severity if the patient is hypoxaemic.',
+        ],
     details: [
       { label: 'Total SOFA', value: total, unit: '/24' },
-      { label: 'Pulmonary (PaO₂/FiO₂)', value: pulmonaryScore, unit: '/4' },
+      { label: 'Pulmonary (PaO₂/FiO₂)', value: pulmonaryScore, unit: pulmonary.estimable ? '/4' : '/4 (not estimable — counted as 0)' },
       { label: 'Coagulation (Platelets)', value: plateletsScore, unit: '/4' },
       { label: 'Liver (Bilirubin)', value: liverScore, unit: '/4' },
       { label: 'Cardiovascular (MAP)', value: cvScore, unit: '/4' },
