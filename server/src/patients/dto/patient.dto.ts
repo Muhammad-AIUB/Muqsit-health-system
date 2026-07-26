@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsISO8601,
   IsObject,
   IsOptional,
   IsString,
@@ -11,8 +12,37 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Validate,
+  ValidatorConstraint,
+  type ValidatorConstraintInterface,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+// A birth date cannot be in the future. The client already refuses one, but the
+// client is not the only writer, and an unvalidated `dob` used to reach Prisma as
+// `new Date(garbage)` and surface as a 500 instead of a 400.
+//
+// One day of grace: doctors are in Bangladesh (UTC+6) while this process may run
+// UTC, so a same-day birth date must not 400 just because the clocks disagree.
+// The bug this guards against writes years 70+ out; the grace costs nothing.
+@ValidatorConstraint({ name: 'notFutureDate', async: false })
+export class NotFutureDateConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    // Each decorator owns exactly one failure mode and passes on inputs it does
+    // not own, so a malformed string yields one clear @IsISO8601 message.
+    if (typeof value !== 'string' || !value) return true;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return true;
+    return d.getTime() <= Date.now() + 24 * 60 * 60 * 1000;
+  }
+
+  // apiFetch surfaces this string straight into the doctor-facing save banner
+  // (client/src/lib/api.ts joins `body.message`), so it is written for a
+  // clinician, not a developer reading a log.
+  defaultMessage(): string {
+    return 'Date of birth cannot be in the future.';
+  }
+}
 
 export class CreatePatientDto {
   @IsString()
@@ -22,7 +52,10 @@ export class CreatePatientDto {
 
   @IsOptional() @IsString() hospitalId?: string;
   @IsOptional() @IsString() bloodGroup?: string;
-  @IsOptional() @IsString() dob?: string;
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'Date of birth is not a valid date.' })
+  @Validate(NotFutureDateConstraint)
+  dob?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(150) age?: number;
   // Calendar year the manual age was recorded (powers age auto-increment).
   @IsOptional() @Type(() => Number) @IsInt() @Min(1900) @Max(2200) ageAsOfYear?: number;
@@ -79,7 +112,10 @@ export class LinkPatientDto {
   @IsOptional() @IsString() mobile?: string;
   @IsOptional() @IsString() sex?: string;
   @IsOptional() @IsString() hospitalId?: string;
-  @IsOptional() @IsString() dob?: string;
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'Date of birth is not a valid date.' })
+  @Validate(NotFutureDateConstraint)
+  dob?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(150) age?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1900) @Max(2200) ageAsOfYear?: number;
   @IsOptional() @IsString() fullAddress?: string;

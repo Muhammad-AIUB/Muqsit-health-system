@@ -17,7 +17,30 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
 import { parseInvestigationEntries, mergeFindings, groupByDate, type InvFinding } from "@/lib/investigationSummary";
 import { groupOeByDate, type OeFinding } from "@/lib/onExaminationSummary";
+import { cellToDate } from "@/lib/hmDates";
+import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
 import InvestigationDownload from "./InvestigationDownload";
+
+// A dd/mm/yyyy group heading, flagged when the date sits implausibly far ahead.
+// Findings written before the DDMMYY century fix could only land in 2000-2099,
+// so 010198 was stored as 2098. The row still renders exactly as recorded and
+// nothing is rewritten — the marker only tells the doctor where to look.
+function DateHeading({ date }: { date: string }) {
+  const suspicious = isImplausibleDate(cellToDate(date), YEAR_POLICY.clinical);
+  return (
+    <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>
+      {date}
+      {suspicious && (
+        <span
+          style={{ color: C.warn[600], marginLeft: 6, fontWeight: 400 }}
+          title={`This date is more than ${YEAR_POLICY.clinical} years ahead. It may have been entered as DDMMYY before this was fixed.`}
+        >
+          ⚠
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function PatientRecordsView() {
   const {
@@ -181,7 +204,7 @@ export default function PatientRecordsView() {
           <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
             {oeGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: gi < oeGroups.length - 1 ? 12 : 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{g.date}</div>
+                <DateHeading date={g.date} />
                 <div style={{ paddingLeft: 16 }}>
                   {g.items.map((f, idx) => (
                     <div key={idx} className={`inv-row${oeEditing ? " editing" : ""}`} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
@@ -247,7 +270,7 @@ export default function PatientRecordsView() {
           <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
             {summary.map((g, gi) => (
               <div key={gi} style={{ marginBottom: gi < summary.length - 1 ? 12 : 0 }}>
-                {g.date && <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{g.date}</div>}
+                {g.date && <DateHeading date={g.date} />}
                 <div style={{ paddingLeft: 16 }}>
                   {g.items.map((f, idx) => (
                     <div key={idx} className={`inv-row${editingSummary ? " editing" : ""}`} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>

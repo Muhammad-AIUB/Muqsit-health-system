@@ -9,6 +9,8 @@ import { ptInfoToInput } from "@/lib/patientForm";
 import type { PtInfo } from "@/types";
 import Pill from "@/components/common/Pill";
 import Lock from "@/components/common/Lock";
+import DateField from "@/components/common/DateField";
+import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
 import SupervisingDoctors from "./SupervisingDoctors";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
@@ -211,7 +213,31 @@ export default function PatientSettingsView() {
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
                   <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Hospital ID</div><input style={piInp} value={pI.hospitalId} onChange={(e) => setPi("hospitalId", e.target.value)} placeholder="Hospital ID" /></div>
-                  <div style={{ flex: "0 0 140px" }}><div style={piLbl}>Date of birth</div><input style={piInp} type="date" value={pI.dob} onChange={(e) => { setPi("dob", e.target.value); setPtAge(computeAge(e.target.value)); }} /></div>
+                  <div style={{ flex: "0 0 140px" }}>
+                    <div style={piLbl}>Date of birth</div>
+                    {/* Text entry, not a native picker: DDMMYY must work here the
+                        same as in the prescription header. `past` also forbids a
+                        future birth date outright. */}
+                    <DateField
+                      value={pI.dob}
+                      onChange={(iso) => { setPi("dob", iso); setPtAge(computeAge(iso)); }}
+                      futureAllowanceYears={YEAR_POLICY.past}
+                      pastLabel="A date of birth"
+                      style={piInp}
+                      hint={
+                        // A record saved before the century fix can hold a future
+                        // DOB. Say so; never rewrite it behind the doctor's back.
+                        isImplausibleDate(pI.dob ? new Date(pI.dob) : null, YEAR_POLICY.past) ? (
+                          <div
+                            style={{ fontSize: 9, color: C.warn[600], marginTop: 2, lineHeight: 1.3 }}
+                            title="Recorded date of birth is in the future. Please correct it."
+                          >
+                            ⚠ Recorded date is in the future
+                          </div>
+                        ) : null
+                      }
+                    />
+                  </div>
                   <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => { setPi("age", e.target.value); if (!pI.dob) setPtAge(e.target.value); }} placeholder="Auto" />{piAge && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
                   <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => { setPi("sex", e.target.value); setPtGender(e.target.value); }}><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
                 </div>

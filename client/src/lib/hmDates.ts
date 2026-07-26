@@ -2,6 +2,8 @@
 // The doctor types a 6-digit shorthand DDMMYY (e.g. 120614 → "12 Jun 2014");
 // an empty "Upto" means "till today". Stored per patient.
 
+import { resolveTwoDigitYear, YEAR_POLICY } from "./dateInput";
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // "120614" → { label: "12 Jun 2014", iso: "2014-06-12" }. null if not 6 digits.
@@ -10,7 +12,10 @@ export function parseShorthandDate(input: string): { label: string; iso: string 
   if (digits.length !== 6) return null;
   const dd = +digits.slice(0, 2), mm = +digits.slice(2, 4), yy = +digits.slice(4, 6);
   if (dd < 1 || dd > 31 || mm < 1 || mm > 12) return null;
-  const year = 2000 + yy;
+  // Shared century window, not a hard-coded 2000 + yy: `010198` is 1998, not the
+  // 2098 this used to write. Timeline bars may legitimately sit a few years out,
+  // so this uses the clinical allowance rather than the birth-date one.
+  const year = resolveTwoDigitYear(yy, YEAR_POLICY.clinical);
   // Reject impossible calendar dates (e.g. 31 Feb) so cellToDate doesn't silently
   // roll them over (new Date("2014-02-31") → 3 Mar) and mis-sort the timeline.
   const dt = new Date(year, mm - 1, dd);

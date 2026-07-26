@@ -7,6 +7,7 @@ import { chartableParams, numericSeriesFor, type ChartableParam, type NumericPoi
 import type { MentionRange } from "@/lib/drugHistorySummary";
 import type { SymptomMentionRange } from "@/lib/symptomSummary";
 import { cellToDate, type DrugDateMap } from "@/lib/hmDates";
+import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
 import { computeTimeRange, makeToX, monthTicks, isInRange } from "@/lib/timelineGeometry";
 
 interface Props {
@@ -152,16 +153,14 @@ const cellHasOverride = (cell?: { sf: string; upto: string }) =>
 // not merely mislabel one bar — it stretches the axis and squeezes every lab
 // value and every other bar into a few unreadable pixels.
 //
-// The DDMMYY shorthand can only express 2000-2099 (parseShorthandDate maps
-// yy → 2000 + yy), so a doctor typing 010198 for "1 Jan 1998" silently gets
-// 2098. Reject that rather than redraw the chart around a typo; a genuine
-// pre-2000 date can still be entered in full (01/01/1998).
-const FUTURE_LIMIT_YEARS = 5;
+// DDMMYY no longer forces 2000-2099 — parseShorthandDate runs the shared sliding
+// century window, so 010198 is 1998. This guard stays as the backstop for a date
+// typed out in full (01/01/2099) and reads the same constant the parser does, so
+// the two can no longer drift apart.
+const FUTURE_LIMIT_YEARS = YEAR_POLICY.clinical;
 const implausibleReason = (d: Date): string | null => {
-  const limit = new Date();
-  limit.setFullYear(limit.getFullYear() + FUTURE_LIMIT_YEARS);
-  if (d.getTime() > limit.getTime()) {
-    return `That date is more than ${FUTURE_LIMIT_YEARS} years away. DDMMYY only writes years 2000-2099 — for an earlier year type the full date, e.g. 01/01/1998.`;
+  if (isImplausibleDate(d, FUTURE_LIMIT_YEARS)) {
+    return `That date is more than ${FUTURE_LIMIT_YEARS} years away — check the year, e.g. 01/01/1998.`;
   }
   if (d.getFullYear() < 1900) return "That date is before 1900 — type the full date, e.g. 01/01/1998.";
   return null;
@@ -338,6 +337,16 @@ export default function HealthTrendsChart({
     paramSeries.reduce((n, x) => n + x.points.filter((p) => !Number.isFinite(p.ms)).length, 0) +
     (drugRanges.length - drugTracks.length) +
     (symptomRanges.length - symptomTracks.length);
+
+  // Readable, drawn, but dated implausibly far ahead — almost always a record
+  // written by the old DDMMYY parser, which forced every 2-digit year into
+  // 2000-2099 (010198 became 2098). These are NOT dropped and NOT rewritten;
+  // they are counted so the doctor knows which dates to look at.
+  const aheadDated =
+    paramSeries.reduce(
+      (n, x) => n + x.points.filter((p) => Number.isFinite(p.ms) && isImplausibleDate(new Date(p.ms), FUTURE_LIMIT_YEARS)).length,
+      0,
+    ) + tracks.filter((t) => isImplausibleDate(new Date(t.end), FUTURE_LIMIT_YEARS)).length;
 
   const allMs = [
     ...lanes.flatMap((x) => x.points.map((p) => p.ms)),
@@ -927,10 +936,22 @@ export default function HealthTrendsChart({
         </div>
       </div>
 
-      {unplaceable > 0 && (
+      {(unplaceable > 0 || aheadDated > 0) && (
         <div style={{ fontSize: 10, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
-          {unplaceable} recorded {unplaceable === 1 ? "entry has a date" : "entries have dates"} this timeline cannot read,
-          so {unplaceable === 1 ? "it is" : "they are"} not drawn here. Nothing has been removed from the patient&apos;s record.
+          {unplaceable > 0 && (
+            <>
+              {unplaceable} recorded {unplaceable === 1 ? "entry has a date" : "entries have dates"} this timeline cannot read,
+              so {unplaceable === 1 ? "it is" : "they are"} not drawn here.{" "}
+            </>
+          )}
+          {aheadDated > 0 && (
+            <>
+              {aheadDated} {aheadDated === 1 ? "entry is" : "entries are"} dated more than {FUTURE_LIMIT_YEARS} years
+              ahead and may have been entered as DDMMYY before this was corrected — {aheadDated === 1 ? "it is" : "they are"} drawn
+              where the record puts {aheadDated === 1 ? "it" : "them"}.{" "}
+            </>
+          )}
+          Nothing has been removed from or changed in the patient&apos;s record.
         </div>
       )}
 

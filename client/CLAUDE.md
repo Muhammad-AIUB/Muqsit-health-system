@@ -25,7 +25,24 @@ These formats are persisted in drafts, prescriptions and patient JSON columns �
 
 JavaScript reads a slash date as **month**/day/year, so the app's own `dd/mm/yyyy` blows up for any day past the 12th, and silently swaps day and month for days 1-12 (`03/06/2026` → 6 March). Anything that turns a stored date string into a `Date` must parse `dd/mm/yyyy` explicitly and reject rolled-over calendar dates (`31/02/2026` must not become 3 March) — `lib/hmDates.ts#cellToDate` and `HealthTrendsChart`'s `ddmmyyyyMs` both do, with calendar validation. Never reach for a bare `new Date(str)` on a stored date, and never let a failed parse fall back to an instant: `|| 0` yields 1 Jan 1970 and `yy || 0` yields 1900, and one such point stretches a shared axis across decades. Return `NaN`, drop what cannot be placed, and say how many were dropped.
 
-**`parseShorthandDate` (DDMMYY) can only write 2000-2099** — it maps `yy` → `2000 + yy`. A doctor typing `010198` for 1998 silently gets 2098. The chart rejects dates more than 5 years out (and before 1900) with a message naming the limit; a genuine earlier date is typed in full.
+### Two-digit years: one helper, one policy per field
+
+A 2-digit year is ambiguous, and both parsers used to resolve it by hard-coding `2000 + yy` — so `030398` meant 2098 and a birth year was silently a century out. That is now **`resolveTwoDigitYear(yy, futureAllowanceYears, now?)` in `lib/dateInput.ts`**, a sliding window anchored on the current year (so it survives 2099, unlike a baked-in `2000`): the forward reading wins unless it lands beyond the allowance, in which case the previous century does.
+
+The allowance is the whole design — **there is no single correct rule for every field**, and a global "never future" would be the same bug pointing backwards (a 2027 follow-up typed as `030127` would become 1927). Pick from `YEAR_POLICY`:
+
+| Policy | Allowance | Fields |
+|---|---|---|
+| `YEAR_POLICY.past` | 0 years | Date of birth, calculator dates (LMP, ultrasound). Also turns on a **day-level** check: a date later than today is refused outright, not shifted, because 1926-vs-2026 there is a genuine ambiguity and guessing would be a second silent century move. A real 1926 date is typed in full. |
+| `YEAR_POLICY.clinical` | 5 years | Prescription header Date, findings, medicine pad, health-monitoring durations — a follow-up may legitimately be years out. `HealthTrendsChart`'s `FUTURE_LIMIT_YEARS` **is** this constant; don't redeclare it. |
+
+`parseDateInput` returns `{ok:true,iso}` or `{ok:false,reason:"malformed"|"future"}` — the reason exists because the field has to say *which* rule was broken. `parseFlexibleDate` is the old `string | null` wrapper and still works for callers that don't need the reason.
+
+**All date entry goes through `components/common/DateField.tsx`.** Do not add a native `<input type="date">`: it cannot take the DDMMYY shorthand, which is how doctors actually type, and it bypasses the century policy. `DateField` reverts to the last valid value on a bad parse **and** says why underneath — reverting alone swallowed the reason.
+
+Dates stored **before** this fix keep their wrong century; nothing is rewritten. `isImplausibleDate()` flags them where they render (DOB field, `PatientRecordsView` date headings, the chart's amber note) and the doctor decides. A bulk repair would be its own reviewed migration.
+
+Server side, `dob` is validated in `patients/dto/patient.dto.ts` (`@IsISO8601({strict:true})` + `NotFutureDateConstraint`, 24h grace for UTC+6-vs-UTC clock skew). Its messages are doctor-facing — `apiFetch` joins `body.message` straight into the save banner, so write them for a clinician.
 
 ## Health monitoring tab (idsp)
 

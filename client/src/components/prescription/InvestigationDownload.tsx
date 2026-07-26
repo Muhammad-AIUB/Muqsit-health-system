@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/lib/investigationSummary";
+import DateField from "@/components/common/DateField";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
@@ -150,8 +151,14 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
           </div>
           {dateMode === "custom" && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, rowGap: 8, alignItems: "center", marginTop: 10 }}>
-              <label style={{ fontSize: 12, color: C.n[600] }}>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inp} /></label>
-              <label style={{ fontSize: 12, color: C.n[600] }}>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inp} /></label>
+              {/* A filter bound, not a clinical date — the default clinical
+                  allowance is right here, and a future "To" is harmless. */}
+              <div style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
+                From <div style={{ width: 130 }}><DateField value={from} onChange={setFrom} style={inp} /></div>
+              </div>
+              <div style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
+                To <div style={{ width: 130 }}><DateField value={to} onChange={setTo} style={inp} /></div>
+              </div>
             </div>
           )}
         </div>

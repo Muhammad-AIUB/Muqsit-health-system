@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
 import { inputSm, fieldLabel } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { isoToDdmmyyyy, parseFlexibleDate } from "@/lib/dateInput";
+import DateField from "@/components/common/DateField";
 import MobileLookupField from "./MobileLookupField";
 
 export default function PatientHeader({ mobile }: { mobile?: boolean }) {
@@ -102,34 +102,5 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   );
 }
 
-// Date field in DD/MM/YYYY format. Type the 6-digit shorthand DDMMYY
-// (e.g. 030626 → 03/06/2026) or a slashed date; stored as ISO internally.
-function DateField({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
-  const [text, setText] = useState(() => isoToDdmmyyyy(value));
-  const [focused, setFocused] = useState(false);
-
-  // Keep in sync with external changes (e.g. loading a patient) while not typing.
-  useEffect(() => { if (!focused) setText(isoToDdmmyyyy(value)); }, [value, focused]);
-
-  const commit = () => {
-    setFocused(false);
-    const iso = parseFlexibleDate(text);
-    if (iso) { onChange(iso); setText(isoToDdmmyyyy(iso)); }
-    else setText(isoToDdmmyyyy(value)); // revert invalid input
-  };
-
-  const style: CSSProperties = { ...inputSm, boxSizing: "border-box", width: "100%" };
-  return (
-    <input
-      value={text}
-      onFocus={() => setFocused(true)}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-      placeholder="DD/MM/YYYY"
-      title="Type DDMMYY — e.g. 030626 → 03/06/2026"
-      inputMode="numeric"
-      style={style}
-    />
-  );
-}
+// DateField now lives in components/common so the DOB, calculator and
+// investigation-download fields share one parser and one century rule.

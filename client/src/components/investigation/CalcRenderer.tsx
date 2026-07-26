@@ -5,6 +5,8 @@ import { C } from "@/theme";
 import type { CalculatorInput, CalculationResult } from "@/types/calculator";
 import { getCalculator } from "@/lib/calculators/calculator-registry";
 import { INPUT_OVERRIDES } from "@/lib/calculators/calc-inputs";
+import DateField from "@/components/common/DateField";
+import { YEAR_POLICY } from "@/lib/dateInput";
 
 // Unit conversion that mirrors the EXACT factors each calculator applies
 // internally, so the value↔unit pair the user sees stays consistent with what
@@ -180,7 +182,18 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
       );
       return <div key={f.id} style={{ flex: basis, minWidth: 0 }}>{control}</div>;
     } else if (f.type === "date") {
-      control = <input type="date" value={vals[f.id] || ""} onChange={(e) => set(f.id, e.target.value)} style={inp} />;
+      // Every calculator date today is a past event (LMP, ultrasound scan), so a
+      // 2-digit year resolves backwards and a future date is refused. 010198 must
+      // give 1998, not 2098 — an EDD 100 years out is not a rounding error.
+      control = (
+        <DateField
+          value={vals[f.id] || ""}
+          onChange={(iso) => set(f.id, iso)}
+          futureAllowanceYears={YEAR_POLICY.past}
+          pastLabel="This date"
+          style={inp}
+        />
+      );
     } else {
       // number — with optional unit selector. Changing the unit converts the
       // entered value (and equivalents in the other units are shown below), so
