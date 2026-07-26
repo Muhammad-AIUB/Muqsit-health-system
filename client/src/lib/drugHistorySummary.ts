@@ -50,6 +50,13 @@ export function drugMentions(entries: string[], today: string): DrugMention[] {
 }
 
 // Groups mentions by exact drug name; start/end = earliest/latest mention date.
+//
+// A tapering "(cont)" line carries no drug name, so it does NOT extend the
+// range even though it means the drug was still being taken on that later
+// date. Attaching it to the nearest preceding medicine would be an assumption
+// about array order in a list that is merged and deduped on save, so the range
+// deliberately understates instead of guessing. This is one of the cases the
+// chart's duration override exists to let the doctor correct.
 export function drugMentionRanges(entries: string[], today: string): MentionRange[] {
   const map = new Map<string, { start: string; end: string }>();
   for (const m of drugMentions(entries, today)) {

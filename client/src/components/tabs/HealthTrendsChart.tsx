@@ -73,11 +73,26 @@ const msToDdmmyyyy = (ms: number): string => {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 
+// Both return NaN — not a fallback instant — when the stored string is not a
+// real date. The previous `|| 0` turned an unreadable date into epoch 0, and
+// `yy || 0` turned a missing year into 1900, so ONE malformed record stretched
+// the shared axis across 126 years and squeezed every real value into a couple
+// of pixels. Callers drop what they cannot place and say how many.
+const DDMMYYYY_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 const ddmmyyyyMs = (d: string): number => {
-  const [dd, mm, yy] = d.split("/").map(Number);
-  return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0;
+  const m = DDMMYYYY_RE.exec((d ?? "").trim());
+  if (!m) return NaN;
+  const dd = +m[1], mm = +m[2], yy = +m[3];
+  const dt = new Date(yy, mm - 1, dd);
+  // Reject rolled-over calendar dates: new Date(2026, 1, 31) is 3 March, and
+  // drawing 31/02/2026 there would present a date the record never held.
+  const ok = dt.getFullYear() === yy && dt.getMonth() === mm - 1 && dt.getDate() === dd;
+  return ok ? dt.getTime() : NaN;
 };
-const isoMs = (d: string): number => new Date(d).getTime() || 0;
+const isoMs = (d: string): number => {
+  const t = new Date(d ?? "").getTime();
+  return Number.isFinite(t) ? t : NaN;
+};
 
 type TrackKind = "drug" | "symptom";
 
@@ -245,12 +260,21 @@ export default function HealthTrendsChart({
   // is, so a bar the doctor just moved into the window shows up and one they
   // moved out of it disappears — filtering on the recorded dates first would do
   // the opposite of what they asked for. ──
+  // A track whose recorded dates cannot be read has no place on a time axis;
+  // it is dropped rather than pinned to a made-up instant, and counted below so
+  // the omission is stated instead of silent.
   const drugTracks = useMemo(
-    () => drugRanges.map((r) => buildTrack("drug", r.name, ddmmyyyyMs(r.start), ddmmyyyyMs(r.end), drugDates[r.name])),
+    () => drugRanges
+      .map((r) => ({ r, s: ddmmyyyyMs(r.start), e: ddmmyyyyMs(r.end) }))
+      .filter((x) => Number.isFinite(x.s) && Number.isFinite(x.e))
+      .map(({ r, s, e }) => buildTrack("drug", r.name, s, e, drugDates[r.name])),
     [drugRanges, drugDates],
   );
   const symptomTracks = useMemo(
-    () => symptomRanges.map((r) => buildTrack("symptom", r.name, isoMs(r.start), isoMs(r.end), symptomDates[r.name])),
+    () => symptomRanges
+      .map((r) => ({ r, s: isoMs(r.start), e: isoMs(r.end) }))
+      .filter((x) => Number.isFinite(x.s) && Number.isFinite(x.e))
+      .map(({ r, s, e }) => buildTrack("symptom", r.name, s, e, symptomDates[r.name])),
     [symptomRanges, symptomDates],
   );
 
@@ -287,11 +311,21 @@ export default function HealthTrendsChart({
   // Lab points are filtered to the window, but a ticked parameter never loses
   // its lane: an empty lane says "no reading here", a missing lane would say
   // "never measured".
-  const lanes = tickedParams.map(({ param, points }) => ({
-    param,
-    points: windowLo == null ? points : points.filter((p) => ddmmyyyyMs(p.date) >= windowLo),
-    allPoints: points,
-  }));
+  const lanes = tickedParams.map(({ param, points }) => {
+    const placeable = points.filter((p) => Number.isFinite(ddmmyyyyMs(p.date)));
+    return {
+      param,
+      points: windowLo == null ? placeable : placeable.filter((p) => ddmmyyyyMs(p.date) >= windowLo),
+      allPoints: placeable,
+    };
+  });
+
+  // Anything the timeline could not place. Never silently dropped: the record
+  // still holds it, and the doctor is told the chart is not showing everything.
+  const unplaceable =
+    paramSeries.reduce((n, x) => n + x.points.filter((p) => !Number.isFinite(ddmmyyyyMs(p.date))).length, 0) +
+    (drugRanges.length - drugTracks.length) +
+    (symptomRanges.length - symptomTracks.length);
 
   const allMs = [
     ...lanes.flatMap((x) => x.points.map((p) => ddmmyyyyMs(p.date))),
@@ -401,22 +435,27 @@ export default function HealthTrendsChart({
     if (current[field] === normalised) return; // nothing actually changed
     const nextCell = { ...current, [field]: normalised };
     const next: DrugDateMap = { ...base, [name]: nextCell };
-    // Both sides cleared → drop the key rather than storing a pair of empty
-    // strings, so "is this overridden?" stays a simple question.
-    if (!nextCell.sf && !nextCell.upto) delete next[name];
+    // Drop the key when the override would show exactly the recorded range —
+    // both sides cleared, or a date retyped to the value already derived. The
+    // dashed bar, the ✎ and the audit line all mean "the doctor moved this away
+    // from what the record says"; storing a no-op override makes every one of
+    // them lie, and clutters the trail with "adjusted X – Y (recorded X – Y)".
+    const ovS = cellToDate(nextCell.sf), ovE = cellToDate(nextCell.upto);
+    const shownAsRecorded =
+      msToDdmmyyyy(ovS ? ovS.getTime() : track.recStart) === track.recFrom &&
+      msToDdmmyyyy(ovE ? ovE.getTime() : track.recEnd) === track.recTo;
+    if (shownAsRecorded) delete next[name];
     const label = kind === "drug" ? "medication" : "symptom";
-    // The stored cell keeps the doctor's own wording ("26 Jul 2026"), but the
-    // audit line is read alongside every other date in the app, so normalise
-    // both sides to dd/mm/yyyy rather than mixing formats inside one sentence.
-    const ovFrom = cellToDate(nextCell.sf), ovTo = cellToDate(nextCell.upto);
-    const shownFrom = ovFrom ? msToDdmmyyyy(ovFrom.getTime()) : track.recFrom;
-    const shownTo = ovTo ? msToDdmmyyyy(ovTo.getTime()) : track.recTo;
+    // Both sides of the audit line are dd/mm/yyyy — it is read alongside every
+    // other date in the app, so the formats must not differ inside one sentence.
+    const shownFrom = ovS ? msToDdmmyyyy(ovS.getTime()) : track.recFrom;
+    const shownTo = ovE ? msToDdmmyyyy(ovE.getTime()) : track.recTo;
     // Complaint text is free-form and can be long; the activity feed caps
     // `detail` at 400 chars server-side and would 400 the whole log call.
     const shown = activityName(name);
-    const note = nextCell.sf || nextCell.upto
-      ? `Adjusted ${label} duration for "${shown}": ${shownFrom} – ${shownTo} (recorded ${track.recFrom} – ${track.recTo})`
-      : `Cleared the ${label} duration override for "${shown}" — back to the recorded ${track.recFrom} – ${track.recTo}`;
+    const note = shownAsRecorded
+      ? `Cleared the ${label} duration override for "${shown}" — back to the recorded ${track.recFrom} – ${track.recTo}`
+      : `Adjusted ${label} duration for "${shown}": ${shownFrom} – ${shownTo} (recorded ${track.recFrom} – ${track.recTo})`;
     (kind === "drug" ? onSaveDrugDates : onSaveSymptomDates)(next, note);
   };
 
@@ -798,6 +837,13 @@ export default function HealthTrendsChart({
           </div>
         </div>
       </div>
+
+      {unplaceable > 0 && (
+        <div style={{ fontSize: 10, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
+          {unplaceable} recorded {unplaceable === 1 ? "entry has a date" : "entries have dates"} this timeline cannot read,
+          so {unplaceable === 1 ? "it is" : "they are"} not drawn here. Nothing has been removed from the patient&apos;s record.
+        </div>
+      )}
 
       {saveError && (
         <div style={{ fontSize: 10.5, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
