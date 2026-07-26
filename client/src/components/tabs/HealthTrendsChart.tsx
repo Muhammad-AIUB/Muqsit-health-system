@@ -94,6 +94,10 @@ const isoMs = (d: string): number => {
   return Number.isFinite(t) ? t : NaN;
 };
 
+// A numeric reading with its date already parsed to an instant (NaN = the
+// stored date could not be read).
+type PlottedPoint = NumericPoint & { ms: number };
+
 type TrackKind = "drug" | "symptom";
 
 // One medication/symptom row. `rec*` is what the patient's records actually
@@ -189,12 +193,18 @@ export default function HealthTrendsChart({
     return m;
   }, [investigationSummary]);
 
+  // Each point carries its parsed instant. Every render below filters by window,
+  // measures the axis and positions a dot from the same date, and every
+  // keystroke in a duration box re-renders the whole chart — so parsing the
+  // string each time meant thousands of repeated regex+Date builds per keystroke
+  // on a patient with a long investigation history. Parse once, compare numbers.
+  // NaN means the stored date is unreadable; the callers count those and say so.
   const paramSeries = useMemo(() => {
-    const out: { param: ChartableParam; points: NumericPoint[] }[] = [];
+    const out: { param: ChartableParam; points: PlottedPoint[] }[] = [];
     for (const param of chartableParams()) {
       const findings = findingsByTest.get(param.test);
       if (!findings) continue;
-      const points = numericSeriesFor(findings, param);
+      const points = numericSeriesFor(findings, param).map((p) => ({ ...p, ms: ddmmyyyyMs(p.date) }));
       if (points.length > 0) out.push({ param, points });
     }
     return out;
@@ -312,10 +322,10 @@ export default function HealthTrendsChart({
   // its lane: an empty lane says "no reading here", a missing lane would say
   // "never measured".
   const lanes = tickedParams.map(({ param, points }) => {
-    const placeable = points.filter((p) => Number.isFinite(ddmmyyyyMs(p.date)));
+    const placeable = points.filter((p) => Number.isFinite(p.ms));
     return {
       param,
-      points: windowLo == null ? placeable : placeable.filter((p) => ddmmyyyyMs(p.date) >= windowLo),
+      points: windowLo == null ? placeable : placeable.filter((p) => p.ms >= windowLo),
       allPoints: placeable,
     };
   });
@@ -323,12 +333,12 @@ export default function HealthTrendsChart({
   // Anything the timeline could not place. Never silently dropped: the record
   // still holds it, and the doctor is told the chart is not showing everything.
   const unplaceable =
-    paramSeries.reduce((n, x) => n + x.points.filter((p) => !Number.isFinite(ddmmyyyyMs(p.date))).length, 0) +
+    paramSeries.reduce((n, x) => n + x.points.filter((p) => !Number.isFinite(p.ms)).length, 0) +
     (drugRanges.length - drugTracks.length) +
     (symptomRanges.length - symptomTracks.length);
 
   const allMs = [
-    ...lanes.flatMap((x) => x.points.map((p) => ddmmyyyyMs(p.date))),
+    ...lanes.flatMap((x) => x.points.map((p) => p.ms)),
     ...tracks.flatMap((t) => [t.start, t.end]),
   ];
   const today = new Date();
@@ -665,7 +675,7 @@ export default function HealthTrendsChart({
                 const norm = vspan > 0 ? (v - vmin) / vspan : 0.5;
                 return laneTop + LANE_H - LANE_PAD - norm * (LANE_H - 2 * LANE_PAD);
               };
-              const pxs = points.map((p) => ({ x: toX(ddmmyyyyMs(p.date)), y: yOf(p.value), label: p.label, date: p.date }));
+              const pxs = points.map((p) => ({ x: toX(p.ms), y: yOf(p.value), label: p.label, date: p.date }));
               // Place each value label in the first offset that collides with
               // nothing already placed and stays inside this parameter's lane.
               // A fixed stagger is not enough: two readings recorded on the
