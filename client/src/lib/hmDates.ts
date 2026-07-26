@@ -25,12 +25,29 @@ export function normaliseDateCell(input: string): string {
   return p ? p.label : input.trim();
 }
 
+// dd/mm/yyyy (or dd-mm-yyyy), the format this app writes dates in everywhere.
+const DDMMYYYY = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/;
+
 // Interpret a stored cell (label, shorthand, or any parseable date) as a Date.
 export function cellToDate(s: string): Date | null {
-  if (!s || !s.trim()) return null;
-  const p = parseShorthandDate(s);
+  const t = (s ?? "").trim();
+  if (!t) return null;
+  const p = parseShorthandDate(t);
   if (p) return new Date(p.iso);
-  const d = new Date(s);
+  // dd/mm/yyyy MUST be parsed explicitly: `new Date("25/07/2026")` reads the
+  // day as a month, gets 25, and returns Invalid Date. Falling through to it
+  // meant a cell holding a full date the doctor typed silently became "no
+  // date", and the bar quietly dropped their adjustment with nothing to show
+  // for it. Same calendar validation as the shorthand so 31/02/2026 is
+  // rejected rather than rolled over to 3 March.
+  const m = DDMMYYYY.exec(t);
+  if (m) {
+    const dd = +m[1], mm = +m[2], yy = +m[3];
+    const d = new Date(yy, mm - 1, dd);
+    const ok = d.getFullYear() === yy && d.getMonth() === mm - 1 && d.getDate() === dd;
+    return ok ? d : null;
+  }
+  const d = new Date(t);
   return isNaN(d.getTime()) ? null : d;
 }
 

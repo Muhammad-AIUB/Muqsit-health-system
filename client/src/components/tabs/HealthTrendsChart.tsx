@@ -6,7 +6,7 @@ import type { InvFinding } from "@/lib/investigationSummary";
 import { chartableParams, numericSeriesFor, type ChartableParam, type NumericPoint } from "@/lib/numericInvSeries";
 import type { MentionRange } from "@/lib/drugHistorySummary";
 import type { SymptomMentionRange } from "@/lib/symptomSummary";
-import { cellToDate, normaliseDateCell, type DrugDateMap } from "@/lib/hmDates";
+import { cellToDate, type DrugDateMap } from "@/lib/hmDates";
 import { computeTimeRange, makeToX, monthTicks, isInRange } from "@/lib/timelineGeometry";
 
 interface Props {
@@ -376,6 +376,7 @@ export default function HealthTrendsChart({
   const commitCell = (kind: TrackKind, name: string, field: "sf" | "upto", track: Track) => {
     const raw = (draftFor(kind, name)[field] ?? "").trim();
     const key = cellKey(kind, name, field);
+    let normalised = "";
     if (raw) {
       const parsed = cellToDate(raw);
       if (!parsed) {
@@ -387,9 +388,14 @@ export default function HealthTrendsChart({
         flagInvalid(key, bad);
         return;
       }
+      // Store the app's canonical dd/mm/yyyy rather than hmDates' "26 Jul 2026"
+      // label, so the box, its placeholder, the tooltip, the row summary and the
+      // audit line all read the same way. Values written by the old Drug
+      // timeline panel are still parsed by cellToDate and are rewritten to this
+      // form the next time that field is edited.
+      normalised = msToDdmmyyyy(parsed.getTime());
     }
     clearInvalid([key]);
-    const normalised = raw ? normaliseDateCell(raw) : "";
     const base = kind === "drug" ? drugDates : symptomDates;
     const current = base[name] ?? { sf: "", upto: "" };
     if (current[field] === normalised) return; // nothing actually changed
@@ -435,24 +441,39 @@ export default function HealthTrendsChart({
     return (
       <div key={track.name} style={editRow}>
         <span style={{ ...checkLabel, flex: "1 1 100%" }} title={track.name}>{track.name}</span>
+        {/* Both boxes hold a date and sit side by side, so without these tags
+            there is nothing to say which end is which. */}
+        <span style={fieldTag}>From</span>
         <input
           value={draft.sf}
           onChange={(e) => setDraftCell(kind, track.name, "sf", e.target.value)}
           onBlur={() => commitCell(kind, track.name, "sf", track)}
           placeholder={track.recFrom}
+          aria-label={`${track.name} — duration from`}
           title={sfBad ?? `From — leave empty to keep the recorded ${track.recFrom}`}
           style={dateInput(Boolean(sfBad))}
         />
+        <span style={fieldTag}>To</span>
         <input
           value={draft.upto}
           onChange={(e) => setDraftCell(kind, track.name, "upto", e.target.value)}
           onBlur={() => commitCell(kind, track.name, "upto", track)}
           placeholder={track.recTo}
+          aria-label={`${track.name} — duration to`}
           title={uptoBad ?? `To — leave empty to keep the recorded ${track.recTo}`}
           style={dateInput(Boolean(uptoBad))}
         />
         {(sfBad || uptoBad) && (
           <div style={{ flex: "1 1 100%", fontSize: 9.5, color: C.danger[800], lineHeight: 1.45 }}>{sfBad ?? uptoBad}</div>
+        )}
+        {/* The bar this row controls may be unticked, or outside the chosen
+            window, so the row has to state the result itself — otherwise a date
+            can be typed with nothing visibly happening. */}
+        {overridden && !sfBad && !uptoBad && (
+          <div style={{ flex: "1 1 100%", fontSize: 9.5, color: C.n[500], lineHeight: 1.45 }}>
+            Shown as <b>{track.from === track.to ? track.from : `${track.from} – ${track.to}`}</b>
+            {" · recorded "}{track.recFrom === track.recTo ? track.recFrom : `${track.recFrom} – ${track.recTo}`}
+          </div>
         )}
         <button
           type="button"
@@ -802,6 +823,7 @@ const checkInput: React.CSSProperties = { accentColor: C.pri[400], width: 13, he
 const checkLabel: React.CSSProperties = { fontSize: 11, color: C.n[800], flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const countBadge: React.CSSProperties = { fontSize: 9.5, color: C.n[500], flexShrink: 0 };
 const rangeHint: React.CSSProperties = { fontSize: 9.5, color: C.n[500], flexShrink: 0, whiteSpace: "nowrap" };
+const fieldTag: React.CSSProperties = { fontSize: 9, color: C.n[500], flexShrink: 0, letterSpacing: "0.03em" };
 const windowSelect: React.CSSProperties = {
   fontSize: 11, fontFamily: "inherit", color: C.n[800], background: C.n[0],
   border: `0.5px solid ${C.n[300]}`, borderRadius: 6, padding: "4px 8px", cursor: "pointer", outline: "none",
