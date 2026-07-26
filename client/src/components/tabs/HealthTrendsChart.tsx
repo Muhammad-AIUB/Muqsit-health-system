@@ -460,15 +460,31 @@ export default function HealthTrendsChart({
     if (current[field] === normalised) return; // nothing actually changed
     const nextCell = { ...current, [field]: normalised };
     const next: DrugDateMap = { ...base, [name]: nextCell };
+    const ovS = cellToDate(nextCell.sf), ovE = cellToDate(nextCell.upto);
+
+    // An end before the start is a typo, not an instruction. buildTrack clamps
+    // it so the bar can't draw backwards, but clamping alone would swallow the
+    // mistake: the doctor would see a one-day bar and no reason for it. Say what
+    // is wrong and keep what was stored.
+    const effS = ovS ? ovS.getTime() : track.recStart;
+    const effE = ovE ? ovE.getTime() : track.recEnd;
+    if (effE < effS) {
+      flagInvalid(
+        key,
+        field === "sf"
+          ? `That start is after the end shown for this row (${msToDdmmyyyy(effE)}). Move the To date first, or pick an earlier start.`
+          : `That end is before the start shown for this row (${msToDdmmyyyy(effS)}). Move the From date first, or pick a later end.`,
+      );
+      return;
+    }
+
     // Drop the key when the override would show exactly the recorded range —
     // both sides cleared, or a date retyped to the value already derived. The
     // dashed bar, the ✎ and the audit line all mean "the doctor moved this away
     // from what the record says"; storing a no-op override makes every one of
     // them lie, and clutters the trail with "adjusted X – Y (recorded X – Y)".
-    const ovS = cellToDate(nextCell.sf), ovE = cellToDate(nextCell.upto);
     const shownAsRecorded =
-      msToDdmmyyyy(ovS ? ovS.getTime() : track.recStart) === track.recFrom &&
-      msToDdmmyyyy(ovE ? ovE.getTime() : track.recEnd) === track.recTo;
+      msToDdmmyyyy(effS) === track.recFrom && msToDdmmyyyy(effE) === track.recTo;
     if (shownAsRecorded) delete next[name];
     const label = kind === "drug" ? "medication" : "symptom";
     // Both sides of the audit line are dd/mm/yyyy — it is read alongside every
