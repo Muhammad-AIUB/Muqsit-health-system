@@ -42,7 +42,9 @@ Separate from the policy, `parseDateInput` also enforces a sanity range: **year 
 
 **Age comes from `lib/age.ts#ageFromDob`, everywhere.** Do not recompute it as `elapsedMs / (365.25 * day)`: leap days accumulate, so that form read 29 for someone born 27 Jul 1996 on their 30th birthday while the header said 30. Age drives dosing — one function.
 
-**All date entry goes through `components/common/DateField.tsx`.** Do not add a native `<input type="date">`: it cannot take the DDMMYY shorthand, which is how doctors actually type, and it bypasses the century policy. `DateField` reverts to the last valid value on a bad parse **and** says why underneath — reverting alone swallowed the reason.
+**All date entry goes through `components/common/DateField.tsx`.** Do not add a native `<input type="date">`: it cannot take the DDMMYY shorthand, which is how doctors actually type, and it bypasses the century policy. `DateField` reverts to the last valid value on a bad parse **and** says why underneath — reverting alone swallowed the reason. Enter commits, Escape abandons (the Escape flag is a **ref**, set before `blur()`, because `blur()` runs the commit synchronously — the same trap documented for the chart below).
+
+**Pass `allowEmpty` on every optional date.** The native pickers this replaced all had a clear button; without the prop a doctor can never take a wrong date of birth back out, because `parseDateInput("")` is "malformed" and the box reverts to the value they were trying to drop. It is off by default so the prescription visit date keeps refusing to be emptied, as it always did.
 
 Dates stored **before** this fix keep their wrong century; nothing is rewritten. `isImplausibleDate()` flags them where they render (DOB field, `PatientRecordsView` date headings, the chart's amber note) and the doctor decides. A bulk repair would be its own reviewed migration.
 

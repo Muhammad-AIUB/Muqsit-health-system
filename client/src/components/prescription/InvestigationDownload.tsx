@@ -156,10 +156,10 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
               {/* Still <label>, so clicking the word focuses the box — the
                   nested wrapper keeps the implicit association. */}
               <label style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
-                From <div style={{ width: 130 }}><DateField value={from} onChange={setFrom} style={inp} /></div>
+                From <div style={{ width: 130 }}><DateField value={from} onChange={setFrom} allowEmpty style={inp} /></div>
               </label>
               <label style={{ fontSize: 12, color: C.n[600], display: "flex", alignItems: "center", gap: 6 }}>
-                To <div style={{ width: 130 }}><DateField value={to} onChange={setTo} style={inp} /></div>
+                To <div style={{ width: 130 }}><DateField value={to} onChange={setTo} allowEmpty style={inp} /></div>
               </label>
             </div>
           )}

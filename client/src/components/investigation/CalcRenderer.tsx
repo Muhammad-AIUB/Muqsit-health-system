@@ -191,6 +191,9 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
           onChange={(iso) => set(f.id, iso)}
           futureAllowanceYears={YEAR_POLICY.past}
           pastLabel="This date"
+          // Every date field in the registry is `required: false`, and switching
+          // the due-date calculator between LMP and ultrasound means clearing one.
+          allowEmpty
           style={inp}
         />
       );

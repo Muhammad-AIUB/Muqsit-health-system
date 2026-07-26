@@ -227,6 +227,9 @@ export default function PatientSettingsView() {
                       onChange={(iso) => { setPi("dob", iso); setPtAge(computeAge(iso)); }}
                       futureAllowanceYears={YEAR_POLICY.past}
                       pastLabel="A date of birth"
+                      // Optional: a patient may carry a manual age instead, and
+                      // a wrong date of birth has to be removable.
+                      allowEmpty
                       style={piInp}
                       hint={
                         // A record saved before the century fix can hold a future
