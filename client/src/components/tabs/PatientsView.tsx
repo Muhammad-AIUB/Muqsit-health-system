@@ -5,6 +5,7 @@ import { C, colorOf, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatients, useDeletePatient } from "@/hooks/usePatients";
 import type { Patient } from "@/lib/api";
+import { normaliseSex } from "@/lib/sex";
 import type { PtInfo } from "@/types";
 
 interface RowData {
@@ -33,7 +34,11 @@ const PatientRow = ({ p, rightSlot }: { p: RowData; rightSlot?: ReactNode }) => 
     <div style={{ width: 36, height: 36, borderRadius: "50%", background: colorOf(p.color).bg, color: colorOf(p.color).fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{p.init}</div>
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>{p.name}</div>
-      <div style={{ fontSize: 11, color: C.n[500] }}>{p.age !== "" ? `${p.age}y · ` : ""}{p.gender === "F" ? "Female" : "Male"}{p.phone ? ` · ${p.phone}` : ""}</div>
+      {/* Sex is dropped when the record does not have one — listing every
+          sexless patient as "Male" is a claim the record never made. */}
+      <div style={{ fontSize: 11, color: C.n[500] }}>
+        {[p.age !== "" ? `${p.age}y` : "", normaliseSex(p.gender), p.phone].filter(Boolean).join(" · ")}
+      </div>
       {p.diagnosis && <div style={{ fontSize: 11, color: C.n[600], marginTop: 1 }}>{p.diagnosis}</div>}
     </div>
     {rightSlot}
@@ -99,7 +104,9 @@ export default function PatientsView() {
     id: p.id,
     name: p.name,
     age: p.age != null ? p.age : "",
-    gender: p.sex === "Female" ? "F" : "M",
+    // Carry the sex through as recorded, blank included. `=== "Female" ? "F" : "M"`
+    // stamped M onto every patient whose sex was simply never entered.
+    gender: normaliseSex(p.sex),
     init: initialsOf(p.name),
     phone: p.mobile || "",
     diagnosis: p.tags && p.tags.length ? p.tags.join(" · ") : undefined,

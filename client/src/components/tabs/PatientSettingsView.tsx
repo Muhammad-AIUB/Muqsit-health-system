@@ -163,7 +163,9 @@ export default function PatientSettingsView() {
       // auto-fills from Patient Settings.
       if (pI.name) setPtName(pI.name);
       if (piAge || pI.age) setPtAge(piAge || pI.age);
-      if (pI.sex) setPtGender(pI.sex);
+      // Unconditional: clearing the sex here must clear it in the header too,
+      // and `if (pI.sex)` silently kept the old value on screen.
+      setPtGender(pI.sex);
       if (pI.mobile) setPtPhone(pI.mobile);
       setPtAddress(pI.fullAddress);
       setPtHospitalId(pI.hospitalId);

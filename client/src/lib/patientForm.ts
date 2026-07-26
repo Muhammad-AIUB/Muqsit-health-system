@@ -12,7 +12,11 @@ export function patientToPtInfo(p: Patient): PtInfo {
     // Show the auto-incremented age (DOB-based, or base age + years elapsed) so
     // the form matches the header. Saving then re-bases it to the current year.
     age: displayAge(p),
-    sex: p.sex ?? "Male",
+    // Never pre-fill a sex. `?? "Male"` made the form show Male for a patient
+    // whose sex was never recorded, while the header (reading the same record)
+    // correctly showed "—" — and a save would then write that invented Male onto
+    // the record. Sex drives reference ranges and dosing; leave it blank.
+    sex: p.sex ?? "",
     ethnicity: p.ethnicity ?? "",
     religion: p.religion ?? "Islam",
     mobile: p.mobile ?? "",

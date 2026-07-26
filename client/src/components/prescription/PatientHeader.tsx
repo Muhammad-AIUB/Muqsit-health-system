@@ -28,8 +28,8 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
     locked ? { ...base, background: C.n[100], color: C.n[600], cursor: "not-allowed" } : base;
   const lockTitle = locked ? "Edit from Patient Settings" : undefined;
 
-  // Age / Gender are shared with the Patient Settings form (ptInfo). Mirror
-  // header edits into ptInfo so the two views always show the same value.
+  // Age / Sex are shared with the Patient Settings form (ptInfo). Mirror header
+  // edits into ptInfo so the two views always show the same value.
   // Editing age here clears any DOB (manual age overrides DOB).
   const onAge = (v: string) => { const a = v.replace(/\D/g, "").slice(0, 3); setPtAge(a); setPtInfo((p) => ({ ...p, age: a, dob: "" })); };
   const onGender = (v: string) => { setPtGender(v); setPtInfo((p) => ({ ...p, sex: v })); };
@@ -55,7 +55,10 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         </div>
         <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
         <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
-        <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Gender</label>
+        {/* "Sex", not "Gender": same field as Patient Settings and the IPD header,
+            same column (`Patient.sex`), and the term the clinical use actually
+            wants. Two names for one field is how the two screens drifted apart. */}
+        <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Sex</label>
           <select value={ptGender} onChange={(e) => onGender(e.target.value)} disabled={locked} title={lockTitle} style={lk({ ...inputSm, padding: "6px 6px", cursor: locked ? "not-allowed" : "pointer" })}>
             <option value="">—</option>
             <option>Male</option>

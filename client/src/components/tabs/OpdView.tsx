@@ -5,6 +5,7 @@ import { C, colorOf, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddOpdVisit, useOpdQueue, useSetOpdStatus } from "@/hooks/useOpd";
 import { displayAge } from "@/lib/age";
+import { normaliseSex, sexLabel } from "@/lib/sex";
 import Pill from "@/components/common/Pill";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 
@@ -23,7 +24,9 @@ export default function OpdView() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [age, setAge] = useState("");
-  const [gender, setGender] = useState("M");
+  // Blank, not "M". This defaulted every walk-in to male, and the select offered
+  // only M and F — so an unknown or other sex could not be recorded at all.
+  const [gender, setGender] = useState("");
   const [type, setType] = useState("New");
   // Set when a patient is chosen from the mobile lookup — ties the visit to them.
   const [patientId, setPatientId] = useState<string | undefined>(undefined);
@@ -38,10 +41,11 @@ export default function OpdView() {
       patientId,
       phone: phone.trim() || undefined,
       age: age ? Number(age) : undefined,
-      gender,
+      // Omit rather than store "" — an unrecorded sex should be null on the row.
+      gender: gender || undefined,
       type,
     });
-    setName(""); setPhone(""); setAge(""); setType("New"); setPatientId(undefined);
+    setName(""); setPhone(""); setAge(""); setGender(""); setType("New"); setPatientId(undefined);
     setShowAdd(false);
   };
 
@@ -66,7 +70,9 @@ export default function OpdView() {
               setName(p.name);
               setPhone(p.mobile ?? "");
               setAge(displayAge(p));
-              setGender(p.sex?.toLowerCase().startsWith("f") ? "F" : "M");
+              // Blank stays blank. The old `startsWith("f") ? "F" : "M"` put an
+              // M on the queue row for every patient whose sex was never entered.
+              setGender(normaliseSex(p.sex));
               setPatientId(p.id);
             }}
             label={null}
@@ -75,9 +81,13 @@ export default function OpdView() {
             inputStyle={{ ...inp, width: "100%", boxSizing: "border-box" }}
           />
           <input value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Age" style={{ ...inp, flex: "0 0 60px" }} />
-          <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inp, flex: "0 0 60px" }}>
-            <option value="M">M</option>
-            <option value="F">F</option>
+          {/* Same words as the prescription header and Patient Settings, so one
+              vocabulary reaches the queue instead of M/F alongside Male/Female. */}
+          <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inp, flex: "0 0 92px" }}>
+            <option value="">Sex —</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
           </select>
           <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inp, flex: "0 0 110px" }}>
             <option>New</option>
@@ -109,7 +119,8 @@ export default function OpdView() {
               <div style={{ width: 34, height: 34, borderRadius: "50%", background: colorOf(color).bg, color: colorOf(color).fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{initials(p.name)}</div>
               <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: C.n[600] }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{p.gender ?? "—"}</div>
+                {/* Normalised for display: the column holds both "Female" and "F". */}
+                <div style={{ fontSize: 11, color: C.n[600] }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{sexLabel(p.gender)}</div>
               </div>
               {p.rxStatus === "incomplete" ? (
                 <Pill bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
@@ -129,7 +140,11 @@ export default function OpdView() {
                         void loadPatientById(p.patientId);
                       } else {
                         resetEditor();
-                        const sex = p.gender === "F" ? "Female" : "Male";
+                        // The queue row holds either "Male"/"Female" (written by
+                        // MuqsitContext from the editor) or "M"/"F" (written by
+                        // PatientsView). Testing `=== "F"` read a woman stored as
+                        // "Female" as Male and loaded that into the editor.
+                        const sex = normaliseSex(p.gender);
                         const age = p.age != null ? String(p.age) : "";
                         setPtName(p.name);
                         setPtAge(age);
