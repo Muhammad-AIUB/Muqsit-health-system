@@ -22,7 +22,7 @@ A prescription & practice-management platform for doctors in Bangladesh:
 | `admin/` | Next.js 14 | 3001 | Admin — registrations, account tiers (primary/secondary/premium) |
 | `server/` | NestJS 10 + Prisma 5.22 + PostgreSQL | 4000 | REST API under `/api`, cookie auth, uploads, SSE mirror |
 
-Each app has its own `package.json`; the root one only orchestrates (`concurrently`). `FUNCTIONAL-AUDIT.md` at the root is the living audit/TODO of what works, what's a stub and what doesn't persist — check it when picking up loose ends.
+Each app has its own `package.json`; the root one only orchestrates (`concurrently`). `FUNCTIONAL-AUDIT.md` at the root is the living audit/TODO of what works, what's a stub and what doesn't persist — **read it first when starting a session**; its "Open threads" section lists the decisions currently owed to the product owner (and the test data left on a real patient record).
 
 ## Commands
 
