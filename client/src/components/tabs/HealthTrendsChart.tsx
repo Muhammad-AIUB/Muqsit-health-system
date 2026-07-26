@@ -373,7 +373,13 @@ export default function HealthTrendsChart({
   const chartH = Math.max(80, bodyBottom + PB);
   const areaW = SVG_W - LW - PR;
   const PLOT_L = LW, PLOT_R = SVG_W - PR;
-  const LABEL_HALF_W = 22; // ~half a "423mg/dL"-sized label at 9px
+  // Half-width of a value label, estimated from the label's OWN text. At
+  // fontSize 9 a proportional character averages ~4.6px, so "9g/dL" needs ~12px
+  // a side while a unit-converted "1.13mg/dL (100µmol/L)" needs ~48. The single
+  // fixed 22 this replaced under-measured the long ones, so a converted value
+  // near the right edge was anchored "middle" and then clipped by the plot —
+  // exactly the half-cut number the labelling work was meant to rule out.
+  const labelHalfW = (s: string) => Math.max(12, s.length * 2.3);
   const toX = makeToX(range, LW, areaW);
   const months = monthTicks(range, toX);
   const todayInRange = isInRange(today.getTime(), range);
@@ -644,7 +650,9 @@ export default function HealthTrendsChart({
                       {shortLabel}
                     </text>
                     <text x={LW + 8} y={laneTop + EMPTY_LANE_H / 2 + 3} fontSize={9} fill={C.n[500]}>
-                      {last ? `No reading in this window · last was ${last.label} on ${last.date}` : "No reading in this window"}
+                      {last
+                        ? `No reading in this window · last was ${last.label.length > 28 ? last.label.slice(0, 27) + "…" : last.label} on ${last.date}`
+                        : "No reading in this window"}
                     </text>
                   </g>
                 );
@@ -666,21 +674,23 @@ export default function HealthTrendsChart({
               // values are unreadable, not merely untidy.
               const OFFSETS = [-7, 13, -18, 24, -29, 35];
               const LINE_H = 10;
-              const placed: { x: number; y: number }[] = [];
+              const placed: { x: number; y: number; hw: number }[] = [];
               const labeled = pxs.map((p) => {
                 // A label must NEVER be clipped by the plot edge either — a
                 // half-cut "11g/dL" reads as "1g/dL". Anchor it inward rather
-                // than centring it on a point sitting near either end.
-                const anchor = p.x + LABEL_HALF_W > PLOT_R ? "end" : p.x - LABEL_HALF_W < PLOT_L ? "start" : "middle";
+                // than centring it on a point sitting near either end, measured
+                // against this label's own width.
+                const hw = labelHalfW(p.label);
+                const anchor = p.x + hw > PLOT_R ? "end" : p.x - hw < PLOT_L ? "start" : "middle";
                 let dy = OFFSETS[0];
                 for (const off of OFFSETS) {
                   const ly = p.y + off;
                   if (ly < laneTop + 8 || ly > laneTop + LANE_H - 2) continue;
-                  if (placed.some((q) => Math.abs(q.x - p.x) < LABEL_HALF_W * 2 && Math.abs(q.y - ly) < LINE_H)) continue;
+                  if (placed.some((q) => Math.abs(q.x - p.x) < hw + q.hw && Math.abs(q.y - ly) < LINE_H)) continue;
                   dy = off;
                   break;
                 }
-                placed.push({ x: p.x, y: p.y + dy });
+                placed.push({ x: p.x, y: p.y + dy, hw });
                 return { ...p, dy, anchor };
               });
               return (
