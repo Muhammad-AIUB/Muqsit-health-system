@@ -643,6 +643,49 @@ function useMuqsitStore() {
     invImages, oeData, currentPatientId,
   ]);
 
+  // "Save draft" — the doctor-initiated twin of the auto-save above, for a visit
+  // that has to be parked (patient fetching a report, next one already waiting).
+  // Two things it does that the background write deliberately does not:
+  //   • it is AWAITED and its outcome is shown. The editor is cleared only after
+  //     the server confirms, so a failed save can never look like a saved one.
+  //     On failure nothing is touched — the doctor still has every value.
+  //   • it flags OPD unconditionally. flushEditorDraft doesn't, so a patient
+  //     typed-into and left within the 1200 ms debounce could end up with stored
+  //     work and no Incomplete badge to find it by.
+  const saveDraftNow = useCallback(async (): Promise<boolean> => {
+    const p = pendingDraftRef.current;
+    if (!draftReadyRef.current || !p || !p.pid || !p.hasRx) {
+      setSavedMsg("Add a medicine or some clinical detail before saving.");
+      setTimeout(() => setSavedMsg(""), 3000);
+      return false;
+    }
+    const pid = p.pid;
+    try {
+      await prescriptionDraftApi.save(p.snapshot);
+      // A supervising doctor's draft stays in their own per-user draft only —
+      // never the owner's shared incompleteRx, never the owner's OPD queue.
+      if (!p.supervised && rxCompletedRef.current !== pid) {
+        await patientsApi.update(pid, { incompleteRx: p.snapshot });
+        await opdApi.setRxStatus({
+          patientId: pid, rxStatus: "incomplete",
+          name: ptName.trim() || undefined, phone: ptPhone || undefined,
+          age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
+        });
+        rxFlaggedRef.current = pid;
+        void queryClient.invalidateQueries({ queryKey: ["opd"] });
+      }
+    } catch (e) {
+      setSavedMsg(e instanceof ApiError ? `Draft NOT saved: ${e.message}` : "Draft NOT saved. Is the API running?");
+      setTimeout(() => setSavedMsg(""), 5000);
+      return false;                    // editor left intact — nothing is lost
+    }
+    resetEditor();
+    setCurrentPatientId(null);
+    setSavedMsg("Draft saved — you can complete it later.");
+    setTimeout(() => setSavedMsg(""), 3000);
+    return true;
+  }, [resetEditor, ptName, ptPhone, ptAge, ptGender]);
+
   // ── Device mirroring (real-time multi-device sync, primary only) ──────────
   // A serialisable snapshot of the mirrorable app state (navigation + the
   // prescription editor + the loaded patient) that gets pushed to the user's
@@ -816,7 +859,7 @@ function useMuqsitStore() {
     hmDrugs, setHmDrugs, oeData, setOeData,
     // handlers + derived
     handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
-    resetEditor, flushEditorDraft, loadPatient, loadPatientById, filteredDrugs, monthlyCost, allFieldValues, leftFields,
+    resetEditor, flushEditorDraft, saveDraftNow, hasRxContent, loadPatient, loadPatientById, filteredDrugs, monthlyCost, allFieldValues, leftFields,
     activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
     can, canEditLabel, isAssistantMode,
     // device mirroring

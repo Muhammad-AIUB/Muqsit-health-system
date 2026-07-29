@@ -60,6 +60,16 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   const gateOpen = !!m.currentPatientId;
   // Assistants need the "Save and print" grant to save a prescription.
   const canSave = m.can("rx.savePrint") && gateOpen;
+  // "Save draft" parks an unfinished visit. Deliberately NOT permission-gated:
+  // it saves exactly what the background auto-save already writes for whoever is
+  // typing, so gating it would only lose their work. It needs a patient and
+  // something to save, and says which one is missing rather than going quiet.
+  const canSaveDraft = gateOpen && m.hasRxContent;
+  const draftTitle = !gateOpen
+    ? "Select a patient (enter a mobile number) first"
+    : !m.hasRxContent
+      ? "Add a medicine or some clinical detail before saving."
+      : "Save this unfinished prescription and start the next patient";
 
   // Build the printable prescription HTML from the current editor state.
   const buildHtml = () => {
@@ -138,6 +148,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.n[200]}`, color: C.n[800] }}>Clinical assessment</div><LeftColumn /></div>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.pri[400]}`, color: C.pri[600] }}>Prescription</div><RightColumn mobile /></div>
         </PatientGate>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, marginBottom: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", fontFamily: font }}>Save draft</button>
         <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
@@ -165,6 +176,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         `}</style>
       </PatientGate>
       <div style={{ display: "flex", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 12, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", whiteSpace: "nowrap", fontFamily: font }}>Save draft</button>
         <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ flex: 1, padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print prescription</button>
         <button onClick={previewPdf} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Preview PDF</button>
       </div>
