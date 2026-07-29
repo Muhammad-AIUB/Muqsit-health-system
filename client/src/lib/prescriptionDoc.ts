@@ -122,8 +122,14 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   // needs them to get investigations done).
   const adviceBlock = privacyCopy ? "" : listBlock("Advice", d.advice);
 
+  // The sheet is a single-cell table so the brand bar can live in <tfoot>:
+  // a tfoot repeats at the bottom of EVERY printed page and the browser reserves
+  // its height in the flow, so it can never overprint a medicine row or the
+  // signature. A `position: fixed` bar would sit lower but is free to overlay
+  // content on a full page — not acceptable on a prescription.
   return `
   <div class="sheet">
+    <table class="pagegrid"><tbody><tr><td class="pagebody">
     <div class="head">
       <div class="brand">
         <div><h1>Muqsit Health System</h1></div>
@@ -151,6 +157,13 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
         <div class="sign"><span class="line">${esc(d.doctorName || "Signature")}</span></div>
       </div>
     </div>
+    </td></tr></tbody>
+    <tfoot><tr><td class="pagefoot">
+      <div class="brandbar">
+        <span class="bb-mhs">MHS</span>
+        <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
+      </div>
+    </td></tr></tfoot></table>
   </div>`;
 }
 
@@ -171,8 +184,13 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   const padB = `${pg?.footerHeight || "0.5"}${u}`;
   const padL = `${pg?.marginLeft || "0.4"}${u}`;
 
+  // The document is written into an about:blank window / off-screen iframe, so a
+  // relative image src has no reliable base to resolve against. Pin one.
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
   return `<!doctype html>
 <html><head><meta charset="utf-8" />
+<base href="${origin}/" />
 <title>Prescription — ${esc(d.patient.name || "Patient")}</title>
 <style>
   * { box-sizing: border-box; }
@@ -213,6 +231,16 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .followup b { color: #0f6e56; }
   .sign { margin-top: 56px; text-align: right; font-size: 12px; color: #333; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
+     global table/td rules above belong to the Rx table and must not leak in
+     (the child combinators keep them off the nested Rx table too). */
+  .pagegrid { width: 100%; border-collapse: collapse; table-layout: auto; }
+  .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; }
+  .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
+  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 20px; border-radius: 5px; background: #1d9e75; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: .04em; }
+  .bb-by { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; color: #6b6b6b; }
+  .bb-exhort { height: 12px; width: auto; display: block; }
   .toolbar { position: sticky; top: 0; background: #1d9e75; padding: 10px; text-align: center; z-index: 10; }
   .toolbar button { background: #fff; color: #0f6e56; border: none; padding: 8px 22px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 0 4px; }
   /* Each sheet starts on its own printed page. */
@@ -220,6 +248,12 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   /* In print the header/footer band is reserved by the @page margin, so the
      sheet fills the margined content box with no padding of its own (padding
      would double-reserve and clip content on overflow pages). */
+  /* On screen a sheet is a full page tall, so stretch the table and let the
+     tfoot fall to the bottom of it — that is the bar the doctor sees in Preview.
+     Screen only: making .sheet a flex container in print risks breaking how the
+     table fragments across pages, and in print the tfoot repeats per fragment
+     anyway (page bottom on a full page, under the content on a short one). */
+  @media screen { .sheet { display: flex; flex-direction: column; } .pagegrid { flex: 1 1 auto; height: 100%; } }
   @media print { .toolbar { display: none; } body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
 </style></head>
 <body>
