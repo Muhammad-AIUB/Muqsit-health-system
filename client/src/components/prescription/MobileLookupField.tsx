@@ -8,7 +8,7 @@ import PatientMobileLookup from "./PatientMobileLookup";
 // Prescription-header wiring of the shared patient mobile-lookup: reads/writes
 // the editor's mobile (mirrored into the Patient Settings form), and loads the
 // chosen patient into the editor. Once a patient is loaded the field locks (a
-// "Change" button clears it to look up a different patient).
+// "New Prescription" button clears it to look up a different patient).
 export default function MobileLookupField({ mobile }: { mobile?: boolean }) {
   const {
     ptPhone, setPtPhone, setPtInfo, loadPatient, currentPatientId,
@@ -17,7 +17,10 @@ export default function MobileLookupField({ mobile }: { mobile?: boolean }) {
 
   if (currentPatientId) {
     return (
-      <div style={{ flex: mobile ? "1 1 100%" : "0 0 150px" }}>
+      // Wider than the unlocked field (150px): "New Prescription" is a long
+      // label to sit beside an 11-digit number, and squeezing the mobile input
+      // would hide the patient's identifying number. The header row wraps.
+      <div style={{ flex: mobile ? "1 1 100%" : "0 0 240px" }}>
         <label style={fieldLabel}>Mobile</label>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input value={ptPhone} readOnly title="Edit from Patient Settings" style={{ ...inputSm, flex: 1, background: C.n[100], color: C.n[600], cursor: "not-allowed" }} />
@@ -27,7 +30,7 @@ export default function MobileLookupField({ mobile }: { mobile?: boolean }) {
             title="Look up a different patient"
             style={{ padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.pri[600], fontSize: 11, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", fontFamily: font }}
           >
-            Change
+            New Prescription
           </button>
         </div>
       </div>
