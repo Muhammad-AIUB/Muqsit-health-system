@@ -53,6 +53,33 @@ If you add a new patient-scoped endpoint, decide explicitly which column of this
 
 `mirror` fans out editor snapshots per user in-memory. The `@Sse('stream')` route sets `X-Accel-Buffering: no` — required or nginx buffers the stream in prod and mirroring "stops working". Keep it on any new SSE route.
 
+## ⚠️ Adding a `.ts` file OUTSIDE `src/` can take production down
+
+Happened 2026-07-30: `scripts/sms-test.ts` was added, CI deployed, and the API
+served **502** until it was reverted-by-fix. Nothing was wrong with the file.
+
+`tsconfig.json` sets **no `rootDir`**, so TypeScript infers it from the common root
+of the input files. Every `.ts` used to live under `src/` (`scripts/` held only
+`.js`/`.py`, `prisma` and `test` are excluded), so the inferred root was `src/` and
+`nest build` emitted `dist/main.js`. Add one `.ts` anywhere else and the common root
+becomes the project root: output silently moves to `dist/src/main.js`, `start:prod`
+(`node dist/main`) can't resolve it, pm2 crash-loops, nginx returns 502.
+
+`tsconfig.build.json` now excludes `scripts`, so that one path is safe. Anything
+else outside `src/` (a `tools/`, a root-level `foo.ts`) reintroduces it.
+
+**`npx tsc --noEmit` cannot catch this** — it type-checks and emits nothing, so it
+is green either way. Before pushing a new file outside `src/`, run the real build
+and check the artifact:
+
+```bash
+cd server && rm -rf dist && npm run build && ls dist/main.js
+```
+
+No `dist/main.js` means the deploy will 502. The permanent fix is an explicit
+`"rootDir": "./src"` in `tsconfig.json`, which turns the silent move into a compile
+error; not done yet because it needs its own verification pass.
+
 ## Gotchas
 
 - **The medicine database is a raw Postgres table `medicines` that is NOT in `schema.prisma`** — `medicines.service.ts` queries it with `$queryRaw` (bound params, brand-before-generic ranking). Don't look for a Prisma model, don't let a destructive schema push touch it, and keep any new query parameterized.
