@@ -7,3 +7,6 @@ node_modules/
 .env
 .env*.local
 .gstack/
+
+# Claude Code local machine state
+.claude/settings.local.json
