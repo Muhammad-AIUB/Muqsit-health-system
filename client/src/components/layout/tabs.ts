@@ -10,7 +10,7 @@ export interface TabDef {
 }
 
 export const TABS: TabDef[] = [
-  { id: "prescription", label: "Prescription", icon: "℞" },
+  { id: "prescription", label: "Order sheet", icon: "℞" },
   { id: "opd", label: "OPD", icon: "▤" },
   { id: "ipd", label: "IPD", icon: "▥" },
   { id: "patients", label: "Patients", icon: "◉" },

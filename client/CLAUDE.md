@@ -81,6 +81,17 @@ Server side, `dob` is validated in `patients/dto/patient.dto.ts` (`@IsISO8601({s
 - **`saveDraftNow()` ("Save draft") is the doctor-initiated twin of that auto-save, and differs on purpose in two ways.** (1) It is **awaited**, and the editor is cleared *only after the server confirms*; on failure it says `Draft NOT saved: …` and touches nothing, so every value survives. Never reorder that — clearing on a fire-and-forget write is worse than the silent auto-save, because the doctor walks away believing the visit is safe. (2) It sets the OPD `rxStatus: "incomplete"` flag **unconditionally**, not gated on `rxFlaggedRef`: `flushEditorDraft` never sets it, so a patient typed-into and left inside the 1200 ms debounce used to end up with stored work and no Incomplete badge to find it by. Supervised patients take the same branch as the auto-save — own draft only, never the owner's `incompleteRx` or OPD queue. The button is gated on a loaded patient + `hasRxContent` only; `hasRxContent` ignores follow-up, `invImages` and `oeData`, so an image-only visit leaves it disabled — the tooltip has to say why rather than sitting there dead.
 - The 3.docx mobile gate: nothing is writable until a patient is picked via the mobile lookup (`PatientMobileLookup`, exact 11-digit match, family-tree info rows, "SUPERVISED" badge for other-practice matches).
 
+## Naming: the nav tab says "Order sheet", everything else still says "Prescription"
+
+Deliberate and partial, chosen by the product owner on 2026-07-30. Only the **desktop
+nav label** in `components/layout/tabs.ts` was renamed. The mobile tab stays `Rx` (a
+5-tab bar at 375px has no room for "Order sheet", and ℞ is universal), and all ~90 other
+user-visible strings, the PDF `<title>`, the tab `id`, the `/prescription` route, and
+every code identifier are unchanged. **Do not "finish" the rename as a tidy-up** — the
+clinical distinction is real (an order sheet directs nurses on the ward; a prescription
+goes home with the patient to a pharmacy) and this app uses one editor for both, so
+widening the rename is a product decision, not a consistency fix.
+
 ## UI conventions
 
 - **Inline styles only** with the theme palette: `import { C, font } from "@/theme"` (`C.pri/n/danger/warn/info` shades 50–800) and shared `inputSm`/`fieldLabel` from `@/theme/styles`. No Tailwind/CSS modules; occasional scoped `<style>` blocks for hover/animation are OK.
