@@ -238,9 +238,9 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
   .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
-  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 20px; border-radius: 5px; background: #1d9e75; color: #fff; font-size: 9px; font-weight: 700; letter-spacing: .04em; }
-  .bb-by { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; color: #6b6b6b; }
-  .bb-exhort { height: 12px; width: auto; display: block; }
+  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1d9e75; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
+  .bb-exhort { height: 19px; width: auto; display: block; }
   .toolbar { position: sticky; top: 0; background: #1d9e75; padding: 10px; text-align: center; z-index: 10; }
   .toolbar button { background: #fff; color: #0f6e56; border: none; padding: 8px 22px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 0 4px; }
   /* Each sheet starts on its own printed page. */
