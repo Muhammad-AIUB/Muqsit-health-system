@@ -17,7 +17,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { t: "Profile", d: "Doctor name, specialization, clinic info", i: "◉", section: "profile" },
   { t: "Your Badges, Ranking, social contributions etc.", d: "Achievements, ranking & community contributions", i: "🏅", disabled: true },
   { t: "Add Supervisors and Role models", d: "Link supervisors & role models to your profile", i: "👥", disabled: true },
-  { t: "Manage your assistants", d: "Role based access control & dynamic permission", i: "⊕", section: "assistants" },
+  { t: "Manage your assistants and IPD team", d: "Role based access control & dynamic permission", i: "⊕", section: "assistants" },
   { t: "Prescription settings", d: "Set up your prescription paper size, format etc", i: "⚙", section: "prescription-settings" },
   { t: "Prescription templates", d: "Create, edit, delete medicine templates", i: "℞", section: "prescription-templates" },
   { t: "Favourite & unit settings", d: "Pick favourite investigations & preferred units", i: "★", section: "favourite-settings" },

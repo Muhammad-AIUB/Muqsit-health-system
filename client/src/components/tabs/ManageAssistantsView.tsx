@@ -169,7 +169,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <button onClick={onBack} style={{ ...btn(C.n[100], C.n[800]), padding: "4px 10px" }}>← Back</button>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Manage your assistants</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>Manage your assistants and IPD team</div>
           <div style={{ fontSize: 11, color: C.n[600] }}>Role based access control &amp; dynamic permission</div>
         </div>
       </div>
