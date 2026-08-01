@@ -20,6 +20,11 @@ export interface RxItem {
   isNote?: boolean;
   // "Start From" date for the medicine (IPD pad), e.g. "17 June 2026".
   sf?: string;
+  // Generic name, present only when the line was picked from the medicines
+  // table (`drug` carries the brand). Read by the prescribing-alert matcher so
+  // a rule written against a generic still fires on a brand-name ℞. Additive:
+  // prescriptions and drafts saved before this field simply lack it.
+  generic?: string;
 }
 
 export interface IpdPatient {

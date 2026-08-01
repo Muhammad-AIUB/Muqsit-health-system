@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
+import RxAlertBanner from "@/components/prescription/RxAlertBanner";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
+import { findRxAlerts } from "@/lib/rxAlerts";
 import ExpandableField from "@/components/common/ExpandableField";
 import InvestigationFindingsField from "@/components/investigation/InvestigationFindingsField";
 import { suggestionDB, advisedTestSuggestions } from "@/data/suggestions";
@@ -83,6 +85,25 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
 
   const [savedMsg, setSavedMsg] = useState("");
   const [eventMsg, setEventMsg] = useState("");
+
+  // ⚕️ Live prescribing alerts for the order sheet — same rules and same
+  // banner as the OPD editor. An admitted patient is prescribed for through
+  // this pad, so leaving the alert out here would teach doctors to trust a
+  // safety net that quietly has a hole in it.
+  //
+  // No drugHistory: this screen holds no per-visit drug history list, so
+  // drug-drug rules match within the order sheet itself.
+  const rxAlerts = useMemo(
+    () => findRxAlerts({
+      rxDrugs: rows.filter((r) => r.isMedicine && !r.continuation).map((r) => ({ text: r.drug, generic: r.generic })),
+      sidebar: [
+        { label: "Diagnosis", items: diagnosis },
+        { label: "Chief Complaints", items: chiefComplaints },
+        { label: "Plan", items: plan },
+      ],
+    }),
+    [rows, diagnosis, chiefComplaints, plan],
+  );
 
   // Cross-field map ExpandableField uses for "@field" references.
   const allFields: Record<string, string[]> = {
@@ -227,6 +248,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
         <div style={{ flex: "1 1 420px", minWidth: 320 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Prescription</div>
           <div style={{ fontSize: 15, color: C.pri[600], marginBottom: 6 }}>℞</div>
+          <RxAlertBanner alerts={rxAlerts} />
           <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} showSF />
         </div>
       </div>

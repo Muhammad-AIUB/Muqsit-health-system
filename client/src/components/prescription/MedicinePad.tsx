@@ -35,6 +35,12 @@ export interface Row {
   isMedicine: boolean;
   continuation: boolean;
   sf?: string; // "Start From" date (IPD pad) — display e.g. "17 June 2026"
+  // Generic name, carried only when the line was picked from the medicines
+  // table. `drug` holds the BRAND ("Tablet. Entaliv 0.5mg"), so without this a
+  // safety rule written against the generic could never see the drug. Cleared
+  // the moment the doctor edits the text by hand — a stale generic attached to
+  // a different medicine is worse than none.
+  generic?: string;
 }
 export const emptyRow = (): Row => ({ drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false });
 export const contRow = (): Row => ({ drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: true, continuation: true });
@@ -205,7 +211,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                   <input
                     ref={(el) => { drugRefs.current[idx] = el; }}
                     value={row.drug}
-                    onChange={(e) => { updateRow(idx, { drug: e.target.value }); setAcRow(idx); }}
+                    onChange={(e) => { updateRow(idx, { drug: e.target.value, generic: undefined }); setAcRow(idx); }}
                     onFocus={() => setAcRow(idx)}
                     onBlur={() => setTimeout(() => setAcRow((r) => (r === idx ? null : r)), 150)}
                     placeholder={isLastEmpty ? (noteText ?? "Start typing a medicine or note…") : ""}
@@ -253,7 +259,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                         key={m.id}
                         onMouseDown={(e) => {
                           e.preventDefault();
-                          updateRow(idx, { drug: fmtMedicine(m), isMedicine: true });
+                          updateRow(idx, { drug: fmtMedicine(m), isMedicine: true, generic: m.genericName ?? undefined });
                           setAcRow(null);
                           setTimeout(() => doseRefs.current[idx]?.focus(), 30);
                         }}

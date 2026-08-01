@@ -12,10 +12,12 @@ import { usePatientChat } from "@/hooks/useChat";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
+import { findRxAlerts } from "@/lib/rxAlerts";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
 import PatientChat from "./PatientChat";
+import RxAlertBanner from "./RxAlertBanner";
 
 // Only ever emit an href for an http(s) URL. A javascript:/data: payload (e.g. a
 // stored-XSS attempt planted on the shared practice feed) yields undefined so
@@ -192,9 +194,22 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
 function ReportsSection() {
   // Only the loaded patient's activity — this section renders only when a
   // patient is selected, so currentPatientId is always set here.
-  const { currentPatientId } = useMuqsit();
+  const { currentPatientId, rxItems, leftFields, drugHistory, ptDate } = useMuqsit();
   const { data: feed = [], isLoading } = useActivityFeed(currentPatientId);
   const { data: chat = [] } = usePatientChat(currentPatientId);
+
+  // Live prescribing alerts, derived from what is in the editor right now.
+  // Not persisted and not part of the feed sort: they sit above it, because
+  // advice about the prescription being written must not scroll away under
+  // chat messages.
+  const alerts = useMemo(
+    () => findRxAlerts({
+      rxDrugs: rxItems.filter((it) => !it.isNote).map((it) => ({ text: it.drug, generic: it.generic })),
+      sidebar: leftFields.map((f) => ({ label: f.label, items: f.items })),
+      drugHistory: { entries: drugHistory, visitDate: isoToDdmmyyyy(ptDate) },
+    }),
+    [rxItems, leftFields, drugHistory, ptDate],
+  );
 
   const items = useMemo(() => {
     const acts = feed.map((a) => ({
@@ -211,6 +226,8 @@ function ReportsSection() {
   return (
     <div style={{ marginTop: 22, paddingTop: 16, borderTop: `0.5px solid ${C.n[200]}` }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: C.n[800], textAlign: "center", marginBottom: 12 }}>Notifications, Chats &amp; Reports</div>
+
+      <RxAlertBanner alerts={alerts} />
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, maxHeight: 300, overflowY: "auto" }}>
         {isLoading && items.length === 0 ? (
