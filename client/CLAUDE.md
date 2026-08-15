@@ -10,10 +10,15 @@ The doctor-facing SPA. App Router pages are thin shells; almost everything rende
 - **Investigation catalog (`src/data/investigations.ts`):** the master test list (`INV_CATS`: `{cat, tests:[{name, fields}]}`, some via the `txt([...])` name-only helper). Test names must stay **unique across categories** (duplicates were purged deliberately); field units are clinical facts — verify before editing.
 - **Never round, reformat, or "normalize" an entered clinical value.** Display exactly what the doctor typed.
 - **Medicine search hits the server** (`/medicines/search`, raw `medicines` table). `src/data/drugs.ts` is only an 18-item static fallback for the legacy drug picker / monthly-cost demo — do not treat it as the drug database.
-- **Prescribing alerts (`src/data/rxAlerts.ts` rules, `src/lib/rxAlerts.ts` matcher, `RxAlertBanner.tsx` UI):** shown on **both** prescribing surfaces — the OPD editor (top of `ReportsSection`, desktop and mobile alike) and the IPD order sheet (above the ℞ pad in `IpdDetailView`). Keep them in step: a doctor who learns to trust the alert on one screen must not silently lose it on the other. The data file the data file is a transcription of the physician's rule sheets and nothing else — adding a rule, correcting a spelling ("atleast" is theirs), or filling a truncated row from memory is a PRIME-DIRECTIVE violation, not a tidy-up. `src/lib/rxAlerts.test.ts` pins each message string, so a failure there is a clinical regression: check the source sheet before touching the expectation. Matching rules worth knowing:
+- **Prescribing alerts (`src/data/rxAlerts.ts` rules, `src/lib/rxAlerts.ts` matcher, `RxAlerts.tsx` → `RxAlertBanner.tsx` UI):** shown on **both** prescribing surfaces — the OPD editor (top of `ReportsSection`, desktop and mobile alike) and the IPD order sheet (above the ℞ pad in `IpdDetailView`). Keep them in step: a doctor who learns to trust the alert on one screen must not silently lose it on the other. Three structural rules that are not style preferences:
+  - **Render `<RxAlerts input={…}/>`, never `RxAlertBanner` directly.** `RxAlerts` wraps the banner in an error boundary. The banner lives *inside* the editor and the order sheet, and React unmounts the whole tree on an uncaught render error — one bad value would take out the entire screen a doctor prescribes through, not just the advisory.
+  - **Callers assemble the input only; the matching runs inside the banner.** Doing it in the caller's `useMemo` puts the computation outside the boundary, where no wrapper can catch it.
+  - **The check fails loud, never silent.** `checkRxAlerts` is total — it normalises unknown input, skips what it cannot read, and returns an `unreadable` count that the banner turns into a visible "Prescribing check was incomplete" notice; the boundary's fallback says "not checked", not "nothing found". A doctor reads a blank advisory as *no contraindication*, so an empty render must only ever mean the rules actually ran and found nothing.
+
+  The data file is a transcription of the physician's rule sheets and nothing else — adding a rule, correcting a spelling ("atleast" is theirs), or filling a truncated row from memory is a PRIME-DIRECTIVE violation, not a tidy-up. `src/lib/rxAlerts.test.ts` pins each message string, so a failure there is a clinical regression: check the source sheet before touching the expectation. Matching rules worth knowing:
   - Terms match on **word boundaries**, case-insensitively, so `pregnant` does not fire on `prepregnant`.
   - A condition immediately preceded by a negator (`no`, `not`, `non`, `denies`, `without`, …) is skipped. That guard is deliberately literal — anything more ambiguous still fires, and the evidence line lets the doctor judge.
-  - Only the fields in `CONDITION_FIELDS` are scanned for conditions, compared **case-insensitively** because the two screens spell them differently (`Chief complaints` / `Chief Complaints`). Drug history, investigation findings, procedure and follow-up vitals are excluded on purpose (a drug named *Pregnacare* is not a pregnancy). It is an allowlist so a newly added field cannot silently start firing clinical alerts — adding one is a deliberate edit.
+  - Only the fields in `CONDITION_FIELDS` are scanned for conditions, compared **case-insensitively** because the two screens name them differently (OPD `Chief complaints`; IPD `Sign` + `Symptoms`, and `Chief Complaints` on admissions written before that rename). Drug history, investigation findings, procedure and follow-up vitals are excluded on purpose (a drug named *Pregnacare* is not a pregnancy). It is an allowlist so a newly added field cannot silently start firing clinical alerts — adding one is a deliberate edit.
   - **drug-drug rules see the ℞ pad plus CURRENT drug history**, where "current" is the same derivation `DrugHistoryField` uses for its Current medications tab (entry dated on `ptDate`). Distant-past entries are excluded on purpose — a timing rule fired for a drug stopped two years ago is alert fatigue, and a doctor who stops reading alerts is the failure this feature exists to prevent. **At least one of the two drugs must be on today's ℞:** if both are already current, nothing changed this visit and the alert would repeat on every open. Do not "simplify" either half of that condition away.
   - `Sofosbuvir+Velpatasvir` matches on **velpatasvir**, not bare sofosbuvir — sofosbuvir also ships with ledipasvir and daclatasvir, and the advice text names the velpatasvir combination.
   - **Known gap:** a brand free-typed by hand (not picked from the medicines table) carries no generic, so a rule written against the generic cannot see it. Picked medicines are covered — see `RxItem.generic` below.
@@ -36,6 +41,8 @@ The field is **"Sex"** on every screen (the header said "Gender" until 2026-07-2
 **The OPD queue's `gender` column holds two spellings and always will:** `MuqsitContext` writes the full word from the editor (`gender: ptGender`), `PatientsView` used to write `"M"`/`"F"`. Read it through **`normaliseSex()` in `lib/sex.ts`**, never `=== "F"` — that test showed a woman stored as `"Female"` as **Male**, and opening her OPD row loaded that into the prescription editor.
 
 **Never default a missing sex.** Five places used to: `patientForm.ts` pre-filled the form with `"Male"`, `PatientsView` listed and stored `M`, `OpdView` seeded the queue with `M` and pushed `"Male"` into the editor. Sex selects reference ranges (Hb, creatinine, eGFR) and sex-dependent dosing, so an unrecorded sex must stay unrecorded — `normaliseSex()` returns `""` for anything it does not recognise, and `sexLabel()` renders `—`.
+
+**Sex and age are asked for where a patient is CREATED, and fillable where they are missing.** Both modals in `PatientMobileLookup.tsx` (new patient, and person-related-to) take them in the product owner's order — name, **Sex**, then **date of birth or age** (`IdentityFields`, 2026-08-15) — so a record no longer starts blank on the fields that decide dosing and reference ranges. All three stay **optional** there, because a guessed sex is worse than a missing one and an unknown age must not block opening the prescription. **Date of birth wins and the manual age is dropped from the payload:** `displayAge` prefers the DOB, so an age stored beside one is written and then never shown again — the box goes read-only and displays what the DOB computes to instead. The DOB box is a `DateField` on `YEAR_POLICY.past`, so `030398` is 1998, not 2098. In `PatientHeader`, Age and Sex are the one exception to the identity lock, and only to **fill a blank**: `fillable` is captured when the patient loads (not derived per render, or the box would re-lock mid-typing and a typo could never be corrected), and changing an already-recorded value still goes through Patient Settings — the same patient is seen by several practices. Age stays locked when a **DOB exists even if the box renders blank** (an unparseable or future DOB): `displayAge` prefers the DOB, so a manual age typed there would save and never appear. The header **persists these itself** (`useUpdatePatient`, 600 ms debounce) — nothing else writes them back, since `savePrescription` sends age/sex only when it is *creating* the patient — and a failed write is shown in red under the header rather than dropped.
 
 Header and Patient Settings mirror each other live (`onGender` → `setPtInfo.sex`; the form's select → `setPtGender`; `loadPatient` sets both). If they ever disagree again, suspect a fabricated default, not the sync.
 
@@ -86,19 +93,58 @@ Server side, `dob` is validated in `patients/dto/patient.dto.ts` (`@IsISO8601({s
 
 - `resetEditor()` blanks everything and sets `ptDate` = today. `loadPatient(p)` = reset + header fields + restore `p.incompleteRx` **only when the patient belongs to the effective doctor** (`activeWsRef.current ?? authIdRef.current`). **Supervised patients (other doctor's) always open with a blank editor** — also enforced during draft hydration (the draft's patient is fetched and checked). Do not weaken either check.
 - Auto-draft: the editor persists per-doctor via `prescription-draft`; fresh login (sessionStorage `mhs_fresh_login`) starts blank+gated, plain reload restores. "Save & print" completes the visit: merges findings/OE/drug-history into the patient's permanent JSON, clears `incompleteRx`, marks the OPD visit complete, and snapshots the printed sheet to the "All prescriptions(Image)" gallery (html2canvas in an off-screen iframe).
-- **`saveDraftNow()` ("Save draft") is the doctor-initiated twin of that auto-save, and differs on purpose in two ways.** (1) It is **awaited**, and the editor is cleared *only after the server confirms*; on failure it says `Draft NOT saved: …` and touches nothing, so every value survives. Never reorder that — clearing on a fire-and-forget write is worse than the silent auto-save, because the doctor walks away believing the visit is safe. (2) It sets the OPD `rxStatus: "incomplete"` flag **unconditionally**, not gated on `rxFlaggedRef`: `flushEditorDraft` never sets it, so a patient typed-into and left inside the 1200 ms debounce used to end up with stored work and no Incomplete badge to find it by. Supervised patients take the same branch as the auto-save — own draft only, never the owner's `incompleteRx` or OPD queue. The button is gated on a loaded patient + `hasRxContent` only; `hasRxContent` ignores follow-up, `invImages` and `oeData`, so an image-only visit leaves it disabled — the tooltip has to say why rather than sitting there dead.
+- **`saveDraftNow()` ("Save to complete later") is the doctor-initiated twin of that auto-save, and differs on purpose in two ways.** (1) It is **awaited**, and the editor is cleared *only after the server confirms*; on failure it says `Draft NOT saved: …` and touches nothing, so every value survives. Never reorder that — clearing on a fire-and-forget write is worse than the silent auto-save, because the doctor walks away believing the visit is safe. (2) It sets the OPD `rxStatus: "incomplete"` flag **unconditionally**, not gated on `rxFlaggedRef`: `flushEditorDraft` never sets it, so a patient typed-into and left inside the 1200 ms debounce used to end up with stored work and no Incomplete badge to find it by. Supervised patients take the same branch as the auto-save — own draft only, never the owner's `incompleteRx` or OPD queue. The button is gated on a loaded patient + `hasRxContent` only; `hasRxContent` ignores follow-up, `invImages` and `oeData`, so an image-only visit leaves it disabled — the tooltip has to say why rather than sitting there dead.
 - The 3.docx mobile gate: nothing is writable until a patient is picked via the mobile lookup (`PatientMobileLookup`, exact 11-digit match, family-tree info rows, "SUPERVISED" badge for other-practice matches).
 
-## Naming: the nav tab says "Order sheet", everything else still says "Prescription"
+## Naming: "Order sheet" on the ward, "Prescription" in OPD
 
-Deliberate and partial, chosen by the product owner on 2026-07-30. Only the **desktop
-nav label** in `components/layout/tabs.ts` was renamed. The mobile tab stays `Rx` (a
-5-tab bar at 375px has no room for "Order sheet", and ℞ is universal), and all ~90 other
+Deliberate and partial, chosen by the product owner on 2026-07-30 and extended on
+2026-08-15. Renamed so far: the **desktop nav label** in `components/layout/tabs.ts`,
+and the **℞ panel heading inside `IpdDetailView`** (an admitted patient really is
+being given an order sheet). The mobile tab stays `Rx` (a 5-tab bar at 375px has no
+room for "Order sheet", and ℞ is universal), and all other
 user-visible strings, the PDF `<title>`, the tab `id`, the `/prescription` route, and
 every code identifier are unchanged. **Do not "finish" the rename as a tidy-up** — the
 clinical distinction is real (an order sheet directs nurses on the ward; a prescription
 goes home with the patient to a pharmacy) and this app uses one editor for both, so
 widening the rename is a product decision, not a consistency fix.
+
+**The IPD clinical sheet's own vocabulary moved with it (2026-08-15):** the list
+that read "Chief Complaints" is now **"Sign"**, and a new **"Symptoms"** list sits
+under it. Only the labels changed — the stored keys are still
+`clinical.chiefComplaints` / `chiefComplaintsNotes` (renaming them would orphan the
+signs on every open admission), with `clinical.symptoms` / `symptomsNotes` added
+alongside. Two things move together with a label on this screen and are easy to
+miss: `CONDITION_FIELDS` in `lib/rxAlerts.ts` (an unlisted label silently stops
+firing contraindication alerts — the reason "Chief Complaints" stays in the list) and
+the `allFields` map that backs `@field` cross-references in `ExpandableField`.
+OPD still says "Chief complaints"; the two screens are not required to match.
+
+## IPD wards and their teams
+
+Managed at Settings → "Manage your assistants and IPD team", below the assistant
+list (`ManageAssistantsView` → `IpdTeamSection`, data via `hooks/useWards.ts`).
+A ward holds admitted patients; its team is who works it. Notes that matter:
+
+- **The `ipd.*` keys live in `IPD_PERMISSION_GROUPS`, deliberately OUT of
+  `PERMISSION_GROUPS`.** That second list drives the assistant editor and the
+  assistant gating, and an assistant reaches IPD today with no key at all — so
+  folding the IPD keys in would revoke access every existing assistant already
+  has. The two editors share their look through `components/tabs/permissionUi.tsx`,
+  not their key list.
+- A new team member starts with **nothing ticked**. On a ward, silence has to
+  mean "cannot", never "can".
+- The admit form's Ward field is a **dropdown of the doctor's wards** once any
+  exist, with an "Other (type it)…" escape and plain free text when there are
+  none — a doctor who has not set wards up must never be blocked from admitting.
+  Only a chosen ward sends `wardId`; the server refuses one that isn't theirs.
+- `IpdDetailView`'s header ward select is how an admission recorded **before**
+  the ward list existed joins a team. It sends `wardId` only when it changed, so
+  an untouched admission never has its free-typed ward text rewritten.
+
+**Adding someone to a ward does not yet let them in** — the team member's own
+login is not built. See "Rule 2b" in `server/CLAUDE.md` for why that must not go
+through the workstation switcher.
 
 ## UI conventions
 

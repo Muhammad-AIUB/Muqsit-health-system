@@ -12,66 +12,13 @@ import {
   useUpdateAssistant,
   useUpdateAssistantDefaults,
 } from "@/hooks/useAssistants";
-import { PERMISSION_GROUPS, ALL_PERM_KEYS, PERM_LABEL_OF } from "@/lib/permissions";
+import { ALL_PERM_KEYS } from "@/lib/permissions";
+import IpdTeamSection from "./IpdTeamSection";
+import {
+  MarkedChips, PermissionGrid, btn, card, contactLine, sameSet, toggleInSet,
+} from "./permissionUi";
 
-const LABEL_OF = PERM_LABEL_OF;
-
-const prettyProfession = (p: string | null): string =>
-  p ? p.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "—";
-const contactLine = (u: { email: string; mobile: string | null; profession: string | null }) =>
-  `${u.email} · ${u.mobile ?? "—"} · ${prettyProfession(u.profession)}`;
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
-
-const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((k) => b.has(k));
-
-// ── Shared styles ───────────────────────────────────────────
-const card = { background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 16 };
-const btn = (bg: string, fg: string): React.CSSProperties => ({
-  padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer",
-  fontSize: 12, fontWeight: 500, background: bg, color: fg, fontFamily: "inherit",
-});
-
-// ── Checkbox grid (shared by both editors) ──────────────────
-function PermissionGrid({ selected, onToggle }: { selected: Set<string>; onToggle: (key: string) => void }) {
-  return (
-    <>
-      {PERMISSION_GROUPS.map((grp) => (
-        <div key={grp.group} style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, color: C.n[600], marginBottom: 6 }}>{grp.group}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 6 }}>
-            {grp.perms.map((p) => (
-              <label key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
-                <input type="checkbox" checked={selected.has(p.key)} onChange={() => onToggle(p.key)} style={{ cursor: "pointer" }} />
-                {p.label}
-              </label>
-            ))}
-          </div>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function MarkedChips({ keys }: { keys: string[] }) {
-  if (keys.length === 0) return <div style={{ fontSize: 12, color: C.n[500] }}>Nothing marked yet.</div>;
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-      {keys.map((k) => (
-        <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 500, padding: "3px 9px", borderRadius: 20, background: C.pri[50], color: C.pri[600] }}>
-          ✓ {LABEL_OF.get(k) ?? k}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-const toggleInSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (key: string) =>
-  setter((prev) => {
-    const next = new Set(prev);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    return next;
-  });
 
 export default function ManageAssistantsView({ onBack }: { onBack: () => void }) {
   const assistantsQuery = useAssistants();
@@ -307,6 +254,9 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
           {!defaultsDirty && defaultPerms.length > 0 && <span style={{ fontSize: 11, color: C.pri[600], marginLeft: 4 }}>Saved</span>}
         </div>
       </div>
+
+      {/* ── Your IPD team (wards + per-member access) ───────── */}
+      <IpdTeamSection />
     </div>
   );
 }

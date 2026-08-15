@@ -6,7 +6,12 @@ import { useAdmitIpd, useIpdList, useSetIpdStatus } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
+import { useWards } from "@/hooks/useWards";
 import { useMuqsit } from "@/context/MuqsitContext";
+
+// Sentinel for "not one of my wards — let me type it". Not a ward id, so it can
+// never be sent to the server as one.
+const OTHER_WARD = "__other";
 
 const STATUSES = ["Stable", "Observation", "Critical", "Discharge"] as const;
 const statusColor = (s: string) =>
@@ -30,7 +35,13 @@ export default function IpdView() {
   const [name, setName] = useState("");
   const [hospitalId, setHospitalId] = useState("");
   const [roomNo, setRoomNo] = useState("");
+  // Ward: picked from the practice's ward list when there is one (that link is
+  // what puts the patient under a ward team), otherwise free-typed as before.
+  // "" = none / free text.
   const [wardNo, setWardNo] = useState("");
+  const [wardId, setWardId] = useState("");
+  const [wardMode, setWardMode] = useState<"list" | "other">("list");
+  const { data: wards = [] } = useWards();
   const [floorBuilding, setFloorBuilding] = useState("");
   const [mobile, setMobile] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
@@ -73,11 +84,14 @@ export default function IpdView() {
       hospitalId: hospitalId.trim() || undefined,
       roomNo: roomNo.trim() || undefined,
       wardNo: wardNo.trim() || undefined,
+      // Only send the key when a listed ward was chosen — the server refuses a
+      // ward that is not this doctor's, and rewrites wardNo to its real name.
+      ...(wardId ? { wardId } : {}),
       floorBuilding: floorBuilding.trim() || undefined,
       mobile: mobile.trim() || undefined,
       diagnosis: diagnosis.trim() || undefined,
     });
-    setBed(""); setName(""); setHospitalId(""); setRoomNo(""); setWardNo(""); setFloorBuilding(""); setMobile(""); setDiagnosis(""); setPatientId(undefined);
+    setBed(""); setName(""); setHospitalId(""); setRoomNo(""); setWardNo(""); setWardId(""); setFloorBuilding(""); setMobile(""); setDiagnosis(""); setPatientId(undefined);
     setShowAdd(false);
   };
 
@@ -126,7 +140,29 @@ export default function IpdView() {
           <input value={hospitalId} onChange={(e) => setHospitalId(e.target.value)} placeholder="Hospital id" style={{ ...inp, flex: "0 0 110px" }} />
           <input value={bed} onChange={(e) => setBed(e.target.value)} placeholder="Bed (e.g. B-3)" style={{ ...inp, flex: "0 0 110px" }} />
           <input value={roomNo} onChange={(e) => setRoomNo(e.target.value)} placeholder="Room no" style={{ ...inp, flex: "0 0 100px" }} />
-          <input value={wardNo} onChange={(e) => setWardNo(e.target.value)} placeholder="Cabin / ward no" style={{ ...inp, flex: "0 0 130px" }} />
+          {/* A listed ward carries the team; anything else stays free text, so
+              a doctor who has not set wards up yet is never blocked. */}
+          {wards.length > 0 && (
+            <select
+              value={wardMode === "other" ? OTHER_WARD : wardId}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === OTHER_WARD) { setWardMode("other"); setWardId(""); setWardNo(""); return; }
+                setWardMode("list");
+                setWardId(v);
+                setWardNo(wards.find((w) => w.id === v)?.name ?? "");
+              }}
+              title="Wards are managed in Settings → Manage your assistants and IPD team"
+              style={{ ...inp, flex: "0 0 150px", cursor: "pointer" }}
+            >
+              <option value="">Ward — none</option>
+              {wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              <option value={OTHER_WARD}>Other (type it)…</option>
+            </select>
+          )}
+          {(wards.length === 0 || wardMode === "other") && (
+            <input value={wardNo} onChange={(e) => { setWardNo(e.target.value); setWardId(""); }} placeholder="Cabin / ward no" style={{ ...inp, flex: "0 0 130px" }} />
+          )}
           <input value={floorBuilding} onChange={(e) => setFloorBuilding(e.target.value)} placeholder="Floor or building" style={{ ...inp, flex: "1 1 130px" }} />
           <input value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Diagnosis" style={{ ...inp, flex: "1 1 140px" }} />
           <button onClick={submitAdmit} disabled={admit.isPending || !bed.trim() || !name.trim() || mobileInvalid} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font, opacity: admit.isPending || !bed.trim() || !name.trim() || mobileInvalid ? 0.6 : 1 }}>

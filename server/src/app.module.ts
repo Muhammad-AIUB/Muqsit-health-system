@@ -14,6 +14,7 @@ import { OpdModule } from './opd/opd.module';
 import { IpdModule } from './ipd/ipd.module';
 import { ResearchModule } from './research/research.module';
 import { AssistantsModule } from './assistants/assistants.module';
+import { WardsModule } from './wards/wards.module';
 import { PrescriptionLayoutModule } from './prescription-layout/prescription-layout.module';
 import { PrescriptionDraftModule } from './prescription-draft/prescription-draft.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -41,6 +42,7 @@ import { MirrorModule } from './mirror/mirror.module';
     IpdModule,
     ResearchModule,
     AssistantsModule,
+    WardsModule,
     PrescriptionLayoutModule,
     PrescriptionDraftModule,
     TemplatesModule,

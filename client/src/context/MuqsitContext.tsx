@@ -643,7 +643,7 @@ function useMuqsitStore() {
     invImages, oeData, currentPatientId,
   ]);
 
-  // "Save draft" — the doctor-initiated twin of the auto-save above, for a visit
+  // "Save to complete later" — the doctor-initiated twin of the auto-save above, for a visit
   // that has to be parked (patient fetching a report, next one already waiting).
   // Two things it does that the background write deliberately does not:
   //   • it is AWAITED and its outcome is shown. The editor is cleared only after

@@ -700,8 +700,12 @@ export interface IpdFollowUpEntry extends IpdFollowUp {
 // (like the prescription page); the diagnosis column on the row is kept in sync.
 export interface IpdClinical {
   diagnosis?: string[];
+  // Shown as "Sign" on the ward sheet since 2026-08-15. The key keeps its
+  // original name so admissions recorded before the rename still load.
   chiefComplaints?: string[];
   chiefComplaintsNotes?: Record<string, string>; // note box per complaint
+  symptoms?: string[];
+  symptomsNotes?: Record<string, string>;         // note box per symptom
   investigation?: string[];
   procedure?: string[];
   procedureNotes?: Record<string, string>;        // note box per procedure
@@ -719,7 +723,11 @@ export interface IpdAdmission {
   name: string;
   hospitalId: string | null;
   roomNo: string | null;
+  // wardNo is the ward's NAME (what displays and prints). wardId links to the
+  // practice's ward list, and so to that ward's team — null when the ward was
+  // free-typed or predates the ward list.
   wardNo: string | null;
+  wardId: string | null;
   floorBuilding: string | null;
   mobile: string | null;
   age: number | null;
@@ -736,6 +744,7 @@ export interface IpdAdmissionUpdateInput {
   hospitalId?: string;
   roomNo?: string;
   wardNo?: string;
+  wardId?: string | null;
   floorBuilding?: string;
   mobile?: string;
   diagnosis?: string;
@@ -751,6 +760,7 @@ export interface IpdAdmissionInput {
   hospitalId?: string;
   roomNo?: string;
   wardNo?: string;
+  wardId?: string | null;
   floorBuilding?: string;
   mobile?: string;
   diagnosis?: string;
@@ -813,6 +823,57 @@ export const assistantsApi = {
     apiFetch<AssistantRecord>(`/assistants/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   remove: (id: string) =>
     apiFetch<{ id: string }>(`/assistants/${id}`, { method: "DELETE" }),
+};
+
+// ── IPD wards and their teams ───────────────────────────────
+export interface IpdTeamMember {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  mobile: string | null;
+  profession: string | null;
+  accountTier: string;
+  status: "active" | "suspended" | string;
+  permissions: string[];
+}
+
+export interface Ward {
+  id: string;
+  name: string;
+  members: IpdTeamMember[];
+  /** Admissions currently linked to this ward. */
+  admissionCount: number;
+}
+
+/** A registered user who can be put on a team — `id` is the USER id. */
+export interface WardCandidate {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string | null;
+  profession: string | null;
+  accountTier: string;
+}
+
+// Every mutation returns the whole ward, so the caller never has to stitch a
+// member list back together and can't render a half-updated team.
+export const wardsApi = {
+  list: () => apiFetch<Ward[]>("/wards"),
+  create: (name: string) =>
+    apiFetch<Ward>("/wards", { method: "POST", body: JSON.stringify({ name }) }),
+  rename: (id: string, name: string) =>
+    apiFetch<Ward>(`/wards/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  remove: (id: string) =>
+    apiFetch<{ id: string; unlinkedAdmissions: number }>(`/wards/${id}`, { method: "DELETE" }),
+  search: (wardId: string, q: string) =>
+    apiFetch<WardCandidate[]>(`/wards/${wardId}/search?q=${encodeURIComponent(q)}`),
+  addMember: (wardId: string, userId: string, permissions?: string[]) =>
+    apiFetch<Ward>(`/wards/${wardId}/members`, { method: "POST", body: JSON.stringify({ userId, permissions }) }),
+  updateMember: (wardId: string, memberId: string, input: { permissions?: string[]; status?: "active" | "suspended" }) =>
+    apiFetch<Ward>(`/wards/${wardId}/members/${memberId}`, { method: "PATCH", body: JSON.stringify(input) }),
+  removeMember: (wardId: string, memberId: string) =>
+    apiFetch<Ward>(`/wards/${wardId}/members/${memberId}`, { method: "DELETE" }),
 };
 
 // ── Research companion ──────────────────────────────────────

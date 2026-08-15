@@ -93,6 +93,10 @@ model User {
   chatMessages       PatientChatMessage[] @relation("ChatAuthor")
   supervisedPatients PatientSupervisor[]  @relation("SupervisingDoctor")
 
+  // IPD wards this user (as a doctor) owns, and the ward teams they are on.
+  wards           Ward[]          @relation("DoctorWards")
+  ipdTeamMemberships IpdTeamMember[] @relation("IpdTeamMemberships")
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -391,6 +395,56 @@ model PatientSupervisor {
   @@index([doctorId])
 }
 
+// ── IPD wards and their teams ────────────────────────────────
+//
+// A ward belongs to one doctor's practice and groups admissions. Its team is
+// the set of users who work that ward: every admission on the ward is under
+// the whole team, and membership is meant to change over time (rotations), so
+// nothing here is baked into the admission itself.
+model Ward {
+  id       String @id @default(cuid())
+  doctorId String
+  doctor   User   @relation("DoctorWards", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  // Displayed and written onto admissions as `IpdAdmission.wardNo`.
+  name String
+
+  members    IpdTeamMember[]
+  admissions IpdAdmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One ward name per practice — two "Ward 3"s would split a team silently.
+  @@unique([doctorId, name])
+  @@index([doctorId])
+}
+
+// One user on one ward's team, with the permission keys that user was granted
+// (per member, not per ward — the doctor ticks each one individually).
+//
+// Deliberately NOT the Assistant table: an Assistant link grants a workstation
+// over the whole practice, and a ward team must never widen into that.
+model IpdTeamMember {
+  id     String @id @default(cuid())
+  wardId String
+  ward   Ward   @relation(fields: [wardId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("IpdTeamMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Granted keys, e.g. "ipd.sign", "ipd.medicines". Empty = read-only.
+  permissions String[] @default([])
+  status      String   @default("active") // active | suspended
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([wardId, userId])
+  @@index([wardId])
+  @@index([userId])
+}
+
 // ── OPD queue ────────────────────────────────────────────────
 model OpdVisit {
   id        String   @id @default(cuid())
@@ -427,7 +481,13 @@ model IpdAdmission {
   name          String
   hospitalId    String?
   roomNo        String?
+  // wardNo is the ward's NAME and stays the thing that prints and displays.
+  // wardId links to the practice's ward list (and so to its team); it is null
+  // on every admission recorded before wards existed, and on any admission
+  // whose ward was free-typed. Never derive access from the text alone.
   wardNo        String? // cabin / ward no
+  wardId        String?
+  ward          Ward?   @relation(fields: [wardId], references: [id], onDelete: SetNull)
   floorBuilding String? // floor or building
   mobile        String?
   age           Int?

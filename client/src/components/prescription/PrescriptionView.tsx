@@ -12,18 +12,32 @@ import { usePatientChat } from "@/hooks/useChat";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import { findRxAlerts } from "@/lib/rxAlerts";
+import type { RxAlertInput } from "@/lib/rxAlerts";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
 import PatientChat from "./PatientChat";
-import RxAlertBanner from "./RxAlertBanner";
+import RxAlerts from "./RxAlerts";
 
 // Only ever emit an href for an http(s) URL. A javascript:/data: payload (e.g. a
 // stored-XSS attempt planted on the shared practice feed) yields undefined so
 // the link is inert.
 const safeUrl = (u?: string | null): string | undefined =>
   u && /^https?:\/\//i.test(u) ? u : undefined;
+
+// One window spec for both routes to the printable sheet. "Save & print" and
+// "Preview PDF" must open the SAME document at the same size — the only
+// difference between them is that one also persists the visit.
+const PRINT_WINDOW = "width=860,height=1000";
+
+// Shown while the save is in flight. The window has to be opened synchronously
+// inside the click (see handleSave), so it exists before there is a sheet to put
+// in it; a blank white pop-up reads as a failure.
+const SAVING_HTML =
+  `<!doctype html><html><head><meta charset="utf-8"><title>Saving prescription…</title></head>` +
+  `<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;` +
+  `font:14px system-ui,-apple-system,'Segoe UI',sans-serif;color:#6b6b6b;background:#fff">` +
+  `Saving the prescription…</body></html>`;
 
 // Render the printable prescription HTML to a PNG File via an off-screen iframe
 // (isolates the print stylesheet from the app). Returns null if it can't render.
@@ -62,7 +76,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   const gateOpen = !!m.currentPatientId;
   // Assistants need the "Save and print" grant to save a prescription.
   const canSave = m.can("rx.savePrint") && gateOpen;
-  // "Save draft" parks an unfinished visit. Deliberately NOT permission-gated:
+  // "Save to complete later" parks an unfinished visit. Deliberately NOT permission-gated:
   // it saves exactly what the background auto-save already writes for whoever is
   // typing, so gating it would only lose their work. It needs a patient and
   // something to save, and says which one is missing rather than going quiet.
@@ -117,15 +131,61 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     });
   };
 
-  // Save, record on the activity feed, then snapshot the printed prescription as
-  // an image into the patient's "All prescriptions" gallery. The snapshot is
-  // best-effort — a capture/upload failure never undoes a successful save.
+  // Save, put the printable sheet on screen, record on the activity feed, then
+  // snapshot that same sheet into the patient's "All prescriptions" gallery.
+  // The sheet is the identical document "Preview PDF" opens — the doctor prints
+  // from its toolbar exactly as they do from a preview; this route just persists
+  // the visit first. The snapshot is best-effort: a capture/upload failure never
+  // undoes a successful save.
   const handleSave = async () => {
+    // Open the window NOW, synchronously inside the click. A window.open() after
+    // the save's await has lost the user gesture and pop-up blockers drop it
+    // without asking — which is how "Save & print" would silently go back to
+    // being save-only. Skipped for an empty form (hasRxContent mirrors
+    // savePrescription's own empty check), which refuses to save anyway, so the
+    // window can't flash open and shut for nothing.
+    const w = m.hasRxContent ? window.open("", "_blank", PRINT_WINDOW) : null;
+    if (w) w.document.write(SAVING_HTML);
+
+    // The save runs before anything that could throw. Nothing about rendering
+    // the sheet may stand between the doctor's click and the visit being
+    // persisted: a failure there must cost them the printout, never the record.
     const ok = await savePrescription();
-    if (!ok) return;
+    if (!ok) {
+      // Never leave a printable prescription on screen for a visit that did not
+      // save — the doctor could hand the patient a document the record has no
+      // copy of. The failure reason is already shown under the buttons.
+      w?.close();
+      return;
+    }
+
+    // Built once and used for both the print window and the gallery snapshot, so
+    // the stored image is provably the document that was printed. The editor is
+    // untouched by the save, so this is still exactly what the doctor saw.
+    let html: string;
+    try {
+      html = buildHtml();
+    } catch {
+      w?.close();
+      window.alert("Prescription saved, but the printable sheet could not be built. Open Preview PDF to print it.");
+      logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
+      return;
+    }
+
+    if (w) {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    } else {
+      // Saved, but the sheet was blocked. Say so rather than leaving the doctor
+      // to assume "Save & print" printed something. Don't name the Preview PDF
+      // button here — the mobile layout doesn't have one.
+      window.alert("Prescription saved, but your browser blocked the printable sheet. Allow pop-ups for this site to print it.");
+    }
+
     logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
     try {
-      const file = await capturePrescriptionImage(buildHtml());
+      const file = await capturePrescriptionImage(html);
       if (file) {
         const url = await uploadImage(file);
         m.saveRxImages([...m.rxImages, url]);
@@ -134,7 +194,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   };
 
   const previewPdf = () => {
-    const w = window.open("", "_blank", "width=860,height=1000");
+    const w = window.open("", "_blank", PRINT_WINDOW);
     if (!w) {
       window.alert("Please allow pop-ups to preview the prescription.");
       return;
@@ -150,7 +210,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.n[200]}`, color: C.n[800] }}>Clinical assessment</div><LeftColumn /></div>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.pri[400]}`, color: C.pri[600] }}>Prescription</div><RightColumn mobile /></div>
         </PatientGate>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, marginBottom: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", fontFamily: font }}>Save draft</button>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, marginBottom: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", fontFamily: font }}>Save to complete later</button>
         <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
@@ -177,8 +237,10 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
           }
         `}</style>
       </PatientGate>
-      <div style={{ display: "flex", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 12, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", whiteSpace: "nowrap", fontFamily: font }}>Save draft</button>
+      {/* Wraps: "Save to complete later" is a long label, and this row also
+          serves tablets (≥768px) where three buttons on one line get cramped. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 12, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", whiteSpace: "nowrap", fontFamily: font }}>Save to complete later</button>
         <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ flex: 1, padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print prescription</button>
         <button onClick={previewPdf} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Preview PDF</button>
       </div>
@@ -202,8 +264,11 @@ function ReportsSection() {
   // Not persisted and not part of the feed sort: they sit above it, because
   // advice about the prescription being written must not scroll away under
   // chat messages.
-  const alerts = useMemo(
-    () => findRxAlerts({
+  //
+  // Only the INPUT is assembled here; the matching runs inside <RxAlerts>, so
+  // its error boundary covers the computation too (see RxAlerts.tsx).
+  const alertInput: RxAlertInput = useMemo(
+    () => ({
       rxDrugs: rxItems.filter((it) => !it.isNote).map((it) => ({ text: it.drug, generic: it.generic })),
       sidebar: leftFields.map((f) => ({ label: f.label, items: f.items })),
       drugHistory: { entries: drugHistory, visitDate: isoToDdmmyyyy(ptDate) },
@@ -227,7 +292,7 @@ function ReportsSection() {
     <div style={{ marginTop: 22, paddingTop: 16, borderTop: `0.5px solid ${C.n[200]}` }}>
       <div style={{ fontSize: 13, fontWeight: 500, color: C.n[800], textAlign: "center", marginBottom: 12 }}>Notifications, Chats &amp; Reports</div>
 
-      <RxAlertBanner alerts={alerts} />
+      <RxAlerts input={alertInput} />
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, maxHeight: 300, overflowY: "auto" }}>
         {isLoading && items.length === 0 ? (

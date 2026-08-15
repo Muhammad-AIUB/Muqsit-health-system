@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
-import RxAlertBanner from "@/components/prescription/RxAlertBanner";
+import RxAlerts from "@/components/prescription/RxAlerts";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
-import { findRxAlerts } from "@/lib/rxAlerts";
+import type { RxAlertInput } from "@/lib/rxAlerts";
 import ExpandableField from "@/components/common/ExpandableField";
 import InvestigationFindingsField from "@/components/investigation/InvestigationFindingsField";
 import { suggestionDB, advisedTestSuggestions } from "@/data/suggestions";
 import { useIpdEvents, useAddIpdEvent, useUpdateIpd, type IpdAdmission } from "@/hooks/useIpd";
+import { useWards } from "@/hooks/useWards";
 import type { IpdClinical, IpdFollowUp, IpdFollowUpEntry } from "@/lib/api";
 
 const fmtAdmit = (iso: string) =>
@@ -53,6 +54,8 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   const c = admission.clinical ?? {};
   const [age, setAge] = useState(admission.age != null ? String(admission.age) : "");
   const [sex, setSex] = useState(admission.sex ?? "");
+  const { data: wards = [] } = useWards();
+  const [wardId, setWardId] = useState(admission.wardId ?? "");
 
   const snapRef = useRef<{ inv: string[]; img: Record<string, string> } | null>(null);
   useEffect(() => {
@@ -67,8 +70,14 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
 
   // Chip-list sections (same UX as the prescription page).
   const [diagnosis, setDiagnosis] = useState<string[]>(c.diagnosis ?? (admission.diagnosis ? [admission.diagnosis] : []));
+  // "Sign" is the ward sheet's name for this list since 2026-08-15 (new
+  // correction 2.docx). The STORAGE key stays `chiefComplaints` — renaming it
+  // would orphan the signs already recorded on every open admission — so only
+  // the label the doctor reads changed.
   const [chiefComplaints, setChief] = useState<string[]>(c.chiefComplaints ?? []);
   const [chiefNotes, setChiefNotes] = useState<Record<string, string>>(c.chiefComplaintsNotes ?? {});
+  const [symptoms, setSymptoms] = useState<string[]>(c.symptoms ?? []);
+  const [symptomNotes, setSymptomNotes] = useState<Record<string, string>>(c.symptomsNotes ?? {});
   const [procedure, setProc] = useState<string[]>(c.procedure ?? []);
   const [procNotes, setProcNotes] = useState<Record<string, string>>(c.procedureNotes ?? {});
   const [plan, setPlan] = useState<string[]>(c.plan ?? []);
@@ -93,27 +102,32 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   //
   // No drugHistory: this screen holds no per-visit drug history list, so
   // drug-drug rules match within the order sheet itself.
-  const rxAlerts = useMemo(
-    () => findRxAlerts({
+  //
+  // Only the input is assembled here; the matching runs inside <RxAlerts> so
+  // its error boundary covers the computation too (see RxAlerts.tsx).
+  const rxAlertInput: RxAlertInput = useMemo(
+    () => ({
       rxDrugs: rows.filter((r) => r.isMedicine && !r.continuation).map((r) => ({ text: r.drug, generic: r.generic })),
       sidebar: [
         { label: "Diagnosis", items: diagnosis },
-        { label: "Chief Complaints", items: chiefComplaints },
+        { label: "Sign", items: chiefComplaints },
+        { label: "Symptoms", items: symptoms },
         { label: "Plan", items: plan },
       ],
     }),
-    [rows, diagnosis, chiefComplaints, plan],
+    [rows, diagnosis, chiefComplaints, symptoms, plan],
   );
 
   // Cross-field map ExpandableField uses for "@field" references.
   const allFields: Record<string, string[]> = {
-    Diagnosis: diagnosis, "Chief Complaints": chiefComplaints,
+    Diagnosis: diagnosis, Sign: chiefComplaints, Symptoms: symptoms,
     "Investigation Reports findings": investigation, Procedure: procedure,
     Plan: plan, "Advice tests": adviceTests,
   };
 
   const buildClinical = (followUpsOverride?: IpdFollowUpEntry[]): IpdClinical => ({
-    diagnosis, chiefComplaints, chiefComplaintsNotes: chiefNotes, investigation, procedure, procedureNotes: procNotes, plan, adviceTests,
+    diagnosis, chiefComplaints, chiefComplaintsNotes: chiefNotes, symptoms, symptomsNotes: symptomNotes,
+    investigation, procedure, procedureNotes: procNotes, plan, adviceTests,
     followUps: followUpsOverride ?? followUps,
     rxItems: rxItemsFromRows(rows),
     invImages,
@@ -123,7 +137,13 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     try {
       await update.mutateAsync({
         id: admission.id,
-        input: { age: age ? Number(age) : undefined, sex: sex || undefined, diagnosis: diagnosis.join(", "), clinical },
+        input: {
+          age: age ? Number(age) : undefined, sex: sex || undefined,
+          // Only sent when it changed: an untouched admission must not have its
+          // free-typed ward text overwritten by the server's ward-name sync.
+          ...(wardId !== (admission.wardId ?? "") ? { wardId: wardId || null } : {}),
+          diagnosis: diagnosis.join(", "), clinical,
+        },
       });
       setSavedMsg("Saved!");
     } catch {
@@ -177,7 +197,19 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 28px", marginTop: 10 }}>
           <HField label="Mobile number" value={admission.mobile} />
           <HField label="Hospital ID" value={admission.hospitalId} />
-          <HField label="Ward/Cabin" value={admission.wardNo} />
+          {/* Editable: this is how an admission recorded before the ward list
+              existed gets put under a ward team. Free-typed wards keep showing
+              their text under "Not in my ward list" until one is chosen. */}
+          <HField label="Ward/Cabin">
+            {wards.length > 0 ? (
+              <select value={wardId} onChange={(e) => setWardId(e.target.value)} style={hInp(150)}>
+                <option value="">{admission.wardNo ? `${admission.wardNo} — not in my ward list` : "—"}</option>
+                {wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            ) : (
+              <b style={{ color: C.n[900] }}>{admission.wardNo || "—"}</b>
+            )}
+          </HField>
           <HField label="Bed no" value={admission.bed} />
           <HField label="Floor/Building" value={admission.floorBuilding} />
         </div>
@@ -187,12 +219,14 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
         </div>
       </div>
 
-      {/* Body: left clinical sheet + right prescription */}
+      {/* Body: left clinical sheet + right order sheet */}
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 340px", minWidth: 300 }}>
           <ExpandableField label="Diagnosis" items={diagnosis} setItems={setDiagnosis} suggestions={suggestionDB["Provisional diagnosis"]} allFields={allFields} />
-          <ExpandableField label="Chief Complaints" items={chiefComplaints} setItems={setChief} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
+          <ExpandableField label="Sign" items={chiefComplaints} setItems={setChief} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
             itemNotes={chiefNotes} onItemNote={(item, note) => setChiefNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note…" />
+          <ExpandableField label="Symptoms" items={symptoms} setItems={setSymptoms} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
+            itemNotes={symptomNotes} onItemNote={(item, note) => setSymptomNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note…" />
           <div style={{ marginBottom: 12 }}>
             <InvestigationFindingsField label="Investigation report findings" items={investigation} invImages={invImages} onOpen={() => setShowInvPopup(true)} />
           </div>
@@ -246,9 +280,9 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
         </div>
 
         <div style={{ flex: "1 1 420px", minWidth: 320 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Prescription</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Order sheet</div>
           <div style={{ fontSize: 15, color: C.pri[600], marginBottom: 6 }}>℞</div>
-          <RxAlertBanner alerts={rxAlerts} />
+          <RxAlerts input={rxAlertInput} />
           <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} showSF />
         </div>
       </div>

@@ -8,6 +8,9 @@ export class CreateAdmissionDto {
   @IsOptional() @IsString() hospitalId?: string;
   @IsOptional() @IsString() roomNo?: string;
   @IsOptional() @IsString() wardNo?: string;
+  // Ward from the practice's ward list. Validated against the doctor's own
+  // wards in the service — a wardId from another practice must not link.
+  @IsOptional() @IsString() wardId?: string | null;
   @IsOptional() @IsString() floorBuilding?: string;
   @IsOptional()
   @Matches(/^\d{11}$/, { message: 'Mobile number must be exactly 11 digits' })
@@ -31,6 +34,8 @@ export class UpdateAdmissionDto {
   @IsOptional() @IsString() hospitalId?: string;
   @IsOptional() @IsString() roomNo?: string;
   @IsOptional() @IsString() wardNo?: string;
+  // Null clears the link (moved to a free-typed ward); see CreateAdmissionDto.
+  @IsOptional() @IsString() wardId?: string | null;
   @IsOptional() @IsString() floorBuilding?: string;
   @IsOptional()
   @Matches(/^\d{11}$/, { message: 'Mobile number must be exactly 11 digits' })
@@ -38,7 +43,8 @@ export class UpdateAdmissionDto {
   @IsOptional() @IsString() diagnosis?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(150) age?: number;
   @IsOptional() @IsString() sex?: string;
-  // { chiefComplaints, investigation, procedure, followUp, plan, adviceTests, rxItems }
+  // { chiefComplaints (shown as "Sign"), symptoms, investigation, procedure,
+  //   followUp, plan, adviceTests, rxItems }
   @IsOptional() @IsObject() clinical?: Record<string, unknown>;
 }
 

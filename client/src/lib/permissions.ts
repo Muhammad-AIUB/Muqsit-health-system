@@ -43,9 +43,41 @@ export const PERMISSION_GROUPS: PermGroup[] = [
   },
 ];
 
+// ⚕️ IPD ward sheet — granted PER MEMBER of a ward team, and kept OUT of
+// `PERMISSION_GROUPS` on purpose. That list drives the assistant editor and
+// the assistant gating; an assistant reaches IPD today with no key at all, so
+// folding these in would revoke access every existing assistant already has.
+// A ward team is a different door (see server/src/wards) and ticks these.
+export const IPD_PERMISSION_GROUPS: PermGroup[] = [
+  {
+    group: "Ward sheet",
+    perms: [
+      { key: "ipd.sign", label: "Sign" },
+      { key: "ipd.symptoms", label: "Symptoms" },
+      { key: "ipd.diagnosis", label: "Diagnosis" },
+      { key: "ipd.investigation", label: "Investigation report findings" },
+      { key: "ipd.procedure", label: "Procedure" },
+      { key: "ipd.followUp", label: "Follow up (vitals)" },
+      { key: "ipd.plan", label: "Plan" },
+      { key: "ipd.adviceTests", label: "Advice tests" },
+    ],
+  },
+  {
+    group: "Order sheet & ward round",
+    perms: [
+      { key: "ipd.medicines", label: "Order sheet — medicines (℞)" },
+      { key: "ipd.events", label: "Events, chat and investigation" },
+      { key: "ipd.header", label: "Admission header (age / sex)" },
+    ],
+  },
+];
+
+export const ALL_IPD_PERMS: Perm[] = IPD_PERMISSION_GROUPS.flatMap((g) => g.perms);
+export const ALL_IPD_PERM_KEYS: string[] = ALL_IPD_PERMS.map((p) => p.key);
+
 export const ALL_PERMS: Perm[] = PERMISSION_GROUPS.flatMap((g) => g.perms);
 export const ALL_PERM_KEYS: string[] = ALL_PERMS.map((p) => p.key);
-export const PERM_LABEL_OF = new Map(ALL_PERMS.map((p) => [p.key, p.label]));
+export const PERM_LABEL_OF = new Map([...ALL_PERMS, ...ALL_IPD_PERMS].map((p) => [p.key, p.label]));
 // The prescription/section label → its permission key (for gating by label).
 export const PERM_KEY_OF_LABEL = new Map(ALL_PERMS.map((p) => [p.label, p.key]));
 

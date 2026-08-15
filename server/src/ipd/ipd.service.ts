@@ -20,13 +20,42 @@ export class IpdService {
     });
   }
 
-  create(doctorId: string, dto: CreateAdmissionDto): Promise<IpdAdmission> {
+  async create(doctorId: string, dto: CreateAdmissionDto): Promise<IpdAdmission> {
+    const wardNo = await this.resolveWard(doctorId, dto.wardId, dto.wardNo);
     return this.prisma.$transaction(async (tx) => {
       await this.assertBedFree(tx, doctorId, dto.bed);
       return tx.ipdAdmission.create({
-        data: { ...dto, status: dto.status ?? 'Stable', doctorId },
+        data: { ...dto, ...wardNo, status: dto.status ?? 'Stable', doctorId },
       });
     });
+  }
+
+  /**
+   * Check a wardId belongs to THIS doctor before it is written, and keep the
+   * displayed `wardNo` in step with the ward's real name.
+   *
+   * Linking an admission to another practice's ward would put that practice's
+   * team on this patient — the header is not the only way access can widen, a
+   * foreign id in a body is too. An unknown ward is refused, not silently
+   * dropped: quietly unlinking would leave the doctor believing the ward team
+   * can see a patient it cannot.
+   */
+  private async resolveWard(
+    doctorId: string,
+    wardId: string | null | undefined,
+    wardNo: string | undefined,
+  ): Promise<{ wardId?: string | null; wardNo?: string }> {
+    if (wardId === undefined) return {};
+    if (wardId === null || wardId === '') {
+      // Explicitly unlinked — keep whatever ward text was typed alongside.
+      return { wardId: null, ...(wardNo !== undefined ? { wardNo } : {}) };
+    }
+    const ward = await this.prisma.ward.findFirst({
+      where: { id: wardId, doctorId },
+      select: { id: true, name: true },
+    });
+    if (!ward) throw new NotFoundException('That ward is not one of yours.');
+    return { wardId: ward.id, wardNo: ward.name };
   }
 
   // Reject if another non-discharged admission for this doctor already occupies
@@ -78,6 +107,7 @@ export class IpdService {
     id: string,
     dto: UpdateAdmissionDto,
   ): Promise<IpdAdmission> {
+    const ward = await this.resolveWard(doctorId, dto.wardId, dto.wardNo);
     return this.prisma.$transaction(async (tx) => {
       const admission = await tx.ipdAdmission.findFirst({ where: { id, doctorId } });
       if (!admission) throw new NotFoundException('Admission not found');
@@ -87,7 +117,7 @@ export class IpdService {
       }
       // Loose cast so this compiles before `prisma generate` learns the new
       // age / sex / clinical columns (regenerate to activate at runtime).
-      const data = { ...dto } as Record<string, unknown>;
+      const data = { ...dto, ...ward } as Record<string, unknown>;
       return tx.ipdAdmission.update({
         where: { id },
         data: data as Prisma.IpdAdmissionUpdateInput,

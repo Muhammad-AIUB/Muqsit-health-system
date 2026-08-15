@@ -4,7 +4,7 @@ NestJS 10 modular monolith, global prefix `/api`, Prisma 5.22 → shared VPS Pos
 
 ## Module map (src/)
 
-`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
+`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
 
 ## ⚠️ Rule 1 — every patient-data query is doctor-scoped
 
@@ -31,6 +31,33 @@ If you add a new patient-scoped endpoint, decide explicitly which column of this
 `hmDrugDates` used to sit in the assistant `RX_LIFECYCLE` bypass set — deliberately removed; don't put it back without a permission key. `PATCH /patients/:id` is the **only** route that accepts `UpdatePatientDto`, and these fields are declared on it alone (not on Create/Link), so `ValidationPipe({ whitelist: true })` strips them everywhere else. One door — keep it that way.
 
 **Deleting a doctor must not delete their patients.** A patient is not the property of the account that registered them: the same person returns to a different doctor and is found again by mobile. `admin.service.ts#hardDelete` therefore does a plain user delete and lets `Patient.doctorId`'s `onDelete: SetNull` keep the row, its demographics and its durable history (`investigationSummary`, `onExaminationSummary`, `drugHistory`, `familyMembers`). That doctor's own `Prescription` rows still cascade, which is consistent — they were never visible to another doctor. **Known gap:** `accessibleWhere()` matches `{ doctorId }` OR an assigned supervisor, so a patient left with `doctorId = null` is retained but **not reachable** through the mobile lookup. Making unowned patients findable exposes PII across practices and needs its own access design — do not bolt it onto a delete path.
+
+## ⚠️ Rule 2b — an IPD team is NOT a workstation
+
+`wards` (2026-08-15) models a ward and the team that works it: `Ward` (one per
+practice, unique name), `IpdTeamMember` (ward + user + `ipd.*` permission keys),
+and `IpdAdmission.wardId`.
+
+Two things about it are load-bearing:
+
+- **Every handler in `wards.controller.ts` passes the signed-in user's OWN id**,
+  never `@WorkstationDoctorId()`. Deciding who may reach admitted patients is the
+  owner's call; an assistant inside the practice must not be able to put anyone
+  (least of all themselves) on a ward team. Same posture as `AssistantsController`.
+- **`wardId` in an admission body is validated against the doctor's own wards**
+  (`ipd.service.ts#resolveWard`) and the ward's real name is written back into
+  `wardNo`. A foreign id in a request body widens access exactly like a forged
+  header would; an unknown ward is refused rather than silently dropped, so the
+  doctor is never left believing a ward team can see a patient it cannot.
+
+**The remaining half — letting a team member log in and reach the ward — is NOT
+built, and must not be done by extending `WorkstationsService.resolve`.** Every
+patient-data controller reads `workstationDoctorId`, so the moment a ward
+membership resolves to a workstation, that member has the practice's patients,
+prescriptions and OPD queue too — a ward nurse would silently gain the OPD
+record of someone who was never on their ward. Build a narrow IPD-only door
+instead: `ipd.service` resolves ward membership itself and returns only that
+ward's admissions, and nothing else in the app changes shape.
 
 ## ⚠️ Rule 3 — ValidationPipe strips unknown fields
 

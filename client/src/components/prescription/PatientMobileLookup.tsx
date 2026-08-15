@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { C, font } from "@/theme";
 import { inputSm, fieldLabel } from "@/theme/styles";
 import { patientsApi, type Patient, type RelativeMatch } from "@/lib/api";
-import { displayAge } from "@/lib/age";
+import { ageFromDob, displayAge } from "@/lib/age";
+import { YEAR_POLICY } from "@/lib/dateInput";
+import DateField from "@/components/common/DateField";
 import { useMuqsit } from "@/context/MuqsitContext";
 
 // Reusable mobile-first patient lookup (3.docx). Typing a full 11-digit number
@@ -166,6 +168,9 @@ function AddRelatedModal({
   anchor, number, onClose, onDone,
 }: { anchor: Patient; number: string; onClose: () => void; onDone: (p: Patient) => void }) {
   const [name, setName] = useState("");
+  const [dob, setDob] = useState("");
+  const [age, setAge] = useState("");
+  const [sex, setSex] = useState("");
   const [relation, setRelation] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -177,6 +182,7 @@ function AddRelatedModal({
     try {
       const { newPatient } = await patientsApi.link({
         existingId: anchor.id, name: name.trim(), relation, mobile: number,
+        ...identityInput(dob, age, sex),
       });
       onDone(newPatient);
     } catch (e) {
@@ -190,6 +196,7 @@ function AddRelatedModal({
       <Field label="Name of the patient">
         <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" style={inputSm} />
       </Field>
+      <IdentityFields sex={sex} setSex={setSex} dob={dob} setDob={setDob} age={age} setAge={setAge} />
       <div style={{ marginTop: 14 }}>
         <div style={{ ...fieldLabel, marginBottom: 8 }}>
           This patient is {anchor.name}&apos;s&nbsp;:
@@ -207,6 +214,9 @@ function AddNewModal({
   number, onClose, onDone,
 }: { number: string; onClose: () => void; onDone: (p: Patient) => void }) {
   const [name, setName] = useState("");
+  const [dob, setDob] = useState("");
+  const [age, setAge] = useState("");
+  const [sex, setSex] = useState("");
   const [notOwner, setNotOwner] = useState(false); // number doesn't belong to the patient
   const [ownerName, setOwnerName] = useState("");
   const [ownerSex, setOwnerSex] = useState("");
@@ -214,12 +224,14 @@ function AddNewModal({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
+  const identity = identityInput(dob, age, sex);
+
   const save = async () => {
     if (!name.trim()) return setErr("Enter the patient's name.");
     setSaving(true); setErr("");
     try {
       if (!notOwner) {
-        const created = await patientsApi.create({ name: name.trim(), mobile: number });
+        const created = await patientsApi.create({ name: name.trim(), mobile: number, ...identity });
         onDone(created);
         return;
       }
@@ -227,7 +239,7 @@ function AddNewModal({
       if (!relation) { setErr("Select the owner's relationship to the patient."); setSaving(false); return; }
       // The treated patient — the number is a relative's, so store it as such.
       const patient = await patientsApi.create({
-        name: name.trim(), relativeMobile: number, relativeRelation: relation,
+        name: name.trim(), relativeMobile: number, relativeRelation: relation, ...identity,
       });
       // The number owner becomes a full patient on this number, linked both ways.
       await patientsApi.link({
@@ -249,6 +261,8 @@ function AddNewModal({
       <Field label="Name of the patient">
         <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" style={inputSm} />
       </Field>
+
+      <IdentityFields sex={sex} setSex={setSex} dob={dob} setDob={setDob} age={age} setAge={setAge} />
 
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", fontSize: 12, color: C.n[700] }}>
         <input type="checkbox" checked={notOwner} onChange={(e) => setNotOwner(e.target.checked)} style={{ accentColor: C.pri[400], width: 15, height: 15 }} />
@@ -282,6 +296,82 @@ function AddNewModal({
     </ModalShell>
   );
 }
+
+// ⚕️ Sex + date of birth / age, asked wherever a patient record is CREATED.
+//
+// Order is the product owner's (new corrections.docx #3): name, then sex, then
+// date of birth or age. These decide dosing and reference ranges, and a record
+// that starts blank on them tends to stay blank — the prescription header only
+// lets a doctor fill what is missing, it does not chase them for it.
+//
+// All three stay OPTIONAL: an unrecorded sex must stay unrecorded rather than
+// be guessed (see "never default a missing sex" in client/CLAUDE.md), and an
+// unknown age must not block the doctor from opening the prescription.
+//
+// Date of birth OR age, not both: a DOB is the better record because it stays
+// true, so when one is entered the age box shows what it computes to and stops
+// taking input — a manual age typed alongside a DOB would be saved and never
+// shown again (`displayAge` prefers the DOB), which is the trap PatientHeader
+// already documents.
+function IdentityFields({
+  sex, setSex, dob, setDob, age, setAge,
+}: {
+  sex: string; setSex: (v: string) => void;
+  dob: string; setDob: (v: string) => void;
+  age: string; setAge: (v: string) => void;
+}) {
+  const fromDob = ageFromDob(dob);
+  return (
+    <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+      <div style={{ flex: "0 0 130px" }}>
+        <div style={fieldLabel}>Sex</div>
+        <select value={sex} onChange={(e) => setSex(e.target.value)} style={{ ...inputSm, cursor: "pointer" }}>
+          <option value="">—</option>
+          <option>Male</option>
+          <option>Female</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div style={{ flex: "0 0 140px" }}>
+        <div style={fieldLabel}>Date of birth</div>
+        {/* Text entry, not a native picker: DDMMYY must work here the same as
+            everywhere else, and `past` puts an ambiguous 2-digit year in the
+            last century rather than the next one (030398 is 1998, not 2098). */}
+        <DateField
+          value={dob}
+          onChange={setDob}
+          futureAllowanceYears={YEAR_POLICY.past}
+          pastLabel="A date of birth"
+          allowEmpty
+        />
+      </div>
+      <div style={{ flex: "0 0 100px" }}>
+        <div style={fieldLabel}>Age</div>
+        <input
+          value={fromDob != null ? String(fromDob) : age}
+          onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
+          readOnly={fromDob != null}
+          inputMode="numeric"
+          placeholder="Years"
+          title={fromDob != null ? "Computed from the date of birth — clear the date to type an age." : undefined}
+          style={fromDob != null ? { ...inputSm, background: C.n[100], color: C.n[600] } : inputSm}
+        />
+        {fromDob != null && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Identity → the create/link payload. A DOB wins and the manual age is dropped
+ * (it would be dead data). A manual age is stamped with the year it was given
+ * in, so it auto-increments instead of freezing at the value typed today.
+ */
+const identityInput = (dob: string, age: string, sex: string) => {
+  if (dob) return { dob, sex: sex || undefined };
+  const n = age.trim() ? Number(age) : undefined;
+  return { age: n, ageAsOfYear: n != null ? new Date().getFullYear() : undefined, sex: sex || undefined };
+};
 
 // ── Small shared pieces ─────────────────────────────────────────────────────
 function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
