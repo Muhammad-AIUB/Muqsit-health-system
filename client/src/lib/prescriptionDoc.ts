@@ -267,11 +267,12 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   return `
   <div class="sheet">
     <table class="pagegrid"><tbody><tr><td class="pagebody">
-    <div class="head">
-      <div class="brand">
-        <div><h1>Muqsit Health System</h1></div>
-      </div>
-    </div>
+    <!-- No printed brand name here (2026-08-16). The top band is reserved for
+         the practice's own pre-printed letterhead (headerHeight in Prescription
+         settings), and a second name printed under it competed with it. What
+         stays is the rule that separates the letterhead from the patient
+         details. The footer brand bar is unaffected. -->
+    <div class="head"></div>
 
     <div class="pt">
       <div><span>Name:</span> <b>${esc(ptName || "—")}</b></div>
@@ -338,15 +339,9 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   @page { size: ${pageW} ${pageH}; margin: ${padT} ${padR} ${padB} ${padL}; }
   body { font-family: "DM Sans", Arial, sans-serif; color: #1a1a1a; margin: 0; background: #f0f0f0; }
   .sheet { background: #fff; width: ${pageW}; min-height: ${pageH}; margin: 16px auto; padding: ${padT} ${padR} ${padB} ${padL}; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
-  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1d9e75; padding-bottom: 12px; }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .logo { width: 40px; height: 40px; border-radius: 9px; background: #1d9e75; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
-  .brand h1 { font-size: 12px; margin: 0; color: #0f6e56; }
-  .brand p { margin: 4px 0 0; font-size: 10px; color: #6b6b6b; }
-  .byline { display: flex; align-items: center; gap: 6px; }
-  .exort { height: 26px; width: auto; display: block; }
-  .doctor { text-align: right; font-size: 12px; color: #333; }
-  .doctor b { font-size: 14px; color: #0f6e56; }
+  /* Empty by design — the rule under the (pre-printed) letterhead band. The
+     brand/logo/doctor rules that used to fill it went with the printed name. */
+  .head { border-bottom: 2px solid #1d9e75; }
   .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 12.5px; margin: 14px 0 6px; }
   .pt span { color: #6b6b6b; }
   .body { display: grid; grid-template-columns: 0.8fr 0.5px 1.6fr; gap: 0; margin-top: 10px; }

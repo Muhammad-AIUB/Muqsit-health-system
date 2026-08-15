@@ -157,4 +157,14 @@ describe("printed Rx markup", () => {
   it("pins every Rx cell against wrapping", () => {
     expect(buildPrescriptionHtml(doc(REPORTED))).toContain("white-space:nowrap");
   });
+
+  it("prints no brand name in the header — the band is the practice's letterhead", () => {
+    // Removed 2026-08-16 at the physician's request. Pinned so it cannot return.
+    const html = buildPrescriptionHtml({ ...doc(REPORTED), extraPrivacyPage: true });
+    expect(html).not.toContain("<h1>");
+    // The rule that separates the letterhead band from the patient details stays.
+    expect(html).toContain('<div class="head"></div>');
+    // The footer brand bar is a separate thing and is unaffected.
+    expect(html).toContain('class="bb-mhs"');
+  });
 });
