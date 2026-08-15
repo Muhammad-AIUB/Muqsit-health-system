@@ -49,6 +49,89 @@ export interface PrescriptionDoc {
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// ── The drug cell must print "form + name + strength" on ONE line ────────────
+// A doctor reads "Tablet. Barcavir 0.5 mg" as a single phrase, and a dispenser
+// reads the printed sheet the same way; broken across three lines it reads as
+// three separate things, which on a legal medical document is a real misread
+// risk, not a cosmetic one. The column is a fixed share of the page, so a long
+// name is fitted by stepping the font DOWN rather than wrapping.
+//
+// Below FLOOR_PX the line stops being legible, and an unreadable single line is
+// worse than two readable ones — so there, and only there, the cell wraps.
+// Nothing is ever truncated or allowed to overflow the printable width.
+const DRUG_COL_SHARE = 0.44;      // .rx-drug width, below
+const RX_COL_SHARE = 1.6 / 2.4;   // .body grid is 0.8fr / 0.5px / 1.6fr
+const RIGHT_PAD_PX = 18;          // .right padding-left
+const RX_NO_PX = 22;              // .rx-no fixed width
+const CELL_PAD_PX = 12;           // td padding, both sides
+const BASE_PX = 13;
+const FLOOR_PX = 8.5;
+// Leave a sliver for the printer's own rounding and font hinting.
+const FIT_SAFETY = 0.98;
+// Fallback only, for when canvas text metrics are unavailable: mean advance per
+// character of DM Sans / Arial bold, in em. Deliberately generous —
+// overestimating costs a slightly smaller font, underestimating costs an
+// overflow off the edge of the page.
+const EM_PER_CHAR = 0.58;
+
+// Real text metrics beat counting characters: "Tablet. Illlll 1 mg" and
+// "Tablet. Wmmmmm 1 mg" are the same length and nowhere near the same width, and
+// guessing wide shrinks a name that would have fitted. The sheet is built in the
+// doctor's browser, so a canvas is there to ask. Cached — this runs per drug
+// line, on every keystroke that rebuilds the preview.
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+export function measureDrugWidth(text: string, px: number): number | null {
+  if (measureCtx === undefined) {
+    try {
+      measureCtx = typeof document === "undefined"
+        ? null
+        : document.createElement("canvas").getContext("2d");
+    } catch {
+      measureCtx = null;
+    }
+  }
+  if (!measureCtx) return null;
+  measureCtx.font = `600 ${px}px "DM Sans", Arial, sans-serif`;
+  const w = measureCtx.measureText(text).width;
+  return Number.isFinite(w) && w > 0 ? w : null;
+}
+
+/** Usable width of the drug cell for this page setup, in CSS px. */
+export function drugCellWidthPx(page?: PrescriptionDoc["page"]): number {
+  const perUnit = (page?.unit ?? "in") === "cm" ? 37.8 : 96;
+  const num = (v: string | undefined, fallback: number) => {
+    const n = parseFloat(v ?? "");
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  const content = (num(page?.width, 8.27) - num(page?.marginLeft, 0.4) - num(page?.marginRight, 0.4)) * perUnit;
+  const table = content * RX_COL_SHARE - RIGHT_PAD_PX - RX_NO_PX;
+  return Math.max(60, table * DRUG_COL_SHARE - CELL_PAD_PX);
+}
+
+/**
+ * The font size that keeps `drug` on one line in a cell `cellPx` wide, and
+ * whether that cell may wrap (only when even FLOOR_PX cannot fit it).
+ * `measure` is injectable so this stays testable without a DOM.
+ */
+export function drugTextFit(
+  drug: string,
+  cellPx: number,
+  measure: (text: string, px: number) => number | null = measureDrugWidth,
+): { px: number; wrap: boolean } {
+  const text = drug.trim();
+  if (!text) return { px: BASE_PX, wrap: false };
+  const atBase = measure(text, BASE_PX);
+  // Text width scales linearly with font size within one family, so the size
+  // that just fits is BASE × (available / width-at-BASE).
+  const needed = atBase
+    ? (BASE_PX * cellPx * FIT_SAFETY) / atBase
+    : (cellPx * FIT_SAFETY) / (text.length * EM_PER_CHAR);
+  if (needed >= BASE_PX) return { px: BASE_PX, wrap: false };
+  if (needed < FLOOR_PX) return { px: FLOOR_PX, wrap: true };
+  // Round DOWN — rounding up is what puts the last character on line two.
+  return { px: Math.floor(needed * 10) / 10, wrap: false };
+}
+
 // Drug-history items carry storage prefixes — strip them for display.
 const cleanItem = (s: string) =>
   esc(s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "").replace(/\s+—\s+/g, "  ·  "));
@@ -87,6 +170,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
         .join("");
 
   let rxNo = 0;
+  const drugCellPx = drugCellWidthPx(d.page);
   const rxRows = d.rx
     .filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim())
     .map((r) => {
@@ -100,13 +184,17 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       }
       const isCont = !r.drug.trim();
       if (!isCont) rxNo += 1;
+      const fit = drugTextFit(r.drug, drugCellPx);
+      const drugStyle = isCont
+        ? ""
+        : ` style="font-size:${fit.px}px${fit.wrap ? "" : ";white-space:nowrap"}"`;
       return `
         <tr>
           <td class="rx-no">${isCont ? "" : rxNo + "."}</td>
-          <td class="rx-drug">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : esc(r.drug)}</td>
-          <td class="rx-mid">${esc(r.dose)}</td>
-          <td class="rx-mid">${esc(r.instruction)}</td>
-          <td class="rx-mid">${esc(r.duration)}</td>
+          <td class="rx-drug"${drugStyle}>${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : esc(r.drug)}</td>
+          <td class="rx-mid rx-dose">${esc(r.dose)}</td>
+          <td class="rx-mid rx-food">${esc(r.instruction)}</td>
+          <td class="rx-mid rx-dur">${esc(r.duration)}</td>
         </tr>`;
     })
     .join("");
@@ -224,8 +312,15 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   td { padding: 7px 6px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
   .rx-no { width: 22px; color: #999; font-size: 12px; }
-  .rx-drug { width: 25%; font-weight: 600; font-size: 13px; }
-  .rx-mid { width: 25%; font-size: 12.5px; color: #333; white-space: normal; }
+  /* The drug column takes the lion's share: form + name + strength is one
+     phrase and must print as one line (see drugTextFit). The other three carry
+     short values ("1+0+1", "After food", "7 days") and wrap harmlessly. Keep
+     these four adding up to 100% — table-layout is fixed. */
+  .rx-drug { width: 44%; font-weight: 600; font-size: 13px; }
+  .rx-mid { font-size: 12.5px; color: #333; white-space: normal; }
+  .rx-dose { width: 21%; }
+  .rx-food { width: 16%; }
+  .rx-dur { width: 19%; }
   .rx-note { font-size: 12.5px; color: #444; font-style: italic; }
   .followup { margin-top: 18px; font-size: 12.5px; }
   .followup b { color: #0f6e56; }
