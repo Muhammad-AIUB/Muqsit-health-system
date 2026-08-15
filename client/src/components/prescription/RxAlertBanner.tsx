@@ -31,11 +31,12 @@ export default function RxAlertBanner({ input }: { input: RxAlertInput }) {
           <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: 1.55 }}>
             <span style={{ color: C.warn[800], fontWeight: 600 }}>MHS is suggesting</span>{" "}
             <span style={{ color: C.n[900] }}>{a.message}</span>
-            {/* Why it fired. A doctor must be able to check the trigger, not
-                just trust the banner. */}
-            <div style={{ marginTop: 4, fontSize: 11, color: C.warn[600] }}>
-              Because: {a.evidence.map((e) => `${e.text} (${e.field})`).join(" + ")}
-            </div>
+            {/* The "Because: <drug line> + <sidebar entry>" line that used to sit
+                here was removed on 2026-08-16 at the physician's request: the
+                advice already names the drug and the condition, so the echo was
+                noise on a screen they read on every visit. `alert.evidence` is
+                still computed by the matcher — nothing on screen consumes it
+                today. Do not put it back as a "fix". */}
           </div>
         </div>
       ))}

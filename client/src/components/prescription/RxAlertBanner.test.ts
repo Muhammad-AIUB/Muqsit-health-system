@@ -35,8 +35,13 @@ describe("RxAlertBanner", () => {
     );
   });
 
-  it("prints the evidence line so the doctor can check the trigger", () => {
-    expect(render(PREGNANT_RX)).toContain("Because: Tab. Entecavir 0.5mg (℞) + 28wk Pregnant (History)");
+  it("does not echo the trigger back — only the rule's own wording renders", () => {
+    // The "Because: …" evidence line was removed on 2026-08-16 at the
+    // physician's request. Pinned so it does not creep back in.
+    const html = render(PREGNANT_RX);
+    expect(html).not.toContain("Because:");
+    expect(html).not.toContain("Tab. Entecavir 0.5mg");
+    expect(html).not.toContain("28wk Pregnant");
   });
 
   it("renders one block per distinct advice", () => {
@@ -49,15 +54,17 @@ describe("RxAlertBanner", () => {
     expect(html.match(/MHS is suggesting/g)).toHaveLength(2);
   });
 
-  it("escapes doctor-typed text rather than interpolating it as markup", () => {
-    // The evidence line echoes what was typed into the editor, and this string
-    // reaches a shared practice feed. React escapes it — assert that here.
+  it("never renders doctor-typed text, so typed markup cannot reach the banner", () => {
+    // With the evidence line gone the banner shows only rule-sheet wording, so
+    // nothing a doctor types is rendered at all. Assert the stronger property
+    // (not present) rather than the old one (present but escaped).
     const html = render({
       rxDrugs: [{ text: "entecavir <img src=x onerror=alert(1)>" }],
       sidebar: [{ label: "History", items: ["Pregnant"] }],
     });
+    expect(html).toContain("MHS is suggesting");
     expect(html).not.toContain("<img");
-    expect(html).toContain("&lt;img");
+    expect(html).not.toContain("&lt;img");
   });
 });
 
