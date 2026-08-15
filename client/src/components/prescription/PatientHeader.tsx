@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
 import { inputSm, fieldLabel } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
+import { useUpdatePatient } from "@/hooks/usePatients";
 import DateField from "@/components/common/DateField";
 import MobileLookupField from "./MobileLookupField";
 
@@ -28,11 +29,82 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
     locked ? { ...base, background: C.n[100], color: C.n[600], cursor: "not-allowed" } : base;
   const lockTitle = locked ? "Edit from Patient Settings" : undefined;
 
+  // ⚕️ Age and Sex are the exception to that lock, but only to FILL A BLANK.
+  //
+  // A patient the doctor is prescribing for must not be missing the two fields
+  // that decide dosing and reference ranges, and sending them to another screen
+  // for it is how a record stays blank. Overwriting a value another practice
+  // already recorded is a different act, and still goes through Patient
+  // Settings — the same patient is seen by several doctors.
+  //
+  // Captured when the patient loads, not derived per render, so the field does
+  // not re-lock under the doctor the moment they finish typing (and a typo
+  // stays correctable while the patient is open).
+  const updatePatient = useUpdatePatient();
+  const [fillable, setFillable] = useState({ age: false, sex: false });
+  const [saveErr, setSaveErr] = useState("");
+  useEffect(() => {
+    setFillable({
+      // A stored DOB wins over a manual age everywhere (`displayAge`), so if one
+      // exists this box must stay locked even when it renders blank — that
+      // happens when the DOB is unparseable or in the future. Typing an age
+      // there would save and then never show, which reads as a lost value. That
+      // record needs its DOB fixed in Patient Settings, where it is visible.
+      age: !ptAge.trim() && !ptInfo.dob,
+      sex: !ptGender.trim(),
+    });
+    setSaveErr("");
+    // Only on patient change — reading ptAge/ptGender here would re-lock on typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPatientId]);
+
+  const ageEditable = !locked || fillable.age;
+  const sexEditable = !locked || fillable.sex;
+
+  // Persist straight to the patient record. Nothing else writes these back from
+  // the header (the prescription save only sends them when it is CREATING the
+  // patient), so without this the doctor would type an age and lose it.
+  //
+  // Failures are shown, never swallowed: a silently dropped age reads on the
+  // next visit as "never recorded".
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistIdentity = (next: { age?: string; sex?: string }) => {
+    if (!currentPatientId) return; // a brand-new patient is created on save
+    const ageStr = next.age ?? ptAge;
+    const sexStr = next.sex ?? ptGender;
+    const ageNum = ageStr.trim() ? Number(ageStr) : null;
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      updatePatient
+        .mutateAsync({
+          id: currentPatientId,
+          input: {
+            age: ageNum,
+            // Stamp the year a manual age was recorded so it auto-increments.
+            ageAsOfYear: ageNum == null ? null : new Date().getFullYear(),
+            sex: sexStr || null,
+          },
+        })
+        .then(() => setSaveErr(""))
+        .catch((e: unknown) => setSaveErr(e instanceof Error ? e.message : "Could not save age/sex"));
+    }, 600);
+  };
+  useEffect(() => () => { if (persistTimer.current) clearTimeout(persistTimer.current); }, []);
+
   // Age / Sex are shared with the Patient Settings form (ptInfo). Mirror header
   // edits into ptInfo so the two views always show the same value.
   // Editing age here clears any DOB (manual age overrides DOB).
-  const onAge = (v: string) => { const a = v.replace(/\D/g, "").slice(0, 3); setPtAge(a); setPtInfo((p) => ({ ...p, age: a, dob: "" })); };
-  const onGender = (v: string) => { setPtGender(v); setPtInfo((p) => ({ ...p, sex: v })); };
+  const onAge = (v: string) => {
+    const a = v.replace(/\D/g, "").slice(0, 3);
+    setPtAge(a);
+    setPtInfo((p) => ({ ...p, age: a, dob: "" }));
+    persistIdentity({ age: a });
+  };
+  const onGender = (v: string) => {
+    setPtGender(v);
+    setPtInfo((p) => ({ ...p, sex: v }));
+    persistIdentity({ sex: v });
+  };
 
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: mobile ? 10 : 14, marginBottom: mobile ? 10 : 14 }}>
@@ -54,12 +126,18 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           </div>
         </div>
         <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
-        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
+        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={ageEditable ? inputSm : lk(inputSm)} readOnly={!ageEditable} title={ageEditable ? (locked ? "Not recorded yet — type it here" : undefined) : lockTitle} /></div>
         {/* "Sex", not "Gender": same field as Patient Settings and the IPD header,
             same column (`Patient.sex`), and the term the clinical use actually
             wants. Two names for one field is how the two screens drifted apart. */}
         <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Sex</label>
-          <select value={ptGender} onChange={(e) => onGender(e.target.value)} disabled={locked} title={lockTitle} style={lk({ ...inputSm, padding: "6px 6px", cursor: locked ? "not-allowed" : "pointer" })}>
+          <select
+            value={ptGender}
+            onChange={(e) => onGender(e.target.value)}
+            disabled={!sexEditable}
+            title={sexEditable ? (locked ? "Not recorded yet — set it here" : undefined) : lockTitle}
+            style={sexEditable ? { ...inputSm, padding: "6px 6px", cursor: "pointer" } : lk({ ...inputSm, padding: "6px 6px", cursor: "not-allowed" })}
+          >
             <option value="">—</option>
             <option>Male</option>
             <option>Female</option>
@@ -101,6 +179,13 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           </label>
         </div>
       </div>
+      {/* An age or sex that failed to save must say so — silently dropped, it
+          reads on the next visit as "never recorded". */}
+      {saveErr && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 6, padding: "6px 10px" }}>
+          Age/Sex not saved: {saveErr}
+        </div>
+      )}
     </div>
   );
 }

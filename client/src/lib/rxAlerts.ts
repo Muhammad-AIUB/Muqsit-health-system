@@ -35,8 +35,13 @@ export const CONDITION_FIELDS = [
   "Provisional diagnosis",
   "Associated illness",
   "Final diagnosis",
-  // IPD (IpdDetailView)
+  // IPD (IpdDetailView). "Sign" and "Symptoms" are what the ward sheet calls
+  // the two complaint lists since 2026-08-15; "Chief Complaints" was the old
+  // name for the first of them and matches the OPD entry above
+  // case-insensitively, so admissions written before the rename stay covered.
   "Diagnosis",
+  "Sign",
+  "Symptoms",
   "Plan",
 ] as const;
 
@@ -56,6 +61,19 @@ export interface RxAlert {
   evidence: AlertEvidence[];
 }
 
+export interface RxAlertCheck {
+  alerts: RxAlert[];
+  /**
+   * How many stored values could not be read as text. Non-zero means the rules
+   * ran against an incomplete picture, and the banner has to SAY so.
+   *
+   * A silent zero-alert result is indistinguishable from "no contraindication",
+   * which is exactly the false reassurance this feature exists to prevent — so
+   * an unreadable value is surfaced, never swallowed.
+   */
+  unreadable: number;
+}
+
 export interface RxAlertInput {
   /** One entry per medicine line in the ℞ pad. */
   rxDrugs: { text: string; generic?: string }[];
@@ -70,6 +88,89 @@ export interface RxAlertInput {
    * reading alerts is the failure this feature exists to prevent.
    */
   drugHistory?: { entries: string[]; visitDate: string };
+}
+
+// ── Reading stored data that may not match its type ─────────
+//
+// `RxAlertInput` describes what the editor is SUPPOSED to hand over, but the
+// values behind it come out of JSON columns and localStorage drafts written by
+// older builds, so a field typed `string` can arrive as null, a number, or
+// missing. TypeScript cannot catch that — the values are cast, not validated
+// (`setRxItems(d.rxItems as RxItem[])` in MuqsitContext).
+//
+// This matcher must therefore be TOTAL. It runs during the render of the
+// prescription editor, so an exception here does not lose an alert — it blanks
+// the entire screen a doctor prescribes through. Coerce here, in one place, so
+// the clinical matching below stays readable and works on plain strings.
+//
+// Degrade as little as possible: one unreadable row is skipped, the rest of
+// the record is still checked, and the count is reported so the doctor is told
+// the check was partial rather than being shown a reassuring blank.
+const isStr = (v: unknown): v is string => typeof v === "string";
+
+interface Normalised {
+  rxDrugs: { text: string; generic?: string }[];
+  sidebar: { label: string; items: string[] }[];
+  history: { entries: string[]; visitDate: string } | null;
+  unreadable: number;
+}
+
+function normalise(raw: RxAlertInput): Normalised {
+  let unreadable = 0;
+  const rxDrugs: Normalised["rxDrugs"] = [];
+  const sidebar: Normalised["sidebar"] = [];
+
+  const rawRx: unknown = raw?.rxDrugs;
+  if (Array.isArray(rawRx)) {
+    for (const d of rawRx as unknown[]) {
+      if (!d || typeof d !== "object") { unreadable += 1; continue; }
+      const { text, generic } = d as { text?: unknown; generic?: unknown };
+      // A line keeps whichever half is readable: a broken brand string still
+      // matches a rule through its generic, and vice versa.
+      let ok = false;
+      const entry: { text: string; generic?: string } = { text: "" };
+      if (isStr(text)) { entry.text = text; ok = true; } else unreadable += 1;
+      if (generic != null) {
+        if (isStr(generic)) { entry.generic = generic; ok = true; } else unreadable += 1;
+      }
+      if (ok) rxDrugs.push(entry);
+    }
+  } else if (rawRx != null) unreadable += 1;
+
+  const rawSidebar: unknown = raw?.sidebar;
+  if (Array.isArray(rawSidebar)) {
+    for (const f of rawSidebar as unknown[]) {
+      if (!f || typeof f !== "object") { unreadable += 1; continue; }
+      const { label, items } = f as { label?: unknown; items?: unknown };
+      if (!isStr(label)) { unreadable += 1; continue; }
+      if (!Array.isArray(items)) { if (items != null) unreadable += 1; continue; }
+      const clean: string[] = [];
+      for (const it of items as unknown[]) {
+        if (isStr(it)) clean.push(it);
+        else unreadable += 1;
+      }
+      sidebar.push({ label, items: clean });
+    }
+  } else if (rawSidebar != null) unreadable += 1;
+
+  let history: Normalised["history"] = null;
+  const rawHx: unknown = raw?.drugHistory;
+  if (rawHx && typeof rawHx === "object") {
+    const { entries, visitDate } = rawHx as { entries?: unknown; visitDate?: unknown };
+    const clean: string[] = [];
+    if (Array.isArray(entries)) {
+      for (const e of entries as unknown[]) {
+        if (isStr(e)) clean.push(e);
+        else unreadable += 1;
+      }
+    } else if (entries != null) unreadable += 1;
+    // A blank visit date is a legitimately empty header field, not bad data;
+    // it simply means no history entry can count as current.
+    if (visitDate != null && !isStr(visitDate)) unreadable += 1;
+    history = { entries: clean, visitDate: isStr(visitDate) ? visitDate : "" };
+  } else if (rawHx != null) unreadable += 1;
+
+  return { rxDrugs, sidebar, history, unreadable };
 }
 
 /** A drug the patient is on, from either source, with where it came from. */
@@ -105,12 +206,12 @@ function mentions(haystack: string, term: string): boolean {
 }
 
 /** Everything the patient is on: this prescription first, then current history. */
-function drugPool(input: RxAlertInput): DrugSource[] {
+function drugPool(input: Normalised): DrugSource[] {
   const pool: DrugSource[] = input.rxDrugs
     .filter((d) => d.text.trim() || d.generic)
     .map((d) => ({ text: d.text.trim(), generic: d.generic, field: "℞", fromRx: true }));
 
-  const hx = input.drugHistory;
+  const hx = input.history;
   if (hx) {
     for (const m of drugMentions(hx.entries, hx.visitDate)) {
       if (m.date !== hx.visitDate) continue; // distant past — see RxAlertInput
@@ -129,7 +230,7 @@ function findDrugIn(pool: DrugSource[], terms: string[]): number {
 const evidenceOf = (d: DrugSource): AlertEvidence => ({ field: d.field, text: d.text || (d.generic ?? "") });
 
 /** First sidebar entry matching any of `terms`, restricted to condition fields. */
-function findCondition(sidebar: RxAlertInput["sidebar"], terms: string[]): AlertEvidence | null {
+function findCondition(sidebar: Normalised["sidebar"], terms: string[]): AlertEvidence | null {
   for (const f of sidebar) {
     if (!CONDITION_FIELD_SET.has(f.label.toLowerCase())) continue;
     for (const raw of f.items) {
@@ -141,7 +242,7 @@ function findCondition(sidebar: RxAlertInput["sidebar"], terms: string[]): Alert
   return null;
 }
 
-function matchRule(rule: RxAlertRule, pool: DrugSource[], input: RxAlertInput): AlertEvidence[] | null {
+function matchRule(rule: RxAlertRule, pool: DrugSource[], input: Normalised): AlertEvidence[] | null {
   if (rule.kind === "drug-condition") {
     // Condition rules read the prescription only. The trigger is the act of
     // prescribing the drug to a patient who has the condition.
@@ -163,7 +264,15 @@ function matchRule(rule: RxAlertRule, pool: DrugSource[], input: RxAlertInput): 
   return [evidenceOf(pool[a]), evidenceOf(pool[b])];
 }
 
-export function findRxAlerts(input: RxAlertInput): RxAlert[] {
+/**
+ * Run every rule against the editor's current state.
+ *
+ * Never throws. Anything it cannot read is skipped and counted in
+ * `unreadable` — see the note on `RxAlertCheck` for why that count must reach
+ * the doctor instead of being absorbed into a clean-looking empty result.
+ */
+export function checkRxAlerts(raw: RxAlertInput): RxAlertCheck {
+  const input = normalise(raw);
   const out: RxAlert[] = [];
   const seen = new Set<string>();
   const pool = drugPool(input);
@@ -186,5 +295,10 @@ export function findRxAlerts(input: RxAlertInput): RxAlert[] {
     out.push({ id: `${rule.drug}|${key}`, message: rule.message, evidence });
   }
 
-  return out;
+  return { alerts: out, unreadable: input.unreadable };
+}
+
+/** The alerts alone, for callers that do not render the "partial check" notice. */
+export function findRxAlerts(input: RxAlertInput): RxAlert[] {
+  return checkRxAlerts(input).alerts;
 }

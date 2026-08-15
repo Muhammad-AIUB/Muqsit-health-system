@@ -10,4 +10,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  // The app's tsconfig sets jsx="preserve" and hands JSX to Next, which uses
+  // React's automatic runtime. esbuild would otherwise fall back to the classic
+  // transform and emit bare `React.createElement` into files that never import
+  // React — "React is not defined" at render time, in tests only.
+  esbuild: { jsx: "automatic" },
 });
