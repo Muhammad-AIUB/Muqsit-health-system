@@ -49,38 +49,45 @@ export interface PrescriptionDoc {
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// ── The drug cell must print "form + name + strength" on ONE line ────────────
-// A doctor reads "Tablet. Barcavir 0.5 mg" as a single phrase, and a dispenser
+// ── Rx table: every cell on ONE line, one type size for the whole sheet ──────
+// A doctor reads "Tablet. Barcavir 0.5 mg" as a single phrase and a dispenser
 // reads the printed sheet the same way; broken across three lines it reads as
-// three separate things, which on a legal medical document is a real misread
-// risk, not a cosmetic one. The column is a fixed share of the page, so a long
-// name is fitted by stepping the font DOWN rather than wrapping.
+// three separate things, which on a legal medical document is a misread risk,
+// not a cosmetic one. The same is true of a dose like "2-4tsf at night if
+// constipation".
+//
+// So the columns are not fixed percentages. Each one is measured against the
+// widest thing it actually has to carry and given exactly that share of the
+// row, which is what stops an empty "food" column from holding width the dose
+// column needs. If the four together still do not fit, ALL of them step down by
+// the same factor — a sheet where one medicine prints smaller than the next
+// reads as emphasis nobody intended, so the size is uniform per sheet.
 //
 // Below FLOOR_PX the line stops being legible, and an unreadable single line is
-// worse than two readable ones — so there, and only there, the cell wraps.
-// Nothing is ever truncated or allowed to overflow the printable width.
-const DRUG_COL_SHARE = 0.44;      // .rx-drug width, below
+// worse than two readable ones — so there, and only there, cells may wrap.
+// Nothing is ever truncated or allowed past the printable width.
 const RX_COL_SHARE = 1.6 / 2.4;   // .body grid is 0.8fr / 0.5px / 1.6fr
 const RIGHT_PAD_PX = 18;          // .right padding-left
 const RX_NO_PX = 22;              // .rx-no fixed width
 const CELL_PAD_PX = 12;           // td padding, both sides
-const BASE_PX = 13;
+const DRUG_BASE_PX = 13;
+const MID_BASE_PX = 12.5;
 const FLOOR_PX = 8.5;
 // Leave a sliver for the printer's own rounding and font hinting.
 const FIT_SAFETY = 0.98;
 // Fallback only, for when canvas text metrics are unavailable: mean advance per
-// character of DM Sans / Arial bold, in em. Deliberately generous —
-// overestimating costs a slightly smaller font, underestimating costs an
-// overflow off the edge of the page.
+// character of DM Sans / Arial, in em. Deliberately generous — overestimating
+// costs a slightly smaller sheet, underestimating costs an overflow off the
+// edge of the page.
 const EM_PER_CHAR = 0.58;
 
 // Real text metrics beat counting characters: "Tablet. Illlll 1 mg" and
 // "Tablet. Wmmmmm 1 mg" are the same length and nowhere near the same width, and
 // guessing wide shrinks a name that would have fitted. The sheet is built in the
-// doctor's browser, so a canvas is there to ask. Cached — this runs per drug
-// line, on every keystroke that rebuilds the preview.
+// doctor's browser, so a canvas is there to ask. Cached — this runs per line on
+// every rebuild of the preview.
 let measureCtx: CanvasRenderingContext2D | null | undefined;
-export function measureDrugWidth(text: string, px: number): number | null {
+export function measureRxText(text: string, px: number, bold: boolean): number | null {
   if (measureCtx === undefined) {
     try {
       measureCtx = typeof document === "undefined"
@@ -91,45 +98,83 @@ export function measureDrugWidth(text: string, px: number): number | null {
     }
   }
   if (!measureCtx) return null;
-  measureCtx.font = `600 ${px}px "DM Sans", Arial, sans-serif`;
+  measureCtx.font = `${bold ? 600 : 400} ${px}px "DM Sans", Arial, sans-serif`;
   const w = measureCtx.measureText(text).width;
   return Number.isFinite(w) && w > 0 ? w : null;
 }
 
-/** Usable width of the drug cell for this page setup, in CSS px. */
-export function drugCellWidthPx(page?: PrescriptionDoc["page"]): number {
+/** Width available to the Rx data columns (everything right of the number). */
+export function rxTableInnerPx(page?: PrescriptionDoc["page"]): number {
   const perUnit = (page?.unit ?? "in") === "cm" ? 37.8 : 96;
   const num = (v: string | undefined, fallback: number) => {
     const n = parseFloat(v ?? "");
     return Number.isFinite(n) && n > 0 ? n : fallback;
   };
   const content = (num(page?.width, 8.27) - num(page?.marginLeft, 0.4) - num(page?.marginRight, 0.4)) * perUnit;
-  const table = content * RX_COL_SHARE - RIGHT_PAD_PX - RX_NO_PX;
-  return Math.max(60, table * DRUG_COL_SHARE - CELL_PAD_PX);
+  return Math.max(160, content * RX_COL_SHARE - RIGHT_PAD_PX - RX_NO_PX);
+}
+
+export interface RxColumnLayout {
+  /** Column widths in px, in render order: drug, dose, [food], duration. */
+  cols: number[];
+  /** False when no line carries a food/instruction value — that column is dropped. */
+  hasFood: boolean;
+  /** One drug size for the whole sheet. */
+  drugPx: number;
+  /** One size for dose / food / duration. */
+  midPx: number;
+  /** True only when even FLOOR_PX could not fit; cells wrap rather than overflow. */
+  wrap: boolean;
 }
 
 /**
- * The font size that keeps `drug` on one line in a cell `cellPx` wide, and
- * whether that cell may wrap (only when even FLOOR_PX cannot fit it).
+ * Share the Rx row out by what each column actually has to carry.
  * `measure` is injectable so this stays testable without a DOM.
  */
-export function drugTextFit(
-  drug: string,
-  cellPx: number,
-  measure: (text: string, px: number) => number | null = measureDrugWidth,
-): { px: number; wrap: boolean } {
-  const text = drug.trim();
-  if (!text) return { px: BASE_PX, wrap: false };
-  const atBase = measure(text, BASE_PX);
-  // Text width scales linearly with font size within one family, so the size
-  // that just fits is BASE × (available / width-at-BASE).
-  const needed = atBase
-    ? (BASE_PX * cellPx * FIT_SAFETY) / atBase
-    : (cellPx * FIT_SAFETY) / (text.length * EM_PER_CHAR);
-  if (needed >= BASE_PX) return { px: BASE_PX, wrap: false };
-  if (needed < FLOOR_PX) return { px: FLOOR_PX, wrap: true };
-  // Round DOWN — rounding up is what puts the last character on line two.
-  return { px: Math.floor(needed * 10) / 10, wrap: false };
+export function layoutRxColumns(
+  rows: RxLine[],
+  innerPx: number,
+  measure: (text: string, px: number, bold: boolean) => number | null = measureRxText,
+): RxColumnLayout {
+  const lines = rows.filter((r) => !r.isNote);
+  const hasFood = lines.some((r) => r.instruction.trim());
+  const nCols = hasFood ? 4 : 3;
+  const avail = Math.max(60, innerPx - CELL_PAD_PX * nCols) * FIT_SAFETY;
+
+  const width = (text: string, base: number, bold: boolean) => {
+    const t = text.trim();
+    if (!t) return 0;
+    return measure(t, base, bold) ?? t.length * base * EM_PER_CHAR;
+  };
+  const widest = (pick: (r: RxLine) => string, base: number, bold: boolean) =>
+    lines.reduce((mx, r) => Math.max(mx, width(pick(r), base, bold)), 0);
+
+  // A column with no content still needs a sliver, or the header row collapses
+  // and the remaining columns jump around between prescriptions.
+  const MIN = 24;
+  const nat = [
+    Math.max(MIN, widest((r) => r.drug, DRUG_BASE_PX, true)),
+    Math.max(MIN, widest((r) => r.dose, MID_BASE_PX, false)),
+    ...(hasFood ? [Math.max(MIN, widest((r) => r.instruction, MID_BASE_PX, false))] : []),
+    Math.max(MIN, widest((r) => r.duration, MID_BASE_PX, false)),
+  ];
+  const sum = nat.reduce((a, b) => a + b, 0);
+
+  // Fonts only ever shrink: a short prescription must not print in giant type
+  // just because there is room. Widths always fill the row.
+  let scale = Math.min(1, avail / sum);
+  let wrap = false;
+  const floorScale = FLOOR_PX / DRUG_BASE_PX;
+  if (scale < floorScale) { scale = floorScale; wrap = true; }
+
+  const round1 = (n: number) => Math.floor(n * 10) / 10;
+  return {
+    cols: nat.map((w) => Math.floor((w / sum) * avail) + CELL_PAD_PX),
+    hasFood,
+    drugPx: round1(Math.max(FLOOR_PX, DRUG_BASE_PX * scale)),
+    midPx: round1(Math.max(FLOOR_PX, MID_BASE_PX * scale)),
+    wrap,
+  };
 }
 
 // Drug-history items carry storage prefixes — strip them for display.
@@ -170,31 +215,35 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
         .join("");
 
   let rxNo = 0;
-  const drugCellPx = drugCellWidthPx(d.page);
-  const rxRows = d.rx
-    .filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim())
+  const rxLines = d.rx.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim());
+  const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page));
+  // One nowrap for the whole table — a sheet where one medicine prints smaller
+  // or wraps and the next does not reads as emphasis nobody intended.
+  const nowrap = lay.wrap ? "" : "white-space:nowrap;";
+  const noteSpan = lay.hasFood ? 4 : 3;
+  const rxCols = `<colgroup><col style="width:${RX_NO_PX}px" />${lay.cols
+    .map((w) => `<col style="width:${w}px" />`)
+    .join("")}</colgroup>`;
+  const rxRows = rxLines
     .map((r) => {
       // Free-typed instruction line — span the whole width, italic, no number.
       if (r.isNote) {
         return `
         <tr>
           <td class="rx-no"></td>
-          <td class="rx-note" colspan="4">${esc(r.drug)}</td>
+          <td class="rx-note" colspan="${noteSpan}">${esc(r.drug)}</td>
         </tr>`;
       }
       const isCont = !r.drug.trim();
       if (!isCont) rxNo += 1;
-      const fit = drugTextFit(r.drug, drugCellPx);
-      const drugStyle = isCont
-        ? ""
-        : ` style="font-size:${fit.px}px${fit.wrap ? "" : ";white-space:nowrap"}"`;
+      const mid = ` style="font-size:${lay.midPx}px;${nowrap}"`;
       return `
         <tr>
           <td class="rx-no">${isCont ? "" : rxNo + "."}</td>
-          <td class="rx-drug"${drugStyle}>${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : esc(r.drug)}</td>
-          <td class="rx-mid rx-dose">${esc(r.dose)}</td>
-          <td class="rx-mid rx-food">${esc(r.instruction)}</td>
-          <td class="rx-mid rx-dur">${esc(r.duration)}</td>
+          <td class="rx-drug" style="font-size:${lay.drugPx}px;${nowrap}">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : esc(r.drug)}</td>
+          <td class="rx-mid"${mid}>${esc(r.dose)}</td>
+          ${lay.hasFood ? `<td class="rx-mid"${mid}>${esc(r.instruction)}</td>` : ""}
+          <td class="rx-mid"${mid}>${esc(r.duration)}</td>
         </tr>`;
     })
     .join("");
@@ -238,7 +287,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       <div class="divider"></div>
       <div class="right">
         <div class="rx-symbol">℞</div>
-        ${rxRows ? `<table>${rxRows}</table>` : '<p style="font-size:12.5px;color:#999">No medicines added.</p>'}
+        ${rxRows ? `<table>${rxCols}${rxRows}</table>` : '<p style="font-size:12.5px;color:#999">No medicines added.</p>'}
         ${adviceBlock}
         ${listBlock("Advised tests / investigation", d.adviceTest)}
         ${d.followUp ? `<div class="followup">Follow-up: <b>${esc(d.followUp)}</b></div>` : ""}
@@ -312,15 +361,12 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   td { padding: 7px 6px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
   .rx-no { width: 22px; color: #999; font-size: 12px; }
-  /* The drug column takes the lion's share: form + name + strength is one
-     phrase and must print as one line (see drugTextFit). The other three carry
-     short values ("1+0+1", "After food", "7 days") and wrap harmlessly. Keep
-     these four adding up to 100% — table-layout is fixed. */
-  .rx-drug { width: 44%; font-weight: 600; font-size: 13px; }
-  .rx-mid { font-size: 12.5px; color: #333; white-space: normal; }
-  .rx-dose { width: 21%; }
-  .rx-food { width: 16%; }
-  .rx-dur { width: 19%; }
+  /* Column widths and the two font sizes are computed per sheet and emitted as
+     a <colgroup> plus inline styles (see layoutRxColumns) — measured against
+     what each column actually carries, so an empty "food" column holds no width
+     the dose column needs. Do not put percentage widths back here. */
+  .rx-drug { font-weight: 600; }
+  .rx-mid { color: #333; }
   .rx-note { font-size: 12.5px; color: #444; font-style: italic; }
   .followup { margin-top: 18px; font-size: 12.5px; }
   .followup b { color: #0f6e56; }

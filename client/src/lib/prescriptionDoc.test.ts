@@ -1,102 +1,160 @@
 import { describe, expect, it } from "vitest";
-import { buildPrescriptionHtml, drugCellWidthPx, drugTextFit, type PrescriptionDoc } from "./prescriptionDoc";
+import {
+  buildPrescriptionHtml,
+  layoutRxColumns,
+  rxTableInnerPx,
+  type PrescriptionDoc,
+  type RxLine,
+} from "./prescriptionDoc";
 
-// ⚕️ The printed sheet is the legal record. These pin the one rule a dispenser
-// depends on: a medicine's form, name and strength print as ONE line. Measured
-// against a real browser on 2026-08-16 — an A4 sheet gives the drug cell 181px
-// of usable width, and "Tablet. Barcavir 0.5 mg" draws 141px at 13px.
+// ⚕️ The printed sheet is the legal record. These pin the two rules a dispenser
+// depends on: every cell prints on ONE line, and the whole sheet prints at ONE
+// type size (a medicine set smaller than its neighbour reads as emphasis nobody
+// intended). Cross-checked against a real browser on 2026-08-16: an A4 sheet
+// leaves 438px for the Rx data columns.
 
 // Stand-in for canvas metrics (vitest has no DOM). Linear in font size, like
-// real text, at the ~0.47em/char DM Sans bold actually measures.
-const fakeMeasure = (t: string, px: number) => t.length * px * 0.47;
+// real text, near the ~0.47em/char DM Sans actually measures; bold a shade wider.
+const fakeMeasure = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.5 : 0.47);
 
-const A4_CELL = 181;
+const A4_INNER = 438;
+const line = (drug: string, dose = "1+0+0", duration = "5 days", instruction = ""): RxLine =>
+  ({ drug, dose, duration, instruction });
 
-describe("drugCellWidthPx", () => {
-  it("matches the browser-measured A4 cell", () => {
-    // Default page: 8.27in wide, 0.4in margins.
-    expect(Math.round(drugCellWidthPx(undefined))).toBe(A4_CELL);
+const REPORTED = [
+  line("Tablet. Barcavir 0.5 mg", "1+0+0", "Continue"),
+  line("Tablet. Napa 500 mg", "1+1+1", "5 days"),
+  line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night if constipation", ""),
+  line("Tablet. Bicozin N/A", "1+0+0", "Continue"),
+  line("Capsule. Denvar 400 mg", "1+0+1", "7 days"),
+];
+
+describe("rxTableInnerPx", () => {
+  it("matches the browser-measured A4 width", () => {
+    expect(Math.round(rxTableInnerPx(undefined))).toBe(A4_INNER);
   });
 
   it("tracks a narrower page and wider margins", () => {
-    const narrow = drugCellWidthPx({
+    const narrow = rxTableInnerPx({
       unit: "in", width: "6", height: "9",
       marginLeft: "0.75", marginRight: "0.75", headerHeight: "0.5", footerHeight: "0.5",
     });
-    expect(narrow).toBeLessThan(A4_CELL);
-    expect(narrow).toBeGreaterThan(60);
+    expect(narrow).toBeLessThan(A4_INNER);
+    expect(narrow).toBeGreaterThan(160);
   });
 
-  it("handles cm and never returns a unusable width for junk settings", () => {
-    expect(drugCellWidthPx({
+  it("handles cm, and never returns an unusable width for junk settings", () => {
+    expect(rxTableInnerPx({
       unit: "cm", width: "21", height: "29.7",
       marginLeft: "1", marginRight: "1", headerHeight: "1", footerHeight: "1",
-    })).toBeGreaterThan(100);
-    expect(drugCellWidthPx({
+    })).toBeGreaterThan(300);
+    expect(rxTableInnerPx({
       unit: "in", width: "", height: "", marginLeft: "-3", marginRight: "abc",
       headerHeight: "", footerHeight: "",
-    })).toBeGreaterThanOrEqual(60);
+    })).toBeGreaterThanOrEqual(160);
   });
 });
 
-describe("drugTextFit", () => {
-  it("leaves a normal medicine at full size, on one line", () => {
-    const fit = drugTextFit("Tablet. Barcavir 0.5 mg", A4_CELL, fakeMeasure);
-    expect(fit).toEqual({ px: 13, wrap: false });
+describe("layoutRxColumns", () => {
+  it("drops the food column when no line carries one, and keeps it when one does", () => {
+    expect(layoutRxColumns(REPORTED, A4_INNER, fakeMeasure)).toMatchObject({ hasFood: false });
+    expect(layoutRxColumns(REPORTED, A4_INNER, fakeMeasure).cols).toHaveLength(3);
+
+    const withFood = layoutRxColumns(
+      [...REPORTED, line("Tablet. Napa 500 mg", "1+1+1", "5 days", "After food")],
+      A4_INNER, fakeMeasure,
+    );
+    expect(withFood.hasFood).toBe(true);
+    expect(withFood.cols).toHaveLength(4);
   });
 
-  it("steps the font down instead of wrapping a long medicine", () => {
-    const fit = drugTextFit("Oral Solution. Avolac 3.35 gm/5 ml", A4_CELL, fakeMeasure);
-    expect(fit.wrap).toBe(false);
-    expect(fit.px).toBeLessThan(13);
-    expect(fit.px).toBeGreaterThanOrEqual(8.5);
-    // and the chosen size actually fits
-    expect(fakeMeasure("Oral Solution. Avolac 3.35 gm/5 ml", fit.px)).toBeLessThanOrEqual(A4_CELL);
+  it("gives the reported prescription one size for every medicine, on one line", () => {
+    const lay = layoutRxColumns(REPORTED, A4_INNER, fakeMeasure);
+    expect(lay.wrap).toBe(false);
+    // Uniform by construction: one drugPx for the sheet, not one per row.
+    expect(lay.drugPx).toBeGreaterThanOrEqual(8.5);
+    // Widest drug fits its column.
+    const widest = Math.max(...REPORTED.map((r) => fakeMeasure(r.drug, lay.drugPx, true)));
+    expect(widest).toBeLessThanOrEqual(lay.cols[0] - 12);
   });
 
-  it("never goes below the legibility floor — it wraps instead", () => {
-    const fit = drugTextFit("Suspension. Amoxicillin + Clavulanic acid 457 mg/5 ml pediatric drops", A4_CELL, fakeMeasure);
-    expect(fit.px).toBe(8.5);
-    expect(fit.wrap).toBe(true);
+  it("fits the long dose on one line by giving it the empty food column's width", () => {
+    const lay = layoutRxColumns(REPORTED, A4_INNER, fakeMeasure);
+    const dose = fakeMeasure("2-4tsf at night if constipation", lay.midPx, false);
+    expect(dose).toBeLessThanOrEqual(lay.cols[1] - 12);
   });
 
-  it("falls back to a character estimate when canvas metrics are unavailable", () => {
-    const fit = drugTextFit("Tablet. Barcavir 0.5 mg", A4_CELL, () => null);
-    expect(fit.wrap).toBe(false);
-    expect(fit.px).toBeGreaterThan(8.5);
+  it("never sets type larger than the base size when there is room to spare", () => {
+    const lay = layoutRxColumns([line("Tab. A", "1", "1d")], A4_INNER, fakeMeasure);
+    expect(lay.drugPx).toBe(13);
+    expect(lay.midPx).toBe(12.5);
+    // Widths still fill the row rather than leaving a ragged right edge.
+    expect(lay.cols.reduce((a, b) => a + b, 0)).toBeGreaterThan(A4_INNER * 0.9);
   });
 
-  it("treats a blank drug (a tapering continuation row) as full size", () => {
-    expect(drugTextFit("   ", A4_CELL, fakeMeasure)).toEqual({ px: 13, wrap: false });
+  it("shrinks every column by the same factor when the row is over-full", () => {
+    const lay = layoutRxColumns(
+      [line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night if constipation", "Continue")],
+      A4_INNER, fakeMeasure,
+    );
+    expect(lay.drugPx).toBeLessThan(13);
+    expect(lay.midPx).toBeLessThan(12.5);
+    // Same factor, so the ratio of the two base sizes is preserved.
+    expect(lay.drugPx / lay.midPx).toBeCloseTo(13 / 12.5, 1);
+  });
+
+  it("stops at the legibility floor and wraps rather than printing unreadably", () => {
+    const lay = layoutRxColumns(
+      [line("Suspension. Amoxicillin + Clavulanic acid 457 mg/5 ml pediatric oral drops",
+        "2-4 teaspoonful at night only if constipation persists after meals", "Continue until reviewed")],
+      A4_INNER, fakeMeasure,
+    );
+    expect(lay.drugPx).toBe(8.5);
+    expect(lay.wrap).toBe(true);
+  });
+
+  it("stays inside the row when canvas metrics are unavailable", () => {
+    const lay = layoutRxColumns(REPORTED, A4_INNER, () => null);
+    expect(lay.cols.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(A4_INNER);
+    expect(lay.drugPx).toBeGreaterThanOrEqual(8.5);
+  });
+
+  it("never lets the columns overflow the row, for any of these shapes", () => {
+    for (const rows of [REPORTED, [line("A")], [...REPORTED, line("X", "1", "2d", "After food")]]) {
+      const lay = layoutRxColumns(rows, A4_INNER, fakeMeasure);
+      expect(lay.cols.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(A4_INNER);
+    }
   });
 });
 
 describe("printed Rx markup", () => {
-  const doc: PrescriptionDoc = {
+  const doc = (rx: RxLine[]): PrescriptionDoc => ({
     doctorName: "Dr Test",
     patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "16/08/2026", phone: "01700000000" },
-    clinical: [],
-    rx: [
-      { drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "After food" },
-      { drug: "", dose: "1+0+0", duration: "3 days", instruction: "" },
-    ],
-    advice: [], adviceTest: [], followUp: "",
-  };
-
-  it("gives the drug cell the widest share and keeps the columns at 100%", () => {
-    const html = buildPrescriptionHtml(doc);
-    expect(html).toContain(".rx-drug { width: 44%");
-    expect(html).toContain(".rx-dose { width: 21%");
-    expect(html).toContain(".rx-food { width: 16%");
-    expect(html).toContain(".rx-dur { width: 19%");
+    clinical: [], rx, advice: [], adviceTest: [], followUp: "",
   });
 
-  it("pins the drug line against wrapping", () => {
-    expect(buildPrescriptionHtml(doc)).toContain("white-space:nowrap");
+  it("emits a colgroup instead of percentage widths", () => {
+    const html = buildPrescriptionHtml(doc(REPORTED));
+    expect(html).toContain("<colgroup>");
+    expect(html).not.toContain(".rx-drug { width:");
   });
 
-  it("leaves a tapering continuation row unstyled so its arrow renders plainly", () => {
-    const html = buildPrescriptionHtml(doc);
-    expect(html).toContain('<td class="rx-drug"><span style="color:#999;padding-left:14px">↳</span></td>');
+  it("omits the food cell entirely when the column was dropped", () => {
+    const html = buildPrescriptionHtml(doc(REPORTED));
+    // 5 medicines x 3 data cells, no empty fourth.
+    expect(html.match(/<td class="rx-mid"/g)).toHaveLength(10);
+  });
+
+  it("spans a free-typed note across however many columns the sheet has", () => {
+    const note: RxLine = { drug: "Take plenty of water", dose: "", duration: "", instruction: "", isNote: true };
+    expect(buildPrescriptionHtml(doc([...REPORTED, note]))).toContain('colspan="3"');
+    expect(
+      buildPrescriptionHtml(doc([...REPORTED, note, line("X", "1", "2d", "After food")])),
+    ).toContain('colspan="4"');
+  });
+
+  it("pins every Rx cell against wrapping", () => {
+    expect(buildPrescriptionHtml(doc(REPORTED))).toContain("white-space:nowrap");
   });
 });
