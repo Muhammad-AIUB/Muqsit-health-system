@@ -7,6 +7,7 @@ import { INV_CATS } from "@/data/investigations";
 import type { InvTest } from "@/types";
 import { uploadImage } from "@/lib/api";
 import { parseFlexibleDate } from "@/lib/dateInput";
+import { hasImageUrl, hasValueLine, markerFor, nextImageKey, parseFindingKey, testImageKeys } from "@/lib/investigationImages";
 import CalcRenderer from "./CalcRenderer";
 import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
@@ -124,7 +125,8 @@ export default function InvestigationPopup() {
   // Pool entries are "dd/mm/yyyy:Report N:[image attached]" — uploaded images
   // tagged to the date they were added on, but still shown in the viewer for
   // every date (a staging pool). Distinguished from real test images by the
-  // "Report N" middle segment. They get re-tagged to a test on data entry.
+  // "Report N" middle segment. A pool image only becomes a test's attachment
+  // when the doctor drags it onto that test — never automatically.
   const isPoolEntry = (it: string) => /:Report \d+:\[image attached\]$/.test(it);
 
   // Bulk-add report images into the pool, tagged to the selected date. Each file
@@ -162,26 +164,68 @@ export default function InvestigationPopup() {
     }
   };
 
-  // The image to attach to a test result: one uploaded straight onto the test,
-  // else the report image CURRENTLY OPEN in the left viewer (so each result links
-  // to the report the doctor is actually looking at — not always the first one).
-  // Returns the URL, and links it so the finding shows the 📎.
-  const resolveTestImage = (testName: string): string | undefined => {
+  // Tagging a report image onto a test is ALWAYS an explicit act by the doctor:
+  // dragging the open report onto that test's "Add report image", or picking a
+  // file there. There is deliberately no automatic fallback to "whatever report
+  // is open in the viewer" — that is what this used to do, and it silently
+  // stamped the last-viewed report onto every result the doctor typed, so a
+  // finding's 📎 could open a report it was never taken from. On a clinical
+  // record an attachment has to mean the doctor attached it.
+  // A test can hold several reports (a CT that backs two findings, a two-page
+  // lab sheet). Keys and their ordering live in lib/investigationImages.
+  const taggedKeysFor = (testName: string): string[] =>
+    testImageKeys(invImages, formatCalDate(calDate), testName);
+
+  // Tag / untag a report image on one test for the selected date. Both sides
+  // keep `invImages` and the "…:[image attached]" marker in step — the marker is
+  // what carries the attachment into the saved prescription. Returns false when
+  // nothing was added, so the caller does not log a no-op to the activity feed.
+  const tagTestImage = (testName: string, url: string): boolean => {
     const dateStr = formatCalDate(calDate);
-    const direct = invImages[dateStr + ":" + testName];
-    if (direct) return direct;
-    const pool = investigation.filter(isPoolEntry);
-    if (pool.length === 0) return undefined;
-    const idx = Math.min(reportIdx, pool.length - 1);
-    const url = invImages[pool[idx].replace(":[image attached]", "")];
-    if (!url) return undefined;
-    const targetKey = dateStr + ":" + testName;
-    setInvImages((prev) => (prev[targetKey] ? prev : { ...prev, [targetKey]: url }));
-    setInvestigation((prev) => {
-      const te = targetKey + ":[image attached]";
-      return prev.includes(te) ? prev : prev.concat([te]);
+    // The same report dropped twice on the same test is a slip, not a second
+    // attachment. Dropping it on a DIFFERENT test still tags it there — one
+    // report legitimately backs more than one finding.
+    if (hasImageUrl(invImages, dateStr, testName, url)) return false;
+    const key = nextImageKey(invImages, dateStr, testName);
+    setInvImages((prev) => ({ ...prev, [key]: url }));
+    setInvestigation((prev) => (prev.indexOf(markerFor(key)) === -1 ? prev.concat([markerFor(key)]) : prev));
+    return true;
+  };
+
+  // Remove ONE image by its key. Surviving images keep the keys they have —
+  // renumbering would rewrite keys inside already-saved prescriptions to tidy up
+  // a gap that nothing reads. `nextImageKey` reuses the gap on the next drop.
+  const untagImageKey = (key: string) => {
+    setInvImages((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
     });
-    return url;
+    setInvestigation((prev) => prev.filter((it) => it !== markerFor(key)));
+  };
+
+  // Delete one added result. Its report images go with it, but ONLY once no
+  // other value line for that same test and date survives — with two lines for
+  // one test, deleting one to fix a typo must not discard the other line's
+  // evidence. Uses the deleted line's own date, not the calendar's.
+  const deleteResult = (item: string) => {
+    const remaining = investigation.filter((x) => x !== item);
+    const p = parseFindingKey(item);
+    const keys = p && !hasValueLine(remaining, p.date, p.test)
+      ? testImageKeys(invImages, p.date, p.test)
+      : [];
+    if (keys.length) {
+      setInvImages((prev) => {
+        const next = { ...prev };
+        keys.forEach((k) => { delete next[k]; });
+        return next;
+      });
+      const markers = new Set(keys.map(markerFor));
+      setInvestigation(remaining.filter((x) => !markers.has(x)));
+      return;
+    }
+    setInvestigation(remaining);
   };
 
   // ── Shared result-entry helpers (used by single-test add, calc, normal and
@@ -230,7 +274,6 @@ export default function InvestigationPopup() {
       const parts = collectTestParts(test);
       if (parts.length === 0) return;
       savedAny = true;
-      resolveTestImage(test.name); // link the open report to this finding (📎)
       commitResult(dateStr + ":" + test.name + ":" + parts.join(","), test.name + ": " + parts.join(", "));
       clearTestFields(test);
     });
@@ -254,9 +297,6 @@ export default function InvestigationPopup() {
     if (!test) return;
     const parts = collectTestParts(test);
     if (parts.length === 0) return;
-    // Attach the open report image to this finding so it shows the 📎 link.
-    // (The image's own notification entry is logged when it's uploaded.)
-    resolveTestImage(testName);
     commitResult(formatCalDate(calDate) + ":" + testName + ":" + parts.join(","), testName + ": " + parts.join(", "));
     clearTestFields(test);
   };
@@ -266,7 +306,6 @@ export default function InvestigationPopup() {
     commitResult(formatCalDate(calDate) + ":" + testName + ":" + summary, testName + ": " + summary);
 
   const addInvNormal = (testName: string) => {
-    resolveTestImage(testName);
     commitResult(formatCalDate(calDate) + ":" + testName + ":normal", testName + ": normal");
   };
 
@@ -588,7 +627,19 @@ export default function InvestigationPopup() {
               }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 500, color: C.n[900] }}>{test.name}</span>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {/* Every report attached to THIS test on THIS date, so the
+                        doctor can see each drop land and take any one back off. */}
+                    {taggedKeysFor(test.name).map((k) => (
+                      <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 4px 2px 2px", borderRadius: 6, border: `1px solid ${C.pri[100]}`, background: C.pri[50] }}>
+                        <a href={invImages[k]} target="_blank" rel="noreferrer" title="Open this report" style={{ display: "inline-flex", lineHeight: 0 }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={invImages[k]} alt="" style={{ width: 22, height: 22, objectFit: "cover", borderRadius: 4, display: "block" }} />
+                        </a>
+                        <button onClick={() => untagImageKey(k)} title="Remove this report image from this test"
+                          style={{ width: 15, height: 15, borderRadius: "50%", border: "none", background: C.danger[100], color: C.danger[800], fontSize: 9, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", padding: 0 }}>✕</button>
+                      </span>
+                    ))}
                     <button onClick={() => addInvNormal(test.name)} style={{
                       padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.pri[100]}`,
                       background: C.pri[50], color: C.pri[600], fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
@@ -603,11 +654,7 @@ export default function InvestigationPopup() {
                           setDropTest(null);
                           const url = e.dataTransfer.getData("text/mhs-report-image");
                           if (!url) return;
-                          const dateStr = formatCalDate(calDate);
-                          setInvImages((prev) => ({ ...prev, [dateStr + ":" + test.name]: url }));
-                          const entry = dateStr + ":" + test.name + ":[image attached]";
-                          setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
-                          logInv(`${test.name} report image (${dateStr})`, url);
+                          if (tagTestImage(test.name, url)) logInv(`${test.name} report image (${formatCalDate(calDate)})`, url);
                         }}
                         style={{
                         padding: "4px 12px", borderRadius: 6,
@@ -621,12 +668,7 @@ export default function InvestigationPopup() {
                           if (file) {
                             try {
                               const url = await uploadImage(file);
-                              const dateStr = formatCalDate(calDate);
-                              const imgKey = dateStr + ":" + test.name;
-                              setInvImages((prev) => ({ ...prev, [imgKey]: url }));
-                              const entry = dateStr + ":" + test.name + ":[image attached]";
-                              setInvestigation((prev) => (prev.indexOf(entry) === -1 ? prev.concat([entry]) : prev));
-                              logInv(`${test.name} report image (${dateStr})`, url);
+                              if (tagTestImage(test.name, url)) logInv(`${test.name} report image (${formatCalDate(calDate)})`, url);
                             } catch (err) {
                               console.warn("[investigation] report image upload failed:", err);
                             }
@@ -821,7 +863,7 @@ export default function InvestigationPopup() {
                           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                             <button onClick={commitEdit} style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Save</button>
                             <button onClick={() => setEditItem(null)} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-                            <button onClick={() => { setInvestigation(investigation.filter((x) => x !== item)); setEditItem(null); }} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.danger[100]}`, background: C.danger[50], color: C.danger[800], fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Delete</button>
+                            <button onClick={() => { deleteResult(item); setEditItem(null); }} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.danger[100]}`, background: C.danger[50], color: C.danger[800], fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Delete</button>
                           </div>
                         </div>
                       ) : (
