@@ -170,13 +170,24 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           <button onClick={() => setActiveTab("pt-records")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "pt-records" ? C.info[400] : C.n[200]}`, background: activeTab === "pt-records" ? C.info[50] : C.n[0], color: activeTab === "pt-records" ? C.info[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
             <span style={{ fontSize: 13 }}>🗂</span> Patient&apos;s Prescriptions and reports
           </button>
-          {/* Keep-eye toggle — third, after the two buttons */}
-          <label onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${watchPatient ? "#f59e0b" : C.n[200]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box" }}>
+          {/* Keep-eye toggle — third, after the two buttons.
+              ⚠️ A <button>, NOT a <label> wrapping a hidden checkbox. It was the
+              latter until 2026-08-17 and it did nothing at all: a <label> that
+              contains a form control fires its own onClick TWICE per click —
+              once for the real click, and once for the trusted click the
+              browser dispatches at the labelled control, which bubbles straight
+              back up. React flushes between the two, so the second call read the
+              already-updated state and toggled it back. Net zero, every time.
+              Measured: 2 click events per user click, tick never rendered.
+              Keeping the handler off a label is the whole fix; the hidden input
+              is gone so the trap cannot come back. role="switch" + aria-checked
+              also puts the control in the accessibility tree and in the tab
+              order, which the display:none checkbox never was. */}
+          <button type="button" role="switch" aria-checked={watchPatient} onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${watchPatient ? "#f59e0b" : C.n[200]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box", fontFamily: font, lineHeight: "normal" }}>
             <span style={{ fontSize: 16, lineHeight: 1 }}>{watchPatient ? "👁️" : "👁"}</span>
             <span style={{ fontSize: 11, fontWeight: watchPatient ? 600 : 400, color: watchPatient ? "#b45309" : C.n[600] }}>Keep eye on this patient</span>
-            <input type="checkbox" checked={watchPatient} onChange={() => {}} style={{ display: "none" }} />
-            <span style={{ marginLeft: 4, width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
-          </label>
+            <span aria-hidden style={{ marginLeft: 4, width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
+          </button>
         </div>
       </div>
       {/* An age or sex that failed to save must say so — silently dropped, it
