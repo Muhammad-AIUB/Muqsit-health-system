@@ -268,7 +268,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       return `${row}
         <tr class="rx-alert-row">
           <td></td>
-          <td class="rx-alert" colspan="${noteSpan - 1}">
+          <td class="rx-alert" colspan="${noteSpan}">
             <div class="rx-alert-box"><span class="rx-alert-tail"></span><span class="rx-alert-tail-in"></span>${alerts
               .map((a) => `<div class="rx-alert-line">&#9888; ${esc(a)}</div>`)
               .join("")}</div>

@@ -90,48 +90,51 @@ describe('RxHabitsService.list — the generic travels WITH the suggestion', () 
     { brandName: 'Barcavir', genericName: 'Entecavir', dosageForm: 'Tablet', strength: '1 mg' },
   ];
 
+  // The habit lookup is a tagged $queryRaw; the catalogue lookup is a
+  // parameterised $queryRawUnsafe, so the brand prefixes can be bound as an
+  // array. Mocking them separately also lets a test assert WHICH prefixes were
+  // asked for — which is the whole of the bug found on 2026-08-17.
   const svcWith = (habits: unknown[], medicines: unknown[] | Error) => {
-    let call = 0;
-    const $queryRaw = jest.fn().mockImplementation(() => {
-      call += 1;
-      if (call === 1) return Promise.resolve(habits);
-      return medicines instanceof Error ? Promise.reject(medicines) : Promise.resolve(medicines);
-    });
-    return new RxHabitsService({ $queryRaw } as unknown as PrismaService);
+    const $queryRaw = jest.fn().mockResolvedValue(habits);
+    const $queryRawUnsafe = jest
+      .fn()
+      .mockImplementation(() =>
+        medicines instanceof Error ? Promise.reject(medicines) : Promise.resolve(medicines),
+      );
+    return {
+      svc: new RxHabitsService({ $queryRaw, $queryRawUnsafe } as unknown as PrismaService),
+      $queryRawUnsafe,
+    };
   };
+  const listWith = (habits: unknown[], medicines: unknown[] | Error, q = 'barcavir') =>
+    svcWith(habits, medicines).svc.list('doc_1', q);
 
   it('attaches the generic matched on the normalised key', async () => {
-    const groups = await svcWith([habitRow], CATALOGUE).list('doc_1', 'barcavir');
+    const groups = await listWith([habitRow], CATALOGUE);
     expect(groups).toHaveLength(1);
     expect(groups[0].generic).toBe('Entecavir');
     expect(groups[0].items).toHaveLength(1);
   });
 
   it('matches across a spacing difference — "0.5 mg" in both, "0.5mg" in the key', async () => {
-    const groups = await svcWith(
-      [{ ...habitRow, drugLabel: 'Tablet. Barcavir 0.5mg' }],
-      CATALOGUE,
-    ).list('doc_1', 'barcavir');
+    const groups = await listWith([{ ...habitRow, drugLabel: 'Tablet. Barcavir 0.5mg' }], CATALOGUE);
     expect(groups[0].generic).toBe('Entecavir');
   });
 
   it('never lends another strength’s generic', async () => {
-    const groups = await svcWith(
-      [{ ...habitRow, drugKey: 'tablet. barcavir 2mg', drugLabel: 'Tablet. Barcavir 2 mg' }],
-      CATALOGUE,
-    ).list('doc_1', 'barcavir');
+    const groups = await listWith([{ ...habitRow, drugKey: 'tablet. barcavir 2mg', drugLabel: 'Tablet. Barcavir 2 mg' }], CATALOGUE);
     expect(groups[0].generic).toBeUndefined();
   });
 
   it('leaves the generic absent when the catalogue has no match', async () => {
-    const groups = await svcWith([habitRow], []).list('doc_1', 'barcavir');
+    const groups = await listWith([habitRow], []);
     expect(groups[0].generic).toBeUndefined();
     expect(groups[0].items).toHaveLength(1); // the suggestion is still offered
   });
 
   it('still returns the suggestions when the generic lookup FAILS', async () => {
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const groups = await svcWith([habitRow], new Error('medicines unavailable')).list('doc_1', 'barcavir');
+    const groups = await listWith([habitRow], new Error('medicines unavailable'));
     expect(groups).toHaveLength(1);
     expect(groups[0].generic).toBeUndefined();
     expect(groups[0].items).toHaveLength(1);
@@ -139,11 +142,67 @@ describe('RxHabitsService.list — the generic travels WITH the suggestion', () 
   });
 
   it('ignores a catalogue row with no generic recorded', async () => {
-    const groups = await svcWith(
-      [habitRow],
-      [{ brandName: 'Barcavir', genericName: null, dosageForm: 'Tablet', strength: '0.5 mg' }],
-    ).list('doc_1', 'barcavir');
+    const groups = await listWith([habitRow], [{ brandName: 'Barcavir', genericName: null, dosageForm: 'Tablet', strength: '0.5 mg' }]);
     expect(groups[0].generic).toBeUndefined();
+  });
+
+  // ⚕️ REGRESSION, found by review on 2026-08-17 and reproduced against
+  // production. The catalogue was searched with the prefix the DOCTOR typed,
+  // which lost the generic — and with it the contraindication warning — in two
+  // completely ordinary cases. Both were silent.
+  describe('the catalogue is searched by BRAND, not by what was typed', () => {
+    it('still finds the generic when the field holds the FULL label', async () => {
+      // The drug box holds "Tablet. Barcavir 0.5 mg" the moment a medicine has
+      // been picked. That normalises to the search key "barcavir 0.5mg", and a
+      // prefix search for "barcavir 0.5mg%" matches no brand at all.
+      const groups = await listWith([habitRow], CATALOGUE, 'Tablet. Barcavir 0.5 mg');
+      expect(groups[0].generic).toBe('Entecavir');
+    });
+
+    it('asks for the brand token, not the typed text', async () => {
+      const { svc, $queryRawUnsafe } = svcWith([habitRow], CATALOGUE);
+      await svc.list('doc_1', 'Tablet. Barcavir 0.5 mg');
+      expect($queryRawUnsafe).toHaveBeenCalledTimes(1);
+      expect($queryRawUnsafe.mock.calls[0][1]).toEqual(['barcavir%']);
+    });
+
+    it('does not depend on a broad 2-character prefix reaching the row cap', async () => {
+      // "na%" matches thousands of medicines; the one that mattered fell
+      // outside the LIMIT. Asking for the brand keeps the result set tiny.
+      const napa = {
+        ...habitRow, drugKey: 'tablet. napa 500mg', drugLabel: 'Tablet. Napa 500 mg',
+      };
+      const { svc, $queryRawUnsafe } = svcWith(
+        [napa],
+        [{ brandName: 'Napa', genericName: 'Paracetamol', dosageForm: 'Tablet', strength: '500 mg' }],
+      );
+      const groups = await svc.list('doc_1', 'na');
+      expect($queryRawUnsafe.mock.calls[0][1]).toEqual(['napa%']);
+      expect(groups[0].generic).toBe('Paracetamol');
+    });
+
+    it('asks once for all medicines in the response, de-duplicated', async () => {
+      const { svc, $queryRawUnsafe } = svcWith(
+        [
+          habitRow,
+          { ...habitRow, id: 'h2', drugKey: 'tablet. barcavir 1mg', drugLabel: 'Tablet. Barcavir 1 mg' },
+          { ...habitRow, id: 'h3', drugKey: 'tablet. baraclude 0.5mg', drugLabel: 'Tablet. Baraclude 0.5 mg' },
+        ],
+        CATALOGUE,
+      );
+      await svc.list('doc_1', 'bar');
+      expect($queryRawUnsafe).toHaveBeenCalledTimes(1);
+      expect($queryRawUnsafe.mock.calls[0][1].sort()).toEqual(['baraclude%', 'barcavir%']);
+    });
+
+    it('escapes LIKE metacharacters in a brand', async () => {
+      const { svc, $queryRawUnsafe } = svcWith(
+        [{ ...habitRow, drugKey: 'tablet. 100%pure 5mg', drugLabel: 'Tablet. 100%Pure 5 mg' }],
+        [],
+      );
+      await svc.list('doc_1', '100%pure');
+      expect($queryRawUnsafe.mock.calls[0][1][0]).toContain('\\%');
+    });
   });
 });
 

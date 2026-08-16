@@ -549,8 +549,16 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
             </div>
             {/* The prescribing warning for THIS medicine, pointing up at it.
                 The same sentence the banner shows and the printed sheet
-                carries — one matcher, never a second copy. */}
-            {alertInput && lineIndex != null && (
+                carries — one matcher, never a second copy.
+
+                The text guard is not belt-and-braces. `rows` is this
+                component's own state and `alertInput` is derived from the
+                context's `rxItems`, which RightColumn syncs one render later —
+                so for a frame after a line is deleted the indices disagree, and
+                a contraindication would be drawn against the wrong medicine.
+                A frame is long enough to be seen and photographed. */}
+            {alertInput && lineIndex != null &&
+              (alertInput.rxDrugs[lineIndex]?.text ?? "").trim() === row.drug.trim() && (
               <RxLineAlert input={alertInput} lineIndex={lineIndex} />
             )}
             </Fragment>

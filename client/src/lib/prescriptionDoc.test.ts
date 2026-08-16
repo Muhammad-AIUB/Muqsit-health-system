@@ -249,3 +249,35 @@ describe("prescribing warnings on the printed sheet", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 });
+
+describe("the warning row spans the whole table", () => {
+  // A short row leaves a phantom column and squeezes the callout, so the
+  // warning wraps onto more lines than it needs. It must span exactly the same
+  // columns a free-typed note does.
+  const WARN = "Entecavir is contraindicated in pregnancy and lactation.";
+  const doc3 = (rx: RxLine[]): PrescriptionDoc => ({
+    doctorName: "Dr Test",
+    patient: { name: "P", age: "39", gender: "Male", address: "", weight: "", date: "16/08/2026", phone: "01700000000" },
+    clinical: [], rx, advice: [], adviceTest: [], followUp: "",
+  });
+
+  it("uses the same colspan as a note when there is no food column", () => {
+    const html = buildPrescriptionHtml(doc3([{ ...line("Tablet. X 5mg"), alerts: [WARN] }]));
+    expect(html).toContain('class="rx-alert" colspan="3"');
+  });
+
+  it("widens with the food column", () => {
+    const html = buildPrescriptionHtml(
+      doc3([{ ...line("Tablet. X 5mg", "1+0+0", "5 days", "After meal"), alerts: [WARN] }]),
+    );
+    expect(html).toContain('class="rx-alert" colspan="4"');
+  });
+
+  it("matches the note row's span exactly", () => {
+    const note: RxLine = { drug: "Rest", dose: "", duration: "", instruction: "", isNote: true };
+    const html = buildPrescriptionHtml(doc3([{ ...line("Tablet. X 5mg"), alerts: [WARN] }, note]));
+    const noteSpan = html.match(/class="rx-note" colspan="(\d)"/)?.[1];
+    const alertSpan = html.match(/class="rx-alert" colspan="(\d)"/)?.[1];
+    expect(alertSpan).toBe(noteSpan);
+  });
+});

@@ -340,7 +340,16 @@ export function findRxAlerts(input: RxAlertInput): RxAlert[] {
  * Total: anything unreadable is skipped upstream by `checkRxAlerts`, and an
  * index that does not correspond to a line simply yields nothing.
  */
+// One entry per input object. The ℞ pad calls `rxAlertsByLine` once per
+// medicine row, and `useRxAlertInput` memoises the input — so without this the
+// full rule sweep runs N times for every keystroke in any cell. A WeakMap keyed
+// on the input means a new input (a real change) always recomputes, and an
+// unchanged one is free; nothing is retained after the input is dropped.
+const byLineCache = new WeakMap<RxAlertInput, Map<number, string[]>>();
+
 export function rxAlertsByLine(input: RxAlertInput): Map<number, string[]> {
+  const cached = input && typeof input === "object" ? byLineCache.get(input) : undefined;
+  if (cached) return cached;
   const byLine = new Map<number, string[]>();
   for (const alert of checkRxAlerts(input).alerts) {
     for (const e of alert.evidence) {
@@ -351,5 +360,6 @@ export function rxAlertsByLine(input: RxAlertInput): Map<number, string[]> {
       byLine.set(e.rxIndex, list);
     }
   }
+  if (input && typeof input === "object") byLineCache.set(input, byLine);
   return byLine;
 }

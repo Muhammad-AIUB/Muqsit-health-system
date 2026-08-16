@@ -473,7 +473,7 @@ export class RxHabitsService implements OnModuleInit {
     }
     // A group left with nothing to show and nothing to restore is not a group.
     const out = [...groups.values()].filter((g) => g.items.length > 0 || g.hiddenCount > 0);
-    await this.attachGenerics(out, key);
+    await this.attachGenerics(out);
     return out;
   }
 
@@ -490,27 +490,50 @@ export class RxHabitsService implements OnModuleInit {
    * contraindication behind the brand "Barcavir", silently does not fire.
    * The suggestion and the generic now travel together and cannot separate.
    *
-   * One prefix query for the whole response (at most 4 medicines), matched on
-   * the SAME normalised key that grouped the habits — never on the raw label,
-   * which differs on a space ("0.5 mg"), a case, or a dropped "n/a".
+   * ⚠️ SEARCHED BY EACH GROUP'S OWN BRAND TOKEN, NOT BY WHAT THE DOCTOR TYPED.
+   * An earlier version used the typed query as the prefix, and lost the generic
+   * in two ordinary cases, both verified against production on 2026-08-17:
+   *   · a full label — `Tablet. Barcavir 0.5 mg` normalises to the search key
+   *     `barcavir 0.5mg`, and `brandName ILIKE 'barcavir 0.5mg%'` matches no
+   *     brand at all (the brand is "Barcavir"). This is not an edge case: the
+   *     field holds the full label the moment a medicine has been picked;
+   *   · a 2-character prefix — `na%` matches thousands of medicines, and the
+   *     one that mattered fell outside the row cap.
+   * Both failures were silent and both cost a contraindication warning.
+   *
+   * Now: at most 4 brand tokens, one bounded `ANY` query, and the match is made
+   * in JS on the SAME normalised key that grouped the habits — never on the raw
+   * label, which differs on a space ("0.5 mg"), a case, or a dropped "n/a".
    *
    * Never allowed to fail the lookup: without a generic the line behaves
    * exactly like a hand-typed brand, which is the already-documented state.
    */
-  private async attachGenerics(groups: HabitGroup[], key: string): Promise<void> {
+  private async attachGenerics(groups: HabitGroup[]): Promise<void> {
     if (groups.length === 0) return;
+    // The brand is the leading token of the search key ("barcavir 0.5mg" →
+    // "barcavir"). Multi-word brands still match: this is only the prefix used
+    // to fetch candidates, and the real test is the normalised key below.
+    const prefixes = [
+      ...new Set(
+        groups
+          .map((g) => searchKeyOf(g.drugLabel).split(' ')[0])
+          .filter((t) => t.length >= 2)
+          .map((t) => likePrefix(t)),
+      ),
+    ];
+    if (prefixes.length === 0) return;
     try {
       // `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md).
-      // Bound parameter, prefix match — every group's searchKey starts with the
-      // same key the doctor typed, so one query covers them all.
-      const rows = await this.prisma.$queryRaw<
+      // Bound parameter, so the doctor's own text can never reach the SQL.
+      const rows = await this.prisma.$queryRawUnsafe<
         { brandName: string; genericName: string | null; dosageForm: string | null; strength: string | null }[]
-      >`
-        SELECT "brandName", "genericName", "dosageForm", strength
-        FROM medicines
-        WHERE "brandName" ILIKE ${likePrefix(key)}
-        LIMIT 200
-      `;
+      >(
+        `SELECT "brandName", "genericName", "dosageForm", strength
+         FROM medicines
+         WHERE "brandName" ILIKE ANY($1::text[])
+         LIMIT 500`,
+        prefixes,
+      );
       const byKey = new Map<string, string>();
       for (const m of rows) {
         if (!m.genericName) continue;
@@ -522,7 +545,7 @@ export class RxHabitsService implements OnModuleInit {
         if (generic) g.generic = generic;
       }
     } catch (e) {
-      this.log.warn(`generic lookup failed for habit query "${key}": ${String(e)}`);
+      this.log.warn(`generic lookup failed for ${prefixes.join(', ')}: ${String(e)}`);
     }
   }
 
