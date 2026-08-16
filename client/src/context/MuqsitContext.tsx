@@ -15,7 +15,7 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
-import { ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
+import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
 import { useAuth } from "@/context/AuthContext";
@@ -268,6 +268,30 @@ function useMuqsitStore() {
       });
       setSavedMsg("Prescription saved!");
       ok = true;
+
+      // Measurement for "Your usual": what share of ℞ lines the suggestions
+      // actually saved the doctor from typing. There is no proxy for this
+      // number — it is the whole point of the feature — and it cannot be
+      // recovered later, because `fromHabit` is stripped before the
+      // prescription is stored (a record says what was prescribed, never how it
+      // was typed). One activity line per prescription carries both halves, so
+      // the ratio is a sum over the feed.
+      //
+      // Fire-and-forget and silent: a failed measurement must never disturb a
+      // save that has already succeeded, and must never be visible to the
+      // doctor mid-consultation.
+      const rxLines = rxItems.filter((r) => !r.isNote);
+      const fromHabit = rxLines.filter((r) => r.fromHabit).length;
+      if (fromHabit > 0) {
+        void activityApi
+          .log({
+            section: "Prescribing habits",
+            detail: `${fromHabit} of ${rxLines.length} ℞ line${rxLines.length === 1 ? "" : "s"} inserted from "Your usual"`,
+            action: "saved",
+            patientId: pid ?? undefined,
+          })
+          .catch(() => {});
+      }
       // Merge this visit's investigation findings into the patient's permanent
       // investigation history (records-page summary).
       if (pid) {

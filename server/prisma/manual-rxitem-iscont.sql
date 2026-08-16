@@ -1,0 +1,23 @@
+-- Record that a prescription line is a tapering continuation (`>>>`).
+--
+-- WHY. The editor has always known which lines are continuations — the ℞ pad
+-- draws them with `↳` — but `savePrescription` fills the medicine's name back
+-- into each stored item so the printed sheet is self-contained. That fill-back
+-- is correct for printing and threw the flag away for everything else: of 187
+-- production PrescriptionItem rows, ZERO have a blank drug, so a tapering
+-- schedule reads back as two unrelated medicines.
+--
+-- Consequences that this column fixes:
+--   · prescribing habits learn "0+0+3 · 1 month → 0+0+1 · continue" as ONE
+--     instruction block instead of two separate suggestions (5.docx D4);
+--   · loading a saved prescription back into the editor restores the taper as
+--     a continuation row rather than a duplicate medicine line.
+--
+-- NULLABLE ON PURPOSE. Every existing row stays NULL = "written before this
+-- column existed". NULL must never be read as false: on those rows the only
+-- signal is a blank drug, and guessing retroactively would invent a tapering
+-- schedule nobody prescribed. Nothing already recorded is rewritten.
+--
+-- Additive and idempotent — safe to run multiple times.
+
+ALTER TABLE "PrescriptionItem" ADD COLUMN IF NOT EXISTS "isCont" BOOLEAN;

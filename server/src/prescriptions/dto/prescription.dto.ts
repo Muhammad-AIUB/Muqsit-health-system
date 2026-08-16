@@ -23,6 +23,9 @@ export class RxItemDto {
   @IsOptional() @IsBoolean() isNote?: boolean;
   // "Start From" date for the medicine (IPD pad), e.g. "17 June 2026".
   @IsOptional() @IsString() sf?: string;
+  // Tapering continuation (`>>>`) of the line above. Omitted by clients that
+  // predate it, which is why the column is nullable — see schema.prisma.
+  @IsOptional() @IsBoolean() isCont?: boolean;
 }
 
 export class CreatePrescriptionDto {

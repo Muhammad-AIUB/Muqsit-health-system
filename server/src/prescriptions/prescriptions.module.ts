@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { PrescriptionsController } from './prescriptions.controller';
 import { PrescriptionsService } from './prescriptions.service';
 import { WorkstationsModule } from '../workstations/workstations.module';
+import { RxHabitsModule } from '../rx-habits/rx-habits.module';
 
 @Module({
-  imports: [WorkstationsModule],
+  imports: [WorkstationsModule, RxHabitsModule],
   controllers: [PrescriptionsController],
   providers: [PrescriptionsService],
 })

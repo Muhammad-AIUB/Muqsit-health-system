@@ -375,6 +375,55 @@ export const medicinesApi = {
     apiFetch<MedicineHit[]>(`/medicines/search?q=${encodeURIComponent(q)}`),
 };
 
+// ── Prescribing habits ("your usual dose") ──────────────────
+// Learned from this doctor's own saved prescriptions and offered back in the
+// ℞ pad's medicine dropdown. Every value below is echoed verbatim from a
+// prescription the doctor already saved and printed — nothing is generated.
+// Scoped server-side to the workstation doctor: a doctor never sees another
+// doctor's habits.
+
+/** One continuation (`>>>`) line of a tapering block. */
+export interface RxHabitContLine {
+  dose: string;
+  food: string;
+  duration: string;
+}
+
+export interface RxHabitItem {
+  id: string;
+  drugLabel: string;
+  dose: string;
+  food: string;
+  duration: string;
+  contLines: RxHabitContLine[];
+  /** DISTINCT PATIENTS given this exact instruction — never a prescription count. */
+  patientCount: number;
+  lastUsedAt: string;
+  pinned: boolean;
+}
+
+/** One medicine's suggestions: at most 3 shown, plus whatever is hidden. */
+export interface RxHabitGroup {
+  drugKey: string;
+  drugLabel: string;
+  items: RxHabitItem[];
+  /** Hidden rows, so `N hidden — show` can put one back without a round trip. */
+  hidden: RxHabitItem[];
+  hiddenCount: number;
+}
+
+export const rxHabitsApi = {
+  list: (q: string) =>
+    apiFetch<RxHabitGroup[]>(`/rx-habits?q=${encodeURIComponent(q)}`),
+  // No remove(): the prescription record is never touched, so "deleting" a
+  // suggestion means hiding it — and hiding is always reversible.
+  setFlags: (id: string, flags: { hidden?: boolean; pinned?: boolean }) =>
+    apiFetch<RxHabitItem>(`/rx-habits/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(flags),
+    }),
+};
+
 // ── Prescription print layout ───────────────────────────────
 export interface PrescriptionLayout {
   rxType: "opd" | "ipd";

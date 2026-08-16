@@ -85,7 +85,11 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
       {/* Notebook-style prescription pad (same editor as Drug history) */}
       <Lock locked={!can("rx.medicines")}>
         <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px" }}>
-          <MedicinePad rows={rows} setRows={setRows} minHeight={mobile ? 200 : 320} noteText="Start typing a medicine or note…" showCheck={false} />
+          {/* showHabits is the OPD prescription pad ONLY. The IPD order sheet,
+              the Drug-history pad and the template editor render this same
+              component and deliberately do not offer outpatient dose
+              suggestions (design D5). */}
+          <MedicinePad rows={rows} setRows={setRows} minHeight={mobile ? 200 : 320} noteText="Start typing a medicine or note…" showCheck={false} showHabits />
         </div>
       </Lock>
 

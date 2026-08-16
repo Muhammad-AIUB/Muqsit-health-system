@@ -20,11 +20,26 @@ export interface RxItem {
   isNote?: boolean;
   // "Start From" date for the medicine (IPD pad), e.g. "17 June 2026".
   sf?: string;
+  // This line is a tapering continuation (`>>>`) of the medicine above it.
+  // Persisted, because `savePrescription` fills the medicine's name back into
+  // continuation lines so the printed sheet is self-contained — without this
+  // flag a tapering schedule reads back as two unrelated medicines. Absent on
+  // anything saved before 2026-08-17; there the blank `drug` is the only
+  // signal, and it must not be guessed at retroactively.
+  isCont?: boolean;
   // Generic name, present only when the line was picked from the medicines
   // table (`drug` carries the brand). Read by the prescribing-alert matcher so
   // a rule written against a generic still fires on a brand-name ℞. Additive:
   // prescriptions and drafts saved before this field simply lack it.
   generic?: string;
+  // TRANSIENT — this line was inserted from a "Your usual" suggestion rather
+  // than typed. It exists only to answer the one question the feature has no
+  // proxy for: what share of ℞ lines the suggestions actually save. It is NOT
+  // declared on `RxItemDto`, so `ValidationPipe({ whitelist: true })` strips it
+  // before it can reach `PrescriptionItem` — a prescription must record what
+  // was prescribed, never how it was typed. Cleared as soon as the doctor edits
+  // the drug text by hand, same as `generic`.
+  fromHabit?: boolean;
 }
 
 export interface IpdPatient {

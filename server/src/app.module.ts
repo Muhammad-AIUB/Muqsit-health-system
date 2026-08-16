@@ -20,6 +20,7 @@ import { PrescriptionDraftModule } from './prescription-draft/prescription-draft
 import { TemplatesModule } from './templates/templates.module';
 import { ActivityModule } from './activity/activity.module';
 import { MedicinesModule } from './medicines/medicines.module';
+import { RxHabitsModule } from './rx-habits/rx-habits.module';
 import { WorkstationsModule } from './workstations/workstations.module';
 import { PatientChatModule } from './patient-chat/patient-chat.module';
 import { MirrorModule } from './mirror/mirror.module';
@@ -48,6 +49,7 @@ import { MirrorModule } from './mirror/mirror.module';
     TemplatesModule,
     ActivityModule,
     MedicinesModule,
+    RxHabitsModule,
     WorkstationsModule,
     PatientChatModule,
     MirrorModule,

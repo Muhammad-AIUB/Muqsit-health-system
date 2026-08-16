@@ -97,6 +97,10 @@ model User {
   wards           Ward[]          @relation("DoctorWards")
   ipdTeamMemberships IpdTeamMember[] @relation("IpdTeamMemberships")
 
+  // Learned prescribing habits ("my usual dose") — derived from this doctor's
+  // own saved prescriptions, never shared across doctors.
+  rxHabits DoctorRxHabit[]
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -571,4 +575,71 @@ model PrescriptionItem {
   isNote         Boolean      @default(false)
   // "Start From" date for the medicine (IPD pad), e.g. "17 June 2026".
   sf             String?
+  // This line is a tapering continuation (`>>>`) of the medicine above it.
+  //
+  // NULLABLE on purpose. The editor has always known which lines are
+  // continuations, but `savePrescription` fills the medicine's name back into
+  // them so each stored item is self-contained for printing — which threw the
+  // flag away. Recording it means a tapering schedule can be read back as ONE
+  // instruction (by the editor, and by the prescribing-habit learner) instead
+  // of as two unrelated medicines.
+  //
+  // `null` means "written before this column existed" and must NOT be read as
+  // `false`: on those rows the only signal is a blank `drug`, and guessing
+  // retroactively would invent a tapering schedule nobody prescribed.
+  isCont         Boolean?
+
+  @@index([prescriptionId])
+}
+
+// ── Prescribing habits ("my usual dose") ─────────────────────
+//
+// A derived copy of what this doctor has actually prescribed: one row per
+// (doctor, medicine-including-strength, whole instruction block). Written after
+// a prescription commits, read by the ℞ pad's medicine dropdown, and fully
+// rebuildable from the record with `server/scripts/rebuild-rx-habits.js`.
+//
+// SAFETY: this table never originates clinical content. `dose`, `food`,
+// `duration` and every continuation line are echoed verbatim from a
+// prescription this doctor already saved and printed. Nothing here is ever
+// written back to Prescription / PrescriptionItem.
+model DoctorRxHabit {
+  id       String @id @default(cuid())
+  doctorId String
+  doctor   User   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  // Matching keys — typography-normalised, NEVER clinically normalised.
+  // Two strengths must never fold; a parenthesised form qualifier
+  // ("Tablet (Enteric Coated).") is part of the key, not noise.
+  drugKey   String // "tablet. napa 500mg"  (full label, form included)
+  searchKey String // "napa 500mg"          (form prefix stripped — prefix search)
+  drugLabel String // "Tablet. Napa 500mg"  (as last written; this is what gets inserted)
+
+  // Instruction block. `signature` is the uniqueness key for the whole block.
+  signature   String
+  algoVersion Int    @default(1) // which normalise/signature algorithm built this row
+  dose        String
+  food        String
+  duration    String
+  contLines   Json   @default("[]") // [{dose, food, duration}] — the >>> lines, in order
+
+  // DISTINCT PATIENTS, not prescriptions. One patient returning monthly, a
+  // re-saved visit or a reprint must not make a one-off dose look routine.
+  patientCount Int      @default(0)
+  lastUsedAt   DateTime
+
+  pinned Boolean @default(false)
+  hidden Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doctorId, drugKey, signature])
+  // The read path also needs a SECOND index that Prisma cannot express here:
+  // ("doctorId", "searchKey" text_pattern_ops). Without it `searchKey LIKE
+  // 'prefix%'` is only a filter, because this database's collation is C.UTF-8
+  // and Postgres treats a collation as pattern-safe only when it is exactly
+  // "C"/"POSIX". It is created in prisma/manual-rx-habits.sql — verified with
+  // EXPLAIN, not assumed.
+  @@index([doctorId, searchKey])
 }

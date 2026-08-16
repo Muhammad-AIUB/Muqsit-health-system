@@ -59,6 +59,58 @@ record of someone who was never on their ward. Build a narrow IPD-only door
 instead: `ipd.service` resolves ward membership itself and returns only that
 ward's admissions, and nothing else in the app changes shape.
 
+## ⚠️ Rule 2c — `DoctorRxHabit` is DERIVED, and its write path is load-bearing
+
+`rx-habits` (2026-08-17) learns a doctor's repeated prescribing instructions and
+offers them back in the ℞ pad. The domain rules are in the root `CLAUDE.md`;
+these are the ones that live in this app's code and are easy to break.
+
+- **The write is awaited, in a try/catch, AFTER `prescription.create` returns.**
+  All three parts matter and each was chosen against a specific failure:
+  *outside the prescription write*, because a habit failure inside it would roll
+  back a prescription the doctor believes was saved and has already printed;
+  *awaited*, because every deploy restarts pm2 and a detached promise in flight
+  at that moment is simply lost; *caught*, because a convenience must never fail
+  the single most important write path in the product.
+  `prescriptions.service.spec.ts` is a REGRESSION spec for exactly this — if you
+  touch `create()`, it is the test that says whether you broke the record.
+- **`patientCount` is never `increment: 1`.** It counts DISTINCT PATIENTS, and
+  the answer comes from the record: `priorBlockKeys()` asks whether this patient
+  already contributed this block on an EARLIER prescription. One query per save,
+  then a set lookup per block. A prescription-count would make one returning
+  patient look like routine practice, which defeats the only safety signal the
+  feature has.
+- **`contLines` is a Json column, so it is unknown at every boundary.**
+  `sanitiseContLines` returns `null` for anything it cannot read and the block is
+  dropped **whole** — never partially. Half a tapering schedule delivered as if
+  it were the whole instruction is worse than no suggestion. The client sanitises
+  again (`rxHabitRows.ts`); the two layers fail for different reasons.
+- **The lookup matches `searchKey` only**, through the SAME normalisation the
+  stored key went through, and needs the `text_pattern_ops` index from
+  `manual-rx-habits.sql`. The plain btree does NOT serve `LIKE 'prefix%'` here:
+  this database's collation is `C.UTF-8`, and Postgres only treats a collation as
+  pattern-safe when it is exactly `C`/`POSIX`. Verified with EXPLAIN on
+  2026-08-17 — an earlier draft of the design assumed otherwise. LIKE
+  metacharacters in the doctor's typing are escaped (`likePrefix`); a bare `%`
+  would otherwise match every medicine they have ever prescribed.
+- **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
+  single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
+  the doctor is shown silence on failure by design, the log is the ONLY place a
+  dead feature announces itself — and this repo already has two committed-but-
+  unapplied manual migrations to prove that matters.
+- **`RxHabitsModule` imports `WorkstationsModule`.** `WorkstationGuard` injects
+  `WorkstationsService`, and Nest resolves that at BOOT: `npx tsc --noEmit` is
+  green without the import and the API then crash-loops on start. Typecheck is
+  not enough for a new guarded module — start the server.
+- **Repair, never hand-edit:** `node scripts/rebuild-rx-habits.js [--dry-run]`
+  recomputes the table from `Prescription`/`PrescriptionItem`, one transaction
+  per doctor, and re-applies `pinned`/`hidden` **by content**. Do not "simplify"
+  that to a `signature` join — a signature is the OUTPUT of the normalisation
+  algorithm, so the day a rule is edited every signature changes, every flag
+  orphans, and every deliberately suppressed dose comes back silently. The
+  script loads `normalise.ts` from `dist/` (or via ts-node) rather than
+  reimplementing it, and must stay `.js` — see the `rootDir` trap below.
+
 ## ⚠️ Rule 3 — ValidationPipe strips unknown fields
 
 `main.ts` uses `ValidationPipe({ whitelist: true })`. **Any new field the client sends must be added to the DTO** (`src/*/dto/*.ts`) or it is silently dropped — a classic "saved but nothing persisted" bug. For JSON columns follow the existing pattern in `patients.service.ts#update`: destructure the field, cast via `Prisma.InputJsonValue`, use `Prisma.DbNull` for explicit nulls.
