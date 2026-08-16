@@ -93,6 +93,15 @@ these are the ones that live in this app's code and are easy to break.
   2026-08-17 — an earlier draft of the design assumed otherwise. LIKE
   metacharacters in the doctor's typing are escaped (`likePrefix`); a bare `%`
   would otherwise match every medicine they have ever prescribed.
+- **`list()` attaches each medicine's `generic` from the raw `medicines` table**,
+  matched on the same normalised key that grouped the habits. This is a SAFETY
+  field, not a label: prescribing-alert rules are written against generics
+  (`entecavir`) while the ℞ line carries the brand (`Tablet. Barcavir 0.5 mg`).
+  Resolving it on the client from a separate medicines request — the original
+  design — made it depend on a race, and a doctor clicking the suggestion before
+  that request landed would lose the contraindication warning entirely. One
+  bounded prefix query per lookup, wrapped in try/catch: no generic just means
+  the line behaves like a hand-typed brand.
 - **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
   single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
   the doctor is shown silence on failure by design, the log is the ONLY place a

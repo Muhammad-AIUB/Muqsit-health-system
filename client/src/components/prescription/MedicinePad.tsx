@@ -257,8 +257,13 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
   // Click-to-insert: the whole block lands in one `setRows`, nothing already on
   // the pad is overwritten, and the caret goes to the NEXT medicine row (the
   // clicked row is already complete, so focusing `dose` would be wrong).
-  const pickHabit = (idx: number, habit: RxHabitItem) => {
-    const generic = resolveGeneric(safeHabitText(habit?.drugLabel), acItems);
+  const pickHabit = (idx: number, habit: RxHabitItem, groupGeneric?: string) => {
+    // The server sends the generic with the suggestion, so a slow or failed
+    // medicines request cannot cost a contraindication warning (e.g. the
+    // entecavir rule behind the brand "Barcavir"). The local resolution stays
+    // as a fallback for a response that predates the field.
+    const generic =
+      safeHabitText(groupGeneric) || resolveGeneric(safeHabitText(habit?.drugLabel), acItems);
     setRows((prev) => insertHabitRows(prev, idx, habit, generic));
     setAcRow(null);
     setShowHiddenFor(null);
@@ -408,7 +413,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                               <HabitRow
                                 key={h.id}
                                 habit={h}
-                                onPick={() => pickHabit(idx, h)}
+                                onPick={() => pickHabit(idx, h, g.generic)}
                                 onHide={() => setHabitHidden(h, true)}
                               />
                             ))}

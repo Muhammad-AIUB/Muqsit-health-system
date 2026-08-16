@@ -73,6 +73,80 @@ describe('RxHabitsService.list — a failed lookup is silence, never an error', 
   });
 });
 
+describe('RxHabitsService.list — the generic travels WITH the suggestion', () => {
+  // ⚕️ Prescribing-alert rules are written against generics; a ℞ line carries
+  // the brand. Resolving the generic on the client, from a separate medicines
+  // request, makes a SAFETY field depend on a race — on a flaky connection the
+  // suggestion can be clickable before (or without) the medicines response, and
+  // the entecavir contraindication behind "Barcavir" then silently does not
+  // fire. So it is resolved here, on the same response.
+  const habitRow = {
+    id: 'h1', drugKey: 'tablet. barcavir 0.5mg', drugLabel: 'Tablet. Barcavir 0.5 mg',
+    dose: '1+0+0', food: '', duration: 'Continue', contLines: [],
+    patientCount: 1, lastUsedAt: new Date(), pinned: false, hidden: false, hiddenCount: 0,
+  };
+  const CATALOGUE = [
+    { brandName: 'Barcavir', genericName: 'Entecavir', dosageForm: 'Tablet', strength: '0.5 mg' },
+    { brandName: 'Barcavir', genericName: 'Entecavir', dosageForm: 'Tablet', strength: '1 mg' },
+  ];
+
+  const svcWith = (habits: unknown[], medicines: unknown[] | Error) => {
+    let call = 0;
+    const $queryRaw = jest.fn().mockImplementation(() => {
+      call += 1;
+      if (call === 1) return Promise.resolve(habits);
+      return medicines instanceof Error ? Promise.reject(medicines) : Promise.resolve(medicines);
+    });
+    return new RxHabitsService({ $queryRaw } as unknown as PrismaService);
+  };
+
+  it('attaches the generic matched on the normalised key', async () => {
+    const groups = await svcWith([habitRow], CATALOGUE).list('doc_1', 'barcavir');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].generic).toBe('Entecavir');
+    expect(groups[0].items).toHaveLength(1);
+  });
+
+  it('matches across a spacing difference — "0.5 mg" in both, "0.5mg" in the key', async () => {
+    const groups = await svcWith(
+      [{ ...habitRow, drugLabel: 'Tablet. Barcavir 0.5mg' }],
+      CATALOGUE,
+    ).list('doc_1', 'barcavir');
+    expect(groups[0].generic).toBe('Entecavir');
+  });
+
+  it('never lends another strength’s generic', async () => {
+    const groups = await svcWith(
+      [{ ...habitRow, drugKey: 'tablet. barcavir 2mg', drugLabel: 'Tablet. Barcavir 2 mg' }],
+      CATALOGUE,
+    ).list('doc_1', 'barcavir');
+    expect(groups[0].generic).toBeUndefined();
+  });
+
+  it('leaves the generic absent when the catalogue has no match', async () => {
+    const groups = await svcWith([habitRow], []).list('doc_1', 'barcavir');
+    expect(groups[0].generic).toBeUndefined();
+    expect(groups[0].items).toHaveLength(1); // the suggestion is still offered
+  });
+
+  it('still returns the suggestions when the generic lookup FAILS', async () => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const groups = await svcWith([habitRow], new Error('medicines unavailable')).list('doc_1', 'barcavir');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].generic).toBeUndefined();
+    expect(groups[0].items).toHaveLength(1);
+    jest.restoreAllMocks();
+  });
+
+  it('ignores a catalogue row with no generic recorded', async () => {
+    const groups = await svcWith(
+      [habitRow],
+      [{ brandName: 'Barcavir', genericName: null, dosageForm: 'Tablet', strength: '0.5 mg' }],
+    ).list('doc_1', 'barcavir');
+    expect(groups[0].generic).toBeUndefined();
+  });
+});
+
 describe('RxHabitsService.setFlags — ownership and the audit line', () => {
   afterEach(() => jest.restoreAllMocks());
 

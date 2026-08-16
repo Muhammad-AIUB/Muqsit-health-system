@@ -5,6 +5,7 @@ import {
   ALGO_VERSION,
   HabitLine,
   blockKey,
+  fmtMedicine,
   normaliseDrugKey,
   searchKeyOf,
   signatureOf,
@@ -67,6 +68,21 @@ export interface HabitItem {
 export interface HabitGroup {
   drugKey: string;
   drugLabel: string;
+  /**
+   * The medicine's GENERIC name, recovered from the `medicines` catalogue.
+   *
+   * ⚕️ THIS IS A SAFETY FIELD, NOT A LABEL. Prescribing-alert rules are written
+   * against generics (`entecavir`), while a ℞ line carries the brand
+   * ("Tablet. Barcavir 0.5 mg"); `RxItem.generic` is the only bridge, and a
+   * habit learned from history cannot carry one of its own. Resolved here, on
+   * the same response as the suggestion, so it CANNOT be lost to a slow or
+   * failed medicines request on the client — a doctor clicking the fast path
+   * must not quietly lose a contraindication warning.
+   *
+   * Absent when the medicine is not in the catalogue, which is exactly the
+   * already-documented state of a hand-typed brand. Never guessed.
+   */
+  generic?: string;
   items: HabitItem[];
   /** Hidden rows for this medicine, so `N hidden — show` can restore them. */
   hidden: HabitItem[];
@@ -456,7 +472,58 @@ export class RxHabitsService implements OnModuleInit {
       else g.items.push(item);
     }
     // A group left with nothing to show and nothing to restore is not a group.
-    return [...groups.values()].filter((g) => g.items.length > 0 || g.hiddenCount > 0);
+    const out = [...groups.values()].filter((g) => g.items.length > 0 || g.hiddenCount > 0);
+    await this.attachGenerics(out, key);
+    return out;
+  }
+
+  /**
+   * Recover each medicine's generic name from the `medicines` catalogue.
+   *
+   * ⚕️ WHY THIS RUNS ON THE SERVER. An earlier design resolved the generic on
+   * the client, from the medicine results already loaded for the same query —
+   * cheaper, but it makes a SAFETY field depend on a race between two
+   * independent requests. On a flaky connection the habit response can arrive
+   * while the medicines one is still in flight (or has failed), and a doctor
+   * clicking the suggestion in that window gets a ℞ line with no generic — so
+   * a rule written against the generic, such as the entecavir
+   * contraindication behind the brand "Barcavir", silently does not fire.
+   * The suggestion and the generic now travel together and cannot separate.
+   *
+   * One prefix query for the whole response (at most 4 medicines), matched on
+   * the SAME normalised key that grouped the habits — never on the raw label,
+   * which differs on a space ("0.5 mg"), a case, or a dropped "n/a".
+   *
+   * Never allowed to fail the lookup: without a generic the line behaves
+   * exactly like a hand-typed brand, which is the already-documented state.
+   */
+  private async attachGenerics(groups: HabitGroup[], key: string): Promise<void> {
+    if (groups.length === 0) return;
+    try {
+      // `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md).
+      // Bound parameter, prefix match — every group's searchKey starts with the
+      // same key the doctor typed, so one query covers them all.
+      const rows = await this.prisma.$queryRaw<
+        { brandName: string; genericName: string | null; dosageForm: string | null; strength: string | null }[]
+      >`
+        SELECT "brandName", "genericName", "dosageForm", strength
+        FROM medicines
+        WHERE "brandName" ILIKE ${likePrefix(key)}
+        LIMIT 200
+      `;
+      const byKey = new Map<string, string>();
+      for (const m of rows) {
+        if (!m.genericName) continue;
+        const k = normaliseDrugKey(fmtMedicine(m));
+        if (k && !byKey.has(k)) byKey.set(k, m.genericName);
+      }
+      for (const g of groups) {
+        const generic = byKey.get(g.drugKey);
+        if (generic) g.generic = generic;
+      }
+    } catch (e) {
+      this.log.warn(`generic lookup failed for habit query "${key}": ${String(e)}`);
+    }
   }
 
   // ── Hide / unhide ─────────────────────────────────────────────────────────

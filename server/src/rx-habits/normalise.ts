@@ -160,6 +160,22 @@ export function signatureOf(head: HabitLine, contLines: HabitLine[] = []): strin
  * can be confused with another — plain concatenation would let ("ab", "c") and
  * ("a", "bc") collide.
  */
+/**
+ * The label the medicines dropdown builds for a catalogue row:
+ * "Tablet. Napa 500mg". A copy of `client/src/lib/rxShorthand.ts#fmtMedicine`,
+ * kept in step with it — it is one line, and it is how a stored habit is
+ * matched back to the medicine it came from (to recover the generic name).
+ */
+export function fmtMedicine(m: {
+  dosageForm?: string | null;
+  brandName?: string | null;
+  strength?: string | null;
+}): string {
+  return [m.dosageForm ? `${m.dosageForm}.` : '', m.brandName ?? '', m.strength ?? '']
+    .filter(Boolean)
+    .join(' ');
+}
+
 export function blockKey(drugKey: string, signature: string): string {
   return `${drugKey}\u001D${signature}`; // ASCII Group Separator
 }

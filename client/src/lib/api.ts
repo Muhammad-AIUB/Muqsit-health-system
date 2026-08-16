@@ -406,6 +406,18 @@ export interface RxHabitItem {
 export interface RxHabitGroup {
   drugKey: string;
   drugLabel: string;
+  /**
+   * The medicine's generic name, resolved server-side from the `medicines`
+   * catalogue and travelling on the SAME response as the suggestion.
+   *
+   * ⚕️ Safety field. Prescribing-alert rules are written against generics
+   * (`entecavir`) while the ℞ line carries the brand ("Tablet. Barcavir
+   * 0.5 mg"). Sending it with the suggestion means a slow or failed medicines
+   * request can never cost a contraindication warning on the fast path.
+   * Absent when the medicine is not in the catalogue — same as a hand-typed
+   * brand, and never guessed.
+   */
+  generic?: string;
   items: RxHabitItem[];
   /** Hidden rows, so `N hidden — show` can put one back without a round trip. */
   hidden: RxHabitItem[];
