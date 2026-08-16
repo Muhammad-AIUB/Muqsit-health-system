@@ -52,6 +52,17 @@ export interface AlertEvidence {
   field: string;
   /** The line the doctor actually typed, trimmed. */
   text: string;
+  /**
+   * Index into `RxAlertInput.rxDrugs` when this evidence IS a ℞ line; absent
+   * for a sidebar condition or a drug-history entry.
+   *
+   * This is what lets a warning be drawn against the medicine that raised it —
+   * beside the line in the editor and on the printed sheet — instead of only
+   * in a banner further down the page. Carried as an index rather than matched
+   * back by text, because two lines of the same brand at different strengths
+   * would be indistinguishable by text alone.
+   */
+  rxIndex?: number;
 }
 
 export interface RxAlert {
@@ -181,6 +192,8 @@ interface DrugSource {
   field: string;
   /** True when it is on the prescription being written right now. */
   fromRx: boolean;
+  /** Index into the caller's `rxDrugs`, for ℞ lines only. */
+  rxIndex?: number;
 }
 
 // A term matches only on word boundaries, so "pregnant" does not fire on
@@ -207,9 +220,13 @@ function mentions(haystack: string, term: string): boolean {
 
 /** Everything the patient is on: this prescription first, then current history. */
 function drugPool(input: Normalised): DrugSource[] {
+  // The index is captured BEFORE the empty rows are filtered out, so it still
+  // points at the caller's own `rxDrugs` array — the pad's row, not a position
+  // in this pool.
   const pool: DrugSource[] = input.rxDrugs
+    .map((d, rxIndex) => ({ ...d, rxIndex }))
     .filter((d) => d.text.trim() || d.generic)
-    .map((d) => ({ text: d.text.trim(), generic: d.generic, field: "℞", fromRx: true }));
+    .map((d) => ({ text: d.text.trim(), generic: d.generic, field: "℞", fromRx: true, rxIndex: d.rxIndex }));
 
   const hx = input.history;
   if (hx) {
@@ -227,7 +244,11 @@ function findDrugIn(pool: DrugSource[], terms: string[]): number {
   return pool.findIndex((d) => terms.some((t) => mentions(`${d.text} ${d.generic ?? ""}`, t)));
 }
 
-const evidenceOf = (d: DrugSource): AlertEvidence => ({ field: d.field, text: d.text || (d.generic ?? "") });
+const evidenceOf = (d: DrugSource): AlertEvidence => ({
+  field: d.field,
+  text: d.text || (d.generic ?? ""),
+  ...(d.rxIndex === undefined ? {} : { rxIndex: d.rxIndex }),
+});
 
 /** First sidebar entry matching any of `terms`, restricted to condition fields. */
 function findCondition(sidebar: Normalised["sidebar"], terms: string[]): AlertEvidence | null {
@@ -301,4 +322,34 @@ export function checkRxAlerts(raw: RxAlertInput): RxAlertCheck {
 /** The alerts alone, for callers that do not render the "partial check" notice. */
 export function findRxAlerts(input: RxAlertInput): RxAlert[] {
   return checkRxAlerts(input).alerts;
+}
+
+/**
+ * The warnings for each ℞ line, keyed by index into `RxAlertInput.rxDrugs`.
+ *
+ * ⚕️ ONE SOURCE FOR BOTH SURFACES. The editor draws these beside the medicine
+ * while the doctor writes, and `prescriptionDoc` prints the same sentences on
+ * the sheet. Two independently-derived versions of a contraindication could
+ * disagree, and the printed one is the legal document — so both read this.
+ *
+ * A drug-drug rule names two medicines; when both are on today's ℞ the warning
+ * is attached to BOTH lines, because either one is the one the doctor might
+ * change. A rule whose other side is a drug-history entry attaches only to the
+ * ℞ line, which is the only line there is to attach it to.
+ *
+ * Total: anything unreadable is skipped upstream by `checkRxAlerts`, and an
+ * index that does not correspond to a line simply yields nothing.
+ */
+export function rxAlertsByLine(input: RxAlertInput): Map<number, string[]> {
+  const byLine = new Map<number, string[]>();
+  for (const alert of checkRxAlerts(input).alerts) {
+    for (const e of alert.evidence) {
+      if (e.rxIndex === undefined) continue;
+      const list = byLine.get(e.rxIndex) ?? [];
+      // The same sentence must never be printed twice against one medicine.
+      if (!list.includes(alert.message)) list.push(alert.message);
+      byLine.set(e.rxIndex, list);
+    }
+  }
+  return byLine;
 }

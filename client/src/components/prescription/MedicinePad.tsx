@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C, font } from "@/theme";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { useRxHabits } from "@/hooks/useRxHabits";
@@ -14,6 +14,9 @@ import {
   safeContLines,
   safeHabitText,
 } from "@/lib/rxHabitRows";
+import { rxDrugIndexByRow } from "@/lib/rxRows";
+import RxLineAlert from "./RxLineAlert";
+import type { RxAlertInput } from "@/lib/rxAlerts";
 
 // "Start From": type 170626 → "17 June 2026". Leaves non-date text untouched.
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -213,9 +216,14 @@ interface Props {
   // component and must NOT inherit outpatient dose suggestions. Defaults to
   // false so a new caller can never pick them up silently.
   showHabits?: boolean;
+  // Prescribing-alert input. When given, each medicine line that raises a
+  // warning gets a red bubble under it, pointing at that line. Assembled by the
+  // caller (`useRxAlertInput`); the MATCHING runs inside `RxLineAlert`'s own
+  // error boundary, never here — see client/CLAUDE.md.
+  alertInput?: RxAlertInput;
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, noteText, showCheck = true, showSF = false, showHabits = false }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -273,6 +281,11 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
 
   const hasHabits = (g: RxHabitGroup) => g.items.length > 0 || g.hiddenCount > 0;
   const visibleHabitGroups = showHabits ? habitGroups.filter(hasHabits) : [];
+
+  // Which ℞-line each pad row is, in the array the alert matcher was given.
+  // Derived with the SAME predicate `rxItemsFromRows` uses, so a warning can
+  // never be drawn against the medicine on the line below the one that raised it.
+  const alertLineIndex = alertInput ? rxDrugIndexByRow(rows) : [];
 
   const filledRows = rows.filter((r) => r.isMedicine && !r.continuation && r.drug.trim());
   const allChecked = filledRows.length > 0 && filledRows.every((r) => r.checked);
@@ -340,8 +353,10 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
           const started = Boolean(row.drug || row.dose || row.duration);
           const isHead = row.isMedicine && !row.continuation;
           const isCont = row.continuation;
+          const lineIndex = alertLineIndex[idx];
           return (
-            <div key={idx} style={{ position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
+            <Fragment key={idx}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
               {/* Checkbox (optional) + serial — only for medicine head rows */}
               <div style={{ width: showCheck ? 44 : 26, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
                 {isHead && (
@@ -532,6 +547,13 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                 <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.danger[400], cursor: "pointer", fontSize: 15, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
               )}
             </div>
+            {/* The prescribing warning for THIS medicine, pointing up at it.
+                The same sentence the banner shows and the printed sheet
+                carries — one matcher, never a second copy. */}
+            {alertInput && lineIndex != null && (
+              <RxLineAlert input={alertInput} lineIndex={lineIndex} />
+            )}
+            </Fragment>
           );
         })}
       </div>

@@ -9,9 +9,13 @@ import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
 import { useTemplates } from "@/hooks/useTemplates";
+import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import type { RxItem } from "@/types";
 
 export default function RightColumn({ mobile }: { mobile?: boolean }) {
+  // Assembled here, matched inside RxLineAlert's error boundary. Shared with
+  // the banner in ReportsSection so the two can never disagree.
+  const alertInput = useRxAlertInput();
   const {
     rxItems, setRxItems,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
@@ -89,7 +93,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
               the Drug-history pad and the template editor render this same
               component and deliberately do not offer outpatient dose
               suggestions (design D5). */}
-          <MedicinePad rows={rows} setRows={setRows} minHeight={mobile ? 200 : 320} noteText="Start typing a medicine or note…" showCheck={false} showHabits />
+          <MedicinePad rows={rows} setRows={setRows} minHeight={mobile ? 200 : 320} noteText="Start typing a medicine or note…" showCheck={false} showHabits alertInput={alertInput} />
         </div>
       </Lock>
 

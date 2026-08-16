@@ -80,13 +80,13 @@ describe("entecavir + pregnancy", () => {
       rxDrugs: [{ text: "Tablet. Entaliv 0.5mg", generic: "Entecavir" }],
       sidebar: [{ label: "History", items: ["Pregnant"] }],
     });
-    expect(alert.evidence[0]).toEqual({ field: "℞", text: "Tablet. Entaliv 0.5mg" });
+    expect(alert.evidence[0]).toEqual({ field: "℞", text: "Tablet. Entaliv 0.5mg", rxIndex: 0 });
   });
 
   it("reports the evidence that made it fire", () => {
     const [alert] = findRxAlerts(input(["Tab. Entecavir 0.5mg"], { History: ["28wk Pregnant"] }));
     expect(alert.evidence).toEqual([
-      { field: "℞", text: "Tab. Entecavir 0.5mg" },
+      { field: "℞", text: "Tab. Entecavir 0.5mg", rxIndex: 0 },
       { field: "History", text: "28wk Pregnant" },
     ]);
   });
@@ -140,7 +140,7 @@ describe("sofosbuvir/velpatasvir co-prescribing", () => {
     });
     expect(alerts.map((a) => a.message)).toEqual([PPI_MSG]);
     expect(alerts[0].evidence).toEqual([
-      { field: "℞", text: "Sofosbuvir + Velpatasvir" },
+      { field: "℞", text: "Sofosbuvir + Velpatasvir", rxIndex: 0 },
       { field: "Drug history", text: "Omeprazole" },
     ]);
   });

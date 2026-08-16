@@ -30,6 +30,34 @@ export function rowsFromRxItems(items: RxItem[]): Row[] {
   return rows;
 }
 
+/**
+ * For each pad row, its index into the `rxDrugs` array the prescribing-alert
+ * matcher is given (`rxItems` minus the notes) — or `null` for a row that
+ * contributes nothing.
+ *
+ * ⚕️ It lives here, beside `rxItemsFromRows`, because it MUST use the same
+ * predicate. It is what puts a contraindication warning against the right
+ * medicine, and an off-by-one would draw a pregnancy contraindication against
+ * the drug on the line below it. Pinned in `rxRows.test.ts`.
+ */
+export function rxDrugIndexByRow(rows: Row[]): (number | null)[] {
+  let n = 0;
+  return (rows ?? []).map((r) => {
+    if (!r.isMedicine) {
+      // A note becomes an RxItem but is filtered out of `rxDrugs`, so it takes
+      // no index — and must not consume one either.
+      return null;
+    }
+    if (r.continuation) {
+      // Kept only when something was filled — same test as rxItemsFromRows.
+      if (r.dose.trim() || r.duration.trim() || r.food.trim()) return n++;
+      return null;
+    }
+    if (r.drug.trim()) return n++;
+    return null;
+  });
+}
+
 export function rxItemsFromRows(rows: Row[]): RxItem[] {
   const out: RxItem[] = [];
   for (const r of rows) {

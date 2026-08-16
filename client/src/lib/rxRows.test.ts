@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rowsFromRxItems, rxItemsFromRows } from "./rxRows";
+import { rowsFromRxItems, rxDrugIndexByRow, rxItemsFromRows } from "./rxRows";
 import { contRow, emptyRow, type Row } from "@/components/prescription/MedicinePad";
 import type { RxItem } from "@/types";
 
@@ -120,5 +120,60 @@ describe("round trip — a taper survives rows → items → rows", () => {
     expect(sent[1].drug).toBe("Tablet. X 5mg"); // filled back in, as today
     const rows = rowsFromRxItems(sent);
     expect(rows[1].continuation).toBe(true); // and still read back as a taper
+  });
+});
+
+// ⚕️ Which ℞ line a pad row is. This is what draws a contraindication against
+// the medicine that raised it — an off-by-one here would print a pregnancy
+// contraindication against the drug on the next line, on a legal document.
+describe("rxDrugIndexByRow — the warning must land on the right medicine", () => {
+  const filled = (drug: string): Row => ({
+    drug, dose: "1", food: "", duration: "", checked: true, isMedicine: true, continuation: false,
+  });
+  const note = (text: string): Row => ({
+    drug: text, dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false,
+  });
+
+  it("numbers medicine rows in order", () => {
+    expect(rxDrugIndexByRow([filled("A"), filled("B"), filled("C")])).toEqual([0, 1, 2]);
+  });
+
+  it("gives a note NO index and does not let it consume one", () => {
+    // `rxDrugs` is rxItems minus the notes, so a note must not shift the
+    // medicines after it.
+    expect(rxDrugIndexByRow([filled("A"), note("Drink water"), filled("B")])).toEqual([0, null, 1]);
+  });
+
+  it("counts a filled tapering line — the matcher sees it as its own ℞ entry", () => {
+    const taper: Row = { ...filled(""), continuation: true, dose: "0+0+1" };
+    expect(rxDrugIndexByRow([filled("A"), taper, filled("B")])).toEqual([0, 1, 2]);
+  });
+
+  it("skips an EMPTY tapering line, exactly as rxItemsFromRows drops it", () => {
+    const empty: Row = { drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: true, continuation: true };
+    expect(rxDrugIndexByRow([filled("A"), empty, filled("B")])).toEqual([0, null, 1]);
+  });
+
+  it("skips the trailing empty row", () => {
+    expect(rxDrugIndexByRow([filled("A"), emptyRow()])).toEqual([0, null]);
+  });
+
+  it("agrees with rxItemsFromRows on every row, for a mixed pad", () => {
+    const taper: Row = { ...filled(""), continuation: true, dose: "0+0+1" };
+    const emptyTaper: Row = { drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: true, continuation: true };
+    const rows = [filled("A"), taper, note("Rest"), emptyTaper, filled("B"), emptyRow()];
+
+    const indices = rxDrugIndexByRow(rows);
+    const rxDrugs = rxItemsFromRows(rows).filter((i) => !i.isNote);
+
+    // Every index must point at a real entry, and no two rows share one.
+    const used = indices.filter((i): i is number => i != null);
+    expect(new Set(used).size).toBe(used.length);
+    expect(Math.max(...used)).toBe(rxDrugs.length - 1);
+    expect(used.length).toBe(rxDrugs.length);
+  });
+
+  it("survives an empty pad", () => {
+    expect(rxDrugIndexByRow([])).toEqual([]);
   });
 });

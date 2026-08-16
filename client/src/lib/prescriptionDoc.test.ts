@@ -168,3 +168,84 @@ describe("printed Rx markup", () => {
     expect(html).toContain('class="bb-mhs"');
   });
 });
+
+// ⚕️ Prescribing warnings on the printed sheet.
+//
+// The physician asked for the same warning the screen shows to appear against
+// the medicine on the prescription itself, in red. These pin what must hold on
+// a legal document: the wording is verbatim, it is attached to the RIGHT
+// medicine, it never takes width from the medicine name, it wraps rather than
+// truncating, and it stays off the public privacy copy.
+describe("prescribing warnings on the printed sheet", () => {
+  const WARN = "Entecavir is contraindicated in pregnancy and lactation. Use tenofovir disoproxil.";
+  const withAlert = (): RxLine[] => [
+    { ...line("Tablet. Barcavir 0.5 mg", "1+0+0", "Continue"), alerts: [WARN] },
+    line("Tablet. Napa 500 mg", "1+1+1", "5 days"),
+  ];
+  const doc2 = (rx: RxLine[]): PrescriptionDoc => ({
+    doctorName: "Dr Test",
+    patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "16/08/2026", phone: "01700000000" },
+    clinical: [], rx, advice: [], adviceTest: [], followUp: "",
+  });
+
+  it("prints the warning sentence verbatim", () => {
+    expect(buildPrescriptionHtml(doc2(withAlert()))).toContain(WARN);
+  });
+
+  it("draws it as a red callout with a tail", () => {
+    const html = buildPrescriptionHtml(doc2(withAlert()));
+    expect(html).toContain('<div class="rx-alert-box">');
+    expect(html).toContain('<span class="rx-alert-tail">');
+    expect(html).toContain("#c0392b"); // the only red on the sheet
+  });
+
+  it("attaches it to the medicine that raised it, not the next one", () => {
+    const html = buildPrescriptionHtml(doc2(withAlert()));
+    const barcavir = html.indexOf("Tablet. Barcavir 0.5 mg");
+    const alert = html.indexOf('<div class="rx-alert-box">');
+    const napa = html.indexOf("Tablet. Napa 500 mg");
+    expect(barcavir).toBeLessThan(alert);
+    expect(alert).toBeLessThan(napa);
+  });
+
+  it("adds NO column — the medicine name keeps its measured width", () => {
+    const plain = buildPrescriptionHtml(doc2([line("Tablet. Barcavir 0.5 mg", "1+0+0", "Continue"), line("Tablet. Napa 500 mg", "1+1+1", "5 days")]));
+    const alerted = buildPrescriptionHtml(doc2(withAlert()));
+    const cols = (h: string) => h.slice(h.indexOf("<colgroup>"), h.indexOf("</colgroup>"));
+    expect(cols(alerted)).toBe(cols(plain));
+  });
+
+  it("wraps instead of truncating, even on a sheet that prints nowrap", () => {
+    const html = buildPrescriptionHtml(doc2(withAlert()));
+    expect(html).toContain("white-space:nowrap");           // the ℞ cells
+    expect(html).toContain(".rx-alert-line { font-size");   // …but the warning
+    expect(html).toContain("white-space: normal");          //    wraps
+  });
+
+  it("prints every warning a medicine raised, once each", () => {
+    const two = [{ ...line("Tablet. X 5mg"), alerts: [WARN, "Second advice line."] }];
+    const html = buildPrescriptionHtml(doc2(two));
+    expect(html.match(/<div class="rx-alert-line">/g)).toHaveLength(2);
+  });
+
+  it("ignores blank or whitespace-only warnings", () => {
+    const html = buildPrescriptionHtml(doc2([{ ...line("Tablet. X 5mg"), alerts: ["", "   "] }]));
+    expect(html).not.toContain('<div class="rx-alert-box">');
+  });
+
+  it("changes nothing when no line carries a warning", () => {
+    expect(buildPrescriptionHtml(doc2(REPORTED))).not.toContain('<div class="rx-alert-box">');
+  });
+
+  it("keeps the warning OFF the privacy copy — it is written to the doctor", () => {
+    const html = buildPrescriptionHtml({ ...doc2(withAlert()), extraPrivacyPage: true });
+    // One sheet carries it, the masked public copy does not.
+    expect(html.match(/<div class="rx-alert-box">/g)).toHaveLength(1);
+  });
+
+  it("escapes the warning text — it is rendered into HTML", () => {
+    const html = buildPrescriptionHtml(doc2([{ ...line("Tablet. X 5mg"), alerts: ["<script>alert(1)</script>"] }]));
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});

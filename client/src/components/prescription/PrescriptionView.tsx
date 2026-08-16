@@ -9,10 +9,11 @@ import { uploadImage } from "@/lib/api";
 import { usePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
 import { useActivityFeed, useActivityLog } from "@/hooks/useActivity";
 import { usePatientChat } from "@/hooks/useChat";
+import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import type { RxAlertInput } from "@/lib/rxAlerts";
+import { rxAlertsByLine } from "@/lib/rxAlerts";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
@@ -87,6 +88,10 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       ? "Add a medicine or some clinical detail before saving."
       : "Save this unfinished prescription and start the next patient";
 
+  // The same assembly the on-screen warnings use, so the printed sheet and the
+  // editor can never disagree about what was checked.
+  const printAlertInput = useRxAlertInput();
+
   // Build the printable prescription HTML from the current editor state.
   const buildHtml = () => {
     const followUp =
@@ -112,7 +117,23 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         { label: "Associated illness", items: m.associatedIllness },
         { label: "Final diagnosis", items: m.finalDiagnosis },
       ],
-      rx: m.rxItems,
+      // Each medicine carries the warnings IT raised, printed as a red callout
+      // under that line. Same matcher as the editor's bubbles and the banner —
+      // two independently-derived versions of a contraindication could
+      // disagree, and this one is the legal document.
+      //
+      // `rxAlertsByLine` is keyed by index into `rxDrugs`, which excludes
+      // notes, so the counter below advances only on non-note lines.
+      rx: (() => {
+        const byLine = rxAlertsByLine(printAlertInput);
+        let line = 0;
+        return m.rxItems.map((it) => {
+          if (it.isNote) return it;
+          const alerts = byLine.get(line);
+          line += 1;
+          return alerts && alerts.length ? { ...it, alerts } : it;
+        });
+      })(),
       advice: m.advice,
       adviceTest: m.adviceTest,
       followUp,
@@ -256,7 +277,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
 function ReportsSection() {
   // Only the loaded patient's activity — this section renders only when a
   // patient is selected, so currentPatientId is always set here.
-  const { currentPatientId, rxItems, leftFields, drugHistory, ptDate } = useMuqsit();
+  const { currentPatientId } = useMuqsit();
   const { data: feed = [], isLoading } = useActivityFeed(currentPatientId);
   const { data: chat = [] } = usePatientChat(currentPatientId);
 
@@ -266,15 +287,10 @@ function ReportsSection() {
   // chat messages.
   //
   // Only the INPUT is assembled here; the matching runs inside <RxAlerts>, so
-  // its error boundary covers the computation too (see RxAlerts.tsx).
-  const alertInput: RxAlertInput = useMemo(
-    () => ({
-      rxDrugs: rxItems.filter((it) => !it.isNote).map((it) => ({ text: it.drug, generic: it.generic })),
-      sidebar: leftFields.map((f) => ({ label: f.label, items: f.items })),
-      drugHistory: { entries: drugHistory, visitDate: isoToDdmmyyyy(ptDate) },
-    }),
-    [rxItems, leftFields, drugHistory, ptDate],
-  );
+  // its error boundary covers the computation too (see RxAlerts.tsx). The
+  // assembly is shared with the ℞ pad's per-line bubbles so the two surfaces
+  // can never disagree about what was checked.
+  const alertInput = useRxAlertInput();
 
   const items = useMemo(() => {
     const acts = feed.map((a) => ({

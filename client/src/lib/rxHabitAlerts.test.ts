@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { habitToRows, resolveGeneric } from "./rxHabitRows";
 import { rxItemsFromRows } from "./rxRows";
-import { checkRxAlerts } from "./rxAlerts";
+import { checkRxAlerts, rxAlertsByLine } from "./rxAlerts";
 import { fmtMedicine } from "./rxShorthand";
 import type { MedicineHit, RxHabitItem } from "@/lib/api";
 
@@ -121,5 +121,80 @@ describe("Barcavir — the warning must survive the suggestion", () => {
   it("never lends another medicine's generic — 1 mg is not 0.5 mg", () => {
     const oneMg: MedicineHit = { ...BARCAVIR_MED, id: "m2", strength: "1 mg" };
     expect(resolveGeneric("Tablet. Barcavir 0.5 mg", [oneMg])).toBeUndefined();
+  });
+});
+
+// ⚕️ The warning is drawn against the medicine that raised it, on BOTH surfaces.
+// `rxAlertsByLine` is the one map the editor bubbles and the printed callouts
+// both read — two independently-derived versions of a contraindication could
+// disagree, and the printed one is the legal document.
+describe("rxAlertsByLine — which medicine each warning belongs to", () => {
+  it("attaches the Barcavir contraindication to the Barcavir line, not its neighbours", () => {
+    const byLine = rxAlertsByLine({
+      rxDrugs: [
+        { text: "Tablet. Napa 500 mg" },
+        { text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" },
+        { text: "Capsule. Sergel 20 mg" },
+      ],
+      sidebar: PREGNANT_SIDEBAR,
+    });
+    expect(byLine.get(1)).toEqual([CONTRAINDICATION]);
+    expect(byLine.get(0)).toBeUndefined();
+    expect(byLine.get(2)).toBeUndefined();
+  });
+
+  it("tells two strengths of the same brand apart by position", () => {
+    // Both are entecavir, so both are contraindicated — and each carries the
+    // warning on its own line. Matching back by drug text could not do this.
+    const byLine = rxAlertsByLine({
+      rxDrugs: [
+        { text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" },
+        { text: "Tablet. Barcavir 1 mg", generic: "Entecavir" },
+      ],
+      sidebar: PREGNANT_SIDEBAR,
+    });
+    expect(byLine.get(0)).toEqual([CONTRAINDICATION]);
+  });
+
+  it("is empty when nothing fires", () => {
+    const byLine = rxAlertsByLine({
+      rxDrugs: [{ text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" }],
+      sidebar: [{ label: "Chief complaints", items: ["Fever"] }],
+    });
+    expect(byLine.size).toBe(0);
+  });
+
+  it("indexes against the caller's array even when a line is blank", () => {
+    // Empty rows are filtered out of the matcher's pool, but the index must
+    // still point at the caller's own line — otherwise the warning shifts up.
+    const byLine = rxAlertsByLine({
+      rxDrugs: [
+        { text: "" },
+        { text: "" },
+        { text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" },
+      ],
+      sidebar: PREGNANT_SIDEBAR,
+    });
+    expect(byLine.get(2)).toEqual([CONTRAINDICATION]);
+    expect(byLine.get(0)).toBeUndefined();
+  });
+
+  it("never repeats the same sentence against one medicine", () => {
+    const byLine = rxAlertsByLine({
+      rxDrugs: [{ text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" }],
+      sidebar: [{ label: "Chief complaints", items: ["Pregnant", "Lactating"] }],
+    });
+    expect(byLine.get(0)).toHaveLength(1);
+  });
+
+  it("lands on the line reached through a clicked suggestion", () => {
+    // The whole point: the fast path must carry the warning too.
+    const generic = resolveGeneric(BARCAVIR_HABIT.drugLabel, [BARCAVIR_MED]);
+    const items = rxItemsFromRows(habitToRows(BARCAVIR_HABIT, generic));
+    const byLine = rxAlertsByLine({
+      rxDrugs: items.filter((i) => !i.isNote).map((i) => ({ text: i.drug, generic: i.generic })),
+      sidebar: PREGNANT_SIDEBAR,
+    });
+    expect(byLine.get(0)).toEqual([CONTRAINDICATION]);
   });
 });
