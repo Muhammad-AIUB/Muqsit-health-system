@@ -114,16 +114,25 @@ function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, refC
 // already saved and printed. Nothing is generated, nothing is auto-filled — a
 // suggestion reaches the pad only by an explicit click.
 
-// "last 15 Aug". `lastUsedAt` is an ISO timestamp from the server, so a plain
-// Date parse is correct here — unlike the app's stored dd/mm/yyyy strings, which
-// must never go through `new Date(str)` (see client/CLAUDE.md).
+// "last 15 Aug", or "last 15 Aug 2024" once it is not this year.
+//
+// ⚕️ THE YEAR IS NOT DECORATION. The count and the date are shown together
+// precisely so a routine dose and a one-off can be told apart (design §8 rule
+// 7) — and without a year, an instruction last written two years ago reads
+// exactly like one written last week. A stale habit that looks current is the
+// same failure as a wrong count.
+//
+// `lastUsedAt` is an ISO timestamp from the server, so a plain Date parse is
+// correct here — unlike the app's stored dd/mm/yyyy strings, which must never
+// go through `new Date(str)` (see client/CLAUDE.md).
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function lastUsedLabel(iso: unknown): string {
+export function lastUsedLabel(iso: unknown, now: Date = new Date()): string {
   if (typeof iso !== "string") return "";
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return "";
   const d = new Date(ms);
-  return `last ${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`;
+  const year = d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`;
+  return `last ${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}${year}`;
 }
 
 // The instruction, exactly as saved. A blank field is simply absent — never
@@ -240,7 +249,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
   // Transient "Removed …" bar. It lives OUTSIDE the dropdown on purpose: the
   // dropdown closes the moment the doctor clicks, so an Undo rendered inside it
   // would disappear with it — leaving ✕ as a one-way door.
-  const [habitUndo, setHabitUndo] = useState<{ id: string; label: string } | null>(null);
+  const [habitUndo, setHabitUndo] = useState<{ id: string; label: string; failed: boolean } | null>(null);
 
   // Hiding is not destructive (the prescription record is never touched), so a
   // failure is reported by simply putting the suggestion back where it was —
@@ -248,18 +257,18 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
   const setHabitHidden = (habit: RxHabitItem, hidden: boolean) => {
     const id = safeHabitText(habit?.id);
     if (!id) return;
+    const label = [safeHabitText(habit?.drugLabel), instructionLine(habit?.dose, habit?.food, habit?.duration)]
+      .filter(Boolean)
+      .join("  ");
+    // Optimistic, then reconciled against the server. The failure is NOT
+    // silent: a failed lookup is silence by design (§8), but this is an action
+    // the doctor took, and telling them a suggestion was removed when it was
+    // not is the same class of lie as clearing an editor on a save that failed.
+    setHabitUndo(hidden ? { id, label, failed: false } : null);
     rxHabitsApi
       .setFlags(id, { hidden })
-      .catch(() => undefined)
+      .catch(() => setHabitUndo({ id, label, failed: true }))
       .finally(() => refreshHabits());
-    if (hidden) {
-      const label = [safeHabitText(habit?.drugLabel), instructionLine(habit?.dose, habit?.food, habit?.duration)]
-        .filter(Boolean)
-        .join("  ");
-      setHabitUndo({ id, label });
-    } else {
-      setHabitUndo(null);
-    }
   };
 
   // Click-to-insert: the whole block lands in one `setRows`, nothing already on
@@ -573,10 +582,18 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
           <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              Removed suggestion <b style={{ fontWeight: 600, color: C.n[900] }}>{habitUndo.label}</b>
+              {habitUndo.failed ? (
+                <>
+                  <b style={{ fontWeight: 600, color: C.danger[800] }}>Could not remove</b>{" "}
+                  <b style={{ fontWeight: 600, color: C.n[900] }}>{habitUndo.label}</b> — it is still in your list.
+                </>
+              ) : (
+                <>Removed suggestion <b style={{ fontWeight: 600, color: C.n[900] }}>{habitUndo.label}</b></>
+              )}
             </span>
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {!habitUndo.failed && (
             <button
               className="habit-undo-btn"
               onClick={() => {
@@ -587,6 +604,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
             >
               ↺ Undo
             </button>
+            )}
             <button onClick={() => setHabitUndo(null)} title="Dismiss" aria-label="Dismiss" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 17, lineHeight: 1, padding: "2px 5px", borderRadius: 6 }}>×</button>
           </span>
         </div>

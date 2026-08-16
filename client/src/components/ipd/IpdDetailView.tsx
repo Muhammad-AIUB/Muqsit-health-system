@@ -107,7 +107,14 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // its error boundary covers the computation too (see RxAlerts.tsx).
   const rxAlertInput: RxAlertInput = useMemo(
     () => ({
-      rxDrugs: rows.filter((r) => r.isMedicine && !r.continuation).map((r) => ({ text: r.drug, generic: r.generic })),
+      // Built through `rxItemsFromRows` so the INDEX basis is identical to the
+      // OPD editor's. The resulting pool is the same either way (blank rows and
+      // continuations carry no drug text and are filtered out by the matcher),
+      // but the indices are what attach a warning to a line — and a second way
+      // of numbering them would draw the bubble on the wrong medicine.
+      rxDrugs: rxItemsFromRows(rows)
+        .filter((it) => !it.isNote)
+        .map((it) => ({ text: it.drug, generic: it.generic })),
       sidebar: [
         { label: "Diagnosis", items: diagnosis },
         { label: "Sign", items: chiefComplaints },
@@ -283,7 +290,13 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
           <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Order sheet</div>
           <div style={{ fontSize: 15, color: C.pri[600], marginBottom: 6 }}>℞</div>
           <RxAlerts input={rxAlertInput} />
-          <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} showSF />
+          {/* The per-line bubbles go on the ward too. `client/CLAUDE.md`: a
+              doctor who learns to trust the alert on one prescribing screen
+              must not silently lose it on the other — and once the warning is
+              drawn on the medicine in OPD, a bare banner here is exactly that
+              quiet hole. `showHabits` stays OFF: ward doses are not outpatient
+              prescribing habits (design D5). */}
+          <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} showSF alertInput={rxAlertInput} />
         </div>
       </div>
 

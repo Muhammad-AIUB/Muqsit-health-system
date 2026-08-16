@@ -177,3 +177,60 @@ describe("rxDrugIndexByRow — the warning must land on the right medicine", () 
     expect(rxDrugIndexByRow([])).toEqual([]);
   });
 });
+
+// ⚕️ The OPD editor and the IPD order sheet must number their ℞ lines the SAME
+// way, or a warning drawn on line k lands on a different medicine on each
+// screen. IPD used to build `rxDrugs` with its own filter
+// (`r.isMedicine && !r.continuation`, keeping empty rows); this pins that both
+// screens now go through `rxItemsFromRows`, and that `rxDrugIndexByRow` agrees
+// with it row for row.
+describe("one line-numbering basis for both prescribing screens", () => {
+  const med = (drug: string, dose = "1"): Row => ({
+    drug, dose, food: "", duration: "", checked: true, isMedicine: true, continuation: false,
+  });
+  const cont = (dose: string): Row => ({ ...contRow(), dose });
+  const note = (t: string): Row => ({
+    drug: t, dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false,
+  });
+
+  // A pad with everything that can shift an index: a taper, a note, an empty
+  // continuation and the trailing empty row.
+  const rows: Row[] = [
+    med("Tablet. Barcavir 0.5 mg"),
+    cont("0+0+1"),
+    note("Take rest"),
+    { drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: true, continuation: true },
+    med("Tablet. Napa 500 mg"),
+    emptyRow(),
+  ];
+
+  const rxDrugs = () => rxItemsFromRows(rows).filter((i) => !i.isNote);
+
+  it("gives every contributing row an index that lands on its own entry", () => {
+    const idx = rxDrugIndexByRow(rows);
+    const drugs = rxDrugs();
+    rows.forEach((r, i) => {
+      const k = idx[i];
+      if (k == null) return;
+      // The text guard MedicinePad applies must hold for every row.
+      expect(drugs[k].drug.trim()).toBe(r.drug.trim());
+    });
+  });
+
+  it("puts the Barcavir warning on Barcavir and the Napa one on Napa", () => {
+    const idx = rxDrugIndexByRow(rows);
+    const drugs = rxDrugs();
+    expect(drugs[idx[0] as number].drug).toBe("Tablet. Barcavir 0.5 mg");
+    expect(drugs[idx[4] as number].drug).toBe("Tablet. Napa 500 mg");
+  });
+
+  it("does NOT agree with the old IPD basis — which is why it was changed", () => {
+    // The old filter dropped continuations, so Napa was entry 1 there and
+    // entry 2 here. Wiring the bubbles up against it would have drawn the
+    // Napa warning on the taper line.
+    const oldBasis = rows.filter((r) => r.isMedicine && !r.continuation);
+    const napaOld = oldBasis.findIndex((r) => r.drug === "Tablet. Napa 500 mg");
+    const napaNew = rxDrugIndexByRow(rows)[4];
+    expect(napaOld).not.toBe(napaNew);
+  });
+});
