@@ -10,18 +10,15 @@ export interface RxLine {
   instruction: string;
   // A free-typed instruction line — printed across the full width, no number.
   isNote?: boolean;
-  /**
-   * Prescribing warnings raised BY THIS LINE, printed as a red callout under
-   * the medicine (see `rxAlertsByLine` in lib/rxAlerts.ts). The sentences are
-   * the physician's own rule text, verbatim — never rephrased for print.
-   *
-   * The callout sits UNDER the line rather than beside it because the ℞ table's
-   * columns are measured to fill the printable width already: a fifth column
-   * would take that width from the medicine name, which is the one value on the
-   * sheet a dispenser must never have to guess at.
-   */
-  alerts?: string[];
 }
+
+// ⚕️ NO prescribing warning is printed. The "MHS is suggesting" advice is a
+// live aid to the doctor while they write, and the physician's decision
+// (2026-08-17) is that it must not survive onto the document: the printed
+// prescription and the saved copy show exactly what the doctor entered and
+// nothing the system inferred. A red callout under the medicine WAS printed
+// earlier the same day; `prescriptionDoc.test.ts` pins its absence so it cannot
+// come back as a tidy-up. Restoring it is a product decision.
 
 export interface PrescriptionDoc {
   doctorName: string;
@@ -248,31 +245,13 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       const isCont = !r.drug.trim();
       if (!isCont) rxNo += 1;
       const mid = ` style="font-size:${lay.midPx}px;${nowrap}"`;
-      const row = `
+      return `
         <tr>
           <td class="rx-no">${isCont ? "" : rxNo + "."}</td>
           <td class="rx-drug" style="font-size:${lay.drugPx}px;${nowrap}">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : esc(r.drug)}</td>
           <td class="rx-mid"${mid}>${esc(r.dose)}</td>
           ${lay.hasFood ? `<td class="rx-mid"${mid}>${esc(r.instruction)}</td>` : ""}
           <td class="rx-mid"${mid}>${esc(r.duration)}</td>
-        </tr>`;
-      // The prescribing warning for this medicine, as a red callout pointing up
-      // at the line above it. It spans the table instead of taking a column,
-      // so it can never squeeze the medicine name (see RxLine.alerts), and it
-      // WRAPS — a truncated contraindication would be worse than none.
-      // Never on the privacy copy: that page masks identity and drops clinical
-      // content for someone other than the patient to read, and a
-      // contraindication is written to the DOCTOR (see client/CLAUDE.md).
-      const alerts = privacyCopy ? [] : (r.alerts ?? []).map((a) => (a ?? "").trim()).filter(Boolean);
-      if (alerts.length === 0) return row;
-      return `${row}
-        <tr class="rx-alert-row">
-          <td></td>
-          <td class="rx-alert" colspan="${noteSpan}">
-            <div class="rx-alert-box"><span class="rx-alert-tail"></span><span class="rx-alert-tail-in"></span>${alerts
-              .map((a) => `<div class="rx-alert-line">&#9888; ${esc(a)}</div>`)
-              .join("")}</div>
-          </td>
         </tr>`;
     })
     .join("");
@@ -392,24 +371,6 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .rx-drug { font-weight: 600; }
   .rx-mid { color: #333; }
   .rx-note { font-size: 12.5px; color: #444; font-style: italic; }
-  /* Prescribing warning attached to the medicine above it. Deliberately the
-     only red on the sheet, and deliberately NOT a column: the ℞ columns are
-     measured to fill the printable width, so a fifth one would take it from the
-     medicine name. The tail points up at the line that raised the warning.
-     It WRAPS (overriding the sheet-wide nowrap) — a truncated
-     contraindication is worse than none, and rule: nothing is ever clipped. */
-  .rx-alert-row > td { border-bottom: none; padding-top: 0; padding-bottom: 6px; }
-  .rx-alert-box { position: relative; display: inline-block; max-width: 100%;
-    border: 1px solid #c0392b; border-radius: 7px; padding: 5px 9px; margin-top: 5px;
-    background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .rx-alert-tail, .rx-alert-tail-in { position: absolute; width: 0; height: 0; }
-  .rx-alert-tail { top: -7px; left: 12px; border-left: 6px solid transparent;
-    border-right: 6px solid transparent; border-bottom: 7px solid #c0392b; }
-  .rx-alert-tail-in { top: -5.5px; left: 13px; border-left: 5px solid transparent;
-    border-right: 5px solid transparent; border-bottom: 6px solid #fff; }
-  .rx-alert-line { font-size: 10.5px; line-height: 1.4; color: #c0392b;
-    white-space: normal; overflow-wrap: anywhere; }
-  .rx-alert-line + .rx-alert-line { margin-top: 3px; }
   .followup { margin-top: 18px; font-size: 12.5px; }
   .followup b { color: #0f6e56; }
   .sign { margin-top: 56px; text-align: right; font-size: 12px; color: #333; }

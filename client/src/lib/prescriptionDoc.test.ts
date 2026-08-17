@@ -169,115 +169,41 @@ describe("printed Rx markup", () => {
   });
 });
 
-// ⚕️ Prescribing warnings on the printed sheet.
+// ⚕️ NO prescribing warning is printed.
 //
-// The physician asked for the same warning the screen shows to appear against
-// the medicine on the prescription itself, in red. These pin what must hold on
-// a legal document: the wording is verbatim, it is attached to the RIGHT
-// medicine, it never takes width from the medicine name, it wraps rather than
-// truncating, and it stays off the public privacy copy.
-describe("prescribing warnings on the printed sheet", () => {
-  const WARN = "Entecavir is contraindicated in pregnancy and lactation. Use tenofovir disoproxil.";
-  const withAlert = (): RxLine[] => [
-    { ...line("Tablet. Barcavir 0.5 mg", "1+0+0", "Continue"), alerts: [WARN] },
-    line("Tablet. Napa 500 mg", "1+1+1", "5 days"),
-  ];
+// The "MHS is suggesting" advice is a live aid shown while the doctor writes.
+// It was briefly printed as a red callout under the medicine, and the physician
+// decided on 2026-08-17 that it must not survive onto the document: the printed
+// sheet and the saved copy show what the doctor entered, not what the system
+// inferred. These pin the absence in the printed HTML — the callout markup, its
+// stylesheet and its only red — so it cannot return as a tidy-up. Bringing it
+// back is a product decision, not a bug fix.
+describe("prescribing warnings are NOT printed", () => {
   const doc2 = (rx: RxLine[]): PrescriptionDoc => ({
     doctorName: "Dr Test",
     patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "16/08/2026", phone: "01700000000" },
     clinical: [], rx, advice: [], adviceTest: [], followUp: "",
   });
 
-  it("prints the warning sentence verbatim", () => {
-    expect(buildPrescriptionHtml(doc2(withAlert()))).toContain(WARN);
+  it("emits no callout markup for any medicine", () => {
+    const html = buildPrescriptionHtml(doc2(REPORTED));
+    expect(html).not.toContain("rx-alert");
   });
 
-  it("draws it as a red callout with a tail", () => {
-    const html = buildPrescriptionHtml(doc2(withAlert()));
-    expect(html).toContain('<div class="rx-alert-box">');
-    expect(html).toContain('<span class="rx-alert-tail">');
-    expect(html).toContain("#c0392b"); // the only red on the sheet
+  it("carries no callout stylesheet, and no red", () => {
+    const html = buildPrescriptionHtml(doc2(REPORTED));
+    expect(html).not.toContain(".rx-alert-line");
+    expect(html).not.toContain("#c0392b"); // was the only red on the sheet
   });
 
-  it("attaches it to the medicine that raised it, not the next one", () => {
-    const html = buildPrescriptionHtml(doc2(withAlert()));
-    const barcavir = html.indexOf("Tablet. Barcavir 0.5 mg");
-    const alert = html.indexOf('<div class="rx-alert-box">');
-    const napa = html.indexOf("Tablet. Napa 500 mg");
-    expect(barcavir).toBeLessThan(alert);
-    expect(alert).toBeLessThan(napa);
+  it("prints nothing extra on the privacy copy either", () => {
+    const html = buildPrescriptionHtml({ ...doc2(REPORTED), extraPrivacyPage: true });
+    expect(html).not.toContain("rx-alert");
   });
 
-  it("adds NO column — the medicine name keeps its measured width", () => {
-    const plain = buildPrescriptionHtml(doc2([line("Tablet. Barcavir 0.5 mg", "1+0+0", "Continue"), line("Tablet. Napa 500 mg", "1+1+1", "5 days")]));
-    const alerted = buildPrescriptionHtml(doc2(withAlert()));
-    const cols = (h: string) => h.slice(h.indexOf("<colgroup>"), h.indexOf("</colgroup>"));
-    expect(cols(alerted)).toBe(cols(plain));
-  });
-
-  it("wraps instead of truncating, even on a sheet that prints nowrap", () => {
-    const html = buildPrescriptionHtml(doc2(withAlert()));
-    expect(html).toContain("white-space:nowrap");           // the ℞ cells
-    expect(html).toContain(".rx-alert-line { font-size");   // …but the warning
-    expect(html).toContain("white-space: normal");          //    wraps
-  });
-
-  it("prints every warning a medicine raised, once each", () => {
-    const two = [{ ...line("Tablet. X 5mg"), alerts: [WARN, "Second advice line."] }];
-    const html = buildPrescriptionHtml(doc2(two));
-    expect(html.match(/<div class="rx-alert-line">/g)).toHaveLength(2);
-  });
-
-  it("ignores blank or whitespace-only warnings", () => {
-    const html = buildPrescriptionHtml(doc2([{ ...line("Tablet. X 5mg"), alerts: ["", "   "] }]));
-    expect(html).not.toContain('<div class="rx-alert-box">');
-  });
-
-  it("changes nothing when no line carries a warning", () => {
-    expect(buildPrescriptionHtml(doc2(REPORTED))).not.toContain('<div class="rx-alert-box">');
-  });
-
-  it("keeps the warning OFF the privacy copy — it is written to the doctor", () => {
-    const html = buildPrescriptionHtml({ ...doc2(withAlert()), extraPrivacyPage: true });
-    // One sheet carries it, the masked public copy does not.
-    expect(html.match(/<div class="rx-alert-box">/g)).toHaveLength(1);
-  });
-
-  it("escapes the warning text — it is rendered into HTML", () => {
-    const html = buildPrescriptionHtml(doc2([{ ...line("Tablet. X 5mg"), alerts: ["<script>alert(1)</script>"] }]));
-    expect(html).not.toContain("<script>alert(1)</script>");
-    expect(html).toContain("&lt;script&gt;");
-  });
-});
-
-describe("the warning row spans the whole table", () => {
-  // A short row leaves a phantom column and squeezes the callout, so the
-  // warning wraps onto more lines than it needs. It must span exactly the same
-  // columns a free-typed note does.
-  const WARN = "Entecavir is contraindicated in pregnancy and lactation.";
-  const doc3 = (rx: RxLine[]): PrescriptionDoc => ({
-    doctorName: "Dr Test",
-    patient: { name: "P", age: "39", gender: "Male", address: "", weight: "", date: "16/08/2026", phone: "01700000000" },
-    clinical: [], rx, advice: [], adviceTest: [], followUp: "",
-  });
-
-  it("uses the same colspan as a note when there is no food column", () => {
-    const html = buildPrescriptionHtml(doc3([{ ...line("Tablet. X 5mg"), alerts: [WARN] }]));
-    expect(html).toContain('class="rx-alert" colspan="3"');
-  });
-
-  it("widens with the food column", () => {
-    const html = buildPrescriptionHtml(
-      doc3([{ ...line("Tablet. X 5mg", "1+0+0", "5 days", "After meal"), alerts: [WARN] }]),
-    );
-    expect(html).toContain('class="rx-alert" colspan="4"');
-  });
-
-  it("matches the note row's span exactly", () => {
-    const note: RxLine = { drug: "Rest", dose: "", duration: "", instruction: "", isNote: true };
-    const html = buildPrescriptionHtml(doc3([{ ...line("Tablet. X 5mg"), alerts: [WARN] }, note]));
-    const noteSpan = html.match(/class="rx-note" colspan="(\d)"/)?.[1];
-    const alertSpan = html.match(/class="rx-alert" colspan="(\d)"/)?.[1];
-    expect(alertSpan).toBe(noteSpan);
+  it("leaves one row per medicine — the callout row is gone", () => {
+    const html = buildPrescriptionHtml(doc2(REPORTED));
+    // Every ℞ row still opens with a number cell; five medicines, five rows.
+    expect(html.match(/<td class="rx-no">/g)).toHaveLength(REPORTED.length);
   });
 });

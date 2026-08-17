@@ -13,7 +13,6 @@ import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import { rxAlertsByLine } from "@/lib/rxAlerts";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
@@ -88,10 +87,6 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       ? "Add a medicine or some clinical detail before saving."
       : "Save this unfinished prescription and start the next patient";
 
-  // The same assembly the on-screen warnings use, so the printed sheet and the
-  // editor can never disagree about what was checked.
-  const printAlertInput = useRxAlertInput();
-
   // Build the printable prescription HTML from the current editor state.
   const buildHtml = () => {
     const followUp =
@@ -117,23 +112,12 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         { label: "Associated illness", items: m.associatedIllness },
         { label: "Final diagnosis", items: m.finalDiagnosis },
       ],
-      // Each medicine carries the warnings IT raised, printed as a red callout
-      // under that line. Same matcher as the editor's bubbles and the banner —
-      // two independently-derived versions of a contraindication could
-      // disagree, and this one is the legal document.
-      //
-      // `rxAlertsByLine` is keyed by index into `rxDrugs`, which excludes
-      // notes, so the counter below advances only on non-note lines.
-      rx: (() => {
-        const byLine = rxAlertsByLine(printAlertInput);
-        let line = 0;
-        return m.rxItems.map((it) => {
-          if (it.isNote) return it;
-          const alerts = byLine.get(line);
-          line += 1;
-          return alerts && alerts.length ? { ...it, alerts } : it;
-        });
-      })(),
+      // ⚕️ The ℞ lines exactly as the doctor entered them. Prescribing warnings
+      // are deliberately NOT carried onto the sheet: they are a live aid while
+      // writing, and the physician's decision (2026-08-17) is that the printed
+      // and saved prescription shows what the doctor entered, not what the
+      // system inferred. See lib/prescriptionDoc.ts.
+      rx: m.rxItems,
       advice: m.advice,
       adviceTest: m.adviceTest,
       followUp,

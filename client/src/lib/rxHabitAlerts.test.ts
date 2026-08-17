@@ -124,10 +124,11 @@ describe("Barcavir — the warning must survive the suggestion", () => {
   });
 });
 
-// ⚕️ The warning is drawn against the medicine that raised it, on BOTH surfaces.
-// `rxAlertsByLine` is the one map the editor bubbles and the printed callouts
-// both read — two independently-derived versions of a contraindication could
-// disagree, and the printed one is the legal document.
+// ⚕️ The warning is drawn against the medicine that raised it, in the ℞ pad on
+// both prescribing screens. `rxAlertsByLine` is the one map those bubbles read;
+// it deliberately reaches no further — nothing is printed (see
+// `prescriptionDoc.test.ts`) — so the line index MUST point at the medicine the
+// matcher blamed, never at its neighbour.
 describe("rxAlertsByLine — which medicine each warning belongs to", () => {
   it("attaches the Barcavir contraindication to the Barcavir line, not its neighbours", () => {
     const byLine = rxAlertsByLine({
