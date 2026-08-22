@@ -17,6 +17,7 @@ import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
 import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { createRxSnapshotGate } from "@/lib/rxSnapshot";
+import { buildRxAlertInput, checkRxAlerts } from "@/lib/rxAlerts";
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
 import { useAuth } from "@/context/AuthContext";
@@ -154,6 +155,17 @@ function useMuqsitStore() {
   // — which matters because the click handler that uses it was built before the
   // save it belongs to even started.
   const rxGateRef = useRef(createRxSnapshotGate());
+  // ⚕️ Prescribing warnings the doctor pressed "Ignore warning" on, by
+  // `RxAlert.id`. THIS PRESCRIPTION ONLY (physician's decision, 2026-08-23):
+  // never persisted, cleared when the visit is saved and when the editor is
+  // reset, so the next visit puts the same decision in front of the doctor
+  // again. It hides the ℞ pad's bubble and nothing else — the advisory in
+  // "Notifications, Chats & Reports" stays up, and the save-time audit line
+  // is written whether the warning was ignored or not.
+  const [ignoredAlerts, setIgnoredAlerts] = useState<ReadonlySet<string>>(() => new Set());
+  const ignoreAlert = useCallback((id: string) => {
+    setIgnoredAlerts((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
   const [reportImages, setReportImages] = useState<string[]>([]);
 
   // On-examination popup + patient settings
@@ -315,6 +327,36 @@ function useMuqsitStore() {
           })
           .catch(() => {});
       }
+      // ⚕️ The prescribing warnings this visit raised, written to the activity
+      // feed so they OUTLIVE the screen (physician's decision, 2026-08-23).
+      // The advisory itself is derived and vanishes with the editor; this line
+      // is the permanent record that the doctor was warned, and it is written
+      // whether or not they pressed "Ignore warning" — a dismissal hides the
+      // bubble, never the fact that the warning was raised.
+      //
+      // The message is logged VERBATIM. It is the physician's own rule text
+      // (data/rxAlerts.ts); rewording it here would put a sentence no one
+      // approved into the patient's permanent record.
+      //
+      // Same shape as the habit line above: fire-and-forget, wrapped, silent.
+      // The matcher is written never to throw, but a save that has already
+      // succeeded must not be disturbed by an audit line that failed.
+      try {
+        const alerts = checkRxAlerts(
+          buildRxAlertInput({ rxItems, leftFields, drugHistory, visitDate: isoToDdmmyyyy(ptDate) }),
+        ).alerts;
+        for (const a of alerts) {
+          void activityApi
+            .log({
+              section: "Prescribing alert", detail: a.message, action: "saved",
+              // Name the patient. An audit line that says a contraindication was
+              // raised is worth little if the record cannot say for whom.
+              patientId: pid ?? undefined, patientName: ptName.trim() || undefined,
+            })
+            .catch(() => {});
+        }
+      } catch { /* an audit line is never worth a failed save */ }
+
       // Merge this visit's investigation findings into the patient's permanent
       // investigation history (records-page summary).
       if (pid) {
@@ -350,6 +392,8 @@ function useMuqsitStore() {
     } catch (e) {
       setSavedMsg(e instanceof ApiError ? `Save failed: ${e.message}` : "Save failed. Is the API running?");
     }
+    // The visit is on the record — the next one asks about its warnings afresh.
+    if (ok) setIgnoredAlerts(new Set());
     setTimeout(() => setSavedMsg(""), 3000);
     return ok;
   };
@@ -431,6 +475,7 @@ function useMuqsitStore() {
     setRxItems([]); setAdvice([]); setAdviceTest([]);
     setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
     setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
+    setIgnoredAlerts(new Set());
   }, []);
 
   // Apply a saved editor snapshot (header + clinical) — used to restore a
@@ -922,6 +967,7 @@ function useMuqsitStore() {
     invImages, setInvImages,
     rxImages, setRxImages, reportImages, setReportImages, saveRxImages,
     claimRxSnapshot, releaseRxSnapshot, saveRxSnapshot, saveReportImages,
+    ignoredAlerts, ignoreAlert,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,
     onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,

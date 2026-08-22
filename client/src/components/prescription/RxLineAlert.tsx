@@ -2,7 +2,8 @@
 
 import { Component, type ReactNode } from "react";
 import { C, font } from "@/theme";
-import { rxAlertsByLine, type RxAlertInput } from "@/lib/rxAlerts";
+import { rxAlertsByLine, type RxAlert, type RxAlertInput } from "@/lib/rxAlerts";
+import { useMuqsit } from "@/context/MuqsitContext";
 
 // ⚕️ The prescribing warning, drawn against the medicine that raised it.
 //
@@ -26,10 +27,25 @@ export default function RxLineAlert({ input, lineIndex }: { input: RxAlertInput;
   );
 }
 
+// ⚕️ The rule whose warning the doctor may set aside on the pad.
+//
+// The physician asked for it on entecavir — the drug they prescribe as Barcavir
+// — and for that rule ONLY. It is keyed on the rule's own drug label, not on
+// the brand typed into the pad, so every entecavir brand behaves the same:
+// Barcavir and Entaliv are the same medicine and must not offer the doctor two
+// different affordances. No other rule gets the button; widening this is a
+// clinical decision, not a tidy-up.
+const IGNORABLE_RULE_DRUGS = new Set(["Entecavir"]);
+
 function LineAlertBody({ input, lineIndex }: { input: RxAlertInput; lineIndex: number }) {
-  const messages = rxAlertsByLine(input).get(lineIndex) ?? [];
-  if (messages.length === 0) return null;
-  return <Bubble messages={messages} />;
+  const { ignoredAlerts, ignoreAlert } = useMuqsit();
+  const alerts = rxAlertsByLine(input).get(lineIndex) ?? [];
+  // Ignoring hides the bubble HERE and nowhere else: the advisory in
+  // "Notifications, Chats & Reports" stays up, and the visit is logged with the
+  // warning either way.
+  const shown = alerts.filter((a) => !ignoredAlerts.has(a.id));
+  if (shown.length === 0) return null;
+  return <Bubble alerts={shown} onIgnore={ignoreAlert} />;
 }
 
 /**
@@ -39,7 +55,7 @@ function LineAlertBody({ input, lineIndex }: { input: RxAlertInput; lineIndex: n
  * position, which is why the matcher carries a line index rather than matching
  * back by drug text.
  */
-function Bubble({ messages }: { messages: string[] }) {
+function Bubble({ alerts, onIgnore }: { alerts: RxAlert[]; onIgnore: (id: string) => void }) {
   return (
     <div style={{ width: "100%", paddingLeft: 30, marginTop: -2, marginBottom: 6 }}>
       <div
@@ -62,10 +78,24 @@ function Bubble({ messages }: { messages: string[] }) {
             outline, matching the printed sheet's bubble. */}
         <span aria-hidden style={{ position: "absolute", top: -9, left: 16, width: 0, height: 0, borderLeft: "8px solid transparent", borderRight: "8px solid transparent", borderBottom: `9px solid ${C.danger[400]}` }} />
         <span aria-hidden style={{ position: "absolute", top: -7, left: 17.5, width: 0, height: 0, borderLeft: "6.5px solid transparent", borderRight: "6.5px solid transparent", borderBottom: `8px solid ${C.n[0]}` }} />
-        {messages.map((m, i) => (
-          <div key={i} style={{ marginTop: i === 0 ? 0 : 5, display: "flex", gap: 7 }}>
+        {alerts.map((a, i) => (
+          <div key={a.id} style={{ marginTop: i === 0 ? 0 : 5, display: "flex", gap: 7, alignItems: "baseline", flexWrap: "wrap" }}>
             <span aria-hidden style={{ flexShrink: 0 }}>⚠️</span>
-            <span>{m}</span>
+            <span>{a.message}</span>
+            {IGNORABLE_RULE_DRUGS.has(a.drug) && (
+              <button
+                type="button"
+                onClick={() => onIgnore(a.id)}
+                title="Hide this warning for this prescription. It stays in the patient's log."
+                style={{
+                  flexShrink: 0, marginLeft: 2, padding: "2px 9px", borderRadius: 999,
+                  border: `1px solid ${C.danger[400]}`, background: C.n[0], color: C.danger[800],
+                  fontFamily: font, fontSize: 11, fontWeight: 500, cursor: "pointer", lineHeight: 1.5,
+                }}
+              >
+                Ignore Warning
+              </button>
+            )}
           </div>
         ))}
       </div>

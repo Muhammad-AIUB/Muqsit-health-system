@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import type { RxAlertInput } from "@/lib/rxAlerts";
+import { buildRxAlertInput, type RxAlertInput } from "@/lib/rxAlerts";
 
 /**
  * The one assembly of the prescribing-alert input, shared by every surface that
@@ -23,13 +23,7 @@ import type { RxAlertInput } from "@/lib/rxAlerts";
 export function useRxAlertInput(): RxAlertInput {
   const { rxItems, leftFields, drugHistory, ptDate } = useMuqsit();
   return useMemo(
-    () => ({
-      // Notes are dropped, so an index into this array is NOT a row index —
-      // `rxDrugIndexByRow` in lib/rxRows.ts maps a pad row onto it.
-      rxDrugs: rxItems.filter((it) => !it.isNote).map((it) => ({ text: it.drug, generic: it.generic })),
-      sidebar: leftFields.map((f) => ({ label: f.label, items: f.items })),
-      drugHistory: { entries: drugHistory, visitDate: isoToDdmmyyyy(ptDate) },
-    }),
+    () => buildRxAlertInput({ rxItems, leftFields, drugHistory, visitDate: isoToDdmmyyyy(ptDate) }),
     [rxItems, leftFields, drugHistory, ptDate],
   );
 }

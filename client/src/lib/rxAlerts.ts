@@ -66,8 +66,18 @@ export interface AlertEvidence {
 }
 
 export interface RxAlert {
-  /** Stable within a render — used as a React key and for dismissal. */
+  /**
+   * `${rule.drug}|${rule.message}` — stable for as long as the rule and the
+   * advice are, so it survives re-renders and can key a dismissal.
+   */
   id: string;
+  /**
+   * The rule's own drug label, verbatim from the rule table ("Entecavir",
+   * "Sofosbuvir+Velpatasvir"). Carried so a surface can act on WHICH rule fired
+   * without parsing `id` or matching the advice text — the ℞ pad offers
+   * "Ignore warning" on the entecavir rule only.
+   */
+  drug: string;
   message: string;
   evidence: AlertEvidence[];
 }
@@ -313,7 +323,7 @@ export function checkRxAlerts(raw: RxAlertInput): RxAlertCheck {
     }
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ id: `${rule.drug}|${key}`, message: rule.message, evidence });
+    out.push({ id: `${rule.drug}|${key}`, drug: rule.drug, message: rule.message, evidence });
   }
 
   return { alerts: out, unreadable: input.unreadable };
@@ -345,21 +355,48 @@ export function findRxAlerts(input: RxAlertInput): RxAlert[] {
 // full rule sweep runs N times for every keystroke in any cell. A WeakMap keyed
 // on the input means a new input (a real change) always recomputes, and an
 // unchanged one is free; nothing is retained after the input is dropped.
-const byLineCache = new WeakMap<RxAlertInput, Map<number, string[]>>();
+const byLineCache = new WeakMap<RxAlertInput, Map<number, RxAlert[]>>();
 
-export function rxAlertsByLine(input: RxAlertInput): Map<number, string[]> {
+export function rxAlertsByLine(input: RxAlertInput): Map<number, RxAlert[]> {
   const cached = input && typeof input === "object" ? byLineCache.get(input) : undefined;
   if (cached) return cached;
-  const byLine = new Map<number, string[]>();
+  const byLine = new Map<number, RxAlert[]>();
   for (const alert of checkRxAlerts(input).alerts) {
     for (const e of alert.evidence) {
       if (e.rxIndex === undefined) continue;
       const list = byLine.get(e.rxIndex) ?? [];
-      // The same sentence must never be printed twice against one medicine.
-      if (!list.includes(alert.message)) list.push(alert.message);
+      // The same sentence must never be shown twice against one medicine.
+      if (!list.some((a) => a.message === alert.message)) list.push(alert);
       byLine.set(e.rxIndex, list);
     }
   }
   if (input && typeof input === "object") byLineCache.set(input, byLine);
   return byLine;
+}
+
+/**
+ * Build the matcher's input from editor state.
+ *
+ * ⚕️ ONE ASSEMBLY, ON PURPOSE — the same rule `useRxAlertInput` was written
+ * under. The banner, the ℞ pad's bubbles and the save-time audit line all read
+ * the same picture; two assemblies could drift (a field added to one list and
+ * not the other, a different visit date) and then a doctor would see a
+ * contraindication in one place and not another, with no way to tell which was
+ * right. `useRxAlertInput` is the React wrapper around this; anything outside
+ * a component calls it directly.
+ */
+export function buildRxAlertInput(src: {
+  rxItems: { drug: string; generic?: string; isNote?: boolean }[];
+  leftFields: { label: string; items: string[] }[];
+  drugHistory: string[];
+  /** Visit date, dd/mm/yyyy. */
+  visitDate: string;
+}): RxAlertInput {
+  return {
+    // Notes are dropped, so an index into this array is NOT a row index —
+    // `rxDrugIndexByRow` in lib/rxRows.ts maps a pad row onto it.
+    rxDrugs: src.rxItems.filter((it) => !it.isNote).map((it) => ({ text: it.drug, generic: it.generic })),
+    sidebar: src.leftFields.map((f) => ({ label: f.label, items: f.items })),
+    drugHistory: { entries: src.drugHistory, visitDate: src.visitDate },
+  };
 }

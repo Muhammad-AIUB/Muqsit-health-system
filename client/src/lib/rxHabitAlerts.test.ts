@@ -130,6 +130,12 @@ describe("Barcavir — the warning must survive the suggestion", () => {
 // `prescriptionDoc.test.ts`) — so the line index MUST point at the medicine the
 // matcher blamed, never at its neighbour.
 describe("rxAlertsByLine — which medicine each warning belongs to", () => {
+  // The map carries whole alerts (id + rule drug + advice) so the pad can offer
+  // "Ignore warning" on the entecavir rule alone; these assertions are about
+  // WHICH medicine gets WHICH sentence, so they read the sentences out.
+  const messagesOn = (byLine: ReturnType<typeof rxAlertsByLine>, line: number) =>
+    byLine.get(line)?.map((a) => a.message);
+
   it("attaches the Barcavir contraindication to the Barcavir line, not its neighbours", () => {
     const byLine = rxAlertsByLine({
       rxDrugs: [
@@ -139,7 +145,7 @@ describe("rxAlertsByLine — which medicine each warning belongs to", () => {
       ],
       sidebar: PREGNANT_SIDEBAR,
     });
-    expect(byLine.get(1)).toEqual([CONTRAINDICATION]);
+    expect(messagesOn(byLine, 1)).toEqual([CONTRAINDICATION]);
     expect(byLine.get(0)).toBeUndefined();
     expect(byLine.get(2)).toBeUndefined();
   });
@@ -154,7 +160,7 @@ describe("rxAlertsByLine — which medicine each warning belongs to", () => {
       ],
       sidebar: PREGNANT_SIDEBAR,
     });
-    expect(byLine.get(0)).toEqual([CONTRAINDICATION]);
+    expect(messagesOn(byLine, 0)).toEqual([CONTRAINDICATION]);
   });
 
   it("is empty when nothing fires", () => {
@@ -176,7 +182,7 @@ describe("rxAlertsByLine — which medicine each warning belongs to", () => {
       ],
       sidebar: PREGNANT_SIDEBAR,
     });
-    expect(byLine.get(2)).toEqual([CONTRAINDICATION]);
+    expect(messagesOn(byLine, 2)).toEqual([CONTRAINDICATION]);
     expect(byLine.get(0)).toBeUndefined();
   });
 
@@ -185,7 +191,7 @@ describe("rxAlertsByLine — which medicine each warning belongs to", () => {
       rxDrugs: [{ text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" }],
       sidebar: [{ label: "Chief complaints", items: ["Pregnant", "Lactating"] }],
     });
-    expect(byLine.get(0)).toHaveLength(1);
+    expect(messagesOn(byLine, 0)).toHaveLength(1);
   });
 
   it("lands on the line reached through a clicked suggestion", () => {
@@ -196,6 +202,44 @@ describe("rxAlertsByLine — which medicine each warning belongs to", () => {
       rxDrugs: items.filter((i) => !i.isNote).map((i) => ({ text: i.drug, generic: i.generic })),
       sidebar: PREGNANT_SIDEBAR,
     });
-    expect(byLine.get(0)).toEqual([CONTRAINDICATION]);
+    expect(messagesOn(byLine, 0)).toEqual([CONTRAINDICATION]);
+  });
+});
+
+// ⚕️ "Ignore warning" is offered on ONE rule — entecavir, the drug the physician
+// prescribes as Barcavir — and the pad decides that from `RxAlert.drug`, the
+// rule's own label. These pin the two halves that decision rests on: that the
+// label reaches the pad, and that it is the RULE's drug, not the brand typed
+// into the ℞ line. Barcavir and Entaliv are the same medicine; offering the
+// button on one and not the other would be a difference with no clinical basis.
+describe("RxAlert.drug — what the pad keys 'Ignore warning' on", () => {
+  const alertsFor = (rxDrugs: { text: string; generic?: string }[], sidebar: { label: string; items: string[] }[]) =>
+    checkRxAlerts({ rxDrugs, sidebar }).alerts;
+
+  it("labels the entecavir warning with the rule's drug, whatever brand was typed", () => {
+    for (const brand of [
+      { text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" },
+      { text: "Tablet. Entaliv 0.5 mg", generic: "Entecavir" },
+      { text: "entecavir" },
+    ]) {
+      const alerts = alertsFor([brand], PREGNANT_SIDEBAR);
+      expect(alerts.map((a) => a.drug)).toEqual(["Entecavir"]);
+    }
+  });
+
+  it("labels another rule with ITS drug, so the button cannot leak onto it", () => {
+    const alerts = alertsFor(
+      [{ text: "Tablet. Sofosvel" , generic: "Sofosbuvir+Velpatasvir" }, { text: "Capsule. Sergel 20 mg", generic: "Omeprazole" }],
+      [{ label: "Chief complaints", items: ["Hepatitis C"] }],
+    );
+    expect(alerts.length).toBeGreaterThan(0);
+    expect(alerts.every((a) => a.drug !== "Entecavir")).toBe(true);
+  });
+
+  it("keys the id on the rule and the advice, so a dismissal survives a re-render", () => {
+    const a = alertsFor([{ text: "entecavir" }], PREGNANT_SIDEBAR)[0];
+    const b = alertsFor([{ text: "entecavir" }], PREGNANT_SIDEBAR)[0];
+    expect(a.id).toBe(b.id);
+    expect(a.id).toContain("Entecavir");
   });
 });
