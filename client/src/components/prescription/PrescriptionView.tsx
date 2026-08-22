@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -75,6 +75,15 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   // 3.docx: a patient must be chosen (via the mobile lookup) before anything can
   // be written or saved.
   const gateOpen = !!m.currentPatientId;
+  // ⚕️ ONE Save & print at a time. Two clicks a fraction apart used to run the
+  // whole flow twice and record the consultation as TWO `Prescription` rows —
+  // measured at 120ms apart, two rows 321ms apart. A ref, not state: both
+  // clicks of a real double-press land before React has re-rendered, so a
+  // state check would let the second one through. The state beside it is only
+  // so the button can say what is happening; doctors press twice when nothing
+  // appears to have happened.
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
   // Assistants need the "Save and print" grant to save a prescription.
   const canSave = m.can("rx.savePrint") && gateOpen;
   // "Save to complete later" parks an unfinished visit. Deliberately NOT permission-gated:
@@ -144,6 +153,22 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   // the visit first. The snapshot is best-effort: a capture/upload failure never
   // undoes a successful save.
   const handleSave = async () => {
+    // A save is already running — this click is the second half of a
+    // double-press. Do nothing at all: not a second window, not a second row.
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await runSave();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  // Called straight from handleSave, so everything up to the first `await`
+  // still runs inside the click — which the window.open below depends on.
+  const runSave = async () => {
     // Open the window NOW, synchronously inside the click. A window.open() after
     // the save's await has lost the user gesture and pop-up blockers drop it
     // without asking — which is how "Save & print" would silently go back to
@@ -230,8 +255,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.n[200]}`, color: C.n[800] }}>Clinical assessment</div><LeftColumn /></div>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.pri[400]}`, color: C.pri[600] }}>Prescription</div><RightColumn mobile /></div>
         </PatientGate>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, marginBottom: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", fontFamily: font }}>Save to complete later</button>
-        <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print</button>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, marginBottom: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", fontFamily: font }}>Save to complete later</button>
+        <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>{saving ? "Saving…" : "Save & print"}</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
       </>
@@ -260,8 +285,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       {/* Wraps: "Save to complete later" is a long label, and this row also
           serves tablets (≥768px) where three buttons on one line get cramped. */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft} title={draftTitle} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 12, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", whiteSpace: "nowrap", fontFamily: font }}>Save to complete later</button>
-        <button onClick={handleSave} disabled={!canSave} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ flex: 1, padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>Save &amp; print prescription</button>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 12, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", whiteSpace: "nowrap", fontFamily: font }}>Save to complete later</button>
+        <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ flex: 1, padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>{saving ? "Saving…" : "Save & print prescription"}</button>
         <button onClick={previewPdf} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Preview PDF</button>
       </div>
       {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}

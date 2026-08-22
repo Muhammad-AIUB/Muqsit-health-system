@@ -213,6 +213,12 @@ function useMuqsitStore() {
   };
   // Saves the prescription to the API. If no saved patient is loaded,
   // a patient record is created first from the header fields.
+  //
+  // ⚕️ NOT re-entrant, and it does not serialise itself. Two overlapping calls
+  // POST twice and the consultation lands in the record as two prescriptions —
+  // which is exactly what a double-press on Save & print used to do. Its one
+  // caller, `PrescriptionView#handleSave`, holds a synchronous in-flight guard;
+  // any new caller owes the same.
   const savePrescription = async (): Promise<boolean> => {
     // A prescription is saveable with a medicine OR any clinical detail/advice —
     // not every visit prescribes a drug. Only a completely empty form is blocked.
