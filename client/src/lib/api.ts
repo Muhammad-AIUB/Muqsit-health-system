@@ -79,6 +79,9 @@ export interface Patient {
   watched: boolean;
   prescriptionImages: string[];
   reportImages: string[];
+  // Fingerprint of the printed sheet behind the newest AUTO gallery snapshot
+  // (lib/rxSnapshot.ts). Null when none has been filed.
+  lastRxImageKey: string | null;
   hmDrugDates: Record<string, { sf: string; upto: string }> | null;
   hmSymptomDates: Record<string, { sf: string; upto: string }> | null;
   hmSelectedDrugs: string[];
@@ -115,6 +118,7 @@ export interface PatientInput {
   watched?: boolean;
   prescriptionImages?: string[];
   reportImages?: string[];
+  lastRxImageKey?: string;
   hmDrugDates?: Record<string, { sf: string; upto: string }>;
   hmSymptomDates?: Record<string, { sf: string; upto: string }>;
   hmSelectedDrugs?: string[];

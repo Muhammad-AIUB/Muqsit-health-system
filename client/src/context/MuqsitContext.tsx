@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
 import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
+import { createRxSnapshotGate } from "@/lib/rxSnapshot";
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
 import { useAuth } from "@/context/AuthContext";
@@ -147,6 +148,12 @@ function useMuqsitStore() {
   // "Patient records" view galleries — uploaded prescription and report image
   // URLs (self-hosted /uploads). Persisted on the Patient record.
   const [rxImages, setRxImages] = useState<string[]>([]);
+  // Fingerprint of the printed sheet behind the newest AUTO gallery snapshot
+  // (lib/rxSnapshot.ts). A ref, not state: nothing renders it, and a ref reads
+  // at its current value rather than the value some earlier render closed over
+  // — which matters because the click handler that uses it was built before the
+  // save it belongs to even started.
+  const rxGateRef = useRef(createRxSnapshotGate());
   const [reportImages, setReportImages] = useState<string[]>([]);
 
   // On-examination popup + patient settings
@@ -165,6 +172,13 @@ function useMuqsitStore() {
   const [ptEditing, setPtEditing] = useState(true);
   // id of the patient currently loaded for editing (null = creating a new one)
   const [currentPatientId, setCurrentPatientId] = useState<string | null>(null);
+  // `currentPatientId` as of RIGHT NOW. A callback created before the patient
+  // existed still closes over the old state, and `savePrescription` creates the
+  // patient mid-flight — which is how the very first gallery snapshot used to be
+  // dropped for a new patient: the PATCH was skipped for a null id and the
+  // patient-load effect then replaced the local list with the server's.
+  const patientIdRef = useRef<string | null>(null);
+  useEffect(() => { patientIdRef.current = currentPatientId; }, [currentPatientId]);
 
   // IPD events + misc
   const [eventsPatient, setEventsPatient] = useState<IpdPatient | null>(null);
@@ -231,6 +245,9 @@ function useMuqsitStore() {
         });
         pid = patient.id;
         setCurrentPatientId(pid);
+        // Synchronously, not via the effect: the rest of this save (and the
+        // gallery snapshot that follows it) runs before React re-renders.
+        patientIdRef.current = pid;
         // Flush everything that was entered BEFORE this patient existed — the
         // per-change PATCHes (family tree, health-monitoring ticks/dates, watch,
         // image galleries) all no-op without a patient id, so carry them over
@@ -335,7 +352,7 @@ function useMuqsitStore() {
   // opened (and clear them when starting a fresh, unsaved patient).
   useEffect(() => {
     if (!currentPatientId) {
-      setRxImages([]); setReportImages([]);
+      setRxImages([]); rxGateRef.current.reset(null); setReportImages([]);
       setHmDrugs(new Set()); setFamilyMembers([]); setInvestigationSummary([]); setOnExaminationSummary([]);
       return;
     }
@@ -345,6 +362,7 @@ function useMuqsitStore() {
       .then((p) => {
         if (!cancelled) {
           setRxImages(p.prescriptionImages ?? []);
+          rxGateRef.current.reset(p.lastRxImageKey ?? null);
           setReportImages(p.reportImages ?? []);
           setHmDrugs(new Set(p.hmSelectedDrugs ?? []));
           setFamilyMembers((p.familyMembers as FamilyMember[]) ?? []);
@@ -364,6 +382,31 @@ function useMuqsitStore() {
     setRxImages(next);
     if (currentPatientId) void patientsApi.update(currentPatientId, { prescriptionImages: next }).catch(() => {});
   }, [currentPatientId]);
+  // ── "Save & print" gallery snapshot ────────────────────────────────────
+  // Claim this sheet for the patient's gallery. False means the gallery already
+  // holds it, so there is nothing to capture: the doctor re-saved a visit they
+  // changed nothing on (physician's decision, 2026-08-23). The claim is taken
+  // HERE, before the capture, and the capture is slow — a second click landing
+  // mid-capture therefore finds the key already taken instead of filing the
+  // same paper twice. Whoever claims must then either file it or release it.
+  const claimRxSnapshot = useCallback((key: string | null): boolean => rxGateRef.current.claim(key), []);
+  // ⚕️ The capture or the upload failed. Hand the fingerprint back, or the next
+  // identical save would be suppressed for a sheet that never reached the
+  // gallery — a printed document with no copy on file.
+  const releaseRxSnapshot = useCallback(() => rxGateRef.current.release(), []);
+  // File it: the image and the fingerprint of the sheet it pictures go in ONE
+  // PATCH, so the two can never disagree. The id comes from the ref and the
+  // append is functional, because this runs after `savePrescription` may have
+  // just created the patient.
+  const saveRxSnapshot = useCallback((url: string, key: string | null) => {
+    const pid = patientIdRef.current;
+    rxGateRef.current.file(key);
+    setRxImages((prev) => {
+      const next = [...prev, url];
+      if (pid) void patientsApi.update(pid, { prescriptionImages: next, ...(key ? { lastRxImageKey: key } : {}) }).catch(() => {});
+      return next;
+    });
+  }, []);
   const saveReportImages = useCallback((next: string[]) => {
     setReportImages(next);
     if (currentPatientId) void patientsApi.update(currentPatientId, { reportImages: next }).catch(() => {});
@@ -871,7 +914,8 @@ function useMuqsitStore() {
     showInvPopup, setShowInvPopup, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
     calDate, setCalDate, showMonthPicker, setShowMonthPicker, invSearch, setInvSearch,
     invImages, setInvImages,
-    rxImages, setRxImages, reportImages, setReportImages, saveRxImages, saveReportImages,
+    rxImages, setRxImages, reportImages, setReportImages, saveRxImages,
+    claimRxSnapshot, releaseRxSnapshot, saveRxSnapshot, saveReportImages,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,
     onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,

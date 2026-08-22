@@ -323,6 +323,14 @@ model Patient {
   // patient's "Prescriptions & reports" view.
   prescriptionImages String[] @default([])
   reportImages       String[] @default([])
+  // Fingerprint of the printed sheet behind the most recent AUTO snapshot in
+  // `prescriptionImages` (SHA-256 of the HTML "Save & print" rendered). Re-saving
+  // a visit the doctor did not change would otherwise file the same sheet into
+  // the gallery again on every click. NULL means "no auto snapshot recorded
+  // yet" and always takes a fresh one — including for every patient that
+  // existed before this column, and for images the doctor added by hand, which
+  // never touch it.
+  lastRxImageKey     String?
   // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
   // Display override for the trend chart's medication bars: a blank/absent side
   // falls back to the date derived from drugHistory. Never rewrites drugHistory.

@@ -80,6 +80,11 @@ export class CreatePatientDto {
 export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
   // Chart-display override only: never rewrites drugHistory.
+  // Fingerprint of the printed sheet behind the newest AUTO gallery snapshot —
+  // a SHA-256 hex digest, written only alongside `prescriptionImages` by
+  // "Save & print". Lets the client tell a re-save of an unchanged visit from a
+  // real edit, so the same sheet is not filed into the gallery on every click.
+  @IsOptional() @IsString() @MaxLength(128) lastRxImageKey?: string;
   @IsOptional() @IsObject() hmDrugDates?: Record<string, { sf: string; upto: string }>;
   // Same shape, keyed by the exact chief-complaint text — { [complaint]: { sf, upto } }.
   // Chart-display override only: never rewrites any Prescription.

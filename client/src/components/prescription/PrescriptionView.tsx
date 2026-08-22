@@ -13,6 +13,7 @@ import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
+import { rxSnapshotKey } from "@/lib/rxSnapshot";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
@@ -189,11 +190,25 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     }
 
     logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
+    // Snapshot the sheet into the patient's gallery — but only when it is a
+    // sheet that gallery does not already hold. The doctor may press Save &
+    // print any number of times on a visit they changed nothing on; that must
+    // not file the same paper again (physician's decision, 2026-08-23). The
+    // check is on the HTML, and it happens BEFORE the capture, so an unchanged
+    // re-save also costs no render, no upload and no orphaned file on disk.
     try {
-      const file = await capturePrescriptionImage(html);
-      if (file) {
-        const url = await uploadImage(file);
-        m.saveRxImages([...m.rxImages, url]);
+      const key = await rxSnapshotKey(html);
+      if (m.claimRxSnapshot(key)) {
+        try {
+          const file = await capturePrescriptionImage(html);
+          if (!file) throw new Error("capture produced no image");
+          m.saveRxSnapshot(await uploadImage(file), key);
+        } catch (e) {
+          // Give the fingerprint back — an unchanged re-save must still be able
+          // to file this sheet, since this attempt never reached the gallery.
+          m.releaseRxSnapshot();
+          throw e;
+        }
       }
     } catch { /* ignore — image snapshot is optional */ }
   };
