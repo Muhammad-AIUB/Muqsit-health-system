@@ -76,10 +76,15 @@ const esc = (s: string) =>
 // Nothing is ever truncated or allowed past the printable width.
 const RX_COL_SHARE = 1.6 / 2.4;   // .body grid is 0.8fr / 0.5px / 1.6fr
 const RIGHT_PAD_PX = 18;          // .right padding-left
-const RX_NO_PX = 22;              // .rx-no fixed width
+// .rx-no fixed width. Wide enough for a TWO-digit serial: a 10-medicine
+// prescription is ordinary, and "10." measures 19.5px in 14px DM Sans
+// (Chrome, 2026-08-23) against a content box of RX_NO_PX - CELL_PAD_PX.
+// Too narrow and the number breaks onto its own second line beside the
+// medicine it belongs to.
+const RX_NO_PX = 32;
 const CELL_PAD_PX = 12;           // td padding, both sides
-const DRUG_BASE_PX = 13;
-const MID_BASE_PX = 12.5;
+const DRUG_BASE_PX = 14;
+const MID_BASE_PX = 14;
 const FLOOR_PX = 8.5;
 // Leave a sliver for the printer's own rounding and font hinting.
 const FIT_SAFETY = 0.98;
@@ -157,27 +162,38 @@ export function layoutRxColumns(
   const widest = (pick: (r: RxLine) => string, base: number, bold: boolean) =>
     lines.reduce((mx, r) => Math.max(mx, width(pick(r), base, bold)), 0);
 
+  // What the widest line in each column actually needs, at the base size.
+  const raw = [
+    widest((r) => r.drug, DRUG_BASE_PX, true),
+    widest((r) => r.dose, MID_BASE_PX, false),
+    ...(hasFood ? [widest((r) => r.instruction, MID_BASE_PX, false)] : []),
+    widest((r) => r.duration, MID_BASE_PX, false),
+  ];
   // A column with no content still needs a sliver, or the header row collapses
   // and the remaining columns jump around between prescriptions.
   const MIN = 24;
-  const nat = [
-    Math.max(MIN, widest((r) => r.drug, DRUG_BASE_PX, true)),
-    Math.max(MIN, widest((r) => r.dose, MID_BASE_PX, false)),
-    ...(hasFood ? [Math.max(MIN, widest((r) => r.instruction, MID_BASE_PX, false))] : []),
-    Math.max(MIN, widest((r) => r.duration, MID_BASE_PX, false)),
-  ];
+  const nat = raw.map((w) => Math.max(MIN, w));
   const sum = nat.reduce((a, b) => a + b, 0);
 
+  // Widths are handed out first, rounded DOWN so their total can never exceed
+  // the row.
+  const inner = nat.map((w) => Math.floor((w / sum) * avail));
+
+  // The size is then read back off the width each column actually GOT, not off
+  // the share it asked for. Rounding down cost every column up to a pixel, and
+  // type sized for a pixel the column does not have is exactly how a nowrap
+  // cell bleeds past its own column on the printed sheet. An empty column
+  // constrains nothing — its sliver is padding, not text.
   // Fonts only ever shrink: a short prescription must not print in giant type
   // just because there is room. Widths always fill the row.
-  let scale = Math.min(1, avail / sum);
+  let scale = Math.min(1, ...inner.map((w, i) => (raw[i] > 0 ? w / raw[i] : Infinity)));
   let wrap = false;
   const floorScale = FLOOR_PX / DRUG_BASE_PX;
   if (scale < floorScale) { scale = floorScale; wrap = true; }
 
   const round1 = (n: number) => Math.floor(n * 10) / 10;
   return {
-    cols: nat.map((w) => Math.floor((w / sum) * avail) + CELL_PAD_PX),
+    cols: inner.map((w) => w + CELL_PAD_PX),
     hasFood,
     drugPx: round1(Math.max(FLOOR_PX, DRUG_BASE_PX * scale)),
     midPx: round1(Math.max(FLOOR_PX, MID_BASE_PX * scale)),
@@ -296,7 +312,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       <div class="divider"></div>
       <div class="right">
         <div class="rx-symbol">℞</div>
-        ${rxRows ? `<table>${rxCols}${rxRows}</table>` : '<p style="font-size:12.5px;color:#999">No medicines added.</p>'}
+        ${rxRows ? `<table>${rxCols}${rxRows}</table>` : '<p style="font-size:14px;color:#999">No medicines added.</p>'}
         ${adviceBlock}
         ${listBlock("Advised tests / investigation", d.adviceTest)}
         ${d.followUp ? `<div class="followup">Follow-up: <b>${esc(d.followUp)}</b></div>` : ""}
@@ -350,7 +366,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   /* Empty by design — the rule under the (pre-printed) letterhead band. The
      brand/logo/doctor rules that used to fill it went with the printed name. */
   .head { border-bottom: 2px solid #1d9e75; }
-  .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 12.5px; margin: 14px 0 6px; }
+  .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 14px; margin: 14px 0 6px; }
   .pt span { color: #6b6b6b; }
   .body { display: grid; grid-template-columns: 0.8fr 0.5px 1.6fr; gap: 0; margin-top: 10px; }
   .left { padding-right: 16px; }
@@ -360,20 +376,20 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .block { margin-bottom: 12px; }
   .block-title { font-size: 11px; font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
   ul { margin: 0; padding-left: 16px; }
-  li { font-size: 12.5px; line-height: 1.5; }
+  li { font-size: 14px; line-height: 1.5; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   td { padding: 7px 6px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-  .rx-no { width: 22px; color: #999; font-size: 12px; }
+  .rx-no { width: ${RX_NO_PX}px; color: #999; font-size: 14px; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
      the dose column needs. Do not put percentage widths back here. */
   .rx-drug { font-weight: 600; }
   .rx-mid { color: #333; }
-  .rx-note { font-size: 12.5px; color: #444; font-style: italic; }
-  .followup { margin-top: 18px; font-size: 12.5px; }
+  .rx-note { font-size: 14px; color: #444; font-style: italic; }
+  .followup { margin-top: 18px; font-size: 14px; }
   .followup b { color: #0f6e56; }
-  .sign { margin-top: 56px; text-align: right; font-size: 12px; color: #333; }
+  .sign { margin-top: 56px; text-align: right; font-size: 14px; color: #333; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in

@@ -11,13 +11,14 @@ import {
 // depends on: every cell prints on ONE line, and the whole sheet prints at ONE
 // type size (a medicine set smaller than its neighbour reads as emphasis nobody
 // intended). Cross-checked against a real browser on 2026-08-16: an A4 sheet
-// leaves 438px for the Rx data columns.
+// left 438px for the Rx data columns; 428px since RX_NO_PX widened to 32 so a
+// two-digit serial fits beside its medicine at 14px (2026-08-23).
 
 // Stand-in for canvas metrics (vitest has no DOM). Linear in font size, like
 // real text, near the ~0.47em/char DM Sans actually measures; bold a shade wider.
 const fakeMeasure = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.5 : 0.47);
 
-const A4_INNER = 438;
+const A4_INNER = 428;
 const line = (drug: string, dose = "1+0+0", duration = "5 days", instruction = ""): RxLine =>
   ({ drug, dose, duration, instruction });
 
@@ -86,8 +87,8 @@ describe("layoutRxColumns", () => {
 
   it("never sets type larger than the base size when there is room to spare", () => {
     const lay = layoutRxColumns([line("Tab. A", "1", "1d")], A4_INNER, fakeMeasure);
-    expect(lay.drugPx).toBe(13);
-    expect(lay.midPx).toBe(12.5);
+    expect(lay.drugPx).toBe(14);
+    expect(lay.midPx).toBe(14);
     // Widths still fill the row rather than leaving a ragged right edge.
     expect(lay.cols.reduce((a, b) => a + b, 0)).toBeGreaterThan(A4_INNER * 0.9);
   });
@@ -97,10 +98,10 @@ describe("layoutRxColumns", () => {
       [line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night if constipation", "Continue")],
       A4_INNER, fakeMeasure,
     );
-    expect(lay.drugPx).toBeLessThan(13);
-    expect(lay.midPx).toBeLessThan(12.5);
-    // Same factor, so the ratio of the two base sizes is preserved.
-    expect(lay.drugPx / lay.midPx).toBeCloseTo(13 / 12.5, 1);
+    expect(lay.drugPx).toBeLessThan(14);
+    expect(lay.midPx).toBeLessThan(14);
+    // Same factor, so the ratio of the two base sizes is preserved (both 14px).
+    expect(lay.drugPx / lay.midPx).toBeCloseTo(1, 1);
   });
 
   it("stops at the legibility floor and wraps rather than printing unreadably", () => {
@@ -125,6 +126,39 @@ describe("layoutRxColumns", () => {
       expect(lay.cols.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(A4_INNER);
     }
   });
+
+  // The row fitting is not enough on its own: the cells print `white-space:
+  // nowrap`, so a cell sized a fraction wider than the column it was given
+  // bleeds over the next one on paper. Rounding the shares down while sizing
+  // the type off the un-rounded share is how that happens, and it only shows
+  // up at particular width/size combinations — so pin it for every column of
+  // every shape, at several sheet widths.
+  it("never lets a cell overflow its own column, at any sheet width", () => {
+    const shapes = [
+      REPORTED,
+      [line("A")],
+      [...REPORTED, line("X", "1", "2d", "After food")],
+      [line("Tablet. Napa 500 mg", "1+1+1", "5 days", "After food")],
+      [line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night if constipation", "Continue")],
+    ];
+    for (const rows of shapes) {
+      for (const innerPx of [320, 380, 400, 417, A4_INNER, 460, 520]) {
+        const lay = layoutRxColumns(rows, innerPx, fakeMeasure);
+        if (lay.wrap) continue; // below the floor cells are allowed to wrap
+        const cell = (pick: (r: RxLine) => string, px: number, bold: boolean) =>
+          Math.max(...rows.map((r) => fakeMeasure(pick(r), px, bold)));
+        const need = [
+          cell((r) => r.drug, lay.drugPx, true),
+          cell((r) => r.dose, lay.midPx, false),
+          ...(lay.hasFood ? [cell((r) => r.instruction, lay.midPx, false)] : []),
+          cell((r) => r.duration, lay.midPx, false),
+        ];
+        need.forEach((w, i) => {
+          expect(w, `col ${i} @ ${innerPx}px`).toBeLessThanOrEqual(lay.cols[i] - 12);
+        });
+      }
+    }
+  });
 });
 
 describe("printed Rx markup", () => {
@@ -132,6 +166,16 @@ describe("printed Rx markup", () => {
     doctorName: "Dr Test",
     patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "16/08/2026", phone: "01700000000" },
     clinical: [], rx, advice: [], adviceTest: [], followUp: "",
+  });
+
+  // A 10-medicine prescription is ordinary. "10." measures 19.5px in 14px DM
+  // Sans, so a serial column narrower than that plus its 12px padding drops the
+  // number onto a second line beside the medicine it numbers.
+  it("gives the serial column room for a two-digit number", () => {
+    const html = buildPrescriptionHtml(doc(REPORTED));
+    const first = html.match(/<colgroup><col style="width:(\d+(?:\.\d+)?)px"/);
+    expect(first).not.toBeNull();
+    expect(Number(first![1])).toBeGreaterThanOrEqual(32);
   });
 
   it("emits a colgroup instead of percentage widths", () => {
