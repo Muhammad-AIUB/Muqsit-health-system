@@ -13,6 +13,66 @@ const FORM_RE =
   /^\s*(tab|tablet|cap|capsule|syp|syr|syrup|inj|injection|susp|suspension|sol|solution|drop|drops|oint|ointment|cream|gel|lotion|spray|supp|suppository|inhaler|powder|sachet)\b/i;
 export const looksLikeMedicine = (s: string) => FORM_RE.test(s.trim());
 
+// The dot-less abbreviations the medicines table emits and doctors free-type
+// ("inj. Halopid", "tab Seclo"). Mirrors FORM_ABBREV in
+// server/src/rx-habits/normalise.ts — five entries duplicated rather than a
+// shared package, because the three apps install separately.
+const FORM_ABBREV = new Set(["tab", "cap", "inj", "syp", "syr", "susp"]);
+
+/**
+ * Split a printed medicine label into the three parts `fmtMedicine` joined it
+ * from: the dosage form, the brand NAME, and the strength.
+ * `Tablet. Napa 500 mg` → before `Tablet. `, name `Napa`, after ` 500 mg`.
+ *
+ * ⚕️ DISPLAY ONLY, and text-preserving by construction. The three pieces are
+ * INDEX RANGES of the string passed in, so `before + name + after` is always
+ * byte-identical to it — including every space. Nothing is reworded,
+ * reordered, dropped or converted, so the printed prescription still shows
+ * exactly what the doctor entered; the split only decides which part of it is
+ * set in bold. A label this cannot read leaves `name` empty, and the caller
+ * falls back to emphasising the whole line rather than none of it.
+ *
+ * The form rule is the structural one from
+ * server/src/rx-habits/normalise.ts#splitForm: everything up to and including
+ * the first `.`, provided that head carries no digit (so `Napa 0.5 mg` has no
+ * form) and is at most four words (so a free-typed sentence is not swallowed).
+ * The parenthesised qualifier comes with it — `Tablet (Enteric Coated).` is
+ * not `Tablet.`, and `SC Injection.` is not `Injection.`.
+ *
+ * The strength is the trailing run beginning at the first token that starts
+ * with a digit, or a trailing `N/A` (the medicines table's way of writing
+ * "strength not recorded"). Never the FIRST token after the form: a medicine
+ * always keeps a name, so `Tablet. 5-FU 500 mg` reads 5-FU as the name.
+ */
+export function splitDrugLabel(label: string): { before: string; name: string; after: string } {
+  let formEnd = 0;
+  const dot = label.indexOf(".");
+  if (dot !== -1) {
+    const head = label.slice(0, dot).trim();
+    if (head && !/\d/.test(head) && head.split(/\s+/).length <= 4) formEnd = dot + 1;
+  }
+  if (formEnd === 0) {
+    const abbrev = /^(\s*)([a-z]+)\s+(?=\S)/i.exec(label);
+    if (abbrev && FORM_ABBREV.has(abbrev[2].toLowerCase())) formEnd = abbrev[1].length + abbrev[2].length;
+  }
+
+  const tokens: { start: number; text: string }[] = [];
+  const word = /\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = word.exec(label.slice(formEnd))) !== null) tokens.push({ start: formEnd + m.index, text: m[0] });
+  if (tokens.length === 0) return { before: label, name: "", after: "" };
+
+  let strengthAt = -1;
+  for (let i = 1; i < tokens.length; i++) {
+    if (/^\d/.test(tokens[i].text) || /^n\/a$/i.test(tokens[i].text)) { strengthAt = i; break; }
+  }
+  const nameStart = tokens[0].start;
+  let nameEnd = strengthAt === -1 ? label.length : tokens[strengthAt].start;
+  while (nameEnd > nameStart && /\s/.test(label[nameEnd - 1])) nameEnd -= 1;
+
+  return { before: label.slice(0, nameStart), name: label.slice(nameStart, nameEnd), after: label.slice(nameEnd) };
+}
+
 // ── Dose shorthand ──────────────────────────────────────────
 //   101 → 1+0+1   220 → 2+2+0   203 → 2+0+3
 //   320018 → 32+00+18   (6 digits = insulin units, 3 pairs)

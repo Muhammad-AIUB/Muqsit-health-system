@@ -2,6 +2,7 @@
 // window so the doctor can review and "Save as PDF" / print from the browser.
 
 import { maskMobile, maskName } from "./rxPrivacy";
+import { splitDrugLabel } from "./rxShorthand";
 
 export interface RxLine {
   drug: string;
@@ -201,6 +202,18 @@ export function layoutRxColumns(
   };
 }
 
+// Only the brand NAME is set in bold on the printed sheet (physician's
+// decision, 2026-08-23): in `Tablet. Napa 500 mg` the reader's eye should land
+// on `Napa`, not on the dosage form or the strength. `splitDrugLabel` returns
+// index ranges of the label, so the three escaped pieces reassemble into
+// exactly the text the doctor entered. A label whose name cannot be read
+// (a bare dosage form, say) keeps the whole line bold — a medicine with no
+// emphasis at all would be worse than one with too much.
+const drugCell = (label: string): string => {
+  const { before, name, after } = splitDrugLabel(label);
+  return name ? `${esc(before)}<b>${esc(name)}</b>${esc(after)}` : `<b>${esc(label)}</b>`;
+};
+
 // Drug-history items carry storage prefixes — strip them for display.
 const cleanItem = (s: string) =>
   esc(s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "").replace(/\s+—\s+/g, "  ·  "));
@@ -264,7 +277,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       return `
         <tr>
           <td class="rx-no">${isCont ? "" : rxNo + "."}</td>
-          <td class="rx-drug" style="font-size:${lay.drugPx}px;${nowrap}">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : esc(r.drug)}</td>
+          <td class="rx-drug" style="font-size:${lay.drugPx}px;${nowrap}">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : drugCell(r.drug)}</td>
           <td class="rx-mid"${mid}>${esc(r.dose)}</td>
           ${lay.hasFood ? `<td class="rx-mid"${mid}>${esc(r.instruction)}</td>` : ""}
           <td class="rx-mid"${mid}>${esc(r.duration)}</td>
@@ -384,7 +397,14 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
      the dose column needs. Do not put percentage widths back here. */
-  .rx-drug { font-weight: 600; }
+  /* The cell is regular; only the brand name inside it is bold. Note that
+     layoutRxColumns still MEASURES the whole label as bold — an
+     over-estimate by a couple of percent, which can only ever hand the
+     column more room than it needs. Measuring the parts separately
+     would print a shade larger and is not worth risking the one
+     guarantee this table has: no cell past its own column. */
+  .rx-drug { font-weight: 400; }
+  .rx-drug b { font-weight: 600; }
   .rx-mid { color: #333; }
   .rx-note { font-size: 14px; color: #444; font-style: italic; }
   .followup { margin-top: 18px; font-size: 14px; }

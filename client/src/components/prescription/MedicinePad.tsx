@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatc
 import { C, font } from "@/theme";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { useRxHabits } from "@/hooks/useRxHabits";
-import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, FOOD_HINT } from "@/lib/rxShorthand";
+import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
 import { rxHabitsApi, type RxHabitGroup, type RxHabitItem } from "@/lib/api";
 import {
@@ -234,6 +234,10 @@ interface Props {
 
 export default function MedicinePad({ rows, setRows, minHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
+  // Which drug box the caret is in. Only used to decide whether that line
+  // shows its plain <input> text or the read-only overlay that sets the brand
+  // name in bold — see the medicine column below.
+  const [drugFocus, setDrugFocus] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
   const doseRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
@@ -394,18 +398,51 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
               <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
                 {isCont ? (
                   <span style={{ flex: 1, color: C.n[400], fontSize: 13, paddingLeft: 6 }}>↳</span>
-                ) : (
-                  <input
-                    ref={(el) => { drugRefs.current[idx] = el; }}
-                    value={row.drug}
-                    onChange={(e) => { updateRow(idx, { drug: e.target.value, generic: undefined, fromHabit: undefined }); setAcRow(idx); }}
-                    onFocus={() => setAcRow(idx)}
-                    onBlur={() => setTimeout(() => setAcRow((r) => (r === idx ? null : r)), 150)}
-                    placeholder={isLastEmpty ? (noteText ?? "Start typing a medicine or note…") : ""}
-                    autoComplete="off"
-                    style={{ ...lineInput, flex: 1, opacity: !row.isMedicine || row.checked ? 1 : 0.5, color: row.isMedicine ? C.n[900] : C.n[700], fontStyle: row.isMedicine ? "normal" : "italic" }}
-                  />
-                )}
+                ) : (() => {
+                  /* Only the brand NAME is bold, the same as on the printed sheet
+                     (physician's decision, 2026-08-23). An <input> can only carry
+                     ONE weight, so the line the doctor is NOT typing in is covered
+                     by a read-only copy that can: same font, same box, same text,
+                     with <b> round the name. While the box has focus the overlay
+                     is gone and the real input shows through as it always did —
+                     that is what keeps the caret honest, since bold glyphs are
+                     wider than regular and the input positions its caret by its
+                     own single weight. Notes are not medicines and are not split.
+                     The input itself is untouched: it stays mounted, keeps its
+                     ref, and focus/Enter-navigation/autocomplete are unchanged. */
+                  const label = splitDrugLabel(row.drug);
+                  const showName = row.isMedicine && drugFocus !== idx && Boolean(label.name);
+                  const dim = !row.isMedicine || row.checked ? 1 : 0.5;
+                  return (
+                    <span style={{ position: "relative", flex: 1, minWidth: 0, display: "flex" }}>
+                      <input
+                        ref={(el) => { drugRefs.current[idx] = el; }}
+                        value={row.drug}
+                        onChange={(e) => { updateRow(idx, { drug: e.target.value, generic: undefined, fromHabit: undefined }); setAcRow(idx); }}
+                        onFocus={() => { setAcRow(idx); setDrugFocus(idx); }}
+                        onBlur={() => { setDrugFocus((r) => (r === idx ? null : r)); setTimeout(() => setAcRow((r) => (r === idx ? null : r)), 150); }}
+                        placeholder={isLastEmpty ? (noteText ?? "Start typing a medicine or note…") : ""}
+                        autoComplete="off"
+                        style={{ ...lineInput, width: "100%", minWidth: 0, opacity: dim, color: showName ? "transparent" : row.isMedicine ? C.n[900] : C.n[700], fontStyle: row.isMedicine ? "normal" : "italic" }}
+                      />
+                      {showName && (
+                        <span
+                          aria-hidden
+                          style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", padding: "0 4px", pointerEvents: "none", overflow: "hidden", opacity: dim }}
+                        >
+                          {/* ONE flex item, or the spaces either side of the name
+                              are eaten: a text node's outer whitespace collapses
+                              when it becomes a flex item of its own. `pre` then
+                              keeps the label spaced exactly as the <input> under
+                              it renders it. */}
+                          <span style={{ fontSize: 13.5, fontFamily: font, color: C.n[900], whiteSpace: "pre", overflow: "hidden", minWidth: 0 }}>
+                            {label.before}<b style={{ fontWeight: 600 }}>{label.name}</b>{label.after}
+                          </span>
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
 
                 {row.isMedicine && (isHead ? row.drug.trim() : true) && (
                   <button

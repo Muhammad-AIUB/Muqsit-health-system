@@ -178,6 +178,27 @@ describe("printed Rx markup", () => {
     expect(Number(first![1])).toBeGreaterThanOrEqual(32);
   });
 
+  // Physician's decision, 2026-08-23: on paper the eye should land on the
+  // brand, not on "Tablet." or "500 mg".
+  it("sets only the brand name in bold, leaving the label itself untouched", () => {
+    const html = buildPrescriptionHtml(doc([line("Tablet. Napa 500 mg", "1+1+1", "5 days")]));
+    expect(html).toContain("Tablet. <b>Napa</b> 500 mg");
+    // The cell carries no weight of its own — the <b> is the only emphasis.
+    expect(html).toContain(".rx-drug { font-weight: 400; }");
+    expect(html).toContain(".rx-drug b { font-weight: 600; }");
+  });
+
+  it("still emphasises a label whose name cannot be read, rather than none of it", () => {
+    const html = buildPrescriptionHtml(doc([line("Tablet.", "1+1+1", "5 days")]));
+    expect(html).toContain("<b>Tablet.</b>");
+  });
+
+  it("escapes the medicine label on both sides of the bold name", () => {
+    const html = buildPrescriptionHtml(doc([line("Tablet. A<B 5 mg & more", "1", "1d")]));
+    expect(html).toContain("Tablet. <b>A&lt;B</b> 5 mg &amp; more");
+    expect(html).not.toContain("A<B");
+  });
+
   it("emits a colgroup instead of percentage widths", () => {
     const html = buildPrescriptionHtml(doc(REPORTED));
     expect(html).toContain("<colgroup>");
