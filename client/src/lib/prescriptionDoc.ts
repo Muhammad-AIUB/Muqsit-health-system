@@ -72,8 +72,12 @@ const esc = (s: string) =>
 // the same factor — a sheet where one medicine prints smaller than the next
 // reads as emphasis nobody intended, so the size is uniform per sheet.
 //
-// Below FLOOR_PX the line stops being legible, and an unreadable single line is
-// worse than two readable ones — so there, and only there, cells may wrap.
+// The type size itself is FIXED at 14px (physician's decision, 2026-08-26).
+// A dispenser reads this sheet at arm's length, and a prescription that prints
+// smaller because it happened to carry one long medicine name is harder to read
+// for no clinical reason. So a line that will not fit its column at 14px wraps
+// instead of shrinking: a medicine running onto a second line is a worse read
+// than one on a single line, but smaller-than-14px type is worse than both.
 // Nothing is ever truncated or allowed past the printable width.
 const RX_COL_SHARE = 1.6 / 2.4;   // .body grid is 0.8fr / 0.5px / 1.6fr
 const RIGHT_PAD_PX = 18;          // .right padding-left
@@ -84,9 +88,8 @@ const RIGHT_PAD_PX = 18;          // .right padding-left
 // medicine it belongs to.
 const RX_NO_PX = 32;
 const CELL_PAD_PX = 12;           // td padding, both sides
-const DRUG_BASE_PX = 14;
-const MID_BASE_PX = 14;
-const FLOOR_PX = 8.5;
+const DRUG_PX = 14;
+const MID_PX = 14;
 // Leave a sliver for the printer's own rounding and font hinting.
 const FIT_SAFETY = 0.98;
 // Fallback only, for when canvas text metrics are unavailable: mean advance per
@@ -137,8 +140,44 @@ export interface RxColumnLayout {
   drugPx: number;
   /** One size for dose / food / duration. */
   midPx: number;
-  /** True only when even FLOOR_PX could not fit; cells wrap rather than overflow. */
+  /** True when a column's widest line does not fit at 14px; cells wrap rather than overflow. */
   wrap: boolean;
+}
+
+/**
+ * Give each column what it needs, and take any shortfall off the widest.
+ * Max-min fair: columns narrower than an equal share keep their full width,
+ * and whatever is left over is split between the wide ones.
+ */
+function fitColumns(nat: number[], avail: number): number[] {
+  const sum = nat.reduce((a, b) => a + b, 0);
+  // Whole pixels: a column asked for 71.2px and given 71 wraps its widest line
+  // for want of a fifth of a pixel, which is not a trade anyone would make.
+  const want = nat.map((w) => Math.ceil(w));
+  let out: number[];
+
+  if (sum <= avail) {
+    out = nat.map((w, i) => Math.max(want[i], Math.floor((w / sum) * avail)));
+  } else {
+    out = nat.map(() => 0);
+    let rem = avail;
+    let left = nat.length;
+    for (const i of nat.map((_, i) => i).sort((a, b) => nat[a] - nat[b])) {
+      const share = rem / left;
+      out[i] = Math.max(1, nat[i] <= share ? want[i] : Math.floor(share));
+      rem -= out[i];
+      left -= 1;
+    }
+  }
+
+  // Rounding up to whole pixels can push the row a hair past the width it has.
+  // The widest column pays it back — it is the one already carrying the wrap.
+  const over = out.reduce((a, b) => a + b, 0) - Math.floor(avail);
+  if (over > 0) {
+    const i = out.indexOf(Math.max(...out));
+    out[i] = Math.max(1, out[i] - over);
+  }
+  return out;
 }
 
 /**
@@ -165,39 +204,42 @@ export function layoutRxColumns(
 
   // What the widest line in each column actually needs, at the base size.
   const raw = [
-    widest((r) => r.drug, DRUG_BASE_PX, true),
-    widest((r) => r.dose, MID_BASE_PX, false),
-    ...(hasFood ? [widest((r) => r.instruction, MID_BASE_PX, false)] : []),
-    widest((r) => r.duration, MID_BASE_PX, false),
+    widest((r) => r.drug, DRUG_PX, true),
+    widest((r) => r.dose, MID_PX, false),
+    ...(hasFood ? [widest((r) => r.instruction, MID_PX, false)] : []),
+    widest((r) => r.duration, MID_PX, false),
   ];
   // A column with no content still needs a sliver, or the header row collapses
   // and the remaining columns jump around between prescriptions.
   const MIN = 24;
   const nat = raw.map((w) => Math.max(MIN, w));
-  const sum = nat.reduce((a, b) => a + b, 0);
 
-  // Widths are handed out first, rounded DOWN so their total can never exceed
-  // the row.
-  const inner = nat.map((w) => Math.floor((w / sum) * avail));
+  // Widths are whole px and never total more than the row.
+  //
+  // When it all fits, every column is stretched by the same factor — a ragged
+  // right edge on a prescription reads as an unfinished sheet.
+  //
+  // When it does not fit, the shortfall is NOT shared out proportionally. A
+  // proportional squeeze takes a slice off every column, and the columns with
+  // nothing to spare are the short ones: it is how `1+0+1` ends up broken over
+  // two lines beside a drug name that had room. So the narrow columns are
+  // served in full first and the shortfall falls entirely on the widest column
+  // — the drug names — which is the only column where a second line still
+  // reads as one medicine.
+  const inner = fitColumns(nat, avail);
 
-  // The size is then read back off the width each column actually GOT, not off
-  // the share it asked for. Rounding down cost every column up to a pixel, and
-  // type sized for a pixel the column does not have is exactly how a nowrap
-  // cell bleeds past its own column on the printed sheet. An empty column
-  // constrains nothing — its sliver is padding, not text.
-  // Fonts only ever shrink: a short prescription must not print in giant type
-  // just because there is room. Widths always fill the row.
-  let scale = Math.min(1, ...inner.map((w, i) => (raw[i] > 0 ? w / raw[i] : Infinity)));
-  let wrap = false;
-  const floorScale = FLOOR_PX / DRUG_BASE_PX;
-  if (scale < floorScale) { scale = floorScale; wrap = true; }
+  // Whether the sheet can print nowrap is then read off the width each column
+  // actually GOT, not off the share it asked for. Rounding down cost every
+  // column up to a pixel, and a nowrap cell sized for a pixel its column does
+  // not have is exactly how it bleeds past its own column on the printed sheet.
+  // An empty column constrains nothing — its sliver is padding, not text.
+  const wrap = inner.some((w, i) => raw[i] > 0 && w < raw[i]);
 
-  const round1 = (n: number) => Math.floor(n * 10) / 10;
   return {
     cols: inner.map((w) => w + CELL_PAD_PX),
     hasFood,
-    drugPx: round1(Math.max(FLOOR_PX, DRUG_BASE_PX * scale)),
-    midPx: round1(Math.max(FLOOR_PX, MID_BASE_PX * scale)),
+    drugPx: DRUG_PX,
+    midPx: MID_PX,
     wrap,
   };
 }
@@ -254,8 +296,8 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   let rxNo = 0;
   const rxLines = d.rx.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim());
   const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page));
-  // One nowrap for the whole table — a sheet where one medicine prints smaller
-  // or wraps and the next does not reads as emphasis nobody intended.
+  // One nowrap decision for the whole table: either every cell is held to a
+  // single line, or the cells that need a second line are free to take one.
   const nowrap = lay.wrap ? "" : "white-space:nowrap;";
   const noteSpan = lay.hasFood ? 4 : 3;
   const rxCols = `<colgroup><col style="width:${RX_NO_PX}px" />${lay.cols
