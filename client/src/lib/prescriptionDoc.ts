@@ -384,6 +384,10 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   </div>`;
 }
 
+// The sheet carries NO toolbar of its own. It is displayed inside the app's own
+// print modal (`PrintSheetModal`), which owns the Print / Close buttons — the
+// document is the medical page and nothing else, which is also what the gallery
+// snapshot captures and what the printer receives.
 export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   // Page 1 is always the full prescription (real name, full clinical). When the
   // OPD "extra page" option is on, append a masked privacy copy as page 2.
@@ -463,8 +467,6 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1d9e75; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
   .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
   .bb-exhort { height: 19px; width: auto; display: block; }
-  .toolbar { position: sticky; top: 0; background: #1d9e75; padding: 10px; text-align: center; z-index: 10; }
-  .toolbar button { background: #fff; color: #0f6e56; border: none; padding: 8px 22px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 0 4px; }
   /* Each sheet starts on its own printed page. */
   .sheet + .sheet { page-break-before: always; }
   /* In print the header/footer band is reserved by the @page margin, so the
@@ -476,13 +478,9 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      table fragments across pages, and in print the tfoot repeats per fragment
      anyway (page bottom on a full page, under the content on a short one). */
   @media screen { .sheet { display: flex; flex-direction: column; } .pagegrid { flex: 1 1 auto; height: 100%; } }
-  @media print { .toolbar { display: none; } body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
+  @media print { body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
 </style></head>
 <body>
-  <div class="toolbar">
-    <button onclick="window.print()">🖨️ Print / Save as PDF</button>
-    <button onclick="window.close()">Close</button>
-  </div>
   ${fullPage}
   ${privacyPage}
 </body></html>`;

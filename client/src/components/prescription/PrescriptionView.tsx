@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -19,26 +19,13 @@ import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
 import PatientChat from "./PatientChat";
 import RxAlerts from "./RxAlerts";
+import PrintSheetModal from "./PrintSheetModal";
 
 // Only ever emit an href for an http(s) URL. A javascript:/data: payload (e.g. a
 // stored-XSS attempt planted on the shared practice feed) yields undefined so
 // the link is inert.
 const safeUrl = (u?: string | null): string | undefined =>
   u && /^https?:\/\//i.test(u) ? u : undefined;
-
-// One window spec for both routes to the printable sheet. "Save & print" and
-// "Preview PDF" must open the SAME document at the same size — the only
-// difference between them is that one also persists the visit.
-const PRINT_WINDOW = "width=860,height=1000";
-
-// Shown while the save is in flight. The window has to be opened synchronously
-// inside the click (see handleSave), so it exists before there is a sheet to put
-// in it; a blank white pop-up reads as a failure.
-const SAVING_HTML =
-  `<!doctype html><html><head><meta charset="utf-8"><title>Saving prescription…</title></head>` +
-  `<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;` +
-  `font:14px system-ui,-apple-system,'Segoe UI',sans-serif;color:#6b6b6b;background:#fff">` +
-  `Saving the prescription…</body></html>`;
 
 // Render the printable prescription HTML to a PNG File via an off-screen iframe
 // (isolates the print stylesheet from the app). Returns null if it can't render.
@@ -84,6 +71,12 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   // appears to have happened.
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
+  // The printable sheet, shown in-app (see PrintSheetModal). `open` without
+  // `html` is the interval between the doctor's click and the visit being
+  // saved — the frame is on screen from the click, so nothing about printing
+  // depends on a pop-up allowance any more.
+  const [sheet, setSheet] = useState<{ open: boolean; html: string | null }>({ open: false, html: null });
+  const closeSheet = useCallback(() => setSheet({ open: false, html: null }), []);
   // Assistants need the "Save and print" grant to save a prescription.
   const canSave = m.can("rx.savePrint") && gateOpen;
   // "Save to complete later" parks an unfinished visit. Deliberately NOT permission-gated:
@@ -149,9 +142,9 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   // Save, put the printable sheet on screen, record on the activity feed, then
   // snapshot that same sheet into the patient's "All prescriptions" gallery.
   // The sheet is the identical document "Preview PDF" opens — the doctor prints
-  // from its toolbar exactly as they do from a preview; this route just persists
-  // the visit first. The snapshot is best-effort: a capture/upload failure never
-  // undoes a successful save.
+  // it from the same modal toolbar; this route just persists the visit first.
+  // The snapshot is best-effort: a capture/upload failure never undoes a
+  // successful save.
   const handleSave = async () => {
     // A save is already running — this click is the second half of a
     // double-press. Do nothing at all: not a second window, not a second row.
@@ -166,17 +159,13 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     }
   };
 
-  // Called straight from handleSave, so everything up to the first `await`
-  // still runs inside the click — which the window.open below depends on.
   const runSave = async () => {
-    // Open the window NOW, synchronously inside the click. A window.open() after
-    // the save's await has lost the user gesture and pop-up blockers drop it
-    // without asking — which is how "Save & print" would silently go back to
-    // being save-only. Skipped for an empty form (hasRxContent mirrors
-    // savePrescription's own empty check), which refuses to save anyway, so the
-    // window can't flash open and shut for nothing.
-    const w = m.hasRxContent ? window.open("", "_blank", PRINT_WINDOW) : null;
-    if (w) w.document.write(SAVING_HTML);
+    // Put the sheet's frame on screen at once, in its "saving" state. Skipped
+    // for an empty form (hasRxContent mirrors savePrescription's own empty
+    // check), which refuses to save anyway, so the modal can't flash open and
+    // shut for nothing.
+    const showing = m.hasRxContent;
+    if (showing) setSheet({ open: true, html: null });
 
     // The save runs before anything that could throw. Nothing about rendering
     // the sheet may stand between the doctor's click and the visit being
@@ -186,33 +175,26 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       // Never leave a printable prescription on screen for a visit that did not
       // save — the doctor could hand the patient a document the record has no
       // copy of. The failure reason is already shown under the buttons.
-      w?.close();
+      closeSheet();
       return;
     }
 
-    // Built once and used for both the print window and the gallery snapshot, so
-    // the stored image is provably the document that was printed. The editor is
+    // Built once and used for both the on-screen sheet and the gallery snapshot,
+    // so the stored image is provably the document that was printed. The editor is
     // untouched by the save, so this is still exactly what the doctor saw.
     let html: string;
     try {
       html = buildHtml();
     } catch {
-      w?.close();
+      closeSheet();
       window.alert("Prescription saved, but the printable sheet could not be built. Open Preview PDF to print it.");
       logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
       return;
     }
 
-    if (w) {
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-    } else {
-      // Saved, but the sheet was blocked. Say so rather than leaving the doctor
-      // to assume "Save & print" printed something. Don't name the Preview PDF
-      // button here — the mobile layout doesn't have one.
-      window.alert("Prescription saved, but your browser blocked the printable sheet. Allow pop-ups for this site to print it.");
-    }
+    // Only fill a frame that is still on screen: a doctor who pressed Close
+    // while the save was in flight must not have the sheet reappear on them.
+    setSheet((prev) => (prev.open ? { open: true, html } : prev));
 
     logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
     // Snapshot the sheet into the patient's gallery — but only when it is a
@@ -239,13 +221,11 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   };
 
   const previewPdf = () => {
-    const w = window.open("", "_blank", PRINT_WINDOW);
-    if (!w) {
-      window.alert("Please allow pop-ups to preview the prescription.");
-      return;
+    try {
+      setSheet({ open: true, html: buildHtml() });
+    } catch {
+      window.alert("The printable sheet could not be built.");
     }
-    w.document.write(buildHtml());
-    w.document.close();
   };
 
   if (mobile) {
@@ -259,6 +239,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>{saving ? "Saving…" : "Save & print"}</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
+        {sheet.open && <PrintSheetModal html={sheet.html} onClose={closeSheet} />}
       </>
     );
   }
@@ -291,6 +272,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       </div>
       {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}
       {gateOpen && <><ReportsSection /><PatientChat /></>}
+      {sheet.open && <PrintSheetModal html={sheet.html} onClose={closeSheet} />}
     </>
   );
 }
