@@ -110,6 +110,7 @@ Server side, `dob` is validated in `patients/dto/patient.dto.ts` (`@IsISO8601({s
 ## Editor lifecycle (easy to break — know it)
 
 - `resetEditor()` blanks everything and sets `ptDate` = today. `loadPatient(p)` = reset + header fields + restore `p.incompleteRx` **only when the patient belongs to the effective doctor** (`activeWsRef.current ?? authIdRef.current`). **Supervised patients (other doctor's) always open with a blank editor** — also enforced during draft hydration (the draft's patient is fetched and checked). Do not weaken either check.
+- **The IPD clinical sheet is written WHOLESALE — build the payload with `mergeIpdClinical`.** `IpdDetailView` sends the entire `clinical` object and the server writes it verbatim, so a key this build does not list is not "left alone", it is DELETED from the patient's record with no error and nothing in the feed to notice. `lib/ipdClinical.ts` starts the payload from the admission's stored `clinical` and lays the known fields on top, which makes an unknown key mean "leave it alone". The server carries `analogueSheets` across the same seam (`ipd.service.ts#preserveAnalogueSheets`) because the client guard only protects clients that have it — an old tab still open on a ward PC, or a rollback of the build that introduced the key, would otherwise erase every photographed page on the next Save. Both halves are pinned (`ipdClinical.test.ts`, `ipd.service.spec.ts`).
 - Auto-draft: the editor persists per-doctor via `prescription-draft`; fresh login (sessionStorage `mhs_fresh_login`) starts blank+gated, plain reload restores. "Save & print" completes the visit: merges findings/OE/drug-history into the patient's permanent JSON, clears `incompleteRx`, marks the OPD visit complete, and snapshots the printed sheet to the "All prescriptions(Image)" gallery (html2canvas in an off-screen iframe).
 - **Save & print takes ONE save at a time (2026-08-23).** It had no in-flight guard, so a double-press ran the whole flow twice and recorded one consultation as **two `Prescription` rows** — measured in the running app: two clicks 120ms apart produced two rows 321ms apart. `handleSave` now holds a synchronous `savingRef` and returns immediately on a second click (no second window, no second row), with `runSave` carrying the old body; the `saving` state beside it only disables the two Save buttons and shows "Saving…", because doctors press twice when nothing appears to have happened. "Save to complete later" is disabled for the same window so a draft cannot interleave with the visit being completed. (Historic note: `runSave` was split out so everything up to its first `await` ran inside the click, which was what kept the old `window.open` out of the pop-up blocker. The sheet is in-app since 2026-08-26 and no longer needs the gesture; the split stays because the guard reads better with it.) `savePrescription` itself is still not re-entrant and does not serialise — the guard is the caller's, and any new caller owes the same.
 - **"Ignore Warning" — entecavir only, pad only (2026-08-23).** The ℞ pad's red bubble carries an **Ignore Warning** button on the entecavir rule and no other. It is keyed on `RxAlert.drug` — the RULE's own drug label, not the brand in the ℞ line — so every entecavir brand behaves alike: Barcavir and Entaliv are the same medicine and must not offer the doctor two different affordances. The allowlist is `IGNORABLE_RULE_DRUGS` in `RxLineAlert.tsx`; **widening it is a clinical decision, not a tidy-up.** Pressing it hides that bubble and nothing else — the advisory in "Notifications, Chats & Reports" stays up, and the printed sheet was never carrying warnings anyway. `ignoredAlerts` lives in `MuqsitContext` keyed by `RxAlert.id` (`${rule.drug}|${message}`, stable across renders), is **never persisted**, and is cleared both by `resetEditor` and on a successful save: the physician's rule is **this prescription only**, so the next visit puts the same decision in front of the doctor again.
@@ -125,18 +126,73 @@ Server side, `dob` is validated in `patients/dto/patient.dto.ts` (`@IsISO8601({s
 - **`saveDraftNow()` ("Save to complete later") is the doctor-initiated twin of that auto-save, and differs on purpose in two ways.** (1) It is **awaited**, and the editor is cleared *only after the server confirms*; on failure it says `Draft NOT saved: …` and touches nothing, so every value survives. Never reorder that — clearing on a fire-and-forget write is worse than the silent auto-save, because the doctor walks away believing the visit is safe. (2) It sets the OPD `rxStatus: "incomplete"` flag **unconditionally**, not gated on `rxFlaggedRef`: `flushEditorDraft` never sets it, so a patient typed-into and left inside the 1200 ms debounce used to end up with stored work and no Incomplete badge to find it by. Supervised patients take the same branch as the auto-save — own draft only, never the owner's `incompleteRx` or OPD queue. The button is gated on a loaded patient + `hasRxContent` only; `hasRxContent` ignores follow-up, `invImages` and `oeData`, so an image-only visit leaves it disabled — the tooltip has to say why rather than sitting there dead.
 - The 3.docx mobile gate: nothing is writable until a patient is picked via the mobile lookup (`PatientMobileLookup`, exact 11-digit match, family-tree info rows, "SUPERVISED" badge for other-practice matches).
 
-## Naming: "Order sheet" on the ward, "Prescription" in OPD
+## Naming: "Prescription" wherever the ℞ pad appears — "order sheet" now means the PAPER one
 
-Deliberate and partial, chosen by the product owner on 2026-07-30 and extended on
-2026-08-15. Renamed so far: the **desktop nav label** in `components/layout/tabs.ts`,
-and the **℞ panel heading inside `IpdDetailView`** (an admitted patient really is
-being given an order sheet). The mobile tab stays `Rx` (a 5-tab bar at 375px has no
-room for "Order sheet", and ℞ is universal), and all other
-user-visible strings, the PDF `<title>`, the tab `id`, the `/prescription` route, and
-every code identifier are unchanged. **Do not "finish" the rename as a tidy-up** — the
-clinical distinction is real (an order sheet directs nurses on the ward; a prescription
-goes home with the patient to a pharmacy) and this app uses one editor for both, so
-widening the rename is a product decision, not a consistency fix.
+**Reversed on 2026-08-26 by the product owner.** Until then the IPD ℞ panel was
+deliberately headed "Order sheet" (chosen 2026-07-30, extended 2026-08-15) on the
+argument that an order sheet directs nurses on the ward while a prescription goes
+home with the patient — and this file carried a warning not to "finish" the rename
+as a tidy-up. That warning did its job; the physician has now made the opposite
+call, in the same document that introduced the analogue order sheet.
+
+Today: the desktop nav label, the IPD ℞ panel heading, and the `ipd.medicines`
+permission label all read **Prescription**. The permission KEY string is unchanged
+(`ipd.medicines`) — renaming a key revokes it from everyone holding it. The mobile
+tab stays `Rx` (a 5-tab bar at 375px has no room for more, and ℞ is universal), and
+the PDF `<title>`, the tab `id`, the `/prescription` route and every code identifier
+are unchanged.
+
+**"Order sheet" is not retired — it moved.** On the ward it now means the ward's
+own PAPER sheet, photographed into the admission (below). Two different things
+called "order sheet" on one screen was the real confusion.
+
+## Analogue order sheet — the ward's paper sheet, photographed (2026-08-26)
+
+`components/ipd/AnalogueSheetPanel.tsx`, stored as `IpdClinical.analogueSheets`
+(`IpdAnalogueSheet[]`). The IPD detail now offers **three views** the doctor
+switches between, with the physician's own labels — do not shorten them:
+
+| Button | Left pane | Right pane |
+|---|---|---|
+| `F/U & Digital Order` | clinical column | Prescription (℞ pad) |
+| `Analogue & Digital Order` | analogue pages | Prescription (℞ pad) |
+| `F/U & Analogue order` | clinical column | analogue pages |
+
+- **No view is the default.** With nothing chosen the page opens exactly as it
+  always has and no button reads as active; the first click starts remembering.
+  The choice lives in `localStorage` keyed by the **signed-in user id**, so a
+  shared ward PC never hands the next doctor the previous one's layout, and any
+  unreadable value resolves to "nothing chosen" rather than throwing.
+- **Hiding a pane is conditional JSX, never an unmount.** The clinical column's
+  state stays owned by `IpdDetailView` — move those `useState` calls into an
+  extracted child and a view switch silently wipes whatever the doctor typed.
+- **Every change is written the moment it happens**, through the per-page
+  `/ipd/:id/analogue` routes — never the admission's Save button. A doctor who
+  photographs six pages and is called away mid-round must not lose them. See
+  `server/CLAUDE.md` for why those routes append rather than replace.
+- **Reordering is OFF for this panel** (`reorderable={false}`). Here the list
+  order IS the chronology of the ward round, and a draggable chronology on a
+  medico-legal document is a way to falsify it. `addedAt` is the SERVER's for
+  the same reason — ward PCs have wrong clocks.
+- **Removal is soft, and Undo is a WRITE.** The entry keeps its place and gains
+  `removedAt`/`removedBy`; nothing leaves disk. The Undo bar clears only when the
+  server confirms the restore — on failure the page goes back into the list and
+  the bar says why, the same rule the habit-suggestion `✕` follows.
+- **Clicking a page opens THAT page.** The panel scrolls to the newest page when
+  it appears (on a round the current order is what is wanted), but the viewer
+  never second-guesses the click.
+- **Pages upload at 2400px / q0.9, with a 400px `thumbUrl` beside them.** An A4
+  page at the 1600px default is ~135 dpi, and `compressImage`'s own comment says
+  that default was picked for printed report text, not the handwriting a
+  dispenser reads. The thumbnail is best-effort: if it fails the page is still
+  created and the grid falls back to `url`; if the FULL image fails there is no
+  page at all. Batch validation (`lib/ipdAnalogue.ts`) refuses non-images, files
+  over the server's own 8 MB limit and more than 20 at once — by name, letting
+  the rest through.
+- `ipd.analogue` exists as a permission key and is enforced **server-side**, but
+  deliberately not against assistants — they hold no `ipd.*` key at all, so
+  requiring one would take away something they can already do on every other
+  field of this screen. See `assertMayEditAnalogue`.
 
 **The IPD clinical sheet's own vocabulary moved with it (2026-08-15):** the list
 that read "Chief Complaints" is now **"Sign"**, and a new **"Symptoms"** list sits
@@ -181,6 +237,7 @@ through the workstation switcher.
 - **Inline styles only** with the theme palette: `import { C, font } from "@/theme"` (`C.pri/n/danger/warn/info` shades 50–800) and shared `inputSm`/`fieldLabel` from `@/theme/styles`. No Tailwind/CSS modules; occasional scoped `<style>` blocks for hover/animation are OK.
 - Healthcare-grade interaction patterns already established — reuse them: Edit-mode-gated deletes with red round ✕ + persistent Undo bar (records page), select-then-remove galleries, scrollable capped-height summaries, sticky group headers, silent background retry instead of error walls (see `useWorkstations`), disabled-with-tooltip instead of hidden.
 - Permission gating: `can(key)` / `canEditLabel(label)` from context (assistant permissions); wrap read-only sections in `<Lock>`. Tier gating reads `user.accountTier`.
+- **Images: one gallery, one viewer.** `components/common/ImageGallery.tsx` (upload, OS-file drag & drop, Edit-mode multi-remove, optional drag-reorder, optional per-item label, `thumbUrl` falling back to `url`, `loading="lazy"`) and `components/common/ImageLightbox.tsx` (←/→/Esc, `n / total`, opt-in `wrap`). Extracted 2026-08-26 from `PatientRecordsView`, where the gallery was a local component with two call sites and the viewer existed twice over. Three callers now: the patient's prescription and report galleries, the investigation findings field, and the ward's analogue order sheet. `ImageGallery.test.tsx` is the only jsdom test in the repo and opts in with a `// @vitest-environment jsdom` docblock rather than switching the whole suite. Two rules it pins: a file dropped ON a tile uploads ONCE (the drop bubbles to the container, which carries the same handler — without `stopPropagation` every dragged page was filed twice), and batch uploads use `Promise.allSettled` (the old `Promise.all` discarded five successful uploads because the sixth timed out, and said only "Upload failed").
 - Print/PDF: `lib/prescriptionDoc.ts` builds a standalone HTML document, `document.write`-n into the print modal's iframe (and, for the gallery snapshot, into an off-screen one). Tables are `table-layout: fixed` with wrapping cells — long values must wrap **inside** the printable area, never overflow. **The Rx table is the exception: it prints at ONE fixed type size — 14px — for the whole sheet, and on ONE line per cell wherever the row has the width** (`layoutRxColumns`, 2026-08-16; size fixed 2026-08-26). Its columns were fixed percentages (drug 25%), so `Tablet. Barcavir 0.5 mg` broke across three lines — which a dispenser reads as three things — while an empty "food" column sat holding a quarter of the row. Now:
   - **Columns are measured, not assigned.** Each is sized against the widest value it actually carries, and the food column is **dropped entirely** when no line has one (the note row's `colspan` follows). Widths ship as a `<colgroup>` of px — do not put percentage widths back in the CSS.
   - **Widths come from real text metrics.** `measureRxText` asks a canvas, because character counts lie: `Illlll` and `Wmmmmm` are the same length and nowhere near the same width, and guessing wide shrinks a name that would have fitted. There is a character-count fallback for when no canvas exists (SSR, tests) — it is deliberately generous, since underestimating means text off the edge of the page.

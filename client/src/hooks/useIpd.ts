@@ -40,6 +40,49 @@ export function useUpdateIpd() {
   });
 }
 
+// ── Paper order-sheet pages ────────────────────────────────────────────────
+// One hook per operation, and every one of them invalidates the admission list
+// AND that admission's event feed: each write also files an audit line, and a
+// feed that lags behind the page it describes is the kind of thing that makes a
+// doctor doubt both.
+function useAnalogueMutation<V extends { id: string }>(
+  fn: (vars: V) => Promise<IpdAdmission>,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (_d, vars) => {
+      void qc.invalidateQueries({ queryKey: IPD_KEY });
+      void qc.invalidateQueries({ queryKey: eventsKey(vars.id) });
+    },
+  });
+}
+
+export function useAddAnalogueSheets() {
+  return useAnalogueMutation(
+    ({ id, sheets }: { id: string; sheets: { url: string; thumbUrl?: string; label?: string }[] }) =>
+      ipdApi.analogue.add(id, sheets),
+  );
+}
+
+export function useLabelAnalogueSheet() {
+  return useAnalogueMutation(({ id, sheetId, label }: { id: string; sheetId: string; label: string }) =>
+    ipdApi.analogue.setLabel(id, sheetId, label),
+  );
+}
+
+export function useRemoveAnalogueSheet() {
+  return useAnalogueMutation(({ id, sheetId }: { id: string; sheetId: string }) =>
+    ipdApi.analogue.remove(id, sheetId),
+  );
+}
+
+export function useRestoreAnalogueSheet() {
+  return useAnalogueMutation(({ id, sheetId }: { id: string; sheetId: string }) =>
+    ipdApi.analogue.restore(id, sheetId),
+  );
+}
+
 export function useIpdEvents(admissionId: string | null) {
   return useQuery({
     queryKey: eventsKey(admissionId ?? ""),

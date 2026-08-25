@@ -560,9 +560,18 @@ export const templatesApi = {
 };
 
 // ── File upload (multipart → Cloudinary) ────────────────────
-export async function uploadImage(file: File): Promise<string> {
+// `maxDim`/`quality` exist for ONE reason: the defaults were chosen for report
+// and NID photos, which are printed text. A photographed paper order sheet is
+// handwriting a dispenser has to read, and 1600px across an A4 page is roughly
+// 135 dpi. Callers that hand a document to a human reader pass their own numbers
+// (the analogue order-sheet panel uses 2400 / 0.9); everyone else keeps 1600 /
+// 0.8 and is unaffected.
+export async function uploadImage(
+  file: File,
+  opts?: { maxDim?: number; quality?: number },
+): Promise<string> {
   // Shrink large photos in the browser first — uploads get ~10x faster.
-  const compressed = await compressImage(file);
+  const compressed = await compressImage(file, opts?.maxDim, opts?.quality);
   const form = new FormData();
   form.append("file", compressed);
 
@@ -761,8 +770,33 @@ export interface IpdFollowUpEntry extends IpdFollowUp {
   ts: string; // ISO timestamp
 }
 
+// One photographed page of the ward's PAPER order sheet (the "analogue" order
+// sheet). `id` and `addedAt` are assigned by the SERVER: the id is the handle
+// every per-page route addresses, and a ward PC's clock is not something a
+// clinical timestamp should depend on.
+//
+// Removal is SOFT. These are medico-legal documents, so "deleted" means
+// `removedAt`/`removedBy` are stamped and the page stops being listed — the
+// entry and the uploaded file both stay, and a page removed by mistake is
+// recoverable after the Undo bar is long gone.
+export interface IpdAnalogueSheet {
+  id: string;
+  url: string;         // full-resolution page (maxDim 2400)
+  thumbUrl?: string;   // 400px copy for the grid; absent when that upload
+                       // failed, and on anything stored before thumbnails
+  addedAt: string;     // ISO, server-assigned
+  addedBy?: string;    // user id
+  label?: string;      // optional, doctor-typed, saved on blur
+  removedAt?: string;
+  removedBy?: string;
+}
+
 // Per-admission clinical sheet (IPD detail view). List sections are chip-lists
 // (like the prescription page); the diagnosis column on the row is kept in sync.
+//
+// ⚠️ This object is written WHOLESALE — see `lib/ipdClinical.ts`. A key omitted
+// from a save is deleted from the patient's record, so build the payload with
+// `mergeIpdClinical`, never from the known fields alone.
 export interface IpdClinical {
   diagnosis?: string[];
   // Shown as "Sign" on the ward sheet since 2026-08-15. The key keeps its
@@ -779,6 +813,9 @@ export interface IpdClinical {
   followUps?: IpdFollowUpEntry[]; // timestamped log
   rxItems?: RxItemInput[];
   invImages?: Record<string, string>; // attached report images, keyed like the findings
+  // Photographed pages of the paper order sheet, in upload order. Written by the
+  // dedicated /ipd/:id/analogue routes, never by the whole-clinical PATCH.
+  analogueSheets?: IpdAnalogueSheet[];
 }
 
 export interface IpdAdmission {
@@ -853,6 +890,22 @@ export const ipdApi = {
   events: (id: string) => apiFetch<IpdEventRecord[]>(`/ipd/${id}/events`),
   addEvent: (id: string, note: string, reportUrl?: string) =>
     apiFetch<IpdEventRecord>(`/ipd/${id}/events`, { method: "POST", body: JSON.stringify({ note, reportUrl }) }),
+
+  // Paper order-sheet pages. Per-page on purpose — `update` above replaces the
+  // whole clinical sheet, so uploading through it would both carry the editor's
+  // half-typed fields along and let two devices overwrite each other's pages.
+  // Each call returns the updated admission, so the caller never has to guess
+  // what the server made of it. The server assigns `id` and `addedAt`.
+  analogue: {
+    add: (id: string, sheets: { url: string; thumbUrl?: string; label?: string }[]) =>
+      apiFetch<IpdAdmission>(`/ipd/${id}/analogue`, { method: "POST", body: JSON.stringify({ sheets }) }),
+    setLabel: (id: string, sheetId: string, label: string) =>
+      apiFetch<IpdAdmission>(`/ipd/${id}/analogue/${sheetId}`, { method: "PATCH", body: JSON.stringify({ label }) }),
+    remove: (id: string, sheetId: string) =>
+      apiFetch<IpdAdmission>(`/ipd/${id}/analogue/${sheetId}`, { method: "DELETE" }),
+    restore: (id: string, sheetId: string) =>
+      apiFetch<IpdAdmission>(`/ipd/${id}/analogue/${sheetId}/restore`, { method: "POST" }),
+  },
 };
 
 // ── Assistants & RBAC ───────────────────────────────────────

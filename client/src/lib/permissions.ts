@@ -63,9 +63,18 @@ export const IPD_PERMISSION_GROUPS: PermGroup[] = [
     ],
   },
   {
-    group: "Order sheet & ward round",
+    group: "Prescription & ward round",
     perms: [
-      { key: "ipd.medicines", label: "Order sheet — medicines (℞)" },
+      // Renamed from "Order sheet — medicines (℞)" on 2026-08-26 with the IPD
+      // heading itself (physician's decision). The KEY is untouched — changing
+      // it would revoke the permission from everyone who holds it.
+      { key: "ipd.medicines", label: "Prescription — medicines (℞)" },
+      // The photographed pages of the ward's PAPER order sheet. Enforced
+      // server-side on the /ipd/:id/analogue routes — but only for actors who
+      // are neither the doctor nor an assistant, because assistants hold no
+      // `ipd.*` key at all and requiring one here would take away something
+      // they can already do on every other field of this screen.
+      { key: "ipd.analogue", label: "Analogue order sheet (images)" },
       { key: "ipd.events", label: "Events, chat and investigation" },
       { key: "ipd.header", label: "Admission header (age / sex)" },
     ],

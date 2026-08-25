@@ -6,6 +6,9 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import RxAlerts from "@/components/prescription/RxAlerts";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
+import { mergeIpdClinical } from "@/lib/ipdClinical";
+import { useAuth } from "@/context/AuthContext";
+import AnalogueSheetPanel from "./AnalogueSheetPanel";
 import type { RxAlertInput } from "@/lib/rxAlerts";
 import ExpandableField from "@/components/common/ExpandableField";
 import InvestigationFindingsField from "@/components/investigation/InvestigationFindingsField";
@@ -39,6 +42,44 @@ const followUpParts = (e: IpdFollowUpEntry): { time: string; vitals: string; not
   if (e.bloodSugar) parts.push(`BS ${e.bloodSugar}`);
   return { time, vitals: parts.join(" · "), note: e.note?.trim() || undefined };
 };
+
+// ── The three views (correction 3.docx, 2026-08-26) ────────────────────────
+//
+// The doctor works from two things on a round: the digital order sheet they are
+// typing into and the paper one the ward keeps. These are the three pairings
+// they asked for, with the physician's own labels — do not shorten them.
+//
+// Analogue sits LEFT in `analogue-digital` and RIGHT in `fu-analogue`. That is
+// what the source document says for each view; the Prescription pane is the one
+// that stays on the right whenever it is shown.
+type IpdViewId = "fu-digital" | "analogue-digital" | "fu-analogue";
+
+const IPD_VIEWS: { id: IpdViewId; label: string; left: "clinical" | "analogue"; right: "rx" | "analogue" }[] = [
+  { id: "fu-digital", label: "F/U & Digital Order", left: "clinical", right: "rx" },
+  { id: "analogue-digital", label: "Analogue & Digital Order", left: "analogue", right: "rx" },
+  { id: "fu-analogue", label: "F/U & Analogue order", left: "clinical", right: "analogue" },
+];
+
+// No view is the default (physician's decision): with nothing chosen the page
+// opens exactly as it always has and no button reads as active. The first click
+// is what starts remembering.
+const NO_VIEW = IPD_VIEWS[0];
+
+const viewKey = (userId: string) => `mhs_ipd_view_${userId}`;
+
+// Keyed by the signed-in user, so a shared ward PC never hands the next doctor
+// the previous one's layout. Anything unreadable — a value from an older build,
+// a hand-edited key, no user yet — resolves to "nothing chosen" rather than
+// throwing on a screen a doctor is standing in front of.
+function readStoredView(userId?: string): IpdViewId | null {
+  if (!userId || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(viewKey(userId));
+    return IPD_VIEWS.some((v) => v.id === raw) ? (raw as IpdViewId) : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function IpdDetailView({ admission, onBack }: { admission: IpdAdmission; onBack: () => void }) {
   const update = useUpdateIpd();
@@ -92,6 +133,16 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
 
   const [rows, setRows] = useState<Row[]>(() => rowsFromRxItems(c.rxItems ?? []));
 
+  // Which pair of panes is showing. `null` = nothing chosen yet.
+  const { user } = useAuth();
+  const [viewId, setViewId] = useState<IpdViewId | null>(null);
+  useEffect(() => { setViewId(readStoredView(user?.id)); }, [user?.id]);
+  const chooseView = (id: IpdViewId) => {
+    setViewId(id);
+    try { if (user?.id) window.localStorage.setItem(viewKey(user.id), id); } catch { /* private mode */ }
+  };
+  const view = IPD_VIEWS.find((v) => v.id === viewId) ?? NO_VIEW;
+
   const [savedMsg, setSavedMsg] = useState("");
   const [eventMsg, setEventMsg] = useState("");
 
@@ -132,13 +183,18 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     Plan: plan, "Advice tests": adviceTests,
   };
 
-  const buildClinical = (followUpsOverride?: IpdFollowUpEntry[]): IpdClinical => ({
-    diagnosis, chiefComplaints, chiefComplaintsNotes: chiefNotes, symptoms, symptomsNotes: symptomNotes,
-    investigation, procedure, procedureNotes: procNotes, plan, adviceTests,
-    followUps: followUpsOverride ?? followUps,
-    rxItems: rxItemsFromRows(rows),
-    invImages,
-  });
+  // ⚕️ Built ON TOP of the admission's stored `clinical`, never from these
+  // fields alone: the server replaces the whole object, so any key this build
+  // does not list here would be deleted from the patient's record on save.
+  // `mergeIpdClinical` is where that rule and its reasoning live.
+  const buildClinical = (followUpsOverride?: IpdFollowUpEntry[]): IpdClinical =>
+    mergeIpdClinical(admission.clinical, {
+      diagnosis, chiefComplaints, chiefComplaintsNotes: chiefNotes, symptoms, symptomsNotes: symptomNotes,
+      investigation, procedure, procedureNotes: procNotes, plan, adviceTests,
+      followUps: followUpsOverride ?? followUps,
+      rxItems: rxItemsFromRows(rows),
+      invImages,
+    });
 
   const persist = async (clinical: IpdClinical) => {
     try {
@@ -183,6 +239,88 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     setEventMsg("");
   };
 
+  // The three panes are defined here, not inlined, so the view switcher above
+  // reads as "which two of these are showing" and nothing else. All of their
+  // state stays owned by this component.
+  const clinicalPane = (
+    <>
+      <ExpandableField label="Diagnosis" items={diagnosis} setItems={setDiagnosis} suggestions={suggestionDB["Provisional diagnosis"]} allFields={allFields} />
+      <ExpandableField label="Sign" items={chiefComplaints} setItems={setChief} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
+        itemNotes={chiefNotes} onItemNote={(item, note) => setChiefNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note…" />
+      <ExpandableField label="Symptoms" items={symptoms} setItems={setSymptoms} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
+        itemNotes={symptomNotes} onItemNote={(item, note) => setSymptomNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note…" />
+      <div style={{ marginBottom: 12 }}>
+        <InvestigationFindingsField label="Investigation report findings" items={investigation} invImages={invImages} onOpen={() => setShowInvPopup(true)} />
+      </div>
+      <ExpandableField label="Procedure" items={procedure} setItems={setProc} allFields={allFields}
+        itemNotes={procNotes} onItemNote={(item, note) => setProcNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note / date & time…" />
+
+      {/* Follow Up — structured vitals, saved as a timestamped log */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: C.n[800], marginBottom: 6 }}>Follow Up</div>
+        <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: 12, background: C.n[0] }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <Vital label="Blood pressure" placeholder="120/80 mmHg" value={draft.bp ?? ""} onChange={(v) => setFu("bp", v)} />
+            <Vital label="Heart Rate" placeholder="bpm" value={draft.hr ?? ""} onChange={(v) => setFu("hr", v)} />
+            <Vital label="Temperature" placeholder="°F" value={draft.temp ?? ""} onChange={(v) => setFu("temp", v)} />
+            <Vital label="Oxygen saturation" placeholder="SpO₂ %" value={draft.spo2 ?? ""} onChange={(v) => setFu("spo2", v)} />
+            <Vital label="Urine output" placeholder="mL" value={draft.urineOutput ?? ""} onChange={(v) => setFu("urineOutput", v)} />
+            <Vital label="Fluid Intake/Given" placeholder="mL" value={draft.fluidIntake ?? ""} onChange={(v) => setFu("fluidIntake", v)} />
+            <Vital label="Blood sugar level" placeholder="mmol/L" value={draft.bloodSugar ?? ""} onChange={(v) => setFu("bloodSugar", v)} />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={vLbl}>Specific Note</div>
+            <textarea value={draft.note ?? ""} onChange={(e) => setFu("note", e.target.value)} rows={2}
+              style={{ width: "100%", boxSizing: "border-box", resize: "vertical", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, padding: "8px 10px", fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", lineHeight: 1.5, background: C.n[0] }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+            <button onClick={saveFollowUp} disabled={!draftHasValue || update.isPending} style={{ ...btnSave, padding: "6px 16px", opacity: draftHasValue ? 1 : 0.5, cursor: draftHasValue ? "pointer" : "default" }}>Save follow up</button>
+          </div>
+        </div>
+
+        {/* Saved follow-up log */}
+        {followUps.length > 0 && (
+          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+            {followUps.map((e) => {
+              const fp = followUpParts(e);
+              return (
+                <div key={e.ts} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "8px 12px", borderRadius: 8, background: C.n[50], borderLeft: `3px solid ${C.pri[400]}` }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: C.pri[600], letterSpacing: "0.05em", flexShrink: 0 }}>F/U</span>
+                  <span style={{ fontSize: 11, color: C.n[500], flexShrink: 0, whiteSpace: "nowrap" }}>{fp.time}</span>
+                  <span style={{ flex: 1, fontSize: 12.5, color: C.n[800], lineHeight: 1.5 }}>
+                    {fp.vitals}{fp.note && <span style={{ color: C.n[600], fontStyle: "italic" }}> — {fp.note}</span>}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <ExpandableField label="Plan" items={plan} setItems={setPlan} allFields={allFields} />
+      <ExpandableField label="Advice tests" items={adviceTests} setItems={setAdvice} suggestions={advisedTestSuggestions} allFields={allFields} />
+    </>
+  );
+
+  const rxPane = (
+    <>
+  <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Prescription</div>
+      <div style={{ fontSize: 15, color: C.pri[600], marginBottom: 6 }}>℞</div>
+      <RxAlerts input={rxAlertInput} />
+      {/* The per-line bubbles go on the ward too. `client/CLAUDE.md`: a
+          doctor who learns to trust the alert on one prescribing screen
+          must not silently lose it on the other — and once the warning is
+          drawn on the medicine in OPD, a bare banner here is exactly that
+          quiet hole. `showHabits` stays OFF: ward doses are not outpatient
+          prescribing habits (design D5). */}
+      <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} showSF alertInput={rxAlertInput} />
+    </>
+  );
+
+  const analoguePane = (
+    <AnalogueSheetPanel admissionId={admission.id} sheets={admission.clinical?.analogueSheets} />
+  );
+
   return (
     <div style={{ fontFamily: font }}>
       {/* Toolbar */}
@@ -226,77 +364,38 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
         </div>
       </div>
 
-      {/* Body: left clinical sheet + right order sheet */}
+      {/* ── The three views (correction 3.docx) ──
+          Nothing is hidden by unmounting: the clinical column's state lives in
+          this component, so switching panes is conditional JSX and a doctor's
+          half-typed field is still there when they switch back — and the top
+          Save still saves every field, visible or not. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+        {IPD_VIEWS.map((v) => {
+          const active = viewId === v.id;
+          return (
+            <button
+              key={v.id}
+              onClick={() => chooseView(v.id)}
+              aria-pressed={active}
+              style={{
+                padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font,
+                border: `0.5px solid ${active ? C.pri[400] : C.n[200]}`,
+                background: active ? C.pri[400] : C.n[0],
+                color: active ? "#fff" : C.n[700],
+              }}
+            >{v.label}</button>
+          );
+        })}
+      </div>
+
+      {/* Body: two panes, chosen by the view above */}
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 340px", minWidth: 300 }}>
-          <ExpandableField label="Diagnosis" items={diagnosis} setItems={setDiagnosis} suggestions={suggestionDB["Provisional diagnosis"]} allFields={allFields} />
-          <ExpandableField label="Sign" items={chiefComplaints} setItems={setChief} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
-            itemNotes={chiefNotes} onItemNote={(item, note) => setChiefNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note…" />
-          <ExpandableField label="Symptoms" items={symptoms} setItems={setSymptoms} suggestions={suggestionDB["Chief complaints"]} allFields={allFields}
-            itemNotes={symptomNotes} onItemNote={(item, note) => setSymptomNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note…" />
-          <div style={{ marginBottom: 12 }}>
-            <InvestigationFindingsField label="Investigation report findings" items={investigation} invImages={invImages} onOpen={() => setShowInvPopup(true)} />
-          </div>
-          <ExpandableField label="Procedure" items={procedure} setItems={setProc} allFields={allFields}
-            itemNotes={procNotes} onItemNote={(item, note) => setProcNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note / date & time…" />
-
-          {/* Follow Up — structured vitals, saved as a timestamped log */}
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: C.n[800], marginBottom: 6 }}>Follow Up</div>
-            <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: 12, background: C.n[0] }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                <Vital label="Blood pressure" placeholder="120/80 mmHg" value={draft.bp ?? ""} onChange={(v) => setFu("bp", v)} />
-                <Vital label="Heart Rate" placeholder="bpm" value={draft.hr ?? ""} onChange={(v) => setFu("hr", v)} />
-                <Vital label="Temperature" placeholder="°F" value={draft.temp ?? ""} onChange={(v) => setFu("temp", v)} />
-                <Vital label="Oxygen saturation" placeholder="SpO₂ %" value={draft.spo2 ?? ""} onChange={(v) => setFu("spo2", v)} />
-                <Vital label="Urine output" placeholder="mL" value={draft.urineOutput ?? ""} onChange={(v) => setFu("urineOutput", v)} />
-                <Vital label="Fluid Intake/Given" placeholder="mL" value={draft.fluidIntake ?? ""} onChange={(v) => setFu("fluidIntake", v)} />
-                <Vital label="Blood sugar level" placeholder="mmol/L" value={draft.bloodSugar ?? ""} onChange={(v) => setFu("bloodSugar", v)} />
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <div style={vLbl}>Specific Note</div>
-                <textarea value={draft.note ?? ""} onChange={(e) => setFu("note", e.target.value)} rows={2}
-                  style={{ width: "100%", boxSizing: "border-box", resize: "vertical", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, padding: "8px 10px", fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", lineHeight: 1.5, background: C.n[0] }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                <button onClick={saveFollowUp} disabled={!draftHasValue || update.isPending} style={{ ...btnSave, padding: "6px 16px", opacity: draftHasValue ? 1 : 0.5, cursor: draftHasValue ? "pointer" : "default" }}>Save follow up</button>
-              </div>
-            </div>
-
-            {/* Saved follow-up log */}
-            {followUps.length > 0 && (
-              <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                {followUps.map((e) => {
-                  const fp = followUpParts(e);
-                  return (
-                    <div key={e.ts} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "8px 12px", borderRadius: 8, background: C.n[50], borderLeft: `3px solid ${C.pri[400]}` }}>
-                      <span style={{ fontSize: 9.5, fontWeight: 700, color: C.pri[600], letterSpacing: "0.05em", flexShrink: 0 }}>F/U</span>
-                      <span style={{ fontSize: 11, color: C.n[500], flexShrink: 0, whiteSpace: "nowrap" }}>{fp.time}</span>
-                      <span style={{ flex: 1, fontSize: 12.5, color: C.n[800], lineHeight: 1.5 }}>
-                        {fp.vitals}{fp.note && <span style={{ color: C.n[600], fontStyle: "italic" }}> — {fp.note}</span>}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <ExpandableField label="Plan" items={plan} setItems={setPlan} allFields={allFields} />
-          <ExpandableField label="Advice tests" items={adviceTests} setItems={setAdvice} suggestions={advisedTestSuggestions} allFields={allFields} />
+          {view.left === "clinical" ? clinicalPane : analoguePane}
         </div>
 
         <div style={{ flex: "1 1 420px", minWidth: 320 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Order sheet</div>
-          <div style={{ fontSize: 15, color: C.pri[600], marginBottom: 6 }}>℞</div>
-          <RxAlerts input={rxAlertInput} />
-          {/* The per-line bubbles go on the ward too. `client/CLAUDE.md`: a
-              doctor who learns to trust the alert on one prescribing screen
-              must not silently lose it on the other — and once the warning is
-              drawn on the medicine in OPD, a bare banner here is exactly that
-              quiet hole. `showHabits` stays OFF: ward doses are not outpatient
-              prescribing habits (design D5). */}
-          <MedicinePad rows={rows} setRows={setRows} minHeight={360} noteText="Start typing a medicine or note…" showCheck={false} showSF alertInput={rxAlertInput} />
+          {view.right === "rx" ? rxPane : analoguePane}
         </div>
       </div>
 

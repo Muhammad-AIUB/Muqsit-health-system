@@ -122,6 +122,49 @@ these are the ones that live in this app's code and are easy to break.
   script loads `normalise.ts` from `dist/` (or via ts-node) rather than
   reimplementing it, and must stay `.js` — see the `rootDir` trap below.
 
+## ⚠️ Rule 2d — the IPD `clinical` column is REPLACED, so new per-admission data gets its own route
+
+`ipd.service.ts#update` writes `dto.clinical` verbatim (`data = { ...dto }`). Two
+consequences, both of which have to be designed around rather than lived with:
+
+- **A key the client omits is DELETED**, not left alone. No error, nothing in the
+  admission feed. The client builds the payload with `lib/ipdClinical.ts#mergeIpdClinical`
+  (start from the stored object, lay the known fields on top), and this side keeps
+  `preserveAnalogueSheets` for the case the client guard cannot cover: an old tab
+  still open on a ward PC after a deploy, or a rollback of the build that introduced
+  the key. Both halves are pinned in `ipd.service.spec.ts` / `ipdClinical.test.ts`.
+- **Two writers silently clobber each other.** There is no version check, and the
+  ward-team design means more than one person on one admission is the normal case,
+  not the rare one. Still open for the clinical fields — its own issue, and it needs
+  a 409 flow that does not cost the doctor their typing.
+
+So **new per-admission data does not ride this PATCH.** The analogue (paper)
+order-sheet pages are the worked example: `POST /ipd/:id/analogue`,
+`PATCH|DELETE /ipd/:id/analogue/:sheetId`, `POST .../restore`. Each one re-reads the
+admission inside a transaction, touches exactly one entry (or appends), and writes
+`clinical` back with every other key passed through. A whole-array write would have
+just relocated the clobber — two devices photographing the same sheet would
+overwrite each other's pages.
+
+Four more rules there are safety, not style:
+
+- **The server assigns `id` and `addedAt`.** The id is the handle every per-page
+  route addresses, and ward PCs have wrong clocks — a clinical timestamp is not
+  something to take from a browser.
+- **Removal is SOFT** (`removedAt` / `removedBy`). These are medico-legal documents:
+  the entry keeps its place, the file stays on disk, and a page removed by mistake is
+  recoverable long after the client's Undo bar is gone.
+- **Every operation writes an `IpdEvent` in the same transaction**, attributed to the
+  signed-in user (not the workstation's doctor), so the admission's own feed says who
+  added or removed a page.
+- **`assertMayEditAnalogue` deliberately does NOT require `ipd.analogue` of an
+  assistant.** The `ipd.*` keys are ticked per `IpdTeamMember` and are kept out of the
+  assistant editor on purpose (`client/CLAUDE.md`) — an assistant reaches IPD with no
+  key at all. Requiring one here would revoke something they can already do on every
+  other field of the same screen. The doctor and their assistants pass; any OTHER
+  actor (the ward-team login, when it is built) needs the key. Real the day that door
+  opens, denies nobody today.
+
 ## ⚠️ Rule 3 — ValidationPipe strips unknown fields
 
 `main.ts` uses `ValidationPipe({ whitelist: true })`. **Any new field the client sends must be added to the DTO** (`src/*/dto/*.ts`) or it is silently dropped — a classic "saved but nothing persisted" bug. For JSON columns follow the existing pattern in `patients.service.ts#update`: destructure the field, cast via `Prisma.InputJsonValue`, use `Prisma.DbNull` for explicit nulls.
