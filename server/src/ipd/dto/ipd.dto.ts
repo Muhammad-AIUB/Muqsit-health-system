@@ -1,4 +1,19 @@
-import { IsIn, IsInt, IsObject, IsOptional, IsString, Matches, Max, Min, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Matches,
+  Max,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateAdmissionDto {
@@ -52,4 +67,30 @@ export class CreateIpdEventDto {
   @IsString() @MinLength(1) note!: string;
   @IsOptional() @IsString() role?: string;
   @IsOptional() @IsString() reportUrl?: string;
+}
+
+// ── Analogue (paper) order-sheet pages ──────────────────────────────────────
+// The client sends only what it uploaded. `id` and `addedAt` are the SERVER's
+// to assign: the id is the handle every per-page route addresses, and a ward
+// PC's clock is not something a clinical timestamp may depend on.
+export class AnalogueSheetInputDto {
+  @IsString() @MinLength(1) @MaxLength(500) url!: string;
+  @IsOptional() @IsString() @MaxLength(500) thumbUrl?: string;
+  @IsOptional() @IsString() @MaxLength(120) label?: string;
+}
+
+export class AddAnalogueSheetsDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  // Mirrors the client's per-batch cap. A body that asks to append hundreds of
+  // pages in one write is not a doctor photographing a sheet.
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => AnalogueSheetInputDto)
+  sheets!: AnalogueSheetInputDto[];
+}
+
+export class UpdateAnalogueSheetDto {
+  // An empty string clears the label — that is a real edit, not a missing field.
+  @IsString() @MaxLength(120) label!: string;
 }
