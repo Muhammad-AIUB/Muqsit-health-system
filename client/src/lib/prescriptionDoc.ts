@@ -68,9 +68,10 @@ const esc = (s: string) =>
 // So the columns are not fixed percentages. Each one is measured against the
 // widest thing it actually has to carry and given exactly that share of the
 // row, which is what stops an empty "food" column from holding width the dose
-// column needs. If the four together still do not fit, ALL of them step down by
-// the same factor — a sheet where one medicine prints smaller than the next
-// reads as emphasis nobody intended, so the size is uniform per sheet.
+// column needs. When the four together do not fit, the dose / food / duration
+// columns are capped at an equal share of the row (never below their own
+// longest word) and every remaining pixel goes to the drug names — see
+// `fitColumns`.
 //
 // The type size itself is FIXED at 14px (physician's decision, 2026-08-26).
 // A dispenser reads this sheet at arm's length, and a prescription that prints
@@ -79,7 +80,7 @@ const esc = (s: string) =>
 // instead of shrinking: a medicine running onto a second line is a worse read
 // than one on a single line, but smaller-than-14px type is worse than both.
 // Nothing is ever truncated or allowed past the printable width.
-const RX_COL_SHARE = 1.6 / 2.4;   // .body grid is 0.8fr / 0.5px / 1.6fr
+const RX_COL_SHARE = 1.7 / 2.4;   // .body grid is 0.7fr / 0.5px / 1.7fr
 const RIGHT_PAD_PX = 18;          // .right padding-left
 // .rx-no fixed width. Wide enough for a TWO-digit serial: a 10-medicine
 // prescription is ordinary, and "10." measures 19.5px in 14px DM Sans
@@ -87,7 +88,7 @@ const RIGHT_PAD_PX = 18;          // .right padding-left
 // Too narrow and the number breaks onto its own second line beside the
 // medicine it belongs to.
 const RX_NO_PX = 32;
-const CELL_PAD_PX = 12;           // td padding, both sides
+export const CELL_PAD_PX = 8;     // td padding, both sides
 const DRUG_PX = 14;
 const MID_PX = 14;
 // Leave a sliver for the printer's own rounding and font hinting.
@@ -145,11 +146,32 @@ export interface RxColumnLayout {
 }
 
 /**
- * Give each column what it needs, and take any shortfall off the widest.
- * Max-min fair: columns narrower than an equal share keep their full width,
- * and whatever is left over is split between the wide ones.
+ * Give each column what it needs, and hand every spare pixel to `priority`
+ * (the drug names).
+ *
+ * When it all fits, every column is stretched by the same factor — a ragged
+ * right edge on a prescription reads as an unfinished sheet.
+ *
+ * When it does not fit, the old rule here was max-min fair on the NATURAL
+ * widths, and that is what printed the reported sheet with seven of its eight
+ * medicine names broken (2026-08-26). Max-min fair reads a column's longest
+ * value as a requirement, but a column that is going to wrap anyway cannot USE
+ * the width it is handed: one free-typed dose ("2-4TSF at night if
+ * constipation", 197px) made the dose column look as needy as the drug column,
+ * so the two split the remainder evenly at 117px each — the dose still wrapped
+ * at 117px, and the drug column, where all eight rows needed 134-266px, was
+ * starved for nothing.
+ *
+ * So the shortfall is taken by need, not by rank:
+ *   - Every column keeps its whole value on one line if that fits inside an
+ *     equal share of the row. That is what protects `1+0+1`, `Before meal` and
+ *     `Continue` absolutely — the cells a dispenser cannot afford to misread.
+ *   - A column asking for more than an equal share is capped there, but never
+ *     below its own longest WORD, so a value is never chopped mid-word.
+ *   - Everything left over goes to the drug names, the one column where a
+ *     second line reads as two medicines rather than one value on two lines.
  */
-function fitColumns(nat: number[], avail: number): number[] {
+function fitColumns(nat: number[], floor: number[], avail: number, priority: number): number[] {
   const sum = nat.reduce((a, b) => a + b, 0);
   // Whole pixels: a column asked for 71.2px and given 71 wraps its widest line
   // for want of a fifth of a pixel, which is not a trade anyone would make.
@@ -159,14 +181,32 @@ function fitColumns(nat: number[], avail: number): number[] {
   if (sum <= avail) {
     out = nat.map((w, i) => Math.max(want[i], Math.floor((w / sum) * avail)));
   } else {
-    out = nat.map(() => 0);
-    let rem = avail;
-    let left = nat.length;
-    for (const i of nat.map((_, i) => i).sort((a, b) => nat[a] - nat[b])) {
-      const share = rem / left;
-      out[i] = Math.max(1, nat[i] <= share ? want[i] : Math.floor(share));
-      rem -= out[i];
-      left -= 1;
+    const fair = avail / nat.length;
+    out = nat.map((w, i) =>
+      i === priority ? 0 : Math.max(1, Math.min(want[i], Math.ceil(Math.max(floor[i], fair)))),
+    );
+    const rest = avail - out.reduce((a, b) => a + b, 0);
+    out[priority] = Math.max(1, Math.min(want[priority], Math.floor(rest)));
+
+    // The drug column can need less than the row had spare (a sheet of short
+    // names beside one very long dose). Hand what is left back to whichever
+    // columns are still short of their own value, rather than printing a
+    // ragged right edge.
+    let spare = Math.floor(avail) - out.reduce((a, b) => a + b, 0);
+    while (spare > 0) {
+      const short = out.map((_, i) => i).filter((i) => out[i] < want[i]);
+      if (!short.length) break;
+      const each = Math.max(1, Math.floor(spare / short.length));
+      let moved = false;
+      for (const i of short) {
+        const add = Math.min(each, want[i] - out[i], spare);
+        if (add > 0) {
+          out[i] += add;
+          spare -= add;
+          moved = true;
+        }
+      }
+      if (!moved) break;
     }
   }
 
@@ -201,6 +241,15 @@ export function layoutRxColumns(
   };
   const widest = (pick: (r: RxLine) => string, base: number, bold: boolean) =>
     lines.reduce((mx, r) => Math.max(mx, width(pick(r), base, bold)), 0);
+  // The narrowest a column can be set and still break only between words.
+  // `td` carries `word-break: break-word`, so a narrower column does not spill
+  // off the page — it splits a word in two, and "consti / pation" on a dose
+  // line is not something a prescription should ever print.
+  const widestWord = (pick: (r: RxLine) => string, base: number, bold: boolean) =>
+    lines.reduce(
+      (mx, r) => pick(r).trim().split(/\s+/).reduce((m, w) => Math.max(m, width(w, base, bold)), mx),
+      0,
+    );
 
   // What the widest line in each column actually needs, at the base size.
   const raw = [
@@ -209,24 +258,22 @@ export function layoutRxColumns(
     ...(hasFood ? [widest((r) => r.instruction, MID_PX, false)] : []),
     widest((r) => r.duration, MID_PX, false),
   ];
+  const words = [
+    widestWord((r) => r.drug, DRUG_PX, true),
+    widestWord((r) => r.dose, MID_PX, false),
+    ...(hasFood ? [widestWord((r) => r.instruction, MID_PX, false)] : []),
+    widestWord((r) => r.duration, MID_PX, false),
+  ];
   // A column with no content still needs a sliver, or the header row collapses
   // and the remaining columns jump around between prescriptions.
   const MIN = 24;
   const nat = raw.map((w) => Math.max(MIN, w));
 
-  // Widths are whole px and never total more than the row.
-  //
-  // When it all fits, every column is stretched by the same factor — a ragged
-  // right edge on a prescription reads as an unfinished sheet.
-  //
-  // When it does not fit, the shortfall is NOT shared out proportionally. A
-  // proportional squeeze takes a slice off every column, and the columns with
-  // nothing to spare are the short ones: it is how `1+0+1` ends up broken over
-  // two lines beside a drug name that had room. So the narrow columns are
-  // served in full first and the shortfall falls entirely on the widest column
-  // — the drug names — which is the only column where a second line still
-  // reads as one medicine.
-  const inner = fitColumns(nat, avail);
+  // Widths are whole px and never total more than the row. The drug column
+  // (index 0) takes whatever the other columns genuinely cannot use — see
+  // `fitColumns` for why an equal share, not the longest value, is what a
+  // wrapping column is capped at.
+  const inner = fitColumns(nat, words, avail, 0);
 
   // Whether the sheet can print nowrap is then read off the width each column
   // actually GOT, not off the share it asked for. Rounding down cost every
@@ -427,7 +474,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .head { border-bottom: 2px solid #1d9e75; }
   .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 14px; margin: 14px 0 6px; }
   .pt span { color: #6b6b6b; }
-  .body { display: grid; grid-template-columns: 0.8fr 0.5px 1.6fr; gap: 0; margin-top: 10px; }
+  .body { display: grid; grid-template-columns: 0.7fr 0.5px 1.7fr; gap: 0; margin-top: 10px; }
   .left { padding-right: 16px; }
   .divider { background: #e5e5e3; }
   .right { padding-left: 18px; }
@@ -437,7 +484,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   ul { margin: 0; padding-left: 16px; }
   li { font-size: 14px; line-height: 1.5; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  td { padding: 7px 6px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+  td { padding: 7px 4px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
   .rx-no { width: ${RX_NO_PX}px; color: #999; font-size: 14px; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against

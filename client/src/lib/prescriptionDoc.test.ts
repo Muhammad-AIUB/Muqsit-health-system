@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPrescriptionHtml,
+  CELL_PAD_PX,
   layoutRxColumns,
   rxTableInnerPx,
   type PrescriptionDoc,
@@ -14,14 +15,16 @@ import {
 // set smaller than its neighbour reads as emphasis nobody intended, and a
 // medicine set smaller than 14px is simply harder to read at arm's length.
 // Cross-checked against a real browser on 2026-08-16: an A4 sheet
-// left 438px for the Rx data columns; 428px since RX_NO_PX widened to 32 so a
-// two-digit serial fits beside its medicine at 14px (2026-08-23).
+// left 438px for the Rx data columns; 428px once RX_NO_PX widened to 32 so a
+// two-digit serial fits beside its medicine at 14px (2026-08-23); 458px since
+// the .body grid gave the Rx side 1.7fr of 2.4 and the cell padding came down
+// to 8px, to stop the medicine names wrapping (physician's report, 2026-08-26).
 
 // Stand-in for canvas metrics (vitest has no DOM). Linear in font size, like
 // real text, near the ~0.47em/char DM Sans actually measures; bold a shade wider.
 const fakeMeasure = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.5 : 0.47);
 
-const A4_INNER = 428;
+const A4_INNER = 458;
 const line = (drug: string, dose = "1+0+0", duration = "5 days", instruction = ""): RxLine =>
   ({ drug, dose, duration, instruction });
 
@@ -117,12 +120,66 @@ describe("layoutRxColumns", () => {
     const lay = layoutRxColumns(rows, A4_INNER, fakeMeasure);
     expect(lay.wrap).toBe(true);
     const fits = (pick: (r: RxLine) => string, col: number, bold = false) =>
-      Math.max(...rows.map((r) => fakeMeasure(pick(r), 14, bold))) <= lay.cols[col] - 12;
+      Math.max(...rows.map((r) => fakeMeasure(pick(r), 14, bold))) <= lay.cols[col] - CELL_PAD_PX;
     expect(fits((r) => r.dose, 1)).toBe(true);
     expect(fits((r) => r.instruction, 2)).toBe(true);
     expect(fits((r) => r.duration, 3)).toBe(true);
     // The drug column is the one that gave up the width.
     expect(fits((r) => r.drug, 0, true)).toBe(false);
+  });
+
+  // ⚕️ Reported from a printed sheet on 2026-08-26: seven of these eight
+  // medicine names came off the printer broken across two and three lines.
+  // The cause was not the type size — it was that ONE free-typed dose
+  // ("2-4TSF at night if constipation") made the dose column look as needy as
+  // the drug column, so max-min fair split the remainder evenly and handed the
+  // dose 117px it could not use (it wrapped at that width anyway) while every
+  // drug name was starved. An ordinary label must survive a sheet that also
+  // carries one long dose.
+  it("keeps ordinary medicine names on one line beside one long free-typed dose", () => {
+    const rows = [
+      line("Tablet. Xynovir 300 mg", "1+0+0", "Continue", "Before meal"),
+      line("Tablet. Barcavir 0.5 mg", "0+0+1", "Continue", "Before meal"),
+      line("Capsule. Lenva 4 mg", "0+0+2", "Continue", ""),
+      line("Tablet. Carvista 3.125 mg", "1+0+1", "Continue", ""),
+      line("Tablet. Bicozin", "0+0+1", "Continue", ""),
+      line("Capsule (Enteric Coated). Sergel 40 mg", "1+0+1", "2 month", "Before meal"),
+      line("Tablet. Deflux 10 mg", "1+0+1", "if needed", "Before meal"),
+      line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4TSF at night if constipation", "", ""),
+    ];
+    const lay = layoutRxColumns(rows, A4_INNER, fakeMeasure);
+    const room = (col: number) => lay.cols[col] - CELL_PAD_PX;
+    const fitsDrug = (label: string) => fakeMeasure(label, 14, true) <= room(0);
+
+    // The size never moves — the fix buys the line back with width, not type.
+    expect(lay.drugPx).toBe(14);
+    expect(lay.midPx).toBe(14);
+
+    // Every ordinary label prints as one phrase.
+    for (const label of [
+      "Tablet. Xynovir 300 mg",
+      "Tablet. Barcavir 0.5 mg",
+      "Capsule. Lenva 4 mg",
+      "Tablet. Carvista 3.125 mg",
+      "Tablet. Bicozin",
+      "Tablet. Deflux 10 mg",
+    ]) {
+      expect(fitsDrug(label), label).toBe(true);
+    }
+
+    // ⚕️ And not at the dose's expense: `1+0+1` must never break, nor may the
+    // food and duration a dispenser reads beside it.
+    expect(fakeMeasure("1+0+1", 14, false)).toBeLessThanOrEqual(room(1));
+    expect(fakeMeasure("Before meal", 14, false)).toBeLessThanOrEqual(room(2));
+    expect(fakeMeasure("if needed", 14, false)).toBeLessThanOrEqual(room(3));
+
+    // The long dose is capped, never chopped mid-word.
+    expect(fakeMeasure("constipation", 14, false)).toBeLessThanOrEqual(room(1));
+
+    // Honest about what is still over-full: only the two longest labels wrap.
+    expect(fitsDrug("Capsule (Enteric Coated). Sergel 40 mg")).toBe(false);
+    expect(fitsDrug("Oral Solution. Avolac 3.35 gm/5 ml")).toBe(false);
+    expect(lay.wrap).toBe(true);
   });
 
   it("still prints 14px for a line no sheet width could hold on one line", () => {
@@ -176,7 +233,7 @@ describe("layoutRxColumns", () => {
           cell((r) => r.duration, lay.midPx, false),
         ];
         need.forEach((w, i) => {
-          expect(w, `col ${i} @ ${innerPx}px`).toBeLessThanOrEqual(lay.cols[i] - 12);
+          expect(w, `col ${i} @ ${innerPx}px`).toBeLessThanOrEqual(lay.cols[i] - CELL_PAD_PX);
         });
       }
     }
@@ -191,7 +248,7 @@ describe("printed Rx markup", () => {
   });
 
   // A 10-medicine prescription is ordinary. "10." measures 19.5px in 14px DM
-  // Sans, so a serial column narrower than that plus its 12px padding drops the
+  // Sans, so a serial column narrower than that plus its cell padding drops the
   // number onto a second line beside the medicine it numbers.
   it("gives the serial column room for a two-digit number", () => {
     const html = buildPrescriptionHtml(doc(REPORTED));
