@@ -10,7 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to VPS over SSH
-        uses: appleboy/ssh-action@v1.0.3
+        # ⚠️ PINNED TO A COMMIT SHA ON PURPOSE — never go back to `@v1.0.3`.
+        # A tag is mutable: whoever controls this action's repo can move it, and
+        # the next push to main would hand `secrets.VPS_KEY` (root SSH to the box
+        # holding every patient record) to whatever that commit runs. That is
+        # exactly how tj-actions/changed-files leaked secrets from ~23k repos in
+        # March 2025. Re-pin deliberately when upgrading:
+        #   gh api repos/appleboy/ssh-action/git/ref/tags/<tag> --jq .object.sha
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}

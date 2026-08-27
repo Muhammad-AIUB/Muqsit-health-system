@@ -599,8 +599,11 @@ export class RxHabitsService implements OnModuleInit {
    * suggestion — support will one day need to know who suppressed what, when.
    *
    * Written straight onto `doctorId` (the workstation doctor) rather than
-   * through ActivityService, which re-derives the practice from a user id; here
-   * the practice is already known and is the one that owns the habit row.
+   * through ActivityService — here the practice is already known and is the one
+   * that owns the habit row, so there is nothing to resolve. (ActivityService
+   * used to re-derive the practice from what it treated as a user id, which was
+   * the original reason to bypass it; that bug was removed 2026-08-27, but
+   * writing directly is still the simpler path and stays.)
    * `patientId` is left null — this is not about one patient.
    *
    * Never allowed to fail the request: the flag change already succeeded, and
