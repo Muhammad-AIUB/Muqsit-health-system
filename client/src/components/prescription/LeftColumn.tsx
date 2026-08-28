@@ -8,10 +8,13 @@ import InvestigationFindingsField from "@/components/investigation/Investigation
 import DrugHistoryField from "@/components/prescription/DrugHistoryField";
 import PreviousComplaintsField from "@/components/prescription/PreviousComplaintsField";
 import { useActivityLog } from "@/hooks/useActivity";
+import { usePreviousDiagnoses } from "@/hooks/usePreviousDiagnoses";
 
 export default function LeftColumn() {
   const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel } = useMuqsit();
   const logActivity = useActivityLog();
+  // "P.D" — offered inside the Final diagnosis popup only.
+  const previousDiagnoses = usePreviousDiagnoses();
 
   return (
     <div>
@@ -47,6 +50,8 @@ export default function LeftColumn() {
             suggestions={suggestionDB[f.sugKey || f.label] || []}
             allFields={allFieldValues}
             checkboxOptions={f.label === "Associated illness" ? ["BA", "COPD", "Hypothyroidism", "CKD", "CLD"] : undefined}
+            inlineEdit={f.label === "Final diagnosis"}
+            previousItems={f.label === "Final diagnosis" ? previousDiagnoses : undefined}
             onAdd={(item) => logActivity(f.label, item)}
           />
         );

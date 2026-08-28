@@ -20,11 +20,20 @@ interface ExpandableFieldProps {
   itemNotes?: Record<string, string>;
   onItemNote?: (item: string, note: string) => void;
   notePlaceholder?: string;
+  // Opt-in (Final diagnosis): no "✎ Edit" button — a bullet is corrected by
+  // double-clicking it, and the correction saves on Enter or on blur.
+  inlineEdit?: boolean;
+  // Opt-in (Final diagnosis): the "P.D" panel beside the popup — this patient's
+  // diagnoses from past visits, ticked to carry them into today's list.
+  previousItems?: string[];
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
+  // Inline edit (inlineEdit only): which bullet is open, and its live text.
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const [editVal, setEditVal] = useState("");
   // Staged items: edits live here until the user presses Done.
   const [draft, setDraft] = useState<string[]>([]);
   // Per-doctor "recently typed" entries for this field (server-backed).
@@ -34,6 +43,8 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   // When an assistant lacks this section's permission, it's visible but locked.
   const { canEditLabel } = useMuqsit();
   const editable = canEditLabel(label);
+  // This patient's past final diagnoses, offered as ticks in the popup.
+  const pd = previousItems ?? [];
 
   const getFiltered = () => {
     // Recent entries first, then the static suggestion list.
@@ -53,9 +64,28 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     if (inputVal) scored = scored.filter((s) => s.score > 0);
     scored.sort((a, b) => b.score - a.score);
     return scored
-      .filter((s) => !draft.includes(s.text) && !(checkboxOptions || []).includes(s.text))
+      // Anything already offered as its own tick — a checkbox quick-pick or a
+      // P.D line — is not repeated down here.
+      .filter((s) => !draft.includes(s.text) && !(checkboxOptions || []).includes(s.text) && !pd.includes(s.text))
       .slice(0, 10);
   };
+
+  // --- P.D panel (Final diagnosis only) -----------------------------------
+  const pdChosen = pd.filter((d) => draft.includes(d));
+  const allPdChosen = pd.length > 0 && pdChosen.length === pd.length;
+
+  // Ticking carries a past diagnosis into today's list; unticking takes it back
+  // out of the staged list only — the past prescription is never touched.
+  const togglePd = (d: string) => {
+    if (draft.includes(d)) setDraft(draft.filter((x) => x !== d));
+    else setDraft([...draft, d]);
+  };
+
+  // "Select all" / "Clear" move only the P.D lines; whatever else is staged
+  // stays put. They are two plain actions rather than one tickbox, so nothing
+  // in this panel can look ticked unless the doctor ticked it.
+  const selectAllPd = () => setDraft([...draft, ...pd.filter((d) => !draft.includes(d))]);
+  const clearAllPd = () => setDraft(draft.filter((x) => !pd.includes(x)));
 
   // Checkbox quick-picks: tick → goes to the Added list, untick → removed.
   const toggleOption = (opt: string) => {
@@ -114,6 +144,35 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     setInputVal("");
   };
 
+  // --- Inline bullet edit -------------------------------------------------
+  const startInlineEdit = (idx: number) => {
+    if (!editable || !inlineEdit) return;
+    setEditIdx(idx);
+    setEditVal(items[idx]);
+  };
+
+  // Enter or blur saves. A blanked box is treated as "no change" — a bullet is
+  // only ever removed deliberately, from the + popup.
+  const commitInlineEdit = () => {
+    if (editIdx === null) return;
+    const idx = editIdx;
+    const v = editVal.trim();
+    setEditIdx(null);
+    setEditVal("");
+    if (!v || v === items[idx]) return;
+    const next = items.map((it, i) => (i === idx ? v : it));
+    setItems(next);
+    if (!items.includes(v)) {
+      addRecents(label, [v]);
+      onAdd?.(v);
+    }
+  };
+
+  const cancelInlineEdit = () => {
+    setEditIdx(null);
+    setEditVal("");
+  };
+
   const filteredSugs = getFiltered();
 
   const greenTag: CSSProperties = { fontSize: 11, color: C.pri[600], background: C.pri[50], padding: "4px 10px 4px 12px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6, border: `0.5px solid ${C.pri[100]}` };
@@ -130,7 +189,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
         ) : (
           <span title="View only — you don't have access to edit this section" style={{ fontSize: 10, color: C.n[400] }}>🔒</span>
         )}
-        {editable && items.length > 0 && (
+        {editable && !inlineEdit && items.length > 0 && (
           <button onClick={handleOpen} style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}>✎ Edit</button>
         )}
       </div>
@@ -139,7 +198,25 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           {items.map((item, idx) => (
             <div key={idx} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.n[800], padding: "1.5px 0" }}>
               <span style={{ color: C.n[500], lineHeight: 1.45, flexShrink: 0 }}>•</span>
-              <span style={{ flex: itemNotes ? "0 0 auto" : 1, lineHeight: 1.45 }}>{item}</span>
+              {editIdx === idx ? (
+                <input
+                  autoFocus
+                  value={editVal}
+                  onChange={(e) => setEditVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { e.preventDefault(); commitInlineEdit(); }
+                    else if (e.key === "Escape") { e.preventDefault(); cancelInlineEdit(); }
+                  }}
+                  onBlur={commitInlineEdit}
+                  style={{ flex: itemNotes ? "0 0 auto" : 1, minWidth: 0, padding: "1px 6px", borderRadius: 5, border: `0.5px solid ${C.pri[400]}`, fontSize: 12, fontFamily: "inherit", color: C.n[900], background: C.n[0], outline: "none", lineHeight: 1.45 }}
+                />
+              ) : (
+                <span
+                  onDoubleClick={inlineEdit ? () => startInlineEdit(idx) : undefined}
+                  title={inlineEdit && editable ? "Double-click to edit" : undefined}
+                  style={{ flex: itemNotes ? "0 0 auto" : 1, lineHeight: 1.45, cursor: inlineEdit && editable ? "text" : undefined }}
+                >{item}</span>
+              )}
               {itemNotes && (
                 <input
                   value={itemNotes[item] ?? ""}
@@ -162,7 +239,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           zIndex: 1000,
         }} onClick={cancel}>
           <div onClick={(e) => e.stopPropagation()} style={{
-            width: "min(520px, 100%)", maxWidth: "100%", maxHeight: "80vh", background: C.n[0], borderRadius: 14,
+            width: `min(${pd.length > 0 ? 760 : 520}px, 100%)`, maxWidth: "100%", maxHeight: "80vh", background: C.n[0], borderRadius: 14,
             border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
             display: "flex", flexDirection: "column", overflow: "hidden",
           }}>
@@ -182,8 +259,9 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
               }}>×</button>
             </div>
 
-            {/* Modal body */}
-            <div style={{ padding: "16px 20px", flex: 1, overflowY: "auto" }}>
+            {/* Modal body — with the P.D panel beside it when there is one */}
+            <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+            <div style={{ padding: "16px 20px", flex: 1, minWidth: 0, overflowY: "auto" }}>
               {/* Staged items — live above the input, committed on Done.
                   Checkbox picks stay as (checked) checkboxes; typed/suggestion
                   items show as tags. */}
@@ -271,6 +349,53 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* P.D — this patient's diagnoses from past visits. Read-only text:
+                ticking one carries it into today's list, nothing is written back
+                to the visit it came from. */}
+            {pd.length > 0 && (
+              <div style={{ width: 240, flexShrink: 0, borderLeft: `0.5px solid ${C.n[200]}`, background: C.n[50], display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+                <div style={{ padding: "16px 18px 0", flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: C.n[900], letterSpacing: "-0.01em" }}>Previous diagnosis</div>
+                <div style={{ fontSize: 10.5, color: C.n[500], marginTop: 2, marginBottom: 10 }}>From this patient&apos;s past visits</div>
+
+                {/* Actions, deliberately NOT a "select all" checkbox: a tickbox
+                    that mirrors the rows below reads as though the doctor
+                    pressed it when they only picked one diagnosis. */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: 8, marginBottom: 10, borderBottom: `0.5px solid ${C.n[200]}` }}>
+                  <button onClick={selectAllPd} disabled={allPdChosen} style={{
+                    background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: 11.5,
+                    color: allPdChosen ? C.n[400] : C.pri[600], cursor: allPdChosen ? "default" : "pointer",
+                    textDecoration: allPdChosen ? "none" : "underline", textUnderlineOffset: 2,
+                  }}>Select all</button>
+                  {pdChosen.length > 0 && (
+                    <button onClick={clearAllPd} style={{
+                      background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: 11.5,
+                      color: C.n[600], cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2,
+                    }}>Clear</button>
+                  )}
+                  <span style={{ fontSize: 10.5, color: C.n[500], marginLeft: "auto" }}>{pdChosen.length}/{pd.length}</span>
+                </div>
+                </div>
+
+                {/* Only the list scrolls — a long history must not push the
+                    heading and the Select all / Clear actions off the panel. */}
+                <div data-testid="pd-list" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 18px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {pd.map((d) => (
+                    <label key={d} data-testid={`pd-${d}`} style={{ display: "flex", alignItems: "flex-start", gap: 7, cursor: "pointer", userSelect: "none" }}>
+                      <input
+                        type="checkbox"
+                        checked={draft.includes(d)}
+                        onChange={() => togglePd(d)}
+                        style={{ width: 15, height: 15, marginTop: 1, flexShrink: 0, accentColor: C.pri[400], cursor: "pointer" }}
+                      />
+                      <span style={{ fontSize: 12, color: draft.includes(d) ? C.pri[600] : C.n[800], lineHeight: 1.35 }}>{d}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             </div>
 
             {/* Modal footer */}
