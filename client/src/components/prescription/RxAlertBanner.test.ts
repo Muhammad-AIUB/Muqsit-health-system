@@ -111,3 +111,30 @@ describe("RxAlerts (the wrapper the screens render)", () => {
     );
   });
 });
+
+// The entecavir/CKD advice is a CrCl dosing table. HTML collapses its newlines
+// unless the text is rendered `pre-line`, and four dose bands run together into
+// one sentence — so the style is pinned here, not left to a stylesheet tidy-up.
+describe("RxAlertBanner: a message that is a dosing table", () => {
+  const CKD_RX: RxAlertInput = {
+    rxDrugs: [{ text: "Tab. Entecavir 0.5mg" }],
+    sidebar: [{ label: "Final diagnosis", items: ["CKD"] }],
+  };
+
+  it("keeps every CrCl band, and the line breaks between them", () => {
+    const html = render(CKD_RX);
+    for (const band of [
+      "CrCl at least 50 mL/min: 0.5 mg orally once a day",
+      "CrCl 30 to less than 50 mL/min: 0.25 mg orally once a day or 0.5 mg orally every 48 hours",
+      "CrCl 10 to less than 30 mL/min: 0.15 mg orally once a day or 0.5 mg orally every 72 hours",
+      "CrCl less than 10 mL/min: 0.05 mg orally once a day or 0.5 mg orally every 7 days",
+    ]) {
+      expect(html).toContain(band);
+    }
+    expect(html).toContain("\n");
+  });
+
+  it("renders it with the whitespace preserved", () => {
+    expect(render(CKD_RX)).toContain("white-space:pre-line");
+  });
+});

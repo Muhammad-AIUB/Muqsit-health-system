@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkRxAlerts, findRxAlerts, type RxAlertInput } from "./rxAlerts";
+import { checkRxAlerts, findRxAlerts, rxAlertsByLine, type RxAlertInput } from "./rxAlerts";
 
 // ⚕️ These assertions pin the exact wording the physician supplied. A failure
 // here means the advice a doctor reads has changed — treat it as a clinical
@@ -89,6 +89,87 @@ describe("entecavir + pregnancy", () => {
       { field: "℞", text: "Tab. Entecavir 0.5mg", rxIndex: 0 },
       { field: "History", text: "28wk Pregnant" },
     ]);
+  });
+});
+
+// ⚕️ Rows 2 and 3 of the entecavir sheet (entecavir.xlsx, 2026-08-28). The
+// CKD advice is a CrCl dosing TABLE: its four bands and two closing sentences
+// are asserted line by line, because a line lost or re-flowed here is a wrong
+// dose on a doctor's screen. Check the spreadsheet, never clinical memory,
+// before editing one of these expectations.
+describe("entecavir + CKD", () => {
+  const ckd = () => findRxAlerts(input(["entecavir"], { "Final diagnosis": ["CKD"] }))[0];
+
+  it("fires from the final diagnosis", () => {
+    expect(ckd()).toBeTruthy();
+  });
+
+  it("opens by naming what has to be adjusted", () => {
+    expect(ckd().message.split("\n")[0]).toBe("In case of CKD patient entecavir dose should be adjusted to CrCL.");
+  });
+
+  it("carries all four CrCl bands, each on its own line", () => {
+    expect(ckd().message.split("\n").slice(1, 5)).toEqual([
+      "CrCl at least 50 mL/min: 0.5 mg orally once a day",
+      "CrCl 30 to less than 50 mL/min: 0.25 mg orally once a day or 0.5 mg orally every 48 hours",
+      "CrCl 10 to less than 30 mL/min: 0.15 mg orally once a day or 0.5 mg orally every 72 hours",
+      "CrCl less than 10 mL/min: 0.05 mg orally once a day or 0.5 mg orally every 7 days",
+    ]);
+  });
+
+  it("keeps the doubling note and the alternative drug", () => {
+    expect(ckd().message).toContain("In case of decompensated case above dose will be doubled to be used.");
+    expect(ckd().message).toContain("Or you can switch to tenofovir alafenamide which is kidney friendly.");
+  });
+
+  it("reads the abbreviation written out in full", () => {
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["Chronic kidney disease, stage 3"] })))
+      .toEqual([ckd().message]);
+  });
+
+  it("does not fire on a negation, or without the drug", () => {
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["No CKD"] }))).toEqual([]);
+    expect(messages(input(["Tab. Napa 500mg"], { "Final diagnosis": ["CKD"] }))).toEqual([]);
+  });
+});
+
+describe("entecavir + decompensated liver cirrhosis", () => {
+  const DECOMP_MSG = "use entecavir -double of usual dose ";
+
+  it("fires the sheet's own wording from the final diagnosis", () => {
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["Decompensated liver cirrhosis"] })))
+      .toEqual([DECOMP_MSG]);
+  });
+
+  it("also reads it written without the word liver", () => {
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["Decompensated cirrhosis"] })))
+      .toEqual([DECOMP_MSG]);
+  });
+
+  it("does not fire on a compensated cirrhosis, or on bare decompensation", () => {
+    // "Decompensated" alone belongs to heart failure just as readily.
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["Liver cirrhosis, compensated"] }))).toEqual([]);
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["Decompensated heart failure"] }))).toEqual([]);
+  });
+});
+
+describe("entecavir: more than one condition at once", () => {
+  it("says the shared pregnancy/lactation sentence once for a lactating mother", () => {
+    const alerts = findRxAlerts(input(["entecavir"], { "Final diagnosis": ["Pregnant", "Lactating mother"] }));
+    expect(alerts.map((a) => a.message)).toEqual([PREGNANCY_MSG]);
+  });
+
+  it("gives a CKD patient in pregnancy both pieces of advice", () => {
+    const msgs = messages(input(["entecavir"], { "Final diagnosis": ["Pregnant", "CKD"] }));
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0]).toBe(PREGNANCY_MSG);
+    expect(msgs[1]).toContain("CrCl at least 50 mL/min: 0.5 mg orally once a day");
+  });
+
+  it("attaches every one of them to the medicine line that raised them", () => {
+    const i = input(["Tablet. Barcavir 0.5 mg"], { "Final diagnosis": ["CKD", "Decompensated liver cirrhosis"] });
+    i.rxDrugs[0].generic = "Entecavir";
+    expect(rxAlertsByLine(i).get(0)).toHaveLength(2);
   });
 });
 

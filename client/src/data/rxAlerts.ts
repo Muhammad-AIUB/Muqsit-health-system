@@ -40,22 +40,72 @@ export interface DrugDrugRule {
 export type RxAlertRule = DrugConditionRule | DrugDrugRule;
 
 // ── Entecavir ───────────────────────────────────────────────
-// Source: the physician's entecavir rule sheet (column A drug, column B
-// condition, column C advice).
+// Source: the physician's entecavir rule sheet, `entecavir.xlsx`, received
+// 2026-08-28 — column A drug, column B condition, column C advice. All FOUR rows
+// are reproduced here verbatim, the CKD one included: it used to be missing
+// because only a cut-off screenshot of it existed, and a half-remembered renal
+// dosing band is exactly the value that must never be guessed.
 //
-// ⚠️ INCOMPLETE: the sheet's second row (entecavir + CKD, a CrCl-banded dose
-// adjustment) was cut off in the screenshot it was supplied in and the file
-// itself has not been received. It is deliberately NOT reproduced here —
-// a half-remembered renal dosing band is exactly the kind of value that
-// harms a patient. Add it only from the source file.
+// The three strings below were written into this file straight from the
+// spreadsheet's cells, not retyped — down to the trailing space on the
+// decompensated row.
+//
+// Rows 1 and 4 (Pregnant, Lactating mother) carry the SAME sentence in column
+// C. They are kept as two rules so this table still reads row-for-row against
+// the sheet; the matcher folds equal messages into one alert, so a patient who
+// is both never sees the advice twice.
+//
+// The CKD row is a CrCl-banded dosing table and its line breaks ARE the table —
+// which is why both alert surfaces render a message with `white-space:
+// pre-line`. Re-flowed into a paragraph, four dose bands would run together.
+const ENTECAVIR_PREGNANCY_LACTATION =
+  "Entecavir is contraindicated in pregnancy and lactation. Use tenofovir disoproxil.";
+
+const ENTECAVIR_CKD =
+  "In case of CKD patient entecavir dose should be adjusted to CrCL.\nCrCl at least 50 mL/min: 0.5 mg orally once a day\nCrCl 30 to less than 50 mL/min: 0.25 mg orally once a day or 0.5 mg orally every 48 hours\nCrCl 10 to less than 30 mL/min: 0.15 mg orally once a day or 0.5 mg orally every 72 hours\nCrCl less than 10 mL/min: 0.05 mg orally once a day or 0.5 mg orally every 7 days\n\nIn case of decompensated case above dose will be doubled to be used.\n\nOr you can switch to tenofovir alafenamide which is kidney friendly.";
+
+const ENTECAVIR_DECOMPENSATED = "use entecavir -double of usual dose ";
+
 const ENTECAVIR: RxAlertRule[] = [
   {
     kind: "drug-condition",
     drug: "Entecavir",
     drugMatch: ["entecavir"],
     condition: "Pregnant",
-    conditionMatch: ["pregnant", "pregnancy", "lactating", "lactation", "breastfeeding"],
-    message: "Entecavir is contraindicated in pregnancy and lactation. Use tenofovir disoproxil.",
+    conditionMatch: ["pregnant", "pregnancy"],
+    message: ENTECAVIR_PREGNANCY_LACTATION,
+  },
+  {
+    kind: "drug-condition",
+    drug: "Entecavir",
+    drugMatch: ["entecavir"],
+    condition: "Lactating mother",
+    // "lactating" / "lactation" / "breastfeeding" already matched here before
+    // the sheet arrived; they are kept, so nothing that warned yesterday stops.
+    conditionMatch: ["lactating mother", "lactating", "lactation", "breastfeeding"],
+    message: ENTECAVIR_PREGNANCY_LACTATION,
+  },
+  {
+    kind: "drug-condition",
+    drug: "Entecavir",
+    drugMatch: ["entecavir"],
+    condition: "CKD",
+    // "chronic kidney disease" is the abbreviation written out, not a widening
+    // of the rule: a doctor who types the full name has the same patient.
+    conditionMatch: ["ckd", "chronic kidney disease"],
+    message: ENTECAVIR_CKD,
+  },
+  {
+    kind: "drug-condition",
+    drug: "Entecavir",
+    drugMatch: ["entecavir"],
+    condition: "Decompensated liver cirrhosis",
+    // The sheet's phrase, plus the same phrase without "liver" (cirrhosis is
+    // liver by definition). Bare "decompensated" is NOT matched — it belongs to
+    // heart failure just as readily, and this advice is about the liver. Nor is
+    // the "DCLD" shorthand: adding one is the physician's call, not a tidy-up.
+    conditionMatch: ["decompensated liver cirrhosis", "decompensated cirrhosis"],
+    message: ENTECAVIR_DECOMPENSATED,
   },
 ];
 

@@ -81,7 +81,10 @@ function Bubble({ alerts, onIgnore }: { alerts: RxAlert[]; onIgnore: (id: string
         {alerts.map((a, i) => (
           <div key={a.id} style={{ marginTop: i === 0 ? 0 : 5, display: "flex", gap: 7, alignItems: "baseline", flexWrap: "wrap" }}>
             <span aria-hidden style={{ flexShrink: 0 }}>⚠️</span>
-            <span>{a.message}</span>
+            {/* pre-line: the entecavir/CKD advice is a CrCl dosing table and its
+                line breaks ARE the table. Collapsed into a paragraph, four dose
+                bands would run into one sentence. */}
+            <span style={{ whiteSpace: "pre-line" }}>{a.message}</span>
             {IGNORABLE_RULE_DRUGS.has(a.drug) && (
               <button
                 type="button"
