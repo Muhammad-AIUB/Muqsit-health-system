@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 //
-// ⚕️ Final diagnosis is corrected in place: no "✎ Edit" button, a double-click
-// on the bullet opens it, Enter or moving the cursor away saves. The rest of
-// the clinical sidebar keeps the popup-and-Edit-button flow, so both shapes are
-// pinned here — a tidy-up that unified them would silently change how a
-// diagnosis is entered.
+// ⚕️ Final diagnosis is corrected IN PLACE: ✎ Edit beside the + opens a box on
+// every line at once, and Enter in any of them finishes the edit. The rest of
+// the clinical sidebar keeps the popup flow behind the same-looking button, so
+// both shapes are pinned here — a tidy-up that unified them would silently
+// change how a diagnosis is entered.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -34,83 +34,113 @@ describe("ExpandableField — inline edit (Final diagnosis)", () => {
     return { setItems, onAdd };
   };
 
-  it("shows no Edit button, unlike every other field", () => {
-    renderField(["CKD", "lactation"]);
-    expect(screen.queryByText("✎ Edit")).toBeNull();
-    // The + is still there — adding and removing still go through the popup.
-    expect(screen.getByText("+")).toBeTruthy();
+  const openEdit = () => fireEvent.click(screen.getByText("\u270e Edit"));
+  const boxes = () => screen.queryAllByDisplayValue(/.*/) as HTMLInputElement[];
+  const box = (i: number) => screen.getByTestId(`edit-${i}`) as HTMLInputElement;
+  const type = (i: number, v: string) => fireEvent.change(box(i), { target: { value: v } });
+  const enter = (i: number) => fireEvent.keyDown(box(i), { key: "Enter" });
+
+  it("offers Edit beside the + and opens a box on EVERY line", () => {
+    renderField(["CKD", "lactation", "anaemia"]);
+    expect(boxes()).toHaveLength(0);
+    openEdit();
+    expect(boxes().map((b) => b.value)).toEqual(["CKD", "lactation", "anaemia"]);
   });
 
-  it("opens the bullet on double-click and saves on Enter", () => {
+  it("Enter in any box finishes the whole edit", () => {
     const { setItems } = renderField(["CKD", "lactation"]);
-    fireEvent.doubleClick(bullet("CKD"));
-    const input = screen.getByDisplayValue("CKD") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "CKD stage 3" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(setItems).toHaveBeenCalledWith(["CKD stage 3", "lactation"]);
+    openEdit();
+    type(0, "CKD stage 3");
+    type(1, "lactating");
+    enter(1);
+    expect(setItems).toHaveBeenCalledWith(["CKD stage 3", "lactating"]);
+    expect(boxes()).toHaveLength(0); // the boxes are gone — edit complete
   });
 
-  it("saves when the cursor moves away (blur)", () => {
+  it("saves only what was actually changed", () => {
+    const { setItems } = renderField(["CKD", "lactation"]);
+    openEdit();
+    type(1, "lactating");
+    enter(0);
+    expect(setItems).toHaveBeenCalledWith(["CKD", "lactating"]);
+  });
+
+  it("the button says Done while the boxes are open, and finishes the edit too", () => {
     const { setItems } = renderField(["CKD"]);
-    fireEvent.doubleClick(bullet("CKD"));
-    const input = screen.getByDisplayValue("CKD") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "CKD stage 4" } });
-    fireEvent.blur(input);
+    openEdit();
+    expect(screen.queryByText("\u270e Edit")).toBeNull();
+    type(0, "CKD stage 4");
+    fireEvent.click(screen.getByText("\u2713 Done"));
     expect(setItems).toHaveBeenCalledWith(["CKD stage 4"]);
   });
 
-  it("edits only the bullet that was opened", () => {
-    const { setItems } = renderField(["CKD", "lactation", "anaemia"]);
-    fireEvent.doubleClick(bullet("lactation"));
-    fireEvent.change(screen.getByDisplayValue("lactation"), { target: { value: "lactating" } });
-    fireEvent.keyDown(screen.getByDisplayValue("lactating"), { key: "Enter" });
-    expect(setItems).toHaveBeenCalledWith(["CKD", "lactating", "anaemia"]);
+  it("double-clicking a line opens the same boxes", () => {
+    renderField(["CKD", "lactation"]);
+    fireEvent.doubleClick(screen.getByText("lactation"));
+    expect(boxes()).toHaveLength(2);
   });
 
-  it("Escape leaves the recorded diagnosis alone", () => {
+  it("Escape leaves the recorded diagnoses alone", () => {
     const { setItems } = renderField(["CKD"]);
-    fireEvent.doubleClick(bullet("CKD"));
-    const input = screen.getByDisplayValue("CKD") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "typo" } });
-    fireEvent.keyDown(input, { key: "Escape" });
+    openEdit();
+    type(0, "typo");
+    fireEvent.keyDown(box(0), { key: "Escape" });
     expect(setItems).not.toHaveBeenCalled();
     expect(screen.getByText("CKD")).toBeTruthy();
   });
 
-  // Blanking the box is a mis-key, not a deletion. Removing a diagnosis stays a
-  // deliberate act in the + popup.
+  it("saves when the cursor leaves the list altogether", () => {
+    const { setItems } = renderField(["CKD"]);
+    openEdit();
+    type(0, "CKD stage 4");
+    fireEvent.blur(box(0), { relatedTarget: null });
+    expect(setItems).toHaveBeenCalledWith(["CKD stage 4"]);
+  });
+
+  it("stays open while the cursor moves between the boxes", () => {
+    const { setItems } = renderField(["CKD", "lactation"]);
+    openEdit();
+    type(0, "CKD stage 4");
+    fireEvent.blur(box(0), { relatedTarget: box(1) });
+    expect(setItems).not.toHaveBeenCalled();
+    expect(boxes()).toHaveLength(2);
+  });
+
+  // Blanking a box is a mis-key, not a deletion. Removing a diagnosis stays a
+  // deliberate act in the + popup, which is why that button never goes away.
   it("a blanked box does not delete the diagnosis", () => {
-    const { setItems } = renderField(["CKD"]);
-    fireEvent.doubleClick(bullet("CKD"));
-    const input = screen.getByDisplayValue("CKD") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "   " } });
-    fireEvent.blur(input);
+    const { setItems } = renderField(["CKD", "lactation"]);
+    openEdit();
+    type(0, "   ");
+    enter(0);
     expect(setItems).not.toHaveBeenCalled();
     expect(screen.getByText("CKD")).toBeTruthy();
   });
 
-  it("saving the same text is not a change", () => {
+  it("changing nothing is not a change", () => {
     const { setItems, onAdd } = renderField(["CKD"]);
-    fireEvent.doubleClick(bullet("CKD"));
-    fireEvent.blur(screen.getByDisplayValue("CKD"));
+    openEdit();
+    enter(0);
     expect(setItems).not.toHaveBeenCalled();
     expect(onAdd).not.toHaveBeenCalled();
   });
 
-  it("logs the corrected text as a new entry", () => {
-    const { onAdd } = renderField(["CKD"]);
-    fireEvent.doubleClick(bullet("CKD"));
-    fireEvent.change(screen.getByDisplayValue("CKD"), { target: { value: "CKD stage 3" } });
-    fireEvent.keyDown(screen.getByDisplayValue("CKD stage 3"), { key: "Enter" });
+  it("logs each corrected line as a new entry", () => {
+    const { onAdd } = renderField(["CKD", "lactation"]);
+    openEdit();
+    type(0, "CKD stage 3");
+    enter(0);
+    expect(onAdd).toHaveBeenCalledTimes(1);
     expect(onAdd).toHaveBeenCalledWith("CKD stage 3");
   });
 
-  it("an assistant without permission cannot open a bullet", () => {
+  it("an assistant without permission gets no Edit button and no boxes", () => {
     canEdit = false;
     const setItems = vi.fn();
     render(<ExpandableField label="Final diagnosis" items={["CKD"]} setItems={setItems} inlineEdit />);
-    fireEvent.doubleClick(bullet("CKD"));
-    expect(screen.queryByDisplayValue("CKD")).toBeNull();
+    expect(screen.queryByText("\u270e Edit")).toBeNull();
+    fireEvent.doubleClick(screen.getByText("CKD"));
+    expect(screen.queryByTestId("edit-0")).toBeNull();
     expect(setItems).not.toHaveBeenCalled();
   });
 });

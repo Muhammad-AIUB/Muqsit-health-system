@@ -31,9 +31,11 @@ interface ExpandableFieldProps {
 export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
-  // Inline edit (inlineEdit only): which bullet is open, and its live text.
-  const [editIdx, setEditIdx] = useState<number | null>(null);
-  const [editVal, setEditVal] = useState("");
+  // Inline edit (inlineEdit only): every line is open at once, staged here
+  // until Enter. `editFocus` is the box that takes the caret when it opens.
+  const [editOpen, setEditOpen] = useState(false);
+  const [editLines, setEditLines] = useState<string[]>([]);
+  const [editFocus, setEditFocus] = useState(0);
   // Staged items: edits live here until the user presses Done.
   const [draft, setDraft] = useState<string[]>([]);
   // Per-doctor "recently typed" entries for this field (server-backed).
@@ -144,34 +146,35 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     setInputVal("");
   };
 
-  // --- Inline bullet edit -------------------------------------------------
-  const startInlineEdit = (idx: number) => {
+  // --- Inline edit: every line at once ------------------------------------
+  //
+  // ✎ Edit opens a box on EVERY entry, not one at a time, so a doctor
+  // correcting a list reads and fixes it as a list. Enter in any box finishes
+  // the whole edit; Escape abandons it. Nothing reaches the field until then —
+  // the boxes are a staged copy, exactly like the + popup's.
+  const startInlineEdit = (focus = 0) => {
     if (!editable || !inlineEdit) return;
-    setEditIdx(idx);
-    setEditVal(items[idx]);
+    setEditLines([...items]);
+    setEditFocus(focus);
+    setEditOpen(true);
   };
 
-  // Enter or blur saves. A blanked box is treated as "no change" — a bullet is
-  // only ever removed deliberately, from the + popup.
   const commitInlineEdit = () => {
-    if (editIdx === null) return;
-    const idx = editIdx;
-    const v = editVal.trim();
-    setEditIdx(null);
-    setEditVal("");
-    if (!v || v === items[idx]) return;
-    const next = items.map((it, i) => (i === idx ? v : it));
+    if (!editOpen) return;
+    setEditOpen(false);
+    // A blanked box is a mis-key, not a deletion: that line keeps what it had.
+    // Removing an entry stays a deliberate act in the + popup.
+    const next = items.map((it, i) => editLines[i]?.trim() || it);
+    if (next.every((v, i) => v === items[i])) return;
     setItems(next);
-    if (!items.includes(v)) {
-      addRecents(label, [v]);
-      onAdd?.(v);
+    const fresh = next.filter((v) => !items.includes(v));
+    if (fresh.length) {
+      addRecents(label, fresh);
+      fresh.forEach((v) => onAdd?.(v));
     }
   };
 
-  const cancelInlineEdit = () => {
-    setEditIdx(null);
-    setEditVal("");
-  };
+  const cancelInlineEdit = () => setEditOpen(false);
 
   const filteredSugs = getFiltered();
 
@@ -189,31 +192,47 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
         ) : (
           <span title="View only — you don't have access to edit this section" style={{ fontSize: 10, color: C.n[400] }}>🔒</span>
         )}
-        {editable && !inlineEdit && items.length > 0 && (
-          <button onClick={handleOpen} style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}>✎ Edit</button>
+        {editable && items.length > 0 && (
+          // Same button in both shapes, one line apart in behaviour: the popup
+          // for every other field, the in-place boxes for an inlineEdit one.
+          <button
+            onClick={inlineEdit ? (editOpen ? commitInlineEdit : () => startInlineEdit(0)) : handleOpen}
+            title={inlineEdit ? (editOpen ? "Finish editing (or press Enter)" : "Edit every line here") : undefined}
+            style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${editOpen ? C.pri[400] : C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}
+          >{inlineEdit && editOpen ? "✓ Done" : "✎ Edit"}</button>
         )}
       </div>
       {items.length > 0 && (
-        <div style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
+        <div data-inline-edit-group style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
           {items.map((item, idx) => (
             <div key={idx} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.n[800], padding: "1.5px 0" }}>
               <span style={{ color: C.n[500], lineHeight: 1.45, flexShrink: 0 }}>•</span>
-              {editIdx === idx ? (
+              {editOpen ? (
                 <input
-                  autoFocus
-                  value={editVal}
-                  onChange={(e) => setEditVal(e.target.value)}
+                  autoFocus={idx === editFocus}
+                  data-testid={`edit-${idx}`}
+                  value={editLines[idx] ?? ""}
+                  onChange={(e) => setEditLines((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))}
                   onKeyDown={(e) => {
+                    // Enter anywhere finishes the whole edit — the doctor is
+                    // done with the list, not with one line of it.
                     if (e.key === "Enter") { e.preventDefault(); commitInlineEdit(); }
                     else if (e.key === "Escape") { e.preventDefault(); cancelInlineEdit(); }
                   }}
-                  onBlur={commitInlineEdit}
+                  // Moving between the boxes keeps the edit open; leaving the
+                  // group altogether saves it. A correction typed and then
+                  // clicked away from must not evaporate.
+                  onBlur={(e) => {
+                    const to = e.relatedTarget as HTMLElement | null;
+                    if (to && to.closest("[data-inline-edit-group]")) return;
+                    commitInlineEdit();
+                  }}
                   style={{ flex: itemNotes ? "0 0 auto" : 1, minWidth: 0, padding: "1px 6px", borderRadius: 5, border: `0.5px solid ${C.pri[400]}`, fontSize: 12, fontFamily: "inherit", color: C.n[900], background: C.n[0], outline: "none", lineHeight: 1.45 }}
                 />
               ) : (
                 <span
                   onDoubleClick={inlineEdit ? () => startInlineEdit(idx) : undefined}
-                  title={inlineEdit && editable ? "Double-click to edit" : undefined}
+                  title={inlineEdit && editable ? "Double-click, or press ✎ Edit, to correct these" : undefined}
                   style={{ flex: itemNotes ? "0 0 auto" : 1, lineHeight: 1.45, cursor: inlineEdit && editable ? "text" : undefined }}
                 >{item}</span>
               )}
