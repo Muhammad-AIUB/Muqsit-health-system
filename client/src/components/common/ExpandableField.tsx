@@ -20,8 +20,8 @@ interface ExpandableFieldProps {
   itemNotes?: Record<string, string>;
   onItemNote?: (item: string, note: string) => void;
   notePlaceholder?: string;
-  // Opt-in (Final diagnosis): no "✎ Edit" button — a bullet is corrected by
-  // double-clicking it, and the correction saves on Enter or on blur.
+  // Opt-in (Final diagnosis): "✎ Edit" opens a box on every entry in place
+  // instead of the popup, and Enter in any of them finishes the edit.
   inlineEdit?: boolean;
   // Opt-in (Final diagnosis): the "P.D" panel beside the popup — this patient's
   // diagnoses from past visits, ticked to carry them into today's list.
@@ -196,6 +196,12 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           // Same button in both shapes, one line apart in behaviour: the popup
           // for every other field, the in-place boxes for an inlineEdit one.
           <button
+            // Counted as part of the edit group, so clicking it does NOT trip
+            // the boxes' "left the group → save" blur first. It used to: the
+            // blur closed the edit, React re-rendered the button back into its
+            // "✎ Edit" role, and the click that followed re-opened the boxes —
+            // pressing Done looked like it did nothing.
+            {...(inlineEdit ? { "data-inline-edit-group": "" } : {})}
             onClick={inlineEdit ? (editOpen ? commitInlineEdit : () => startInlineEdit(0)) : handleOpen}
             title={inlineEdit ? (editOpen ? "Finish editing (or press Enter)" : "Edit every line here") : undefined}
             style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${editOpen ? C.pri[400] : C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}

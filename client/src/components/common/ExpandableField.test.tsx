@@ -74,6 +74,23 @@ describe("ExpandableField — inline edit (Final diagnosis)", () => {
     expect(setItems).toHaveBeenCalledWith(["CKD stage 4"]);
   });
 
+  // The physician's report: pressing Done left the boxes open. The click was
+  // preceded by the box's own blur, which saved and closed the edit — and by
+  // the time the click landed the button had already become "✎ Edit" again and
+  // re-opened them.
+  it("Done really closes the boxes, blur and all", () => {
+    const { setItems } = renderField(["CKD"]);
+    openEdit();
+    type(0, "CKD stage 4");
+    const done = screen.getByText("✓ Done");
+    fireEvent.blur(box(0), { relatedTarget: done }); // what the browser does first
+    fireEvent.click(done);
+    expect(setItems).toHaveBeenCalledTimes(1);
+    expect(setItems).toHaveBeenCalledWith(["CKD stage 4"]);
+    expect(boxes()).toHaveLength(0);
+    expect(screen.getByText("✎ Edit")).toBeTruthy();
+  });
+
   it("double-clicking a line opens the same boxes", () => {
     renderField(["CKD", "lactation"]);
     fireEvent.doubleClick(screen.getByText("lactation"));
