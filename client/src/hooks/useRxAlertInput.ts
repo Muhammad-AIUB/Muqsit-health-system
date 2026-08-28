@@ -16,7 +16,7 @@ import { buildRxAlertInput, type RxAlertInput } from "@/lib/rxAlerts";
  * not the other, with no way to tell which was right.
  *
  * This only ASSEMBLES; the matching runs inside the error boundaries in
- * `RxAlerts.tsx` / `RxLineAlert.tsx`. Doing it in a caller's `useMemo` would
+ * `RxAlerts.tsx` / `RxPadAlerts.tsx`. Doing it in a caller's `useMemo` would
  * put the computation outside the boundary, where no wrapper can catch it —
  * see client/CLAUDE.md.
  */

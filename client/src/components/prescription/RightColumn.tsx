@@ -13,7 +13,7 @@ import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import type { RxItem } from "@/types";
 
 export default function RightColumn({ mobile }: { mobile?: boolean }) {
-  // Assembled here, matched inside RxLineAlert's error boundary. Shared with
+  // Assembled here, matched inside RxPadAlerts's error boundary. Shared with
   // the banner in ReportsSection so the two can never disagree.
   const alertInput = useRxAlertInput();
   const {
