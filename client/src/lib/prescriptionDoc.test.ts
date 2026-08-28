@@ -3,13 +3,16 @@ import {
   buildPrescriptionHtml,
   CELL_PAD_PX,
   layoutRxColumns,
+  MAX_SCALE,
+  ROW_MIN_PX,
   rxTableInnerPx,
+  sheetContentPx,
   type PrescriptionDoc,
   type RxLine,
 } from "./prescriptionDoc";
 
 // ⚕️ The printed sheet is the legal record. These pin the rules a dispenser
-// depends on: the whole sheet prints at ONE type size — 14px, fixed since
+// depends on: the whole sheet prints at ONE type size — 14px, the FLOOR since
 // 2026-08-26, never scaled down to squeeze a long line onto one line — and
 // where the row has the width, every cell still prints on ONE line. A medicine
 // set smaller than its neighbour reads as emphasis nobody intended, and a
@@ -98,15 +101,53 @@ describe("layoutRxColumns", () => {
     expect(lay.cols.reduce((a, b) => a + b, 0)).toBeGreaterThan(A4_INNER * 0.9);
   });
 
-  // The rule that replaced shrink-to-fit (physician's decision, 2026-08-26).
-  it("holds 14px and lets the cell wrap when the row is over-full", () => {
+  // ⚕️ The over-full row SHRINKS, on its own, rather than wrapping
+  // (physician's decision 2026-08-28, superseding the wrap rule of 2026-08-26).
+  // The sheet's base stays 14px — one long medicine must not drag the rest of
+  // the prescription down with it.
+  it("sets an over-full row smaller instead of wrapping it", () => {
     const lay = layoutRxColumns(
-      [line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night if constipation", "Continue")],
+      [line("Tablet (Delayed Release). Mesacol Extended Release 400 mg XR", "2+2+2", "7 week")],
       A4_INNER, fakeMeasure,
     );
     expect(lay.drugPx).toBe(14);
     expect(lay.midPx).toBe(14);
+    expect(lay.rowPx[0]).toBeLessThan(14);
+    expect(lay.rowPx[0]).toBeGreaterThanOrEqual(ROW_MIN_PX);
+    expect(lay.rowWrap[0]).toBe(false);
+    expect(lay.wrap).toBe(false);
+  });
+
+  // The floor holds: under it the row takes a second line rather than print
+  // type a dispenser cannot read at arm's length.
+  it("wraps rather than going under the floor", () => {
+    const lay = layoutRxColumns(
+      [line("Tablet. " + "Verylongmedicinename".repeat(6) + " 500 mg", "1+0+1", "Continue")],
+      A4_INNER, fakeMeasure,
+    );
+    expect(lay.rowPx[0]).toBe(ROW_MIN_PX);
+    expect(lay.rowWrap[0]).toBe(true);
     expect(lay.wrap).toBe(true);
+  });
+
+  // A row that fits is left alone, at the sheet's own size.
+  it("leaves a row that fits at the base size", () => {
+    const lay = layoutRxColumns([line("Tablet. Napa 500 mg", "1+1+1", "5 days")], A4_INNER, fakeMeasure);
+    expect(lay.rowPx).toEqual([14]);
+    expect(lay.rowWrap).toEqual([false]);
+  });
+
+  // ⚕️ The width half of the page-fill bound. A sheet with room to spare may
+  // grow; one whose widest line already fills its column may not, or the line
+  // it was measured for would stop fitting.
+  it("reports how far the sheet may grow, and never past the cap", () => {
+    const roomy = layoutRxColumns([line("Tab. A", "1", "2d")], A4_INNER, fakeMeasure);
+    expect(roomy.maxScale).toBe(MAX_SCALE);
+    const full = layoutRxColumns(
+      [line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night if constipation", "Continue")],
+      A4_INNER, fakeMeasure,
+    );
+    expect(full.maxScale).toBe(1);
   });
 
   // ⚕️ A dose is the cell a dispenser cannot afford to misread, and `1+0+1`
@@ -118,14 +159,16 @@ describe("layoutRxColumns", () => {
       line("Tablet (Delayed Release). Mesacol 400 mg", "2+2+2", "7 week", ""),
     ];
     const lay = layoutRxColumns(rows, A4_INNER, fakeMeasure);
-    expect(lay.wrap).toBe(true);
     const fits = (pick: (r: RxLine) => string, col: number, bold = false) =>
       Math.max(...rows.map((r) => fakeMeasure(pick(r), 14, bold))) <= lay.cols[col] - CELL_PAD_PX;
     expect(fits((r) => r.dose, 1)).toBe(true);
     expect(fits((r) => r.instruction, 2)).toBe(true);
     expect(fits((r) => r.duration, 3)).toBe(true);
-    // The drug column is the one that gave up the width.
+    // The drug column is the one that gave up the width — and the rows whose
+    // names no longer fit are set smaller, still on one line.
     expect(fits((r) => r.drug, 0, true)).toBe(false);
+    expect(lay.rowPx.every((px) => px < 14)).toBe(true);
+    expect(lay.rowWrap).toEqual([false, false]);
   });
 
   // ⚕️ Reported from a printed sheet on 2026-08-26: seven of these eight
@@ -223,18 +266,25 @@ describe("layoutRxColumns", () => {
     for (const rows of shapes) {
       for (const innerPx of [320, 380, 400, 417, A4_INNER, 460, 520]) {
         const lay = layoutRxColumns(rows, innerPx, fakeMeasure);
-        if (lay.wrap) continue; // below the floor cells are allowed to wrap
-        const cell = (pick: (r: RxLine) => string, px: number, bold: boolean) =>
-          Math.max(...rows.map((r) => fakeMeasure(pick(r), px, bold)));
-        const need = [
-          cell((r) => r.drug, lay.drugPx, true),
-          cell((r) => r.dose, lay.midPx, false),
-          ...(lay.hasFood ? [cell((r) => r.instruction, lay.midPx, false)] : []),
-          cell((r) => r.duration, lay.midPx, false),
-        ];
-        need.forEach((w, i) => {
-          expect(w, `col ${i} @ ${innerPx}px`).toBeLessThanOrEqual(lay.cols[i] - CELL_PAD_PX);
+        // Every row is measured at the size IT prints at — a row set smaller to
+        // keep its one line must still fit the column it is set inside.
+        rows.filter((r) => !r.isNote).forEach((r, ri) => {
+          if (lay.rowWrap[ri]) return; // below the floor the row may wrap
+          const px = lay.rowPx[ri];
+          const need = [
+            fakeMeasure(r.drug, px, true),
+            fakeMeasure(r.dose, px, false),
+            ...(lay.hasFood ? [fakeMeasure(r.instruction, px, false)] : []),
+            fakeMeasure(r.duration, px, false),
+          ];
+          need.forEach((w, i) => {
+            expect(w, `row ${ri} col ${i} @ ${innerPx}px`).toBeLessThanOrEqual(lay.cols[i] - CELL_PAD_PX);
+          });
         });
+        const sheetNeed = [
+          Math.max(...rows.map((r) => fakeMeasure(r.drug, lay.drugPx, true))),
+        ];
+        void sheetNeed;
       }
     }
   });
@@ -252,7 +302,7 @@ describe("printed Rx markup", () => {
   // number onto a second line beside the medicine it numbers.
   it("gives the serial column room for a two-digit number", () => {
     const html = buildPrescriptionHtml(doc(REPORTED));
-    const first = html.match(/<colgroup><col style="width:(\d+(?:\.\d+)?)px"/);
+    const first = html.match(/<colgroup><col style="width:calc\(var\(--k, 1\) \* (\d+(?:\.\d+)?)px\)"/);
     expect(first).not.toBeNull();
     expect(Number(first![1])).toBeGreaterThanOrEqual(32);
   });
@@ -304,15 +354,51 @@ describe("printed Rx markup", () => {
     ).toContain("white-space:nowrap");
   });
 
-  // ⚕️ The size on the paper, not just in the layout object.
-  it("prints every Rx cell at 14px", () => {
+  // ⚕️ The size on the paper, not just in the layout object. 14px is the FLOOR
+  // since 2026-08-28: every length is written through the sheet's fit factor,
+  // so the page-fill script can grow the whole document evenly — and a column
+  // can never be outgrown by its text, because both scale together.
+  it("writes every Rx size and column width through the fit factor", () => {
     const html = buildPrescriptionHtml(doc(REPORTED));
-    expect(html).toContain('class="rx-drug" style="font-size:14px;');
-    expect(html).toContain('class="rx-mid" style="font-size:14px;');
-    // No Rx cell prints at any other size.
-    const sizes = [...html.matchAll(/class="rx-(?:drug|mid)" style="font-size:([\d.]+)px/g)].map((m) => m[1]);
+    expect(html).toContain('class="rx-drug" style="font-size:calc(var(--k, 1) * ');
+    expect(html).toContain('class="rx-mid" style="font-size:calc(var(--k, 1) * ');
+    expect(html).toContain('<col style="width:calc(var(--k, 1) * ');
+    // Nothing on the Rx table is left at a fixed px, which would not grow with
+    // the rest of the sheet.
+    expect(html).not.toMatch(/class="rx-(?:drug|mid)" style="font-size:\d/);
+    // 14px is the sheet's size. A row that could not be held to one line at it
+    // prints smaller — on its own, and never under the floor.
+    const sizes = [...html.matchAll(/class="rx-(?:drug|mid)" style="font-size:calc\(var\(--k, 1\) \* ([\d.]+)px/g)]
+      .map((m) => Number(m[1]));
     expect(sizes.length).toBeGreaterThan(0);
-    expect([...new Set(sizes)]).toEqual(["14"]);
+    expect(Math.max(...sizes)).toBe(14);
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(ROW_MIN_PX);
+    // A prescription with room to spare prints wholly at the sheet's size.
+    const roomy = buildPrescriptionHtml(doc([line("Tablet. Napa 500 mg", "1+1+1", "5 days")]));
+    const roomySizes = [...roomy.matchAll(/class="rx-(?:drug|mid)" style="font-size:calc\(var\(--k, 1\) \* ([\d.]+)px/g)]
+      .map((m) => m[1]);
+    expect([...new Set(roomySizes)]).toEqual(["14"]);
+  });
+
+  // ⚕️ The page-fill rule, on the paper. The sheet carries the two numbers the
+  // in-document script needs, and the script itself.
+  it("carries the printable height and the width headroom, and the fitting script", () => {
+    const html = buildPrescriptionHtml(doc(REPORTED));
+    // A4 minus the 0.5in letterhead bands, in CSS px.
+    expect(html).toContain(`data-avail-h="${sheetContentPx()}"`);
+    expect(html).toMatch(/data-kmax="[\d.]+"/);
+    expect(html).toContain("beforeprint");
+    // It may never shrink the sheet below what it prints today.
+    expect(html).toContain("sheet.style.setProperty('--k', '1')");
+  });
+
+  it("never lets the fill factor exceed what the widest Rx line can take", () => {
+    const tight = buildPrescriptionHtml(
+      doc([line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night if constipation", "Continue")]),
+    );
+    expect(tight).toContain('data-kmax="1.000"');
+    const roomy = buildPrescriptionHtml(doc([line("Tab. A", "1", "2d")]));
+    expect(roomy).toContain(`data-kmax="${MAX_SCALE.toFixed(3)}"`);
   });
 
   it("prints no brand name in the header — the band is the practice's letterhead", () => {

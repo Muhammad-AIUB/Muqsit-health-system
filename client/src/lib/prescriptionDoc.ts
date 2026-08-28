@@ -73,13 +73,25 @@ const esc = (s: string) =>
 // longest word) and every remaining pixel goes to the drug names — see
 // `fitColumns`.
 //
-// The type size itself is FIXED at 14px (physician's decision, 2026-08-26).
-// A dispenser reads this sheet at arm's length, and a prescription that prints
-// smaller because it happened to carry one long medicine name is harder to read
-// for no clinical reason. So a line that will not fit its column at 14px wraps
-// instead of shrinking: a medicine running onto a second line is a worse read
-// than one on a single line, but smaller-than-14px type is worse than both.
-// Nothing is ever truncated or allowed past the printable width.
+// THE SHEET IS SIZED TO FILL THE PAGE (physician's decision, 2026-08-28,
+// superseding the fixed-14px rule of 2026-08-26). A prescription with six
+// medicines printed at 14px on A4 left two thirds of the page blank and came
+// back "so small it is not readable". So 14px is now the FLOOR, not the size:
+// the whole sheet is scaled up by one factor `--k` until it fills the printable
+// page, and `--k` is chosen inside the document itself, where the browser can
+// measure what it actually rendered rather than a builder guessing at it.
+//
+// Two things bound `--k`, and both are hard bounds:
+//   · the page height — the sheet must never spill onto a second page it did
+//     not need, and
+//   · this table's own width — every ℞ cell stays on ONE line, so `--k` can
+//     never exceed the room the widest line has left over (`maxScale` below).
+//
+// A row that cannot be held to one line even at the base size is set SMALLER,
+// on its own (`rowPx`), rather than wrapping or dragging the whole sheet down
+// with it — again the physician's decision, 2026-08-28. There is a floor
+// (`ROW_MIN_PX`); under it the row wraps, because unreadable type is worse than
+// a second line. Nothing is ever truncated or allowed past the printable width.
 const RX_COL_SHARE = 1.7 / 2.4;   // .body grid is 0.7fr / 0.5px / 1.7fr
 const RIGHT_PAD_PX = 18;          // .right padding-left
 // .rx-no fixed width. Wide enough for a TWO-digit serial: a 10-medicine
@@ -91,6 +103,14 @@ const RX_NO_PX = 32;
 export const CELL_PAD_PX = 8;     // td padding, both sides
 const DRUG_PX = 14;
 const MID_PX = 14;
+// How far the whole sheet may be scaled up to fill the page. 14 -> 22.4px is
+// already large print; past that a three-line prescription starts to read as a
+// poster rather than a medical document.
+export const MAX_SCALE = 1.6;
+// The smallest a single over-long row may be set to keep its one line. Below
+// this it wraps instead — a dispenser reading 9px type at arm's length is the
+// failure this whole table exists to avoid.
+export const ROW_MIN_PX = 11;
 // Leave a sliver for the printer's own rounding and font hinting.
 const FIT_SAFETY = 0.98;
 // Fallback only, for when canvas text metrics are unavailable: mean advance per
@@ -132,6 +152,22 @@ export function rxTableInnerPx(page?: PrescriptionDoc["page"]): number {
   return Math.max(160, content * RX_COL_SHARE - RIGHT_PAD_PX - RX_NO_PX);
 }
 
+/**
+ * Height of the printable area, in CSS px — the page minus the letterhead
+ * bands reserved top and bottom. The fitting script grows the sheet up to this
+ * and not a pixel further: a prescription that spills onto a second page it did
+ * not need is worse than one with white space at the foot.
+ */
+export function sheetContentPx(page?: PrescriptionDoc["page"]): number {
+  const perUnit = (page?.unit ?? "in") === "cm" ? 37.8 : 96;
+  const num = (v: string | undefined, fallback: number) => {
+    const n = parseFloat(v ?? "");
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  const h = num(page?.height, 11.69) - num(page?.headerHeight, 0.5) - num(page?.footerHeight, 0.5);
+  return Math.round(Math.max(200, h * perUnit));
+}
+
 export interface RxColumnLayout {
   /** Column widths in px, in render order: drug, dose, [food], duration. */
   cols: number[];
@@ -141,8 +177,18 @@ export interface RxColumnLayout {
   drugPx: number;
   /** One size for dose / food / duration. */
   midPx: number;
-  /** True when a column's widest line does not fit at 14px; cells wrap rather than overflow. */
+  /** True when any row still has to wrap — it could not be held to one line even at ROW_MIN_PX. */
   wrap: boolean;
+  /** Per non-note row, in order: the size that row prints at (<= drugPx). */
+  rowPx: number[];
+  /** Per non-note row: that row may take a second line (only when shrinking was not enough). */
+  rowWrap: boolean[];
+  /**
+   * The most the sheet may be scaled up before this table's widest line stops
+   * fitting on one row. 1 when there is no room to grow. The fitting script in
+   * the document never goes past it.
+   */
+  maxScale: number;
 }
 
 /**
@@ -275,19 +321,45 @@ export function layoutRxColumns(
   // wrapping column is capped at.
   const inner = fitColumns(nat, words, avail, 0);
 
-  // Whether the sheet can print nowrap is then read off the width each column
-  // actually GOT, not off the share it asked for. Rounding down cost every
-  // column up to a pixel, and a nowrap cell sized for a pixel its column does
-  // not have is exactly how it bleeds past its own column on the printed sheet.
-  // An empty column constrains nothing — its sliver is padding, not text.
-  const wrap = inner.some((w, i) => raw[i] > 0 && w < raw[i]);
+  // How much bigger the whole sheet could be set before the widest line in any
+  // column stops fitting the width it was given. This is the width half of the
+  // page-fill bound; the height half is measured in the document.
+  const headroom = raw.map((w, i) => (w > 0 ? inner[i] / w : Infinity));
+  const maxScale = Math.max(1, Math.min(MAX_SCALE, ...headroom));
+
+  // A row that does not fit its columns at the base size is set smaller — just
+  // that row. It is measured against every column it fills, and the tightest
+  // one decides.
+  const rowPx: number[] = [];
+  const rowWrap: boolean[] = [];
+  for (const r of lines) {
+    const need = [
+      width(r.drug, DRUG_PX, true) / inner[0],
+      width(r.dose, MID_PX, false) / inner[1],
+      ...(hasFood ? [width(r.instruction, MID_PX, false) / inner[2]] : []),
+      width(r.duration, MID_PX, false) / inner[hasFood ? 3 : 2],
+    ].filter((n) => Number.isFinite(n) && n > 0);
+    const tightest = need.length ? Math.max(...need) : 0;
+    if (tightest <= 1) {
+      rowPx.push(DRUG_PX);
+      rowWrap.push(false);
+      continue;
+    }
+    // Rounded DOWN: a size rounded up is a size that does not fit.
+    const fits = Math.floor(DRUG_PX / tightest);
+    rowPx.push(Math.max(ROW_MIN_PX, fits));
+    rowWrap.push(fits < ROW_MIN_PX);
+  }
 
   return {
     cols: inner.map((w) => w + CELL_PAD_PX),
     hasFood,
     drugPx: DRUG_PX,
     midPx: MID_PX,
-    wrap,
+    wrap: rowWrap.some(Boolean),
+    rowPx,
+    rowWrap,
+    maxScale,
   };
 }
 
@@ -317,6 +389,14 @@ const drugNameOnly = (s: string): string => {
   return esc(body.split(" — ")[0].trim());
 };
 
+/**
+ * A length that scales with the sheet's page-fill factor. Every font size, cell
+ * padding and column width on the sheet is written this way, so ONE number set
+ * by the fitting script grows the whole document evenly — and a column can
+ * never be outgrown by the text inside it, because both scale together.
+ */
+export const SCALE_PX = (n: number) => `calc(var(--k, 1) * ${n}px)`;
+
 // One A4 sheet. `privacyCopy` produces the public-safe copy: masked identity,
 // no clinical assessment, no personal advice — only the medicines + tests the
 // patient needs to act on.
@@ -343,16 +423,20 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   let rxNo = 0;
   const rxLines = d.rx.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim());
   const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page));
-  // One nowrap decision for the whole table: either every cell is held to a
-  // single line, or the cells that need a second line are free to take one.
-  const nowrap = lay.wrap ? "" : "white-space:nowrap;";
   const noteSpan = lay.hasFood ? 4 : 3;
-  const rxCols = `<colgroup><col style="width:${RX_NO_PX}px" />${lay.cols
-    .map((w) => `<col style="width:${w}px" />`)
+  // Widths scale with the sheet's fit factor exactly as the text does, so a
+  // column can never be outgrown by what it carries.
+  const rxCols = `<colgroup><col style="width:${SCALE_PX(RX_NO_PX)}" />${lay.cols
+    .map((w) => `<col style="width:${SCALE_PX(w)}" />`)
     .join("")}</colgroup>`;
+  // The per-row size is a RATIO of the base, not a fixed px, so it still grows
+  // when the sheet is scaled to fill the page.
+  let rxRowNo = -1;
   const rxRows = rxLines
     .map((r) => {
       // Free-typed instruction line — span the whole width, italic, no number.
+      // A note is not a medicine row and is not in `lay.rowPx` — it must not
+      // advance the counter, or every row after it reads the wrong size.
       if (r.isNote) {
         return `
         <tr>
@@ -362,11 +446,17 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       }
       const isCont = !r.drug.trim();
       if (!isCont) rxNo += 1;
-      const mid = ` style="font-size:${lay.midPx}px;${nowrap}"`;
+      rxRowNo += 1;
+      // This row's own size: the base, unless the row had to be set smaller to
+      // stay on one line. Only such a row is allowed to wrap, and only once
+      // shrinking it to ROW_MIN_PX was still not enough.
+      const size = lay.rowPx[rxRowNo] ?? lay.drugPx;
+      const nowrap = lay.rowWrap[rxRowNo] ? "" : "white-space:nowrap;";
+      const mid = ` style="font-size:${SCALE_PX(size)};${nowrap}"`;
       return `
         <tr>
           <td class="rx-no">${isCont ? "" : rxNo + "."}</td>
-          <td class="rx-drug" style="font-size:${lay.drugPx}px;${nowrap}">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : drugCell(r.drug)}</td>
+          <td class="rx-drug" style="font-size:${SCALE_PX(size)};${nowrap}">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : drugCell(r.drug)}</td>
           <td class="rx-mid"${mid}>${esc(r.dose)}</td>
           ${lay.hasFood ? `<td class="rx-mid"${mid}>${esc(r.instruction)}</td>` : ""}
           <td class="rx-mid"${mid}>${esc(r.duration)}</td>
@@ -391,8 +481,8 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   // signature. A `position: fixed` bar would sit lower but is free to overlay
   // content on a full page — not acceptable on a prescription.
   return `
-  <div class="sheet">
-    <table class="pagegrid"><tbody><tr><td class="pagebody">
+  <div class="sheet" data-avail-h="${sheetContentPx(d.page)}" data-kmax="${lay.maxScale.toFixed(3)}">
+    <table class="pagegrid"><tbody><tr><td class="pagebody"><div class="pagecontent">
     <!-- No printed brand name here (2026-08-16). The top band is reserved for
          the practice's own pre-printed letterhead (headerHeight in Prescription
          settings), and a second name printed under it competed with it. What
@@ -414,14 +504,14 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       <div class="divider"></div>
       <div class="right">
         <div class="rx-symbol">℞</div>
-        ${rxRows ? `<table>${rxCols}${rxRows}</table>` : '<p style="font-size:14px;color:#999">No medicines added.</p>'}
+        ${rxRows ? `<table>${rxCols}${rxRows}</table>` : `<p style="font-size:${SCALE_PX(14)};color:#999">No medicines added.</p>`}
         ${adviceBlock}
         ${listBlock("Advised tests / investigation", d.adviceTest)}
         ${d.followUp ? `<div class="followup">Follow-up: <b>${esc(d.followUp)}</b></div>` : ""}
         <div class="sign"><span class="line">${esc(d.doctorName || "Signature")}</span></div>
       </div>
     </div>
-    </td></tr></tbody>
+    </div></td></tr></tbody>
     <tfoot><tr><td class="pagefoot">
       <div class="brandbar">
         <span class="bb-mhs">MHS</span>
@@ -430,6 +520,62 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
     </td></tr></tfoot></table>
   </div>`;
 }
+
+// ⚕️ Page fill, decided inside the document.
+//
+// A builder cannot know how tall a sheet came out — how many lines a diagnosis
+// wrapped to, how tall the fonts that actually loaded are — so the sheet is
+// written at its floor size and this script, running in the print document
+// itself, finds the largest scale at which it still fits ONE page. Every length
+// on the sheet is `calc(var(--k) * Npx)`, so setting `--k` grows the type, the
+// cell padding and the column widths together.
+//
+// Three rules it must not break, in this order:
+//   1. never shrink — `--k` starts at 1, which is the sheet exactly as it
+//      printed before this existed;
+//   2. never spill onto a page the prescription did not need;
+//   3. never let an ℞ cell run past its own column — checked by measuring the
+//      table, so it holds even if the printer resolves a different font from
+//      the one the widths were measured against.
+// If anything here throws, `--k` stays unset and the sheet prints at its floor.
+const FIT_SCRIPT = `(function(){
+  function fits(sheet, availH){
+    var c = sheet.querySelector('.pagecontent');
+    var f = sheet.querySelector('.pagefoot');
+    if (!c) return false;
+    var h = c.getBoundingClientRect().height + (f ? f.getBoundingClientRect().height : 0);
+    if (h > availH) return false;
+    var tables = sheet.querySelectorAll('.pagecontent table');
+    for (var i = 0; i < tables.length; i++) {
+      if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
+    }
+    return true;
+  }
+  function fit(sheet){
+    var availH = parseFloat(sheet.getAttribute('data-avail-h'));
+    var kMax = parseFloat(sheet.getAttribute('data-kmax'));
+    if (!(availH > 0) || !(kMax > 1)) return;
+    sheet.style.setProperty('--k', '1');
+    if (!fits(sheet, availH)) return;
+    var lo = 1, hi = kMax;
+    for (var i = 0; i < 9; i++) {
+      var mid = (lo + hi) / 2;
+      sheet.style.setProperty('--k', String(mid));
+      if (fits(sheet, availH)) lo = mid; else hi = mid;
+    }
+    sheet.style.setProperty('--k', String(lo));
+  }
+  function run(){
+    try {
+      var sheets = document.querySelectorAll('.sheet');
+      for (var i = 0; i < sheets.length; i++) fit(sheets[i]);
+    } catch (e) { /* the sheet prints at its floor size */ }
+  }
+  run();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+  window.addEventListener('load', run);
+  window.addEventListener('beforeprint', run);
+})();`;
 
 // The sheet carries NO toolbar of its own. It is displayed inside the app's own
 // print modal (`PrintSheetModal`), which owns the Print / Close buttons — the
@@ -472,20 +618,20 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   /* Empty by design — the rule under the (pre-printed) letterhead band. The
      brand/logo/doctor rules that used to fill it went with the printed name. */
   .head { border-bottom: 2px solid #1d9e75; }
-  .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 14px; margin: 14px 0 6px; }
+  .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: ${SCALE_PX(14)}; margin: 14px 0 6px; }
   .pt span { color: #6b6b6b; }
   .body { display: grid; grid-template-columns: 0.7fr 0.5px 1.7fr; gap: 0; margin-top: 10px; }
   .left { padding-right: 16px; }
   .divider { background: #e5e5e3; }
   .right { padding-left: 18px; }
-  .rx-symbol { font-size: 26px; font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
+  .rx-symbol { font-size: ${SCALE_PX(26)}; font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
-  .block-title { font-size: 11px; font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  .block-title { font-size: ${SCALE_PX(11)}; font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
   ul { margin: 0; padding-left: 16px; }
-  li { font-size: 14px; line-height: 1.5; }
+  li { font-size: ${SCALE_PX(14)}; line-height: 1.5; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  td { padding: 7px 4px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-  .rx-no { width: ${RX_NO_PX}px; color: #999; font-size: 14px; }
+  td { padding: ${SCALE_PX(7)} ${SCALE_PX(4)}; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+  .rx-no { width: ${SCALE_PX(RX_NO_PX)}; color: #999; font-size: ${SCALE_PX(14)}; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
@@ -499,10 +645,10 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .rx-drug { font-weight: 400; }
   .rx-drug b { font-weight: 600; }
   .rx-mid { color: #333; }
-  .rx-note { font-size: 14px; color: #444; font-style: italic; }
-  .followup { margin-top: 18px; font-size: 14px; }
+  .rx-note { font-size: ${SCALE_PX(14)}; color: #444; font-style: italic; }
+  .followup { margin-top: 18px; font-size: ${SCALE_PX(14)}; }
   .followup b { color: #0f6e56; }
-  .sign { margin-top: 56px; text-align: right; font-size: 14px; color: #333; }
+  .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(14)}; color: #333; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in
@@ -530,5 +676,6 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
 <body>
   ${fullPage}
   ${privacyPage}
+<script>${FIT_SCRIPT}</script>
 </body></html>`;
 }
