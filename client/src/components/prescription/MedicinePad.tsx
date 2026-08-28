@@ -14,8 +14,9 @@ import {
   safeContLines,
   safeHabitText,
 } from "@/lib/rxHabitRows";
+import { rxDrugIndexByRow } from "@/lib/rxRows";
 import { anchorDropdown, sameAnchor, type DropdownAnchor } from "@/lib/dropdownAnchor";
-import RxPadAlerts from "./RxPadAlerts";
+import RxAlertSign, { RxLineWarning } from "./RxPadAlerts";
 import type { RxAlertInput } from "@/lib/rxAlerts";
 
 // "Start From": type 170626 → "17 June 2026". Leaves non-date text untouched.
@@ -230,10 +231,10 @@ interface Props {
   // false so a new caller can never pick them up silently.
   showHabits?: boolean;
   // Prescribing-alert input. When given, ONE red sign blinks in the pad's
-  // toolbar as soon as any warned medicine is written, and the advice opens
-  // from it. Assembled by the caller (`useRxAlertInput`); the MATCHING runs
-  // inside `RxPadAlerts`'s own error boundary, never here — see
-  // client/CLAUDE.md.
+  // toolbar as soon as any warned medicine is written, and pressing it reveals
+  // each warning under its own medicine line. Assembled by the caller
+  // (`useRxAlertInput`); the MATCHING runs inside `RxPadAlerts`'s own error
+  // boundary, never here — see client/CLAUDE.md.
   alertInput?: RxAlertInput;
 }
 
@@ -244,6 +245,10 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // name in bold — see the medicine column below.
   const [drugFocus, setDrugFocus] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
+  // Whether the warnings are being shown. One switch for the whole pad: the
+  // sign in the toolbar is the only way in, so a doctor never has to hunt for
+  // which line is hiding one.
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
   // The row each dropdown hangs off, measured against the viewport.
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -374,6 +379,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     setTimeout(() => doseRefs.current[idx + 1]?.focus(), 30);
   };
 
+  const alertLineIndex = alertInput ? rxDrugIndexByRow(rows) : [];
+
   const lineInput: CSSProperties = { border: "none", outline: "none", background: "transparent", fontSize: 13.5, color: C.n[900], fontFamily: font, padding: "0 4px", height: ROW_H - 8 };
 
   return (
@@ -390,7 +397,9 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {/* One sign for the whole pad, however many rules fired. */}
-        {alertInput && <RxPadAlerts input={alertInput} />}
+        {alertInput && (
+          <RxAlertSign input={alertInput} open={alertsOpen} onToggle={() => setAlertsOpen((o) => !o)} />
+        )}
         <button
           onClick={() => setEditMode((m) => !m)}
           style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${editMode ? C.pri[400] : C.n[200]}`, background: editMode ? C.pri[50] : C.n[0], color: editMode ? C.pri[600] : C.n[700], fontSize: 12, fontWeight: editMode ? 600 : 400, cursor: "pointer", fontFamily: font }}
@@ -415,6 +424,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
           const started = Boolean(row.drug || row.dose || row.duration);
           const isHead = row.isMedicine && !row.continuation;
           const isCont = row.continuation;
+          const lineIndex = alertLineIndex[idx];
           return (
             <Fragment key={idx}>
             <div ref={(el) => { rowRefs.current[idx] = el; }} style={{ position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
@@ -641,6 +651,20 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.danger[400], cursor: "pointer", fontSize: 15, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
               )}
             </div>
+            {/* The prescribing warning for THIS medicine, pointing up at it,
+                shown once the doctor presses the sign. It sits in the flow, so
+                it travels with its own line when the pad scrolls.
+
+                The text guard is not belt-and-braces. `rows` is this
+                component's own state and `alertInput` is derived from the
+                context's `rxItems`, which RightColumn syncs one render later —
+                so for a frame after a line is deleted the indices disagree, and
+                a contraindication would be drawn against the wrong medicine.
+                A frame is long enough to be seen and photographed. */}
+            {alertsOpen && alertInput && lineIndex != null &&
+              (alertInput.rxDrugs[lineIndex]?.text ?? "").trim() === row.drug.trim() && (
+              <RxLineWarning input={alertInput} lineIndex={lineIndex} />
+            )}
             </Fragment>
           );
         })}

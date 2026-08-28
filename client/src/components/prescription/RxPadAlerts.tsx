@@ -1,40 +1,34 @@
 "use client";
 
-import { Component, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Component, type ReactNode } from "react";
 import { C, font } from "@/theme";
 import { rxAlertsByLine, type RxAlert, type RxAlertInput } from "@/lib/rxAlerts";
-import { anchorDropdown, sameAnchor, type DropdownAnchor } from "@/lib/dropdownAnchor";
 import { useMuqsit } from "@/context/MuqsitContext";
 
-// ⚕️ The prescribing warning on the ℞ pad: ONE blinking sign, then the advice.
+// ⚕️ The prescribing warning on the ℞ pad: ONE blinking sign, then the advice
+// under the medicine it belongs to.
 //
-// It used to be drawn as a red bubble under each medicine as soon as a rule
-// fired. The physician's decision (2026-08-28) is that the pad stays a writing
-// surface: a single red sign lights up in the corner the moment ANY warned
-// medicine is written — one sign however many warnings there are — and the
-// advice appears, in the same red-bubble language as before, only when the
-// doctor presses it.
+// Three shapes in three days, all the physician's:
+//   2026-08-17  a red bubble under the medicine, shown the moment a rule fired
+//   2026-08-28  the bubble gone; one blinking sign, advice in a floating panel
+//   2026-08-28  the panel dropped — it moved around the screen on a scroll.
+// What stands: the pad is a writing surface, so a single sign lights up in the
+// toolbar the moment ANY warned medicine is written — one sign however many
+// warnings there are — and pressing it reveals each warning **in the flow,
+// directly under its own medicine line**, where it scrolls with that line and
+// can never be read against the wrong drug.
 //
-// Nothing is hidden by this. The "MHS is suggesting" banner in Notifications,
-// Chats & Reports still lists every alert in full at all times, and every
-// warning a visit raised is still written to the activity feed on save,
-// ignored or not. This is where the doctor's eye goes while writing, not the
-// only place the advice exists.
+// Nothing is hidden by the sign. The "MHS is suggesting" banner in
+// Notifications, Chats & Reports still lists every alert in full at all times,
+// and every warning a visit raised is still written to the activity feed on
+// save, ignored or not.
 //
 // Same containment rules as RxAlerts.tsx, for the same reason: this renders
 // INSIDE the ℞ pad, and React unmounts the whole tree on an uncaught render
-// error. Losing a warning sign is survivable; losing the editor a doctor
-// prescribes through is not. So:
-//   · the boundary is here, and the matching runs in a CHILD of it;
-//   · the fallback SAYS the check did not run, because a doctor who sees
-//     nothing reads it as "no contraindication".
-export default function RxPadAlerts({ input }: { input: RxAlertInput }) {
-  return (
-    <PadAlertBoundary>
-      <PadAlertBody input={input} />
-    </PadAlertBoundary>
-  );
-}
+// error. Losing a warning is survivable; losing the editor a doctor prescribes
+// through is not. So the boundary is here, the matching runs in a CHILD of it,
+// and the fallback SAYS the check did not run — a doctor who sees nothing
+// reads it as "no contraindication".
 
 // ⚕️ The rule whose warning the doctor may set aside on the pad.
 //
@@ -46,120 +40,41 @@ export default function RxPadAlerts({ input }: { input: RxAlertInput }) {
 // clinical decision, not a tidy-up.
 const IGNORABLE_RULE_DRUGS = new Set(["Entecavir"]);
 
-/** One warning, with the medicine (or medicines) on the pad that raised it. */
-interface PadAlert {
-  alert: RxAlert;
-  drugs: string[];
-}
-
-export function padAlerts(input: RxAlertInput): PadAlert[] {
-  const byLine = rxAlertsByLine(input);
-  const out: PadAlert[] = [];
-  const seen = new Map<string, PadAlert>();
-  // In pad order, so the list reads down the prescription.
-  for (const [idx, alerts] of [...byLine.entries()].sort((a, b) => a[0] - b[0])) {
-    const line = input.rxDrugs?.[idx];
-    const drug = (line?.text || line?.generic || "").trim();
-    for (const alert of alerts) {
-      const existing = seen.get(alert.id);
-      // A drug-drug rule lands on both medicines: one entry, both named.
-      if (existing) {
-        if (drug && !existing.drugs.includes(drug)) existing.drugs.push(drug);
-        continue;
-      }
-      const entry: PadAlert = { alert, drugs: drug ? [drug] : [] };
-      seen.set(alert.id, entry);
-      out.push(entry);
-    }
+/** Every ℞ line that is warning about something, and what about. */
+export function padAlerts(input: RxAlertInput, ignored: ReadonlySet<string>): { rxIndex: number; alerts: RxAlert[] }[] {
+  const out: { rxIndex: number; alerts: RxAlert[] }[] = [];
+  for (const [rxIndex, alerts] of [...rxAlertsByLine(input).entries()].sort((a, b) => a[0] - b[0])) {
+    const shown = alerts.filter((a) => !ignored.has(a.id));
+    if (shown.length) out.push({ rxIndex, alerts: shown });
   }
   return out;
 }
 
-/** How wide the panel would like to be, before the screen has its say. */
-export const PANEL_W = 520;
+// ── The sign ────────────────────────────────────────────────
 
-/**
- * The panel hangs from the sign's RIGHT edge, so on a desktop it opens back
- * across the pad. On a phone that would put its left edge off the screen and
- * clip the advice — measured at 375px: 36px of it gone, with no scrollbar to
- * get it back. So it is placed the same way the medicine dropdown is: against
- * the viewport, through `anchorDropdown`, which pulls it inside both edges,
- * flips it above near the bottom of the screen, and trims its height to the
- * room available. The rect handed over is where the panel WANTS to start.
- */
-export function panelAnchor(sign: DOMRect | { top: number; bottom: number; right: number }, vp: { width: number; height: number }) {
-  const width = Math.min(PANEL_W, vp.width - 16);
-  return {
-    width,
-    ...anchorDropdown({ top: sign.top, bottom: sign.bottom + 4, left: sign.right - width }, vp, width),
-  };
+export default function RxAlertSign(props: { input: RxAlertInput; open: boolean; onToggle: () => void }) {
+  return (
+    <PadAlertBoundary inline>
+      <SignBody {...props} />
+    </PadAlertBoundary>
+  );
 }
 
-function PadAlertBody({ input }: { input: RxAlertInput }) {
-  const { ignoredAlerts, ignoreAlert } = useMuqsit();
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const signRef = useRef<HTMLButtonElement | null>(null);
-  const [pos, setPos] = useState<(DropdownAnchor & { width: number }) | null>(null);
+function SignBody({ input, open, onToggle }: { input: RxAlertInput; open: boolean; onToggle: () => void }) {
+  const { ignoredAlerts } = useMuqsit();
+  const lines = padAlerts(input, ignoredAlerts);
+  const count = lines.reduce((n, l) => n + l.alerts.length, 0);
+  if (count === 0) return null;
 
-  // Ignoring hides the warning HERE and nowhere else: the advisory in
-  // "Notifications, Chats & Reports" stays up, and the visit is logged with the
-  // warning either way.
-  const shown = padAlerts(input).filter((p) => !ignoredAlerts.has(p.alert.id));
-
-  // Nothing to warn about — the sign goes out, and so does the panel.
-  useEffect(() => {
-    if (shown.length === 0 && open) setOpen(false);
-  }, [shown.length, open]);
-
-  // Keep the open panel under its sign through a scroll or a resize. `capture`
-  // catches the ℞ pad's own scroll box as well as the page's.
-  useLayoutEffect(() => {
-    if (!open) {
-      setPos(null);
-      return;
-    }
-    const measure = () => {
-      const el = signRef.current;
-      if (!el) return;
-      const next = panelAnchor(el.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight });
-      setPos((prev) => (prev && prev.width === next.width && sameAnchor(prev, next) ? prev : next));
-    };
-    measure();
-    window.addEventListener("scroll", measure, true);
-    window.addEventListener("resize", measure);
-    return () => {
-      window.removeEventListener("scroll", measure, true);
-      window.removeEventListener("resize", measure);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  if (shown.length === 0) return null;
-
+  const label = `${count} prescribing warning${count === 1 ? "" : "s"} — press to ${open ? "hide" : "read"}`;
   return (
-    <div ref={wrapRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
+    <>
       {/* A small solid dot rather than a thin outlined ring: at this size an
           outline and a hairline "!" read as a stray character, while a filled
           disc reads as a signal. The halo does the attracting, so the dot never
           fades below 0.4 — a warning that blinks all the way out is a warning a
-          doctor can look straight past. Both stop under reduced motion; the
-          dot itself stays red and visible either way. */}
+          doctor can look straight past. Both stop under reduced motion; the dot
+          itself stays red and visible either way. */}
       <style>{`
         @keyframes mhs-rx-alert-blink { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
         @keyframes mhs-rx-alert-halo {
@@ -174,10 +89,10 @@ function PadAlertBody({ input }: { input: RxAlertInput }) {
       `}</style>
       <button
         type="button"
-        ref={signRef}
-        onClick={() => setOpen((o) => !o)}
-        aria-label={`${shown.length} prescribing warning${shown.length === 1 ? "" : "s"} — press to read`}
-        title={`${shown.length} prescribing warning${shown.length === 1 ? "" : "s"} — press to read`}
+        onClick={onToggle}
+        aria-label={label}
+        aria-expanded={open}
+        title={label}
         // 24px of button around a 15px dot: small to the eye, still a fingertip
         // target on a phone.
         style={{
@@ -198,54 +113,88 @@ function PadAlertBody({ input }: { input: RxAlertInput }) {
           }}
         >!</span>
       </button>
+    </>
+  );
+}
 
-      {open && (
-        <div
-          role="alert"
-          style={{
-            position: "fixed", top: pos?.top, bottom: pos?.bottom, left: pos?.left ?? 0,
-            visibility: pos ? "visible" : "hidden", zIndex: 60,
-            width: pos?.width ?? PANEL_W, maxHeight: pos?.maxHeight ?? 320, overflowY: "auto",
-            background: C.n[0], border: `1.5px solid ${C.danger[400]}`, borderRadius: 10,
-            boxShadow: "0 12px 32px rgba(0,0,0,0.16)", padding: "8px 12px",
-            fontFamily: font, fontSize: 12, lineHeight: 1.45, color: C.danger[800],
-            textAlign: "left",
-          }}
-        >
-          {shown.map(({ alert, drugs }, i) => (
-            <div key={alert.id} style={{ marginTop: i === 0 ? 0 : 8, paddingTop: i === 0 ? 0 : 8, borderTop: i === 0 ? undefined : `0.5px solid ${C.danger[100]}` }}>
-              <div style={{ display: "flex", gap: 7, alignItems: "baseline", flexWrap: "wrap" }}>
-                <span aria-hidden style={{ flexShrink: 0 }}>⚠️</span>
-                {/* Which medicine raised it — the pad no longer says so by
-                    position, so it has to say so in words. */}
-                <span style={{ fontWeight: 600 }}>{drugs.join(" + ")}</span>
-                {IGNORABLE_RULE_DRUGS.has(alert.drug) && (
-                  <button
-                    type="button"
-                    onClick={() => ignoreAlert(alert.id)}
-                    title="Hide this warning for this prescription. It stays in the patient's log."
-                    style={{
-                      flexShrink: 0, marginLeft: "auto", padding: "2px 9px", borderRadius: 999,
-                      border: `1px solid ${C.danger[400]}`, background: C.n[0], color: C.danger[800],
-                      fontFamily: font, fontSize: 11, fontWeight: 500, cursor: "pointer", lineHeight: 1.5,
-                    }}
-                  >
-                    Ignore Warning
-                  </button>
-                )}
-              </div>
-              {/* pre-line: a message can be a dosing table (entecavir + CKD),
-                  and its line breaks are the table. See data/rxAlerts.ts. */}
-              <div style={{ whiteSpace: "pre-line", marginTop: 2 }}>{alert.message}</div>
-            </div>
-          ))}
-        </div>
-      )}
+// ── The warning itself, under its medicine ──────────────────
+
+export function RxLineWarning({ input, lineIndex }: { input: RxAlertInput; lineIndex: number }) {
+  return (
+    <PadAlertBoundary>
+      <LineWarningBody input={input} lineIndex={lineIndex} />
+    </PadAlertBoundary>
+  );
+}
+
+function LineWarningBody({ input, lineIndex }: { input: RxAlertInput; lineIndex: number }) {
+  const { ignoredAlerts, ignoreAlert } = useMuqsit();
+  // Ignoring puts this warning out and nothing else: the advisory in
+  // "Notifications, Chats & Reports" stays up, and the visit is logged with the
+  // warning either way.
+  const shown = (rxAlertsByLine(input).get(lineIndex) ?? []).filter((a) => !ignoredAlerts.has(a.id));
+  if (shown.length === 0) return null;
+  return <Bubble alerts={shown} onIgnore={ignoreAlert} />;
+}
+
+/**
+ * A red speech bubble whose tail points UP at the medicine directly above it,
+ * so there is never a question of which line it belongs to. It sits in the
+ * flow, not over it: a floating panel moved around the screen whenever the pad
+ * or the page scrolled, and advice that drifts away from its drug is advice
+ * that can be read against the wrong one.
+ */
+function Bubble({ alerts, onIgnore }: { alerts: RxAlert[]; onIgnore: (id: string) => void }) {
+  return (
+    <div style={{ width: "100%", paddingLeft: 30, marginTop: -2, marginBottom: 6 }}>
+      <div
+        role="alert"
+        style={{
+          position: "relative",
+          display: "inline-block",
+          maxWidth: "min(640px, 100%)",
+          background: C.n[0],
+          border: `1.5px solid ${C.danger[400]}`,
+          borderRadius: 10,
+          padding: "7px 12px",
+          fontFamily: font,
+          fontSize: 12,
+          lineHeight: 1.45,
+          color: C.danger[800],
+        }}
+      >
+        {/* Tail — two stacked triangles so the border reads as a continuous
+            outline. */}
+        <span aria-hidden style={{ position: "absolute", top: -9, left: 16, width: 0, height: 0, borderLeft: "8px solid transparent", borderRight: "8px solid transparent", borderBottom: `9px solid ${C.danger[400]}` }} />
+        <span aria-hidden style={{ position: "absolute", top: -7, left: 17.5, width: 0, height: 0, borderLeft: "6.5px solid transparent", borderRight: "6.5px solid transparent", borderBottom: `8px solid ${C.n[0]}` }} />
+        {alerts.map((a, i) => (
+          <div key={a.id} style={{ marginTop: i === 0 ? 0 : 6, display: "flex", gap: 7, alignItems: "baseline", flexWrap: "wrap" }}>
+            <span aria-hidden style={{ flexShrink: 0 }}>⚠️</span>
+            {/* pre-line: a message can be a dosing table (entecavir + CKD), and
+                its line breaks are the table. See data/rxAlerts.ts. */}
+            <span style={{ whiteSpace: "pre-line" }}>{a.message}</span>
+            {IGNORABLE_RULE_DRUGS.has(a.drug) && (
+              <button
+                type="button"
+                onClick={() => onIgnore(a.id)}
+                title="Hide this warning for this prescription. It stays in the patient's log."
+                style={{
+                  flexShrink: 0, marginLeft: 2, padding: "2px 9px", borderRadius: 999,
+                  border: `1px solid ${C.danger[400]}`, background: C.n[0], color: C.danger[800],
+                  fontFamily: font, fontSize: 11, fontWeight: 500, cursor: "pointer", lineHeight: 1.5,
+                }}
+              >
+                Ignore Warning
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-class PadAlertBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class PadAlertBoundary extends Component<{ children: ReactNode; inline?: boolean }, { failed: boolean }> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -259,10 +208,14 @@ class PadAlertBoundary extends Component<{ children: ReactNode }, { failed: bool
   render() {
     if (!this.state.failed) return this.props.children;
     // Fails loud: silence here would read as "these medicines are fine".
+    const text = "⚠️ Prescribing check did not run — no warning here means “not checked”.";
+    if (this.props.inline) {
+      return <span style={{ fontSize: 11.5, color: C.danger[800], fontFamily: font }}>{text}</span>;
+    }
     return (
-      <span style={{ fontSize: 11.5, color: C.danger[800], fontFamily: font }}>
-        ⚠️ Prescribing check did not run — no warning here means “not checked”.
-      </span>
+      <div style={{ width: "100%", paddingLeft: 30, marginBottom: 6, fontSize: 11.5, color: C.danger[800], fontFamily: font }}>
+        {text}
+      </div>
     );
   }
 }
