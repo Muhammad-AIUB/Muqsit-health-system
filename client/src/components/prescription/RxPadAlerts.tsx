@@ -154,30 +154,49 @@ function PadAlertBody({ input }: { input: RxAlertInput }) {
 
   return (
     <div ref={wrapRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
-      {/* The blink is what carries the urgency, so it is turned off for anyone
-          who asks for reduced motion — the sign itself stays red and visible. */}
+      {/* A small solid dot rather than a thin outlined ring: at this size an
+          outline and a hairline "!" read as a stray character, while a filled
+          disc reads as a signal. The halo does the attracting, so the dot never
+          fades below 0.4 — a warning that blinks all the way out is a warning a
+          doctor can look straight past. Both stop under reduced motion; the
+          dot itself stays red and visible either way. */}
       <style>{`
-        @keyframes mhs-rx-alert-blink { 0%, 45% { opacity: 1 } 55%, 100% { opacity: 0.25 } }
-        .mhs-rx-alert-sign { animation: mhs-rx-alert-blink 1s steps(1, end) infinite; }
+        @keyframes mhs-rx-alert-blink { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
+        @keyframes mhs-rx-alert-halo {
+          0% { box-shadow: 0 0 0 0 rgba(226,75,74,0.5) }
+          70%, 100% { box-shadow: 0 0 0 7px rgba(226,75,74,0) }
+        }
+        .mhs-rx-alert-sign {
+          animation: mhs-rx-alert-blink 1.3s ease-in-out infinite,
+                     mhs-rx-alert-halo 1.3s ease-out infinite;
+        }
         @media (prefers-reduced-motion: reduce) { .mhs-rx-alert-sign { animation: none } }
       `}</style>
       <button
         type="button"
         ref={signRef}
-        className={open ? undefined : "mhs-rx-alert-sign"}
         onClick={() => setOpen((o) => !o)}
         aria-label={`${shown.length} prescribing warning${shown.length === 1 ? "" : "s"} — press to read`}
         title={`${shown.length} prescribing warning${shown.length === 1 ? "" : "s"} — press to read`}
+        // 24px of button around a 15px dot: small to the eye, still a fingertip
+        // target on a phone.
         style={{
-          width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
-          border: `1.5px solid ${C.danger[400]}`,
-          background: open ? C.danger[400] : C.n[0],
-          color: open ? C.n[0] : C.danger[800],
-          fontSize: 13, lineHeight: 1, cursor: "pointer", fontFamily: font,
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+          width: 24, height: 24, borderRadius: "50%", flexShrink: 0, padding: 0,
+          border: "none", background: open ? C.danger[50] : "transparent",
+          cursor: "pointer", fontFamily: font,
+          display: "flex", alignItems: "center", justifyContent: "center",
         }}
       >
-        <span aria-hidden>!</span>
+        <span
+          aria-hidden
+          className={open ? undefined : "mhs-rx-alert-sign"}
+          style={{
+            width: 15, height: 15, borderRadius: "50%",
+            background: open ? C.danger[800] : C.danger[400], color: C.n[0],
+            fontSize: 10.5, fontWeight: 700, lineHeight: 1,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >!</span>
       </button>
 
       {open && (
