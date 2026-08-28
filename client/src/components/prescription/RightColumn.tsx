@@ -93,7 +93,21 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
               the Drug-history pad and the template editor render this same
               component and deliberately do not offer outpatient dose
               suggestions (design D5). */}
-          <MedicinePad rows={rows} setRows={setRows} minHeight={mobile ? 200 : 320} noteText="Start typing a medicine or note…" showCheck={false} showHabits alertInput={alertInput} />
+          {/* Ten medicine lines plus the trailing typing line fit before the pad
+              starts to scroll (physician's decision 2026-08-28). Both bounds are
+              also capped in `vh` so a laptop or a phone in landscape never gets a
+              pad taller than its own screen — and the min stays below the max at
+              every viewport height, or min-height would win and kill the scroll. */}
+          <MedicinePad
+            rows={rows}
+            setRows={setRows}
+            minHeight={mobile ? "min(280px, 45vh)" : "min(400px, 50vh)"}
+            maxHeight="min(448px, 62vh)"
+            noteText="Start typing a medicine or note…"
+            showCheck={false}
+            showHabits
+            alertInput={alertInput}
+          />
         </div>
       </Lock>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C, font } from "@/theme";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { useRxHabits } from "@/hooks/useRxHabits";
@@ -15,6 +15,7 @@ import {
   safeHabitText,
 } from "@/lib/rxHabitRows";
 import { rxDrugIndexByRow } from "@/lib/rxRows";
+import { anchorDropdown, sameAnchor, type DropdownAnchor } from "@/lib/dropdownAnchor";
 import RxLineAlert from "./RxLineAlert";
 import type { RxAlertInput } from "@/lib/rxAlerts";
 
@@ -215,7 +216,11 @@ function HabitRow({ habit, dim, onPick, onHide, onRestore }: {
 interface Props {
   rows: Row[];
   setRows: Dispatch<SetStateAction<Row[]>>;
-  minHeight?: number;
+  minHeight?: number | string;
+  // When set, the pad stops growing at this height and scrolls instead — the
+  // OPD pad caps at ten medicines. The medicine dropdown is drawn `fixed` so
+  // this scroll box can never clip it (see lib/dropdownAnchor.ts).
+  maxHeight?: number | string;
   noteText?: string;      // placeholder for the trailing empty line
   showCheck?: boolean;    // per-row checkboxes + "Select all" (default true)
   showSF?: boolean;       // "Start From" date box before each medicine (IPD)
@@ -232,7 +237,7 @@ interface Props {
   alertInput?: RxAlertInput;
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   // Which drug box the caret is in. Only used to decide whether that line
   // shows its plain <input> text or the read-only overlay that sets the brand
@@ -240,11 +245,50 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
   const [drugFocus, setDrugFocus] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // The row each dropdown hangs off, measured against the viewport.
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [acPos, setAcPos] = useState<DropdownAnchor | null>(null);
   const doseRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const foodRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const durRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
   const acQuery = acRow != null ? rows[acRow]?.drug ?? "" : "";
+
+  // Keep the open dropdown pinned to its row. `capture` catches the pad's own
+  // scroll box as well as the page's — a fixed list left behind by a scroll
+  // would point at the wrong medicine, which is worse than no list at all.
+  useLayoutEffect(() => {
+    if (acRow == null) {
+      setAcPos(null);
+      return;
+    }
+    const measure = () => {
+      const el = rowRefs.current[acRow];
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const next = anchorDropdown(r, { width: window.innerWidth, height: window.innerHeight });
+      setAcPos((prev) => (sameAnchor(prev, next) ? prev : next));
+    };
+    // Measured straight away so the list never lags a scroll, then again on the
+    // next frame: read mid-scroll, the rect can still be a dozen pixels stale.
+    let raf = 0;
+    const onMove = () => {
+      measure();
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        measure();
+      });
+    };
+    measure();
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [acRow, rows]);
   const { results: acItems } = useMedicineSearch(acQuery);
   const { groups: habitGroups, refresh: refreshHabits } = useRxHabits(showHabits ? acQuery : "");
 
@@ -358,6 +402,8 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
         style={{
           background: C.n[0],
           minHeight: minHeight ?? "100%",
+          maxHeight,
+          overflowY: maxHeight ? "auto" : undefined,
           paddingTop: 4,
         }}
       >
@@ -369,7 +415,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
           const lineIndex = alertLineIndex[idx];
           return (
             <Fragment key={idx}>
-            <div style={{ position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
+            <div ref={(el) => { rowRefs.current[idx] = el; }} style={{ position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
               {/* Checkbox (optional) + serial — only for medicine head rows */}
               <div style={{ width: showCheck ? 44 : 26, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
                 {isHead && (
@@ -457,7 +503,7 @@ export default function MedicinePad({ rows, setRows, minHeight, noteText, showCh
                 )}
 
                 {!isCont && acRow === idx && (acItems.length > 0 || visibleHabitGroups.length > 0 || (looksLikeMedicine(row.drug) && !row.isMedicine)) && (
-                  <div style={{ position: "absolute", top: "calc(100% + 2px)", left: 0, minWidth: 200, maxWidth: "min(520px, 92vw)", background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: 320, overflowY: "auto" }}>
+                  <div style={{ position: "fixed", top: acPos?.top, bottom: acPos?.bottom, left: acPos?.left ?? 0, visibility: acPos ? "visible" : "hidden", minWidth: 200, maxWidth: "min(520px, 92vw)", background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: acPos?.maxHeight ?? 320, overflowY: "auto" }}>
                     {/* "Your usual" — this doctor's own past instructions for the
                         medicine being typed. Renders NOTHING when there are none:
                         on a clinical screen an empty state and a failed lookup
