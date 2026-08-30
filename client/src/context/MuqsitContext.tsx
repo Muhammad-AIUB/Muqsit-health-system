@@ -446,13 +446,20 @@ function useMuqsitStore() {
   const releaseRxSnapshot = useCallback(() => rxGateRef.current.release(), []);
   // File it: the image and the fingerprint of the sheet it pictures go in ONE
   // PATCH, so the two can never disagree. The id comes from the ref and the
-  // append is functional, because this runs after `savePrescription` may have
+  // insert is functional, because this runs after `savePrescription` may have
   // just created the patient.
+  //
+  // ⚕️ Newest FIRST (physician's decision, 2026-08-30): the sheet just printed
+  // goes to the front of the gallery, so today's prescription is the one the
+  // doctor sees without scrolling past years of visits. The URLs carry no date
+  // (uploads are named by UUID), so the array order is the only record of
+  // order — which is also why nothing here re-sorts what is already stored: a
+  // gallery the doctor dragged into their own order stays in it.
   const saveRxSnapshot = useCallback((url: string, key: string | null) => {
     const pid = patientIdRef.current;
     rxGateRef.current.file(key);
     setRxImages((prev) => {
-      const next = [...prev, url];
+      const next = [url, ...prev];
       if (pid) void patientsApi.update(pid, { prescriptionImages: next, ...(key ? { lastRxImageKey: key } : {}) }).catch(() => {});
       return next;
     });

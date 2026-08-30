@@ -87,11 +87,17 @@ export default function PatientRecordsView() {
   };
 
   // ── Prescription gallery ──
+  // ⚕️ Newest FIRST (physician's decision, 2026-08-30): a freshly added sheet
+  // goes to the FRONT, matching the "Save & print" snapshot in MuqsitContext.
+  // A batch keeps the order the doctor picked the files in and lands as one
+  // block at the top. Nothing re-sorts the images already stored — the URLs
+  // carry no date, so the array IS the order, and a gallery dragged into a
+  // deliberate order must stay in it.
   const rxItems = rxImages.map((url, i) => ({ id: String(i), url }));
   const addRx = async (files: File[]) => {
     setBusyRx(true);
     const urls = await uploadAll(files);
-    if (urls.length) saveRxImages([...rxImages, ...urls]);
+    if (urls.length) saveRxImages([...urls, ...rxImages]);
     setBusyRx(false);
   };
   const removeRx = (ids: string[]) => {
