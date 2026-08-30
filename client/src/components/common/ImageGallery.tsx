@@ -43,6 +43,8 @@ export default function ImageGallery({
   reorderable = true,
   canEdit = true,
   labelPlaceholder = "Label…",
+  size = "md",
+  fit = "cover",
 }: {
   title: string;
   addLabel: string;
@@ -60,6 +62,15 @@ export default function ImageGallery({
   /** False hides every mutating affordance — viewing is never gated. */
   canEdit?: boolean;
   labelPlaceholder?: string;
+  /** "lg" draws a tile a doctor can READ from, not just recognise. Opt-in:
+   *  the ward's paper order sheet is a handwritten document the doctor has to
+   *  make out at a glance, while the patient's prescription and report
+   *  galleries are index grids of sheets they open one at a time. */
+  size?: "md" | "lg";
+  /** ⚕️ "contain" shows the WHOLE page, letterboxed. "cover" fills the tile by
+   *  cropping — fine for a picture, wrong for a document, where the cropped
+   *  strip can be the line that carries the dose. */
+  fit?: "cover" | "contain";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -67,7 +78,11 @@ export default function ImageGallery({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [fileOver, setFileOver] = useState(false);
-  const box = orientation === "landscape" ? { w: 150, h: 110 } : { w: 96, h: 132 };
+  // The "lg" portrait tile is 270×370 on purpose — as large as it can be and
+  // still be drawn from real pixels: the small copy uploaded with each page is
+  // 400px on its long side (THUMB_MAX_DIM), so a taller tile than this would
+  // upscale the thumbnail and hand the doctor a blurrier page, not a bigger one.
+  const box = TILE[size][orientation];
 
   const canReorder = reorderable && Boolean(onReorder) && canEdit;
   const urls = items.map((it) => it.url);
@@ -215,7 +230,7 @@ export default function ImageGallery({
                       alt={it.label || it.caption || `Image ${idx + 1}`}
                       draggable={false}
                       loading="lazy"
-                      style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+                      style={{ width: "100%", height: "100%", objectFit: fit, pointerEvents: "none" }}
                     />
                     {editing && (
                       <span style={{ position: "absolute", top: 5, right: 5, width: 18, height: 18, borderRadius: "50%", border: `1.5px solid ${isSel ? C.pri[400] : "#fff"}`, background: isSel ? C.pri[400] : "rgba(0,0,0,0.35)", color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
@@ -265,6 +280,11 @@ export default function ImageGallery({
     </div>
   );
 }
+
+const TILE = {
+  md: { landscape: { w: 150, h: 110 }, portrait: { w: 96, h: 132 } },
+  lg: { landscape: { w: 370, h: 270 }, portrait: { w: 270, h: 370 } },
+} as const;
 
 const ghostBtn: CSSProperties = {
   padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`,

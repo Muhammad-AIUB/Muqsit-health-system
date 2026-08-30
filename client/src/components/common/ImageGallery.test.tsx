@@ -153,3 +153,30 @@ describe("ImageGallery", () => {
     expect(screen.queryByText("✎ Edit")).toBeNull();
   });
 });
+
+// ⚕️ The ward's paper order sheet is a handwritten document, not a picture:
+// the doctor has to make it out from the grid, and a tile that crops it can
+// hide the very line carrying a dose. Both are opt-in — the patient's
+// prescription and report galleries are index grids and stay as they were.
+describe("ImageGallery — tile size and fit", () => {
+  it("draws a small, cropped tile by default", () => {
+    render(<ImageGallery {...base} />);
+    expect(tile("a").style.width).toBe("150px");
+    expect(tile("a").style.height).toBe("110px");
+    expect(imgIn("a").style.objectFit).toBe("cover");
+  });
+
+  it("draws a big tile showing the WHOLE page when the caller asks for one", () => {
+    render(<ImageGallery {...base} orientation="portrait" size="lg" fit="contain" />);
+    expect(tile("a").style.width).toBe("270px");
+    expect(tile("a").style.height).toBe("370px");
+    expect(imgIn("a").style.objectFit).toBe("contain");
+  });
+
+  it("still opens the page that was clicked, at any size", () => {
+    const onOpen = vi.fn();
+    render(<ImageGallery {...base} orientation="portrait" size="lg" fit="contain" onOpen={onOpen} />);
+    fireEvent.click(tile("b"));
+    expect(onOpen).toHaveBeenCalledWith(["/u/a.jpg", "/u/b.jpg", "/u/c.jpg"], 1);
+  });
+});

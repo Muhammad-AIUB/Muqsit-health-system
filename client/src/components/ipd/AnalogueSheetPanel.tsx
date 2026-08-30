@@ -160,6 +160,12 @@ export default function AnalogueSheetPanel({
         onOpen={(urls, index) => setViewer({ urls, index })}
         onLabel={(id, v) => void onLabel(id, v)}
         orientation="portrait"
+        // ⚕️ Big tiles, whole page. This is a photographed paper order sheet:
+        // the doctor has to make out handwriting on it, and a cropped thumbnail
+        // can hide the very line that carries the dose. The full-resolution
+        // page is still one click away in the viewer.
+        size="lg"
+        fit="contain"
         reorderable={false}
         canEdit={canEdit}
         labelPlaceholder="Day 3 night…"
