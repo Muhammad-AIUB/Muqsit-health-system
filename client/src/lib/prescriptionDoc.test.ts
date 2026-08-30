@@ -299,12 +299,14 @@ describe("printed Rx markup", () => {
 
   // A 10-medicine prescription is ordinary. "10." measures 19.5px in 14px DM
   // Sans, so a serial column narrower than that plus its cell padding drops the
-  // number onto a second line beside the medicine it numbers.
+  // number onto a second line beside the medicine it numbers. The column is a
+  // SHARE of the table now (see below), so the share is what has to hold 32px.
   it("gives the serial column room for a two-digit number", () => {
     const html = buildPrescriptionHtml(doc(REPORTED));
-    const first = html.match(/<colgroup><col style="width:calc\(var\(--k, 1\) \* (\d+(?:\.\d+)?)px\)"/);
+    const first = html.match(/<colgroup><col style="width:(\d+(?:\.\d+)?)%"/);
     expect(first).not.toBeNull();
-    expect(Number(first![1])).toBeGreaterThanOrEqual(32);
+    const table = 32 + layoutRxColumns(REPORTED, rxTableInnerPx()).cols.reduce((a, b) => a + b, 0);
+    expect((Number(first![1]) / 100) * table).toBeGreaterThanOrEqual(32);
   });
 
   // Physician's decision, 2026-08-23: on paper the eye should land on the
@@ -328,7 +330,7 @@ describe("printed Rx markup", () => {
     expect(html).not.toContain("A<B");
   });
 
-  it("emits a colgroup instead of percentage widths", () => {
+  it("emits a measured colgroup instead of a stylesheet width per column", () => {
     const html = buildPrescriptionHtml(doc(REPORTED));
     expect(html).toContain("<colgroup>");
     expect(html).not.toContain(".rx-drug { width:");
@@ -355,14 +357,24 @@ describe("printed Rx markup", () => {
   });
 
   // ⚕️ The size on the paper, not just in the layout object. 14px is the FLOOR
-  // since 2026-08-28: every length is written through the sheet's fit factor,
-  // so the page-fill script can grow the whole document evenly — and a column
-  // can never be outgrown by its text, because both scale together.
-  it("writes every Rx size and column width through the fit factor", () => {
+  // since 2026-08-28: every TYPE size is written through the sheet's fit factor,
+  // so the page-fill script can grow the whole document evenly.
+  //
+  // The column widths are NOT, and must not be. They were, until 2026-08-30, on
+  // the reasoning that text and column can never outgrow each other if they
+  // scale together — but the paper does not scale with them. At --k = 1.19 the
+  // table measured 573px inside a 490px grid track, the .body grid handed it the
+  // overflow, and the clinical column collapsed from 209px to 87px: a whole
+  // diagnosis printed one word per line down the left edge. As shares of the
+  // table the columns are always exactly the track, at every fill factor.
+  it("writes every Rx size through the fit factor and every column width as a share", () => {
     const html = buildPrescriptionHtml(doc(REPORTED));
     expect(html).toContain('class="rx-drug" style="font-size:calc(var(--k, 1) * ');
     expect(html).toContain('class="rx-mid" style="font-size:calc(var(--k, 1) * ');
-    expect(html).toContain('<col style="width:calc(var(--k, 1) * ');
+    expect(html).not.toContain('<col style="width:calc(');
+    const pcts = [...html.matchAll(/<col style="width:([\d.]+)%"/g)].map((m) => Number(m[1]));
+    expect(pcts).toHaveLength(4); // serial + drug + dose + duration
+    expect(pcts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
     // Nothing on the Rx table is left at a fixed px, which would not grow with
     // the rest of the sheet.
     expect(html).not.toMatch(/class="rx-(?:drug|mid)" style="font-size:\d/);
@@ -399,6 +411,64 @@ describe("printed Rx markup", () => {
     expect(tight).toContain('data-kmax="1.000"');
     const roomy = buildPrescriptionHtml(doc([line("Tab. A", "1", "2d")]));
     expect(roomy).toContain(`data-kmax="${MAX_SCALE.toFixed(3)}"`);
+  });
+
+  // ⚕️ Reported 2026-08-30: a whole diagnosis printed one word per line down the
+  // left edge of the sheet, some words broken mid-word ("multifoc / al HCC").
+  // The page-fill factor had a width bound for the Rx table and none for the
+  // prose, and the Rx table's own columns were scaled px, so at --k > 1 the
+  // table grew past its grid track and took the clinical column's width with
+  // it. Three rules hold it shut; all three are pinned here.
+  describe("the clinical column keeps its share of the page", () => {
+    const withDiagnosis = (page?: PrescriptionDoc["page"]): PrescriptionDoc => ({
+      ...doc([line("Off Clopedogrel", "", ""), line("Correction of electrolyte", "", "")]),
+      clinical: [
+        { label: "Note / Plan", items: ["ERCP with metalic stenting"] },
+        { label: "Final diagnosis", items: ["Hilar Cholagiocracinoma with liver Mets", "D/D: multifocal HCC"] },
+      ],
+      page,
+    });
+
+    // 1. The grid tracks are content-independent. A bare `fr` floors at the
+    //    track's min-content, so anything too wide on the Rx side used to STEAL
+    //    the clinical column's width instead of wrapping inside its own.
+    it("sizes the two columns from the page, never from what they carry", () => {
+      const html = buildPrescriptionHtml(withDiagnosis());
+      expect(html).toContain("grid-template-columns: minmax(0, 0.7fr) 0.5px minmax(0, 1.7fr)");
+    });
+
+    // 2. The Rx cells' breaking rule is inherited — it used to reach the whole
+    //    sheet through the page cell and split a diagnosis mid-word. Worse,
+    //    `overflow-wrap: anywhere` drops an element's min-content to one
+    //    character, which is what let the column be squeezed to nothing.
+    it("keeps the Rx cells' word-breaking off the rest of the sheet", () => {
+      const html = buildPrescriptionHtml(withDiagnosis());
+      expect(html).toContain("td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }");
+    });
+
+    // 3. The fill factor stops before a word has to break. "Cholagiocracinoma"
+    //    is the widest word here and the clinical column is 0.7/2.4 of the page,
+    //    so the sheet may not be grown past the room that one word has.
+    it("stops growing the sheet before a diagnosis word has to break", () => {
+      const html = buildPrescriptionHtml(withDiagnosis());
+      const kMax = Number(html.match(/data-kmax="([\d.]+)"/)![1]);
+      // The column: 0.7/2.4 of A4's printable width, less .left and ul padding.
+      const avail = (8.27 - 0.4 - 0.4) * 96 * (0.7 / 2.4) - 16 - 16;
+      const word = "Cholagiocracinoma".length * 14 * 0.58; // the module's own fallback metric
+      expect(kMax).toBeLessThanOrEqual(avail / word + 0.001);
+      expect(kMax).toBeGreaterThan(1); // still allowed to fill the page
+    });
+
+    // A narrow page has less room for the same word, so it must fill less.
+    it("gives a narrow page a smaller fill factor than A4", () => {
+      const narrow: PrescriptionDoc["page"] = {
+        unit: "in", width: "5.8", height: "8.3", marginLeft: "0.4", marginRight: "0.4",
+        headerHeight: "0.5", footerHeight: "0.5",
+      };
+      const k = (h: string) => Number(h.match(/data-kmax="([\d.]+)"/)![1]);
+      expect(k(buildPrescriptionHtml(withDiagnosis(narrow))))
+        .toBeLessThan(k(buildPrescriptionHtml(withDiagnosis())));
+    });
   });
 
   it("prints no brand name in the header — the band is the practice's letterhead", () => {

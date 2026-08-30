@@ -141,15 +141,19 @@ export function measureRxText(text: string, px: number, bold: boolean): number |
   return Number.isFinite(w) && w > 0 ? w : null;
 }
 
-/** Width available to the Rx data columns (everything right of the number). */
-export function rxTableInnerPx(page?: PrescriptionDoc["page"]): number {
+/** The printable width of the sheet, in CSS px. */
+function contentWidthPx(page?: PrescriptionDoc["page"]): number {
   const perUnit = (page?.unit ?? "in") === "cm" ? 37.8 : 96;
   const num = (v: string | undefined, fallback: number) => {
     const n = parseFloat(v ?? "");
     return Number.isFinite(n) && n > 0 ? n : fallback;
   };
-  const content = (num(page?.width, 8.27) - num(page?.marginLeft, 0.4) - num(page?.marginRight, 0.4)) * perUnit;
-  return Math.max(160, content * RX_COL_SHARE - RIGHT_PAD_PX - RX_NO_PX);
+  return (num(page?.width, 8.27) - num(page?.marginLeft, 0.4) - num(page?.marginRight, 0.4)) * perUnit;
+}
+
+/** Width available to the Rx data columns (everything right of the number). */
+export function rxTableInnerPx(page?: PrescriptionDoc["page"]): number {
+  return Math.max(160, contentWidthPx(page) * RX_COL_SHARE - RIGHT_PAD_PX - RX_NO_PX);
 }
 
 /**
@@ -375,9 +379,11 @@ const drugCell = (label: string): string => {
   return name ? `${esc(before)}<b>${esc(name)}</b>${esc(after)}` : `<b>${esc(label)}</b>`;
 };
 
-// Drug-history items carry storage prefixes — strip them for display.
+// Drug-history items carry storage prefixes — strip them for display. Plain
+// text, not HTML: the fitting bound below has to MEASURE what is printed, and
+// an escaped "&amp;" is not the width of the "&" the doctor sees.
 const cleanItem = (s: string) =>
-  esc(s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "").replace(/\s+—\s+/g, "  ·  "));
+  s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "").replace(/\s+—\s+/g, "  ·  ");
 
 // Drug history on the printout: show only the medicine name (no date/dose/food/
 // duration). Entries are date-stamped ("dd/mm/yyyy: Drug — …") — legacy
@@ -386,7 +392,7 @@ const cleanItem = (s: string) =>
 const drugNameOnly = (s: string): string => {
   if (/^(\d{2}\/\d{2}\/\d{4}|Current|Past)\(cont\):/.test(s)) return "";
   const body = s.replace(/^(\d{2}\/\d{2}\/\d{4}|Current|Past)(\(note\)|\(cont\))?:\s*/, "");
-  return esc(body.split(" — ")[0].trim());
+  return body.split(" — ")[0].trim();
 };
 
 /**
@@ -397,6 +403,48 @@ const drugNameOnly = (s: string): string => {
  */
 export const SCALE_PX = (n: number) => `calc(var(--k, 1) * ${n}px)`;
 
+// The sheet's OTHER fixed widths, matching the CSS below. The Rx table has had
+// its own bound (`maxScale`) since the page-fill script was written; these are
+// the prose columns, which had none — so the fill factor grew the type until a
+// diagnosis was hyphen-less-broken down the left edge as "multifoc / al HCC"
+// (reported 2026-08-30). Paper does not stretch: every column on this sheet is
+// a fixed share of the page, so every column needs a bound.
+const LEFT_SHARE = 0.7 / 2.4;     // .body grid is 0.7fr / 0.5px / 1.7fr
+const LEFT_PAD_PX = 16;           // .left padding-right
+const UL_PAD_PX = 16;             // ul padding-left — the bullet lives in it
+const PT_GAP_PX = 24;             // .pt column-gap, split between the two halves
+const BLOCK_TITLE_PX = 11;        // .block-title
+// .block-title is uppercase with letter-spacing: .04em — measured on the
+// uppercased text, then widened by the tracking the canvas does not apply.
+const TITLE_TRACKING = 1.04;
+
+/**
+ * How far the sheet may be scaled up before a WORD has to be broken.
+ *
+ * Wrapping between words is normal typesetting; splitting a word is not
+ * something a prescription should print, and on a diagnosis it is what a reader
+ * notices first. So each block of prose is measured against the column it is
+ * actually printed in, at the base size, and the tightest single word decides.
+ * Returns Infinity when there is nothing to measure.
+ */
+function wordHeadroom(
+  parts: { texts: string[]; px: number; bold?: boolean; avail: number }[],
+  measure: (text: string, px: number, bold: boolean) => number | null,
+): number {
+  let head = Infinity;
+  for (const part of parts) {
+    if (part.avail <= 0) continue;
+    for (const text of part.texts) {
+      for (const word of text.trim().split(/\s+/)) {
+        if (!word) continue;
+        const w = measure(word, part.px, !!part.bold) ?? word.length * part.px * EM_PER_CHAR;
+        if (w > 0) head = Math.min(head, part.avail / w);
+      }
+    }
+  }
+  return head;
+}
+
 // One A4 sheet. `privacyCopy` produces the public-safe copy: masked identity,
 // no clinical assessment, no personal advice — only the medicines + tests the
 // patient needs to act on.
@@ -405,29 +453,50 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   const ptName = privacyCopy ? maskName(p.name) : p.name;
   const ptPhone = privacyCopy ? maskMobile(p.phone) : p.phone;
 
-  const clinicalBlocks = privacyCopy
-    ? ""
+  // Plain text first, HTML second: the fill bound below measures exactly the
+  // strings that are printed.
+  const clinicalText = privacyCopy
+    ? []
     : d.clinical
         .filter((c) => c.items.length > 0)
-        .map(
-          (c) => `
+        .map((c) => ({
+          label: c.label,
+          items:
+            c.label === "Drug history"
+              ? [...new Set(c.items.map(drugNameOnly).filter(Boolean))]
+              : c.items.map(cleanItem),
+        }));
+  const clinicalBlocks = clinicalText
+    .map(
+      (c) => `
         <div class="block">
           <div class="block-title">${esc(c.label)}</div>
-          <ul>${(c.label === "Drug history"
-            ? [...new Set(c.items.map(drugNameOnly).filter(Boolean))].map((n) => `<li>${n}</li>`)
-            : c.items.map((it) => `<li>${cleanItem(it)}</li>`)).join("")}</ul>
+          <ul>${c.items.map((it) => `<li>${esc(it)}</li>`).join("")}</ul>
         </div>`,
-        )
-        .join("");
+    )
+    .join("");
 
   let rxNo = 0;
   const rxLines = d.rx.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim());
   const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page));
   const noteSpan = lay.hasFood ? 4 : 3;
-  // Widths scale with the sheet's fit factor exactly as the text does, so a
-  // column can never be outgrown by what it carries.
-  const rxCols = `<colgroup><col style="width:${SCALE_PX(RX_NO_PX)}" />${lay.cols
-    .map((w) => `<col style="width:${SCALE_PX(w)}" />`)
+  // ⚕️ Column widths are a SHARE of the table, never a scaled px width.
+  //
+  // They used to be `calc(var(--k) * Npx)`, on the reasoning that a column can
+  // never be outgrown by its text if both grow together. The paper does not
+  // grow with them: at --k = 1.19 this table measured 573px inside a 490px
+  // grid track, the `.body` grid handed the overflow its width, and the
+  // clinical column collapsed from 209px to 87px — a whole diagnosis printed
+  // one word per line down the left edge (reported 2026-08-30).
+  //
+  // As percentages the table is always exactly its track, whatever --k is, so
+  // the two columns of the sheet keep their proportions and only the TYPE
+  // grows. The width bound on --k is `maxScale` (inner / natural width), which
+  // is exactly right now that `inner` no longer moves.
+  const rxTotalPx = RX_NO_PX + lay.cols.reduce((a, b) => a + b, 0);
+  const colPct = (w: number) => `${((w / rxTotalPx) * 100).toFixed(3)}%`;
+  const rxCols = `<colgroup><col style="width:${colPct(RX_NO_PX)}" />${lay.cols
+    .map((w) => `<col style="width:${colPct(w)}" />`)
     .join("")}</colgroup>`;
   // The per-row size is a RATIO of the base, not a fixed px, so it still grows
   // when the sheet is scaled to fill the page.
@@ -475,13 +544,71 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   // needs them to get investigations done).
   const adviceBlock = privacyCopy ? "" : listBlock("Advice", d.advice);
 
+  // ⚕️ The width bound on the page-fill factor, over the WHOLE sheet.
+  //
+  // `lay.maxScale` covers the Rx table. These are the three other fixed columns
+  // the type has to live inside — the clinical column, the Rx side's prose, and
+  // the two halves of the patient header — each measured against the widest
+  // single word it carries. The smallest wins, and the fitting script never
+  // goes past it.
+  const content = contentWidthPx(d.page);
+  const leftAvail = content * LEFT_SHARE - LEFT_PAD_PX - UL_PAD_PX;
+  const rightAvail = content * RX_COL_SHARE - RIGHT_PAD_PX - UL_PAD_PX;
+  const headAvail = content / 2 - PT_GAP_PX / 2;
+  const rightItems = [...(privacyCopy ? [] : d.advice), ...d.adviceTest];
+  const rightTitles = [
+    ...(privacyCopy || !d.advice.length ? [] : ["Advice"]),
+    ...(d.adviceTest.length ? ["Advised tests / investigation"] : []),
+  ];
+  const proseScale = wordHeadroom(
+    [
+      { texts: clinicalText.flatMap((c) => c.items), px: 14, avail: leftAvail },
+      {
+        texts: clinicalText.map((c) => c.label.toUpperCase()),
+        px: BLOCK_TITLE_PX,
+        bold: true,
+        avail: leftAvail / TITLE_TRACKING,
+      },
+      { texts: rightItems, px: 14, avail: rightAvail },
+      { texts: rightTitles.map((t) => t.toUpperCase()), px: BLOCK_TITLE_PX, bold: true, avail: rightAvail / TITLE_TRACKING },
+      // The Rx side's own prose: free-typed note rows, the follow-up line and
+      // the signature, none of which sit in a measured column.
+      {
+        texts: [
+          ...rxLines.filter((r) => r.isNote).map((r) => r.drug),
+          ...(d.followUp ? [`Follow-up: ${d.followUp}`] : []),
+          d.doctorName || "Signature",
+        ],
+        px: 14,
+        bold: true,
+        avail: content * RX_COL_SHARE - RIGHT_PAD_PX,
+      },
+      // The patient header — two equal halves of the page.
+      {
+        texts: [
+          `Name: ${ptName || "—"}`,
+          `Date: ${p.date || "—"}`,
+          `Age / Sex: ${p.age || "—"} / ${p.gender || "—"}`,
+          `Mobile: ${ptPhone || "—"}`,
+          `Weight: ${p.weight || "—"} kg`,
+          `Address: ${p.address || "—"}`,
+        ],
+        px: 14,
+        bold: true,
+        avail: headAvail,
+      },
+    ],
+    measureRxText,
+  );
+  const kMax = Math.max(1, Math.min(lay.maxScale, proseScale));
+
   // The sheet is a single-cell table so the brand bar can live in <tfoot>:
   // a tfoot repeats at the bottom of EVERY printed page and the browser reserves
   // its height in the flow, so it can never overprint a medicine row or the
   // signature. A `position: fixed` bar would sit lower but is free to overlay
   // content on a full page — not acceptable on a prescription.
   return `
-  <div class="sheet" data-avail-h="${sheetContentPx(d.page)}" data-kmax="${lay.maxScale.toFixed(3)}">
+  <div class="sheet" data-avail-h="${sheetContentPx(d.page)}" data-kmax="${kMax.toFixed(3)}">
     <table class="pagegrid"><tbody><tr><td class="pagebody"><div class="pagecontent">
     <!-- No printed brand name here (2026-08-16). The top band is reserved for
          the practice's own pre-printed letterhead (headerHeight in Prescription
@@ -620,7 +747,12 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .head { border-bottom: 2px solid #1d9e75; }
   .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: ${SCALE_PX(14)}; margin: 14px 0 6px; }
   .pt span { color: #6b6b6b; }
-  .body { display: grid; grid-template-columns: 0.7fr 0.5px 1.7fr; gap: 0; margin-top: 10px; }
+  /* minmax(0, …): an fr track floors at its content's min width, so anything
+     too wide on the ℞ side (a table, a long word) used to STEAL the clinical
+     column's share and print a diagnosis one word per line. The two columns now
+     hold their proportions whatever they carry, and content that does not fit
+     wraps inside its own column. */
+  .body { display: grid; grid-template-columns: minmax(0, 0.7fr) 0.5px minmax(0, 1.7fr); gap: 0; margin-top: 10px; }
   .left { padding-right: 16px; }
   .divider { background: #e5e5e3; }
   .right { padding-left: 18px; }
@@ -630,8 +762,14 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   ul { margin: 0; padding-left: 16px; }
   li { font-size: ${SCALE_PX(14)}; line-height: 1.5; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  td { padding: ${SCALE_PX(7)} ${SCALE_PX(4)}; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
-  .rx-no { width: ${SCALE_PX(RX_NO_PX)}; color: #999; font-size: ${SCALE_PX(14)}; }
+  /* Vertical padding scales with the sheet (it is height, which the fitting
+     script measures). Horizontal padding does NOT: the column widths are shares
+     of a fixed table now, so a padding that grew with the fit factor would eat the content
+     box the widths were measured against. CELL_PAD_PX must stay 2 x this. */
+  td { padding: ${SCALE_PX(7)} 4px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+  /* Width comes from the colgroup (a share of the table) — not from here, or a
+     px width would fight the percentage under table-layout: fixed. */
+  .rx-no { color: #999; font-size: ${SCALE_PX(14)}; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
@@ -654,7 +792,13 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      global table/td rules above belong to the Rx table and must not leak in
      (the child combinators keep them off the nested Rx table too). */
   .pagegrid { width: 100%; border-collapse: collapse; table-layout: auto; }
-  .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; }
+  /* overflow-wrap / word-break are INHERITED, so the ℞-cell rule above used to
+     reach the clinical column through this cell and break "multifocal" as
+     "multifoc / al". "anywhere" also drops an element's min-content width to a
+     single character, which is what let the left column be squeezed to nothing.
+     Reset both here; a long word on the left still wraps (break-word); it just
+     no longer splits mid-word or collapses its column. */
+  .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
   .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
   .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1d9e75; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
