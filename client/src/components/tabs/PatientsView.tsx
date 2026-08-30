@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { usePatients, useDeletePatient } from "@/hooks/usePatients";
+import { usePatients } from "@/hooks/usePatients";
 import type { Patient } from "@/lib/api";
 import { normaliseSex } from "@/lib/sex";
 import type { PtInfo } from "@/types";
@@ -67,7 +67,6 @@ export default function PatientsView() {
   } = useMuqsit();
 
   const { data: patients = [], isLoading, isError, error } = usePatients();
-  const deletePatient = useDeletePatient();
 
   // Surveillance = real `watched` flag from the database.
   const watchedPatients = patients.filter((p) => p.watched);
@@ -92,12 +91,6 @@ export default function PatientsView() {
     setCurrentPatientId(null);
     setPtSettingsTab("info");
     setActiveTab("pt-settings");
-  };
-
-  const handleDelete = (p: Patient) => {
-    if (window.confirm(`Delete ${p.name}? This cannot be undone.`)) {
-      deletePatient.mutate(p.id);
-    }
   };
 
   const toRow = (p: Patient): RowData => ({
@@ -157,13 +150,20 @@ export default function PatientsView() {
           </div>
         ) : (
           <div style={{ borderTop: `0.5px solid ${C.n[100]}` }}>
+            {/* ⚕️ No Delete here (physician's decision, 2026-08-30). A patient row
+                sat one mis-click away from erasing a person's whole record, next
+                to the Open/Edit buttons the doctor presses all day, and a browser
+                confirm() is not a brake — there is no Undo behind it. The record
+                is the point of the system; nothing on this screen may destroy one.
+                `useDeletePatient` and the owner-only DELETE route are left intact
+                and simply have no caller, so restoring the affordance (behind a
+                real confirm affordance) stays a product decision. */}
             {patients.map((p, i) => (
               <div key={p.id} style={{ borderBottom: i < patients.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
                 <PatientRow p={toRow(p)} rightSlot={
                   <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, rowGap: 6, flexShrink: 0 }}>
                     <button onClick={() => openForPrescription(p)} style={smallBtn(true)}>Open</button>
                     <button onClick={() => editPatient(p)} style={smallBtn(false)}>Edit</button>
-                    <button onClick={() => handleDelete(p)} disabled={deletePatient.isPending} style={{ ...smallBtn(false), color: C.danger[800], borderColor: C.danger[100] }}>Delete</button>
                   </div>
                 } />
               </div>
