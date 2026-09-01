@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { useId, useState, useRef, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C } from "@/theme";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useMuqsit } from "@/context/MuqsitContext";
@@ -20,8 +20,8 @@ interface ExpandableFieldProps {
   itemNotes?: Record<string, string>;
   onItemNote?: (item: string, note: string) => void;
   notePlaceholder?: string;
-  // Opt-in (Final diagnosis): "✎ Edit" opens a box on every entry in place
-  // instead of the popup, and Enter in any of them finishes the edit.
+  // Opt-in (see lib/inlineEditFields): "✎ Edit" opens a box on every entry in
+  // place instead of the popup, and Enter in any of them finishes the edit.
   inlineEdit?: boolean;
   // Opt-in (Final diagnosis): the "P.D" panel beside the popup — this patient's
   // diagnoses from past visits, ticked to carry them into today's list.
@@ -42,6 +42,11 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   const { getRecents, addRecents } = useFieldRecents();
   const recents = getRecents(label);
   const inputRef = useRef<HTMLInputElement>(null);
+  // This field's edit boxes, its bullet list and its ✓ Done button form ONE
+  // group, scoped to this instance. Now that three fields open boxes in place,
+  // a group name shared by all of them made "moved on to the next field" look
+  // like "still inside this one", and the correction just typed was dropped.
+  const groupId = useId();
   // When an assistant lacks this section's permission, it's visible but locked.
   const { canEditLabel } = useMuqsit();
   const editable = canEditLabel(label);
@@ -201,7 +206,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
             // blur closed the edit, React re-rendered the button back into its
             // "✎ Edit" role, and the click that followed re-opened the boxes —
             // pressing Done looked like it did nothing.
-            {...(inlineEdit ? { "data-inline-edit-group": "" } : {})}
+            {...(inlineEdit ? { "data-inline-edit-group": groupId } : {})}
             onClick={inlineEdit ? (editOpen ? commitInlineEdit : () => startInlineEdit(0)) : handleOpen}
             title={inlineEdit ? (editOpen ? "Finish editing (or press Enter)" : "Edit every line here") : undefined}
             style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${editOpen ? C.pri[400] : C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}
@@ -209,7 +214,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
         )}
       </div>
       {items.length > 0 && (
-        <div data-inline-edit-group style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
+        <div data-inline-edit-group={groupId} style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
           {items.map((item, idx) => (
             <div key={idx} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.n[800], padding: "1.5px 0" }}>
               <span style={{ color: C.n[500], lineHeight: 1.45, flexShrink: 0 }}>•</span>
@@ -230,7 +235,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   // clicked away from must not evaporate.
                   onBlur={(e) => {
                     const to = e.relatedTarget as HTMLElement | null;
-                    if (to && to.closest("[data-inline-edit-group]")) return;
+                    if (to && to.closest(`[data-inline-edit-group="${groupId}"]`)) return;
                     commitInlineEdit();
                   }}
                   style={{ flex: itemNotes ? "0 0 auto" : 1, minWidth: 0, padding: "1px 6px", borderRadius: 5, border: `0.5px solid ${C.pri[400]}`, fontSize: 12, fontFamily: "inherit", color: C.n[900], background: C.n[0], outline: "none", lineHeight: 1.45 }}

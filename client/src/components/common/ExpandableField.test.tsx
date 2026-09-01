@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 //
-// ⚕️ Final diagnosis is corrected IN PLACE: ✎ Edit beside the + opens a box on
-// every line at once, and Enter in any of them finishes the edit. The rest of
-// the clinical sidebar keeps the popup flow behind the same-looking button, so
-// both shapes are pinned here — a tidy-up that unified them would silently
-// change how a diagnosis is entered.
+// ⚕️ Chief complaints, Provisional diagnosis and Final diagnosis are corrected
+// IN PLACE: ✎ Edit beside the + opens a box on every line at once, and Enter in
+// any of them finishes the edit. The rest of the clinical sidebar keeps the
+// popup flow behind the same-looking button, so both shapes are pinned here — a
+// tidy-up that unified them would silently change how a diagnosis is entered.
+// Which fields get which shape lives in lib/inlineEditFields, pinned there.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -267,16 +268,56 @@ describe("ExpandableField — the P.D (previous diagnosis) panel", () => {
 });
 
 describe("ExpandableField — the other clinical fields are unchanged", () => {
+  // History is a popup-only field. It used to be Provisional diagnosis here,
+  // until that one gained the in-place boxes on 2026-09-01 — an example that no
+  // longer matches the app is worse than no example.
   it("keeps the Edit button when inlineEdit is not set", () => {
-    render(<ExpandableField label="Provisional diagnosis" items={["Dengue fever"]} setItems={vi.fn()} />);
+    render(<ExpandableField label="History" items={["Dengue fever"]} setItems={vi.fn()} />);
     expect(screen.getByText("✎ Edit")).toBeTruthy();
   });
 
   it("ignores a double-click on a bullet", () => {
     const setItems = vi.fn();
-    render(<ExpandableField label="Provisional diagnosis" items={["Dengue fever"]} setItems={setItems} />);
+    render(<ExpandableField label="History" items={["Dengue fever"]} setItems={setItems} />);
     fireEvent.doubleClick(bullet("Dengue fever"));
     expect(screen.queryByDisplayValue("Dengue fever")).toBeNull();
     expect(setItems).not.toHaveBeenCalled();
+  });
+});
+
+// ⚕️ Three fields now open boxes in place, one under the other in the sidebar.
+// Each field's boxes are their OWN group: moving the cursor from one field's
+// correction straight into the next field must SAVE the first, not read as
+// "still inside this field" and drop what was typed.
+describe("ExpandableField — two in-place fields side by side", () => {
+  const renderPair = () => {
+    const setChief = vi.fn();
+    const setProv = vi.fn();
+    render(
+      <>
+        <ExpandableField label="Chief complaints" items={["Fever 3 day"]} setItems={setChief} inlineEdit />
+        <ExpandableField label="Provisional diagnosis" items={["Dengue"]} setItems={setProv} inlineEdit />
+      </>,
+    );
+    const [chiefEdit, provEdit] = screen.getAllByText("✎ Edit");
+    return { setChief, setProv, chiefEdit, provEdit };
+  };
+
+  it("saves the first field when the cursor moves to the next field's Edit", () => {
+    const { setChief, chiefEdit, provEdit } = renderPair();
+    fireEvent.click(chiefEdit);
+    const box = screen.getByTestId("edit-0") as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "Fever for 3 days" } });
+    fireEvent.blur(box, { relatedTarget: provEdit });
+    expect(setChief).toHaveBeenCalledWith(["Fever for 3 days"]);
+  });
+
+  it("opening one field's boxes leaves the other field's list alone", () => {
+    const { setProv, chiefEdit } = renderPair();
+    fireEvent.click(chiefEdit);
+    // Only the field that was asked for is in edit mode.
+    expect(screen.getAllByTestId(/^edit-/)).toHaveLength(1);
+    expect(screen.getByText("Dengue")).toBeTruthy();
+    expect(setProv).not.toHaveBeenCalled();
   });
 });
