@@ -46,6 +46,13 @@ export interface LeftField {
   items: StringList;
   set: SetStringList;
   sugKey?: string;
+  /**
+   * The assistant permission key gating this field, when its LABEL cannot
+   * identify it on its own — see `ExpandableField`'s `permKey`. Only "Note" and
+   * "Plan" need it today: they share `rx.note`, and "Plan" collides with the
+   * IPD sheet's own label.
+   */
+  permKey?: string;
 }
 
 // ── Initial values ──────────────────────────────────────────
@@ -120,7 +127,10 @@ function useMuqsitStore() {
   const [investigation, setInvestigation] = useState<StringList>([]);
   const [drugHistory, setDrugHistory] = useState<StringList>([]);
   const [onExamination, setOnExamination] = useState<StringList>([]);
+  // "Note / plan" was one field until 2026-09-07; the physician split it into
+  // two lists. `note` keeps its column (and everything already stored in it).
   const [note, setNote] = useState<StringList>([]);
+  const [plan, setPlan] = useState<StringList>([]);
   const [provisionalDiagnosis, setProvisionalDiagnosis] = useState<StringList>([]);
   const [associatedIllness, setAssociatedIllness] = useState<StringList>([]);
   const [finalDiagnosis, setFinalDiagnosis] = useState<StringList>([]);
@@ -238,7 +248,7 @@ function useMuqsitStore() {
       rxItems.length > 0 ||
       [
         chiefComplaints, previousComplaints, history, investigation, drugHistory,
-        onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+        onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
         advice, adviceTest,
       ].some((a) => a.length > 0);
     if (!hasContent) {
@@ -284,7 +294,7 @@ function useMuqsitStore() {
       await prescriptionsApi.create({
         patientId: pid,
         chiefComplaints, previousComplaints, history, investigation, drugHistory, onExamination,
-        note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+        note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
         advice, adviceTest,
         followUpNum: followUpNum || undefined,
         followUpUnit: followUpUnit || undefined,
@@ -477,7 +487,7 @@ function useMuqsitStore() {
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
     setPtDate(new Date().toLocaleDateString("en-CA")); setPtPhone(""); setPtHospitalId("");
     setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]);
-    setDrugHistory([]); setOnExamination([]); setNote([]); setProvisionalDiagnosis([]);
+    setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
     setRxItems([]); setAdvice([]); setAdviceTest([]);
     setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
@@ -496,7 +506,7 @@ function useMuqsitStore() {
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);
     arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
-    arr("note", setNote); arr("provisionalDiagnosis", setProvisionalDiagnosis);
+    arr("note", setNote); arr("plan", setPlan); arr("provisionalDiagnosis", setProvisionalDiagnosis);
     arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
@@ -724,7 +734,7 @@ function useMuqsitStore() {
   const hasRxContent =
     rxItems.length > 0 ||
     [chiefComplaints, previousComplaints, history, investigation, drugHistory,
-      onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+      onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
       advice, adviceTest].some((a) => a.length > 0);
 
   // Auto-save the live editor to the server (debounced) on any change. While a
@@ -735,7 +745,7 @@ function useMuqsitStore() {
     const snapshot: Record<string, unknown> = {
       ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
       chiefComplaints, previousComplaints, history, investigation, drugHistory,
-      onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+      onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
       rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
       invImages, oeData, currentPatientId,
     };
@@ -763,7 +773,7 @@ function useMuqsitStore() {
     hasRxContent,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
-    onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+    onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     invImages, oeData, currentPatientId,
   ]);
@@ -826,7 +836,7 @@ function useMuqsitStore() {
     supervised: supervisedRef.current,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
-    onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+    onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     invImages, oeData,
     // Patient settings: the info form, its Edit/locked state, family tree
@@ -838,7 +848,7 @@ function useMuqsitStore() {
     activeTab, view, ptSettingsTab, currentPatientId,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
-    onExamination, note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+    onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     invImages, oeData,
     ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
@@ -866,7 +876,7 @@ function useMuqsitStore() {
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);
     arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
-    arr("note", setNote); arr("provisionalDiagnosis", setProvisionalDiagnosis);
+    arr("note", setNote); arr("plan", setPlan); arr("provisionalDiagnosis", setProvisionalDiagnosis);
     arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
@@ -939,7 +949,7 @@ function useMuqsitStore() {
 
   const allFieldValues: Record<string, StringList> = {
     chiefComplaints, history, investigation, drugHistory, onExamination,
-    note, provisionalDiagnosis, associatedIllness, finalDiagnosis,
+    note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
   };
 
   const leftFields: LeftField[] = [
@@ -949,7 +959,13 @@ function useMuqsitStore() {
     { label: "Investigation report findings", items: investigation, set: setInvestigation, sugKey: "Investigation report findings" },
     { label: "Drug history", items: drugHistory, set: setDrugHistory },
     { label: "On examination", items: onExamination, set: setOnExamination },
-    { label: "Note / plan", items: note, set: setNote },
+    // ⚕️ One field until 2026-09-07, then two at the physician's request. Both
+    // still carry the ONE permission key the combined field had (`rx.note`), and
+    // they say so explicitly: "Plan" is also the IPD sheet's label, which is
+    // deliberately not gated by any assistant key, so a label lookup would take
+    // the IPD field away from assistants who can edit it today.
+    { label: "Note", items: note, set: setNote, permKey: "rx.note" },
+    { label: "Plan", items: plan, set: setPlan, permKey: "rx.note" },
     { label: "Provisional diagnosis", items: provisionalDiagnosis, set: setProvisionalDiagnosis },
     { label: "Associated illness", items: associatedIllness, set: setAssociatedIllness },
     { label: "Final diagnosis", items: finalDiagnosis, set: setFinalDiagnosis },
@@ -962,7 +978,7 @@ function useMuqsitStore() {
     ptHospitalId, setPtHospitalId,
     chiefComplaints, setChiefComplaints, previousComplaints, setPreviousComplaints,
     history, setHistory, investigation, setInvestigation,
-    drugHistory, setDrugHistory, onExamination, setOnExamination, note, setNote,
+    drugHistory, setDrugHistory, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,
     rxItems, setRxItems, advice, setAdvice, adviceTest, setAdviceTest,

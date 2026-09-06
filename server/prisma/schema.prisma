@@ -548,7 +548,11 @@ model Prescription {
   investigation        String[] @default([])
   drugHistory          String[] @default([])
   onExamination        String[] @default([])
+  // "Note / plan" was ONE sidebar field until 2026-09-07, when the physician
+  // split it in two. Existing rows keep everything they had in `note` — nothing
+  // was moved across, because only the doctor knows which lines were the plan.
   note                 String[] @default([])
+  plan                 String[] @default([])
   provisionalDiagnosis String[] @default([])
   associatedIllness    String[] @default([])
   finalDiagnosis       String[] @default([])

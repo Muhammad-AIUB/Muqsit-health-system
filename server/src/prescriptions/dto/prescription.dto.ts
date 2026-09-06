@@ -40,6 +40,7 @@ export class CreatePrescriptionDto {
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) drugHistory?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) onExamination?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) note?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) plan?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) provisionalDiagnosis?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) associatedIllness?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) finalDiagnosis?: string[];

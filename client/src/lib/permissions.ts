@@ -21,7 +21,13 @@ export const PERMISSION_GROUPS: PermGroup[] = [
       { key: "rx.investigation", label: "Investigation report findings" },
       { key: "rx.drugHistory", label: "Drug history" },
       { key: "rx.onExamination", label: "On examination" },
-      { key: "rx.note", label: "Note / plan" },
+      // ⚕️ ONE key for the two sidebar lists it was split into on 2026-09-07
+      // ("Note" and "Plan"). The KEY is untouched — renaming it would revoke the
+      // permission from every assistant holding it — and the two fields pass
+      // `permKey` explicitly rather than being gated by their label, because
+      // "Plan" is ALSO the IPD sheet's own label and IPD is deliberately not
+      // gated by the assistant keys at all (see IPD_PERMISSION_GROUPS below).
+      { key: "rx.note", label: "Note & plan" },
       { key: "rx.provisionalDiagnosis", label: "Provisional diagnosis" },
       { key: "rx.associatedIllness", label: "Associated illness" },
       { key: "rx.finalDiagnosis", label: "Final diagnosis" },

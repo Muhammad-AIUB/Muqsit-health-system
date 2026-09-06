@@ -52,6 +52,7 @@ export default function LeftColumn() {
             allFields={allFieldValues}
             checkboxOptions={f.label === "Associated illness" ? ["BA", "COPD", "Hypothyroidism", "CKD", "CLD"] : undefined}
             inlineEdit={isInlineEditField(f.label)}
+            permKey={f.permKey}
             previousItems={f.label === "Final diagnosis" ? previousDiagnoses : undefined}
             onAdd={(item) => logActivity(f.label, item)}
           />

@@ -17,7 +17,7 @@ vi.mock("@/hooks/useFieldRecents", () => ({
 
 let canEdit = true;
 vi.mock("@/context/MuqsitContext", () => ({
-  useMuqsit: () => ({ canEditLabel: () => canEdit }),
+  useMuqsit: () => ({ canEditLabel: () => canEdit, can: () => canEdit }),
 }));
 
 afterEach(() => {

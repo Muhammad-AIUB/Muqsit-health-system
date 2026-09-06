@@ -26,9 +26,16 @@ interface ExpandableFieldProps {
   // Opt-in (Final diagnosis): the "P.D" panel beside the popup — this patient's
   // diagnoses from past visits, ticked to carry them into today's list.
   previousItems?: string[];
+  // ⚕️ The assistant permission key that gates this field, when the LABEL is not
+  // enough to identify it. Gating is normally by label (`canEditLabel`), but two
+  // screens can spell one label the same way and mean different things: "Plan"
+  // is both the OPD sidebar list (gated by `rx.note`) and the IPD clinical
+  // sheet's own list (deliberately not gated by any assistant key). Whoever owns
+  // the ambiguity says so here; everyone else keeps the label lookup.
+  permKey?: string;
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
   // Inline edit (inlineEdit only): every line is open at once, staged here
@@ -48,8 +55,8 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   // like "still inside this one", and the correction just typed was dropped.
   const groupId = useId();
   // When an assistant lacks this section's permission, it's visible but locked.
-  const { canEditLabel } = useMuqsit();
-  const editable = canEditLabel(label);
+  const { canEditLabel, can } = useMuqsit();
+  const editable = permKey ? can(permKey) : canEditLabel(label);
   // This patient's past final diagnoses, offered as ticks in the popup.
   const pd = previousItems ?? [];
 

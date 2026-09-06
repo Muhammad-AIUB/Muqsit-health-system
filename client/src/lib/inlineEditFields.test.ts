@@ -7,11 +7,14 @@ import { describe, expect, it } from "vitest";
 import { INLINE_EDIT_FIELDS, isInlineEditField } from "./inlineEditFields";
 
 describe("inlineEditFields", () => {
-  it("is exactly the three lists the physician asked for", () => {
+  it("is exactly the lists the physician asked for", () => {
     expect([...INLINE_EDIT_FIELDS]).toEqual([
       "Chief complaints",
       "Provisional diagnosis",
       "Final diagnosis",
+      // Added 2026-09-07 with the split of the old single "Note / plan" field.
+      "Note",
+      "Plan",
     ]);
   });
 
@@ -22,6 +25,7 @@ describe("inlineEditFields", () => {
       "Investigation report findings",
       "Drug history",
       "On examination",
+      // The label the split replaced — it must not still open the boxes.
       "Note / plan",
       "Associated illness",
     ]) {

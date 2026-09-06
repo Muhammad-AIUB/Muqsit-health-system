@@ -152,7 +152,9 @@ Granted per assistant (`Assistant.permissions`) or per ward-team member
 `client/src/lib/permissions.ts`.
 
 **Prescription page:** `rx.chiefComplaints`, `rx.history`, `rx.investigation`,
-`rx.drugHistory`, `rx.onExamination`, `rx.note`, `rx.provisionalDiagnosis`,
+`rx.drugHistory`, `rx.onExamination`, `rx.note` (covers BOTH the "Note" and
+"Plan" sidebar lists — one key, as before the 2026-09-07 split),
+`rx.provisionalDiagnosis`,
 `rx.associatedIllness`, `rx.finalDiagnosis`, `rx.medicines`, `rx.advice`,
 `rx.adviceTest`, `rx.followUp`, `rx.savePrint`.
 
@@ -334,9 +336,16 @@ resolved per request inside the service.
 
 `CreatePrescriptionDto`: `patientId` (required), `items` (required), and the
 optional string arrays `chiefComplaints`, `previousComplaints`, `history`,
-`investigation`, `drugHistory`, `onExamination`, `note`, `provisionalDiagnosis`,
-`associatedIllness`, `finalDiagnosis`, `advice`, `adviceTest`, plus
-`followUpNum?`, `followUpUnit?`, `followUpMandatory?`. Arrays cap at 200 entries.
+`investigation`, `drugHistory`, `onExamination`, `note`, `plan`,
+`provisionalDiagnosis`, `associatedIllness`, `finalDiagnosis`, `advice`,
+`adviceTest`, plus `followUpNum?`, `followUpUnit?`, `followUpMandatory?`. Arrays
+cap at 200 entries.
+
+`plan` was added on 2026-09-07 when the sidebar's single "Note / plan" field
+became two lists (`manual-prescription-plan.sql`). Rows written before that keep
+everything in `note` and have an empty `plan` — nothing was moved across, since
+which lines were the plan is a clinical judgement. Both lists are still gated by
+the ONE permission key the combined field had, `rx.note`.
 
 `items[]` (`RxItemDto`): `drug`, `dose`, `duration`, `instruction` (all required
 strings — `drug` may be empty for a note line or a tapering line), `order?`,

@@ -31,7 +31,9 @@ export const CONDITION_FIELDS = [
   "Previous complaints",
   "History",
   "On examination",
-  "Note / plan",
+  // "Note / plan" until 2026-09-07, when it became two fields. "Plan" is listed
+  // once, further down, and covers both screens.
+  "Note",
   "Provisional diagnosis",
   "Associated illness",
   "Final diagnosis",

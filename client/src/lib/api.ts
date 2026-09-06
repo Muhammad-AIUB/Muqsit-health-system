@@ -693,6 +693,7 @@ export interface PrescriptionInput {
   drugHistory?: string[];
   onExamination?: string[];
   note?: string[];
+  plan?: string[];
   provisionalDiagnosis?: string[];
   associatedIllness?: string[];
   finalDiagnosis?: string[];

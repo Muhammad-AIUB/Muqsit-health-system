@@ -9,7 +9,13 @@
 // 2026-08-28. Chief complaints and Provisional diagnosis joined it on
 // 2026-09-01 at the physician's request: those are the three lists a doctor
 // re-reads and re-words while the patient is still in front of them, so the
-// correction should not cost a modal.
+// correction should not cost a modal. Note and Plan joined on 2026-09-07, in
+// the same decision that split the old single "Note / plan" field in two —
+// the physician asked for its edit to work "like final diagnosis".
+//
+// ⚠️ "Plan" is ALSO the IPD clinical sheet's own label, and the IPD sheet must
+// keep its popup. It does: `isInlineEditField` is read by `LeftColumn` only
+// (the OPD sidebar), and `IpdDetailView` never passes `inlineEdit`.
 //
 // Widening this further is a product decision, not a tidy-up. The two safety
 // rules of the in-place edit hold for every field on the list: a blanked box is
@@ -23,6 +29,8 @@ export const INLINE_EDIT_FIELDS = [
   "Chief complaints",
   "Provisional diagnosis",
   "Final diagnosis",
+  "Note",
+  "Plan",
 ] as const;
 
 export function isInlineEditField(label: string): boolean {
