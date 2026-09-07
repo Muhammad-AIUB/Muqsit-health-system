@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { C, font } from "@/theme";
@@ -74,6 +74,8 @@ export default function ImageGallery({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
+  // Keyed by src URL not item.id: id is array-index in patient galleries and a reorder reassigns it.
+  const [imgState, setImgState] = useState<Record<string, { tries: number; failed: boolean; loaded: boolean; useFull?: boolean }>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -97,9 +99,35 @@ export default function ImageGallery({
 
   const exitEdit = () => { setEditing(false); setSelected(new Set()); };
 
+  const onImgLoad = (src: string) => {
+    setImgState((prev) => ({ ...prev, [src]: { ...prev[src] ?? { tries: 0, failed: false, loaded: false }, failed: false, loaded: true } }));
+  };
+
+  // One silent auto-retry, then fail. After thumb retries are exhausted, fall back to the
+  // full-resolution URL before giving up — the thumbnail CDN can be down while the upload
+  // server stays up, and the viewer (onOpen) already serves the full URL fine.
+  const onImgError = (src: string, fullUrl: string) => {
+    setImgState((prev) => {
+      const s = prev[src] ?? { tries: 0, failed: false, loaded: false };
+      const tries = s.tries;
+      if (!s.useFull && tries >= MAX_IMG_ATTEMPTS - 1 && src !== fullUrl) {
+        return { ...prev, [src]: { ...s, tries: 0, failed: false, loaded: false, useFull: true } };
+      }
+      return tries < MAX_IMG_ATTEMPTS - 1
+        ? { ...prev, [src]: { ...s, tries: tries + 1, failed: false, loaded: false } }
+        : { ...prev, [src]: { ...s, tries, failed: true, loaded: false } };
+    });
+  };
+
+  const retryImg = (src: string) => {
+    setImgState((prev) => ({ ...prev, [src]: { ...prev[src] ?? { tries: 0, failed: false, loaded: false }, tries: (prev[src]?.tries ?? 0) + 1, failed: false, loaded: false } }));
+  };
+
   const removeSelected = () => {
     if (selected.size === 0) return;
+    const removedSrcs = items.filter((it) => selected.has(it.id)).map((it) => it.thumbUrl || it.url);
     onRemoveMany([...selected]);
+    setImgState((prev) => { const next = { ...prev }; removedSrcs.forEach((s) => delete next[s]); return next; });
     setSelected(new Set());
   };
 
@@ -198,6 +226,14 @@ export default function ImageGallery({
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {items.map((it, idx) => {
               const isSel = selected.has(it.id);
+              const src = it.thumbUrl || it.url;
+              const st = imgState[src];
+              const tries = st?.tries ?? 0;
+              const isLoaded = st?.loaded ?? false;
+              const isFailed = st?.failed ?? false;
+              const useFull = st?.useFull ?? false;
+              const displaySrc = useFull ? it.url : src;
+              const imgKey = `${it.id}-${useFull ? "f" : "t"}${tries}`;
               return (
                 <div key={it.id} style={{ width: box.w }}>
                   <div
@@ -223,15 +259,44 @@ export default function ImageGallery({
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={it.thumbUrl || it.url}
-                      // Never an empty alt: on this screen the image IS the
-                      // content, and a scanned order-sheet page that a screen
-                      // reader skips entirely is not "decorative".
+                      key={imgKey}
+                      src={tries > 0 ? retryUrl(displaySrc, tries) : displaySrc}
                       alt={it.label || it.caption || `Image ${idx + 1}`}
                       draggable={false}
                       loading="lazy"
+                      decoding="async"
+                      onLoad={() => onImgLoad(src)}
+                      onError={() => onImgError(src, it.url)}
                       style={{ width: "100%", height: "100%", objectFit: fit, pointerEvents: "none" }}
                     />
+                    {!isLoaded && !isFailed && (
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        pointerEvents: "none",
+                      }}>
+                        <span style={{ fontSize: 10, color: C.n[400], fontFamily: font }}>
+                          Loading…
+                        </span>
+                      </div>
+                    )}
+                    {!editing && isFailed && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); retryImg(src); }}
+                        title="This image did not load. Click to try again."
+                        style={{
+                          position: "absolute", inset: 0, width: "100%", height: "100%",
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          gap: 3, border: "none", background: C.warn[50], color: C.warn[800],
+                          fontFamily: font, fontSize: 10.5, lineHeight: 1.3, textAlign: "center",
+                          padding: 4, cursor: "pointer",
+                        }}
+                      >
+                        <span style={{ fontSize: 14 }}>⚠</span>
+                        <span>Did not load</span>
+                        <span style={{ textDecoration: "underline" }}>↻ Try again</span>
+                      </button>
+                    )}
                     {editing && (
                       <span style={{ position: "absolute", top: 5, right: 5, width: 18, height: 18, borderRadius: "50%", border: `1.5px solid ${isSel ? C.pri[400] : "#fff"}`, background: isSel ? C.pri[400] : "rgba(0,0,0,0.35)", color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
                         {isSel ? "✓" : ""}
@@ -274,12 +339,22 @@ export default function ImageGallery({
 
       {editing && items.length > 0 && (
         <div style={{ fontSize: 11, color: C.n[500], marginTop: 6 }}>
-          Click images to select, then “Remove selected”.{canReorder ? " Drag any image to reorder." : ""}
+          Click images to select, then {`"Remove selected"`}.{canReorder ? " Drag any image to reorder." : ""}
         </div>
       )}
     </div>
   );
 }
+
+// One automatic re-request, then the tile says it failed. More would just hide
+// a real outage from the doctor for longer.
+const MAX_IMG_ATTEMPTS = 2;
+
+// A retry has to miss the cache — the browser will otherwise answer a second
+// request with the same failure it already has. The parameter is display-only;
+// the upload store ignores the query string and the stored URL never gains one.
+const retryUrl = (src: string, attempt: number) =>
+  `${src}${src.includes("?") ? "&" : "?"}mhsRetry=${attempt}`;
 
 const TILE = {
   md: { landscape: { w: 150, h: 110 }, portrait: { w: 96, h: 132 } },

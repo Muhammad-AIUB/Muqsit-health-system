@@ -154,6 +154,137 @@ describe("ImageGallery", () => {
   });
 });
 
+// ⚕️ A tile that is still loading must look different from one that has no image.
+// On a slow clinic connection large images take seconds; blank tiles read as
+// "this patient has no such record", which is the one thing they must not mean.
+describe("ImageGallery — loading state", () => {
+  const loadingIn = (id: string) => tile(id).querySelector("span");
+
+  it("shows a loading label while the image is still arriving", () => {
+    render(<ImageGallery {...base} />);
+    expect(loadingIn("a")?.textContent).toContain("Loading");
+    expect(loadingIn("b")?.textContent).toContain("Loading");
+  });
+
+  it("removes the loading label once the image arrives", () => {
+    render(<ImageGallery {...base} />);
+    fireEvent.load(imgIn("a"));
+    expect(loadingIn("a")).toBeNull();
+    // Others still loading
+    expect(loadingIn("b")?.textContent).toContain("Loading");
+  });
+
+  it("shows the loading label again while a manual retry is in flight", () => {
+    render(<ImageGallery {...base} />);
+    fireEvent.error(imgIn("b"));
+    fireEvent.error(imgIn("b"));
+    expect(screen.getByText("Did not load")).toBeTruthy();
+    fireEvent.click(screen.getByTitle("This image did not load. Click to try again."));
+    expect(screen.queryByText("Did not load")).toBeNull();
+    expect(loadingIn("b")?.textContent).toContain("Loading");
+  });
+
+  it("removes the loading label once a retry succeeds", () => {
+    render(<ImageGallery {...base} />);
+    fireEvent.error(imgIn("b"));       // silent first-retry starts
+    fireEvent.load(imgIn("b"));        // that retry lands
+    expect(loadingIn("b")).toBeNull();
+    expect(screen.queryByText("Did not load")).toBeNull();
+  });
+});
+
+// ⚕️ An image that failed to arrive must never be indistinguishable from a
+// patient who has no such page. The two patient galleries pull dozens of
+// images from the API origin over HTTP/1.1, so one dropped request used to
+// leave a permanently blank square with nothing to say so — and the only way
+// back was reloading the whole page.
+describe("ImageGallery — an image that did not load", () => {
+  it("retries once by itself, on a URL the cache cannot answer", () => {
+    render(<ImageGallery {...base} />);
+    expect(imgIn("b").getAttribute("src")).toBe("/u/b.jpg");
+
+    fireEvent.error(imgIn("b"));
+
+    expect(imgIn("b").getAttribute("src")).toBe("/u/b.jpg?mhsRetry=1");
+    // Silent so far: one dropped request is not worth a doctor's attention.
+    expect(screen.queryByText("Did not load")).toBeNull();
+    // And only that image — the others are untouched.
+    expect(imgIn("a").getAttribute("src")).toBe("/u/a-t.jpg");
+  });
+
+  it("says so, and offers a way back, when the retry fails too", () => {
+    render(<ImageGallery {...base} />);
+    fireEvent.error(imgIn("b"));
+    fireEvent.error(imgIn("b"));
+
+    expect(screen.getByText("Did not load")).toBeTruthy();
+    const again = screen.getByTitle("This image did not load. Click to try again.");
+
+    fireEvent.click(again);
+    expect(screen.queryByText("Did not load")).toBeNull();
+    expect(imgIn("b").getAttribute("src")).toBe("/u/b.jpg?mhsRetry=2");
+  });
+
+  it("does not stop hammering after two — the doctor asks for each further try", () => {
+    render(<ImageGallery {...base} />);
+    fireEvent.error(imgIn("b"));
+    fireEvent.error(imgIn("b"));
+    fireEvent.error(imgIn("b"));
+    // Still exactly one auto-retry's worth of requests behind their back.
+    expect(imgIn("b").getAttribute("src")).toBe("/u/b.jpg?mhsRetry=1");
+    expect(screen.getByText("Did not load")).toBeTruthy();
+  });
+
+  // The failure is keyed by the image, not by its position: `id` is the array
+  // index for the patient galleries, so keying by it would move one image's
+  // failure onto whichever image later took that slot.
+  it("keeps the failure with its own image when the list is reordered", () => {
+    const { rerender } = render(<ImageGallery {...base} />);
+    fireEvent.error(imgIn("b"));
+    fireEvent.error(imgIn("b"));
+    expect(screen.getAllByText("Did not load")).toHaveLength(1);
+
+    // Same URLs, renumbered ids — what `reorderRx` hands back.
+    rerender(
+      <ImageGallery
+        {...base}
+        items={[
+          { id: "a", url: "/u/b.jpg" },
+          { id: "b", url: "/u/a.jpg", thumbUrl: "/u/a-t.jpg" },
+          { id: "c", url: "/u/c.jpg" },
+        ]}
+      />,
+    );
+    expect(tile("a").querySelector("button")).toBeTruthy();  // /u/b.jpg, still failed
+    expect(tile("b").querySelector("button")).toBeNull();    // /u/a-t.jpg, still fine
+  });
+
+  it("still lets a dead image be selected and removed in Edit mode", () => {
+    const onRemoveMany = vi.fn();
+    render(<ImageGallery {...base} onRemoveMany={onRemoveMany} />);
+    fireEvent.error(imgIn("b"));
+    fireEvent.error(imgIn("b"));
+    fireEvent.click(screen.getByText("✎ Edit"));
+    // Retry button must be absent in edit mode — a full-tile button with stopPropagation
+    // would intercept the selection click before it reaches the tile's own onClick.
+    expect(tile("b").querySelector("button[title]")).toBeNull();
+    fireEvent.click(tile("b"));
+    fireEvent.click(screen.getByRole("button", { name: /Remove selected/ }));
+    expect(onRemoveMany).toHaveBeenCalledWith(["b"]);
+  });
+
+  it("falls back to the full URL after the thumbnail exhausts its retries", () => {
+    render(<ImageGallery {...base} />);
+    // Item "a" has thumbUrl=/u/a-t.jpg, url=/u/a.jpg
+    expect(imgIn("a").getAttribute("src")).toBe("/u/a-t.jpg");
+    fireEvent.error(imgIn("a")); // auto-retry of thumb
+    expect(imgIn("a").getAttribute("src")).toBe("/u/a-t.jpg?mhsRetry=1");
+    fireEvent.error(imgIn("a")); // thumb exhausted — falls back to full URL silently
+    expect(imgIn("a").getAttribute("src")).toBe("/u/a.jpg");
+    expect(screen.queryByText("Did not load")).toBeNull();
+  });
+});
+
 // ⚕️ The ward's paper order sheet is a handwritten document, not a picture:
 // the doctor has to make it out from the grid, and a tile that crops it can
 // hide the very line carrying a dose. Both are opt-in — the patient's
