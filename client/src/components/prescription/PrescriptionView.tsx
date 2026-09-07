@@ -13,6 +13,7 @@ import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
+import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import { rxSnapshotKey } from "@/lib/rxSnapshot";
 import { THUMB_UPLOAD } from "@/lib/imageThumbs";
 import LeftColumn from "./LeftColumn";
@@ -93,6 +94,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
 
   // Build the printable prescription HTML from the current editor state.
   const buildHtml = () => {
+    const rxMirrored = new Set(rxDrugHistoryEntries(m.rxItems, isoToDdmmyyyy(m.ptDate)));
+    const printableDrugHistory = m.drugHistory.filter((e) => !rxMirrored.has(e));
     const followUp =
       m.followUpNum && Number(m.followUpNum) > 0
         ? `${m.followUpNum} ${m.followUpUnit}${Number(m.followUpNum) > 1 ? "s" : ""}${m.followUpMandatory ? " (mandatory)" : ""}`
@@ -109,7 +112,14 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         { label: "Previous complaints", items: m.previousComplaints.map(formatPc) },
         { label: "History", items: m.history },
         { label: "Investigation findings", items: m.investigation.filter((s) => !s.includes("[image attached]") && !/^\d{2}\/\d{2}\/\d{4}:Report \d+(:|$)/i.test(s)) },
-        { label: "Drug history", items: m.drugHistory },
+        // ⚕️ The ℞ mirror is stripped back out of the printed document. Today's
+        // medicines ARE the ℞ table below; listing them again under "Drug
+        // history" would tell whoever reads the sheet that the patient was
+        // already on them BEFORE this visit — a false statement on a legal
+        // medical document. Matched on the exact stored entry, so a medication
+        // the doctor typed into Drug history by hand on this same date, which is
+        // a real prior medication, still prints.
+        { label: "Drug history", items: printableDrugHistory },
         { label: "On examination", items: m.onExamination },
         { label: "Note", items: m.note },
         { label: "Plan", items: m.plan },

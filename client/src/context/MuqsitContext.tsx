@@ -25,6 +25,7 @@ import { useAuth } from "@/context/AuthContext";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
+import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries } from "@/lib/rxDrugHistory";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import type {
   Page,
@@ -297,6 +298,10 @@ function useMuqsitStore() {
         // Synchronously, not via the effect: the rest of this save (and the
         // gallery snapshot that follows it) runs before React re-renders.
         patientIdRef.current = pid;
+        // A patient created a moment ago has no stored drug history, so what is
+        // in the editor IS their history — the guard on the write below can let
+        // it through.
+        drugHistoryHydratedRef.current = pid;
         // Flush everything that was entered BEFORE this patient existed — the
         // per-change PATCHes (family tree, health-monitoring ticks/dates, watch,
         // image galleries) all no-op without a patient id, so carry them over
@@ -406,7 +411,15 @@ function useMuqsitStore() {
         }
         // Persist the (date-stamped) drug history so it carries across visits;
         // the Current/Distant-past split is derived from the date on load.
-        void patientsApi.update(pid, { drugHistory }).catch(() => {});
+        //
+        // ⚕️ ONLY once this patient's own list is actually in hand. A save fired
+        // inside the window before the patient fetch lands would otherwise write
+        // the blank the editor starts with straight over their recorded
+        // medications — and the ℞ mirror now fills that blank with today's
+        // medicines, which is exactly what makes the loss look like real data.
+        if (drugHistoryHydratedRef.current === pid) {
+          void patientsApi.update(pid, { drugHistory }).catch(() => {});
+        }
       }
       // "Save & print" = complete: clear the patient's incomplete draft and flag
       // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
@@ -429,10 +442,18 @@ function useMuqsitStore() {
     return ok;
   };
 
+  // ⚕️ "the drug history in state belongs to THIS patient and came from stored
+  // data" — not from the blank slate `resetEditor` leaves behind. The ℞ → Drug
+  // history mirror below refuses to run until this matches, because merging
+  // today's medicines into a not-yet-hydrated (empty) list would show the doctor
+  // a patient with no drug history and hand that emptiness to whatever saves next.
+  const drugHistoryHydratedRef = useRef<string | null>(null);
+
   // Load the patient's saved image galleries whenever a different patient is
   // opened (and clear them when starting a fresh, unsaved patient).
   useEffect(() => {
     if (!currentPatientId) {
+      drugHistoryHydratedRef.current = null;
       setRxImages([]); rxGateRef.current.reset(null); setReportImages([]);
       imageThumbsRef.current = {}; setImageThumbs({});
       setHmDrugs(new Set()); setFamilyMembers([]); setInvestigationSummary([]); setOnExaminationSummary([]);
@@ -454,6 +475,7 @@ function useMuqsitStore() {
           setInvestigationSummary((p.investigationSummary as InvFinding[]) ?? []);
           setOnExaminationSummary((p.onExaminationSummary as OeFinding[]) ?? []);
           setDrugHistory((p.drugHistory as string[]) ?? []);
+          drugHistoryHydratedRef.current = currentPatientId;
         }
       })
       .catch(() => {});
@@ -543,6 +565,7 @@ function useMuqsitStore() {
     setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
     setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
     setIgnoredAlerts(new Set());
+    drugHistoryHydratedRef.current = null; // blank list — nothing to mirror onto yet
   }, []);
 
   // Apply a saved editor snapshot (header + clinical) — used to restore a
@@ -625,6 +648,9 @@ function useMuqsitStore() {
     const inc = p.incompleteRx;
     if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
       applyEditorSnapshot(inc as Record<string, unknown>); // advances ptDate if draft is stale
+      // The parked draft carries this patient's own drug history, so it is a valid
+      // base to mirror onto while the background patient fetch is still in flight.
+      drugHistoryHydratedRef.current = p.id;
       rxFlaggedRef.current = p.id; // already saved as incomplete
     } else {
       rxFlaggedRef.current = null;
@@ -707,6 +733,46 @@ function useMuqsitStore() {
     if (currentPatientId) void patientsApi.update(currentPatientId, { drugHistory: next }).catch(() => {});
   }, [currentPatientId]);
 
+  // ⚕️ Live mirror — every medicine on TODAY'S ℞ pad shows up in Drug history →
+  // "Current medications" as it is written, and is still there, as Distant past,
+  // on the next visit. Physician's decision, 2026-09-07 (live on every change,
+  // not deferred to "Save & print").
+  //
+  // Until this existed the ℞ pad and Drug history were two lists that never
+  // spoke: "Current medications" held only what the doctor re-typed into the
+  // modal by hand, so a patient prescribed Napa today still read "0 current".
+  //
+  // Four properties are what make writing into a clinical list from a keystroke
+  // safe. Do not drop one to simplify this:
+  //  • it only ever withdraws entries THIS mirror added — `rxDerivedRef` is the
+  //    record of what it contributed last time — so a medication the doctor
+  //    typed into the modal by hand can never be deleted by editing the ℞;
+  //  • it echoes the pad verbatim and completes nothing (see rxDrugHistory.ts);
+  //  • it is idempotent, so it settles instead of oscillating, and the
+  //    `sameEntries` guard means an unchanged ℞ costs no render;
+  //  • it never persists by itself. `Patient.drugHistory` keeps exactly the
+  //    writers it already had — "Save & print" (savePrescription) and the
+  //    modal's Done (saveDrugHistory) — while the debounced editor auto-save
+  //    carries it inside `incompleteRx`, so a parked or reloaded visit keeps
+  //    it. One writer per field, and no new race against the patient fetch.
+  //
+  // Known and intended: deleting an ℞-mirrored row inside the Drug-history modal
+  // does not stick, because the medicine is still on today's prescription — the
+  // ℞ pad owns its own lines. Remove it from the pad instead.
+  const rxDerivedRef = useRef<{ pid: string | null; entries: string[] }>({ pid: null, entries: [] });
+  useEffect(() => {
+    // An unsaved patient has no stored history to lose. A saved one must have
+    // had their own list hydrated first, or we would be mirroring onto a blank.
+    if (currentPatientId && drugHistoryHydratedRef.current !== currentPatientId) return;
+    const nextDerived = rxDrugHistoryEntries(rxItems, isoToDdmmyyyy(ptDate));
+    // A pad belonging to a DIFFERENT patient says nothing about this one's list:
+    // forget it rather than withdraw an entry from a stranger's record.
+    const prevDerived = rxDerivedRef.current.pid === currentPatientId ? rxDerivedRef.current.entries : [];
+    rxDerivedRef.current = { pid: currentPatientId, entries: nextDerived };
+    const merged = syncRxDrugHistory(drugHistory, prevDerived, nextDerived);
+    if (!sameEntries(merged, drugHistory)) setDrugHistory(merged);
+  }, [rxItems, ptDate, currentPatientId, drugHistory]);
+
   // "Add" on the records page opens the investigation popup in SUMMARY mode:
   // whatever is entered goes only to the patient's investigation history, not
   // the current prescription. We snapshot the editor's findings, let the popup
@@ -775,7 +841,7 @@ function useMuqsitStore() {
         if (cancelled) return;
         supervisedRef.current = false; // own patient (or none) — normal restore
         applyEditorSnapshot(d);
-        if (pid) setCurrentPatientId(pid);
+        if (pid) { drugHistoryHydratedRef.current = pid; setCurrentPatientId(pid); }
       })
       .catch((e) => console.warn("[draft] load failed — editor will not restore on reload:", e))
       .finally(() => { if (!cancelled) draftReadyRef.current = true; });
