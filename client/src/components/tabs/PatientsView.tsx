@@ -64,9 +64,10 @@ const smallBtn = (filled: boolean) => ({
 export default function PatientsView() {
   const {
     setActiveTab, setPtInfo, setCurrentPatientId, setPtSettingsTab, resetEditor, loadPatient,
+    activeWorkstationId,
   } = useMuqsit();
 
-  const { data: patients = [], isLoading, isError, error } = usePatients();
+  const { data: patients = [], isLoading, isError, error } = usePatients(activeWorkstationId);
 
   // Surveillance = real `watched` flag from the database.
   const watchedPatients = patients.filter((p) => p.watched);

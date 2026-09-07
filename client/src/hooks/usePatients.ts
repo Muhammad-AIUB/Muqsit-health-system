@@ -5,10 +5,16 @@ import { patientsApi, type Patient, type PatientInput } from "@/lib/api";
 
 const PATIENTS_KEY = ["patients"] as const;
 
-export function usePatients(search?: string) {
+export function usePatients(wsId: string | null, search?: string) {
   return useQuery({
-    queryKey: [...PATIENTS_KEY, search ?? ""],
+    queryKey: [...PATIENTS_KEY, wsId ?? "", search ?? ""],
     queryFn: () => patientsApi.list(search),
+    // Always treat as stale so the list is never served from an empty/wrong
+    // workstation cache (the race between useWorkstations resolving and the
+    // first patients fetch makes stale 30-second data a real failure mode).
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
