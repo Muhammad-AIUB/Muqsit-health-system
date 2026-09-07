@@ -613,6 +613,13 @@ function useMuqsitStore() {
     const inc = p.incompleteRx;
     if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
       applyEditorSnapshot(inc as Record<string, unknown>);
+      // If the draft's visit date is from a previous calendar day, advance it to
+      // today so the drug-history Current/Past split boundary is correct. Entries
+      // stored with the old date move to "Distant past" automatically; medicines
+      // the doctor records now get today's stamp.
+      const today = new Date().toLocaleDateString("en-CA");
+      const draftDate = (inc as Record<string, unknown>).ptDate;
+      if (typeof draftDate === "string" && draftDate < today) setPtDate(today);
       rxFlaggedRef.current = p.id; // already saved as incomplete
     } else {
       rxFlaggedRef.current = null;

@@ -192,28 +192,23 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
                 <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever you record today moves here on the patient&apos;s next visit.</div>
               ) : (
                 <div style={{ paddingTop: 8 }}>
-                  {pastGroups.map((g) => (
-                    <div key={g.date} style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.pri[600], marginBottom: 6 }}>{g.date === PAST_MARKER ? "Earlier" : g.date}</div>
-                      {g.list.map((p, i) => {
-                        const parts = p.body.split(" — ").map((x) => x.trim());
-                        const isMed = p.kind === "med";
-                        return (
-                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < g.list.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
-                            <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.n[800] }}>
-                              {p.kind === "cont" ? <span style={{ color: C.n[400] }}>↳ </span> : null}
-                              {p.kind === "note" ? <i style={{ color: C.n[600] }}>{p.body}</i> : (
-                                <><b style={{ fontWeight: 600 }}>{parts[0]}</b>{parts.slice(1).filter(Boolean).length ? <span style={{ color: C.n[500] }}> · {parts.slice(1).filter(Boolean).join(" · ")}</span> : null}</>
-                              )}
-                            </div>
-                            {isMed && parts[0] && (
-                              <button onClick={() => rePrescribe(p)} title="Add to current prescription" style={{ flexShrink: 0, padding: "3px 9px", borderRadius: 6, border: `0.5px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: font }}>↻ Rx</button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                  {pastGroups.flatMap((g) => g.list).map((p, i, all) => {
+                    const parts = p.body.split(" — ").map((x) => x.trim());
+                    const isMed = p.kind === "med";
+                    return (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < all.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
+                        <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.n[800] }}>
+                          {p.kind === "cont" ? <span style={{ color: C.n[400] }}>↳ </span> : null}
+                          {p.kind === "note" ? <i style={{ color: C.n[600] }}>{p.body}</i> : (
+                            <><b style={{ fontWeight: 600 }}>{parts[0]}</b>{parts.slice(1).filter(Boolean).length ? <span style={{ color: C.n[500] }}> · {parts.slice(1).filter(Boolean).join(" · ")}</span> : null}</>
+                          )}
+                        </div>
+                        {isMed && parts[0] && (
+                          <button onClick={() => rePrescribe(p)} title="Add to current prescription" style={{ flexShrink: 0, padding: "3px 9px", borderRadius: 6, border: `0.5px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: font }}>↻ Rx</button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
