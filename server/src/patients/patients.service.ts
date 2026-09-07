@@ -244,7 +244,7 @@ export class PatientsService {
     if (patient.doctorId !== doctorId) {
       throw new ForbiddenException('Supervising doctors cannot modify the patient record');
     }
-    const { dob, hmDrugDates, hmSymptomDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, drugHistory, incompleteRx, ...rest } = dto;
+    const { dob, hmDrugDates, hmSymptomDates, hmSelectedDrugs, familyMembers, investigationSummary, onExaminationSummary, drugHistory, incompleteRx, imageThumbs, ...rest } = dto;
     // Loose cast: new columns may not yet be in the generated client; the DB
     // columns exist so Postgres accepts them at runtime.
     const extra = rest as Record<string, unknown>;
@@ -253,6 +253,10 @@ export class PatientsService {
     if (investigationSummary !== undefined) extra.investigationSummary = investigationSummary as Prisma.InputJsonValue;
     if (onExaminationSummary !== undefined) extra.onExaminationSummary = onExaminationSummary as Prisma.InputJsonValue;
     if (drugHistory !== undefined) extra.drugHistory = drugHistory as Prisma.InputJsonValue;
+    // Whole-value write like every other Json column here: the client sends the
+    // full map, which it built from the stored one. It never travels alone —
+    // only in the same PATCH as the gallery it belongs to.
+    if (imageThumbs !== undefined) extra.imageThumbs = imageThumbs as Prisma.InputJsonValue;
     if (incompleteRx !== undefined)
       extra.incompleteRx = incompleteRx === null ? Prisma.DbNull : (incompleteRx as Prisma.InputJsonValue);
     return this.prisma.patient.update({

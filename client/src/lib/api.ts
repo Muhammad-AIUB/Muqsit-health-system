@@ -79,6 +79,11 @@ export interface Patient {
   watched: boolean;
   prescriptionImages: string[];
   reportImages: string[];
+  // Small copies for the two galleries above — { [fullImageUrl]: thumbUrl }.
+  // A URL with no entry falls back to the full image; every image stored before
+  // this column has none, and nothing was migrated. Json column, so unknown at
+  // this boundary — read it through `safeThumbMap`, never cast it.
+  imageThumbs: unknown;
   // Fingerprint of the printed sheet behind the newest AUTO gallery snapshot
   // (lib/rxSnapshot.ts). Null when none has been filed.
   lastRxImageKey: string | null;
@@ -118,6 +123,8 @@ export interface PatientInput {
   watched?: boolean;
   prescriptionImages?: string[];
   reportImages?: string[];
+  // Sent only in the same PATCH as the gallery it belongs to (see MuqsitContext).
+  imageThumbs?: Record<string, string>;
   lastRxImageKey?: string;
   hmDrugDates?: Record<string, { sf: string; upto: string }>;
   hmSymptomDates?: Record<string, { sf: string; upto: string }>;

@@ -1,4 +1,5 @@
 import type { IpdAnalogueSheet } from "./api";
+import { THUMB_MAX_DIM } from "./imageThumbs";
 
 // ── The paper ("analogue") order sheet: pure rules ──────────────────────────
 // Everything here is a decision about a patient's record, so it lives outside
@@ -13,8 +14,10 @@ export const ANALOGUE_UPLOAD = { maxDim: 2400, quality: 0.9 } as const;
 
 // The grid draws 150px squares. Without a small copy the browser downloads the
 // full 2400px page to do it, which on a 20-page admission is tens of MB over
-// ward wifi.
-export const THUMB_MAX_DIM = 400;
+// ward wifi. Defined once in `lib/imageThumbs.ts` and re-exported here, because
+// the patient's two document galleries now upload the same size — two copies of
+// this number would drift, and the panel's 270×370 tile is sized off it.
+export { THUMB_MAX_DIM };
 
 export const MAX_FILES_PER_BATCH = 20;
 

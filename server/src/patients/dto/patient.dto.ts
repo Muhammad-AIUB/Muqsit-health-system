@@ -85,6 +85,13 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   // "Save & print". Lets the client tell a re-save of an unchanged visit from a
   // real edit, so the same sheet is not filed into the gallery on every click.
   @IsOptional() @IsString() @MaxLength(128) lastRxImageKey?: string;
+  // Small copies for the two document galleries — { [fullImageUrl]: thumbUrl }.
+  // Display-only and additive: a gallery URL absent from this map falls back to
+  // the full image, which is how every image stored before this reads. It rides
+  // the same PATCH as `prescriptionImages` / `reportImages` and is deliberately
+  // NOT in the controller's RX_LIFECYCLE set, so an assistant needs exactly the
+  // `pt.info` key the images themselves already require — it must not widen it.
+  @IsOptional() @IsObject() imageThumbs?: Record<string, string>;
   @IsOptional() @IsObject() hmDrugDates?: Record<string, { sf: string; upto: string }>;
   // Same shape, keyed by the exact chief-complaint text — { [complaint]: { sf, upto } }.
   // Chart-display override only: never rewrites any Prescription.

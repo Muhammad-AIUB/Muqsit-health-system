@@ -323,6 +323,15 @@ model Patient {
   // patient's "Prescriptions & reports" view.
   prescriptionImages String[] @default([])
   reportImages       String[] @default([])
+  // Small (400px) copies of the two galleries above, as a SIDE MAP keyed by the
+  // full image URL — { [fullUrl]: thumbUrl }. Deliberately not folded into the
+  // arrays: those arrays ARE the record (their order is the doctor's chosen
+  // order, and the print/snapshot/mirror paths all read them as plain URLs), so
+  // turning them into objects would rewrite every existing patient's gallery to
+  // gain a display optimisation. A URL with no entry here simply falls back to
+  // the full image, which is how every image stored before this reads. Orphaned
+  // keys (an image the doctor removed) are ignored, never purged.
+  imageThumbs        Json?
   // Fingerprint of the printed sheet behind the most recent AUTO snapshot in
   // `prescriptionImages` (SHA-256 of the HTML "Save & print" rendered). Re-saving
   // a visit the doctor did not change would otherwise file the same sheet into

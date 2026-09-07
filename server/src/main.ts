@@ -57,7 +57,26 @@ async function bootstrap() {
 
   // Serve uploaded files (NID images, certificates, profile pictures)
   // straight from disk at /uploads/<filename>.
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  //
+  // ⚕️ Cached for a year, immutably, and that is a correctness fix rather than
+  // a speed tweak. express.static's default is `Cache-Control: public,
+  // max-age=0`, which caches the bytes but makes the browser REVALIDATE every
+  // one of them on every use. A patient records page carries dozens of images
+  // (48 on a real record), the API origin is HTTP/1.1, so those revalidations
+  // queue six at a time behind the app's own API calls and the SSE mirror
+  // stream — every tile sits blank until its round trip returns, and one
+  // request dropped on a clinic connection leaves that tile blank until the
+  // whole page is reloaded.
+  //
+  // `immutable` is true of these files, not a hopeful assertion: every upload
+  // is written under a fresh `randomUUID()` name (upload.service.ts) and no
+  // path in the app ever rewrites one. A changed image is a new URL, so a
+  // stale cache entry cannot show a doctor the wrong page.
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
+    maxAge: '365d',
+    immutable: true,
+  });
 
   const origins = (config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3000')
     .split(',')

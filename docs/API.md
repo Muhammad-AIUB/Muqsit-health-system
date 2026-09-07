@@ -302,6 +302,7 @@ the ward; that door must be built inside `ipd.service`, never by extending
 | `hmDrugDates` | `{ [drug]: { sf, upto } }` | **owner only**, display override — never rewrites `drugHistory` |
 | `hmSymptomDates` | `{ [complaint]: { sf, upto } }` | **owner only**, display override — never rewrites a prescription |
 | `lastRxImageKey` | SHA-256 hex string | fingerprint of the last auto gallery snapshot; travels with `prescriptionImages` |
+| `imageThumbs` | `{ [fullImageUrl]: thumbUrl }` | small copies for the two galleries, display-only; travels with `prescriptionImages` / `reportImages`, needs the same `pt.info` |
 
 ⚠️ These JSON columns are **merged on the client and written whole on the server.**
 A key the client omits is gone. Never "fix up" their contents server-side without

@@ -13,3 +13,8 @@ coverage/
 # Anchored: a bare `uploads/` also matches src/uploads/ (the upload MODULE), so
 # a new file added there would be silently untracked and never deploy.
 /uploads/
+
+# Throwaway install prefix for scripts/backfill-image-thumbs.js (sharp). Kept out
+# of server/node_modules on purpose so a one-off resizer can never move the live
+# API's dependencies. Safe to delete once a backfill is done.
+/scripts/.tools/

@@ -14,6 +14,7 @@ import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxSnapshotKey } from "@/lib/rxSnapshot";
+import { THUMB_UPLOAD } from "@/lib/imageThumbs";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
@@ -210,7 +211,14 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         try {
           const file = await capturePrescriptionImage(html);
           if (!file) throw new Error("capture produced no image");
-          m.saveRxSnapshot(await uploadImage(file), key);
+          const url = await uploadImage(file);
+          // A small copy for the gallery grid, best-effort and AFTER the sheet
+          // itself is safely uploaded: the full-resolution sheet is the record
+          // and a thumbnail that fails must never cost it. A tile with no small
+          // copy falls back to the full image, as every sheet filed before this.
+          let thumbUrl: string | undefined;
+          try { thumbUrl = await uploadImage(file, THUMB_UPLOAD); } catch { /* optional */ }
+          m.saveRxSnapshot(url, key, thumbUrl);
         } catch (e) {
           // Give the fingerprint back — an unchanged re-save must still be able
           // to file this sheet, since this attempt never reached the gallery.

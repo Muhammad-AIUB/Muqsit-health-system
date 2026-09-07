@@ -17,6 +17,7 @@ import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
 import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { createRxSnapshotGate } from "@/lib/rxSnapshot";
+import { mergeThumbs, safeThumbMap, type ThumbMap } from "@/lib/imageThumbs";
 import { buildRxAlertInput, checkRxAlerts } from "@/lib/rxAlerts";
 import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
@@ -177,6 +178,18 @@ function useMuqsitStore() {
     setIgnoredAlerts((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   }, []);
   const [reportImages, setReportImages] = useState<string[]>([]);
+  // Small copies for both galleries above, keyed by full image URL. Display-only
+  // (lib/imageThumbs.ts), and kept in a ref as well as state because it is
+  // merged inside save callbacks that must not re-create on every change.
+  const [imageThumbs, setImageThumbs] = useState<ThumbMap>({});
+  const imageThumbsRef = useRef<ThumbMap>({});
+  const putThumbs = useCallback((added: ThumbMap): ThumbMap | null => {
+    if (!added || Object.keys(added).length === 0) return null;
+    const next = mergeThumbs(imageThumbsRef.current, added);
+    imageThumbsRef.current = next;
+    setImageThumbs(next);
+    return next;
+  }, []);
 
   // On-examination popup + patient settings
   const [showOePopup, setShowOePopup] = useState(false);
@@ -413,6 +426,7 @@ function useMuqsitStore() {
   useEffect(() => {
     if (!currentPatientId) {
       setRxImages([]); rxGateRef.current.reset(null); setReportImages([]);
+      imageThumbsRef.current = {}; setImageThumbs({});
       setHmDrugs(new Set()); setFamilyMembers([]); setInvestigationSummary([]); setOnExaminationSummary([]);
       return;
     }
@@ -424,6 +438,9 @@ function useMuqsitStore() {
           setRxImages(p.prescriptionImages ?? []);
           rxGateRef.current.reset(p.lastRxImageKey ?? null);
           setReportImages(p.reportImages ?? []);
+          const thumbs = safeThumbMap(p.imageThumbs);
+          imageThumbsRef.current = thumbs;
+          setImageThumbs(thumbs);
           setHmDrugs(new Set(p.hmSelectedDrugs ?? []));
           setFamilyMembers((p.familyMembers as FamilyMember[]) ?? []);
           setInvestigationSummary((p.investigationSummary as InvFinding[]) ?? []);
@@ -438,10 +455,22 @@ function useMuqsitStore() {
   // Update a gallery and persist it to the loaded patient. If no patient is
   // saved yet it's a no-op on the server — the array is included when the
   // patient is created in savePrescription.
-  const saveRxImages = useCallback((next: string[]) => {
+  //
+  // `addedThumbs` is the small copy of each image being added, folded into the
+  // patient's map and sent in the SAME PATCH as the array — one write, so the
+  // gallery and its thumbnails cannot end up describing different sets. Omit it
+  // for a remove or a reorder: those change the order, not the images, and the
+  // map is keyed by URL rather than by position.
+  const saveRxImages = useCallback((next: string[], addedThumbs?: ThumbMap) => {
     setRxImages(next);
-    if (currentPatientId) void patientsApi.update(currentPatientId, { prescriptionImages: next }).catch(() => {});
-  }, [currentPatientId]);
+    const thumbs = addedThumbs ? putThumbs(addedThumbs) : null;
+    if (currentPatientId) {
+      void patientsApi.update(currentPatientId, {
+        prescriptionImages: next,
+        ...(thumbs ? { imageThumbs: thumbs } : {}),
+      }).catch(() => {});
+    }
+  }, [currentPatientId, putThumbs]);
   // ── "Save & print" gallery snapshot ────────────────────────────────────
   // Claim this sheet for the patient's gallery. False means the gallery already
   // holds it, so there is nothing to capture: the doctor re-saved a visit they
@@ -465,19 +494,32 @@ function useMuqsitStore() {
   // (uploads are named by UUID), so the array order is the only record of
   // order — which is also why nothing here re-sorts what is already stored: a
   // gallery the doctor dragged into their own order stays in it.
-  const saveRxSnapshot = useCallback((url: string, key: string | null) => {
+  const saveRxSnapshot = useCallback((url: string, key: string | null, thumbUrl?: string) => {
     const pid = patientIdRef.current;
     rxGateRef.current.file(key);
+    const thumbs = thumbUrl ? putThumbs({ [url]: thumbUrl }) : null;
     setRxImages((prev) => {
       const next = [url, ...prev];
-      if (pid) void patientsApi.update(pid, { prescriptionImages: next, ...(key ? { lastRxImageKey: key } : {}) }).catch(() => {});
+      if (pid) {
+        void patientsApi.update(pid, {
+          prescriptionImages: next,
+          ...(key ? { lastRxImageKey: key } : {}),
+          ...(thumbs ? { imageThumbs: thumbs } : {}),
+        }).catch(() => {});
+      }
       return next;
     });
-  }, []);
-  const saveReportImages = useCallback((next: string[]) => {
+  }, [putThumbs]);
+  const saveReportImages = useCallback((next: string[], addedThumbs?: ThumbMap) => {
     setReportImages(next);
-    if (currentPatientId) void patientsApi.update(currentPatientId, { reportImages: next }).catch(() => {});
-  }, [currentPatientId]);
+    const thumbs = addedThumbs ? putThumbs(addedThumbs) : null;
+    if (currentPatientId) {
+      void patientsApi.update(currentPatientId, {
+        reportImages: next,
+        ...(thumbs ? { imageThumbs: thumbs } : {}),
+      }).catch(() => {});
+    }
+  }, [currentPatientId, putThumbs]);
 
   // Clear the whole prescription editor — every patient is different, so this is
   // called whenever a patient is switched/opened/created so one patient's
@@ -989,7 +1031,7 @@ function useMuqsitStore() {
     calDate, setCalDate, showMonthPicker, setShowMonthPicker, invSearch, setInvSearch,
     invImages, setInvImages,
     rxImages, setRxImages, reportImages, setReportImages, saveRxImages,
-    claimRxSnapshot, releaseRxSnapshot, saveRxSnapshot, saveReportImages,
+    claimRxSnapshot, releaseRxSnapshot, saveRxSnapshot, saveReportImages, imageThumbs,
     ignoredAlerts, ignoreAlert,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,

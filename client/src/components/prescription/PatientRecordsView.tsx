@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
+import { THUMB_UPLOAD, thumbFor, type ThumbMap } from "@/lib/imageThumbs";
 import { parseInvestigationEntries, mergeFindings, groupByDate, type InvFinding } from "@/lib/investigationSummary";
 import { groupOeByDate, type OeFinding } from "@/lib/onExaminationSummary";
 import { cellToDate } from "@/lib/hmDates";
@@ -47,7 +48,7 @@ function DateHeading({ date }: { date: string }) {
 export default function PatientRecordsView() {
   const {
     currentPatientId,
-    rxImages, saveRxImages, reportImages, saveReportImages,
+    rxImages, saveRxImages, reportImages, saveReportImages, imageThumbs,
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
     onExaminationSummary, saveOnExaminationSummary,
   } = useMuqsit();
@@ -68,13 +69,35 @@ export default function PatientRecordsView() {
   // doctor was told only "Upload failed". On a flaky connection that is a
   // patient's records quietly not arriving. Now every file that uploaded is
   // kept and the ones that did not are named.
-  const uploadAll = async (files: File[]): Promise<string[]> => {
-    const results = await Promise.allSettled(files.map((f) => uploadImage(f)));
+  //
+  // Each image also gets a 400px copy for the grid: a tile is 150×110, and
+  // pulling the full 1600px original to fill it is what made a records page
+  // with dozens of images sit blank on a clinic connection. The small copy is
+  // BEST-EFFORT and the full image is the record — if the thumbnail fails the
+  // image is still filed and the tile falls back to it, exactly as every image
+  // stored before this does. If the full image fails there is nothing to file
+  // and the file is named. Same posture as the ward's paper order sheet.
+  const uploadAll = async (files: File[]): Promise<{ urls: string[]; thumbs: ThumbMap }> => {
+    const results = await Promise.allSettled(
+      files.map(async (f) => {
+        const url = await uploadImage(f);
+        let thumbUrl: string | undefined;
+        try {
+          thumbUrl = await uploadImage(f, THUMB_UPLOAD);
+        } catch { /* best-effort — the tile falls back to the full image */ }
+        return { url, thumbUrl };
+      }),
+    );
     const urls: string[] = [];
+    const thumbs: ThumbMap = {};
     const failed: string[] = [];
     results.forEach((r, i) => {
-      if (r.status === "fulfilled") urls.push(r.value);
-      else failed.push(`${files[i].name} (${r.reason instanceof ApiError ? r.reason.message : "upload failed"})`);
+      if (r.status === "fulfilled") {
+        urls.push(r.value.url);
+        if (r.value.thumbUrl) thumbs[r.value.url] = r.value.thumbUrl;
+      } else {
+        failed.push(`${files[i].name} (${r.reason instanceof ApiError ? r.reason.message : "upload failed"})`);
+      }
     });
     if (failed.length) {
       window.alert(
@@ -83,7 +106,7 @@ export default function PatientRecordsView() {
           : `Nothing was added. ${failed.join(", ")}`,
       );
     }
-    return urls;
+    return { urls, thumbs };
   };
 
   // ── Prescription gallery ──
@@ -93,11 +116,11 @@ export default function PatientRecordsView() {
   // block at the top. Nothing re-sorts the images already stored — the URLs
   // carry no date, so the array IS the order, and a gallery dragged into a
   // deliberate order must stay in it.
-  const rxItems = rxImages.map((url, i) => ({ id: String(i), url }));
+  const rxItems = rxImages.map((url, i) => ({ id: String(i), url, thumbUrl: thumbFor(imageThumbs, url) }));
   const addRx = async (files: File[]) => {
     setBusyRx(true);
-    const urls = await uploadAll(files);
-    if (urls.length) saveRxImages([...urls, ...rxImages]);
+    const { urls, thumbs } = await uploadAll(files);
+    if (urls.length) saveRxImages([...urls, ...rxImages], thumbs);
     setBusyRx(false);
   };
   const removeRx = (ids: string[]) => {
@@ -110,11 +133,11 @@ export default function PatientRecordsView() {
   };
 
   // ── Report gallery ──
-  const reportItems = reportImages.map((url, i) => ({ id: String(i), url }));
+  const reportItems = reportImages.map((url, i) => ({ id: String(i), url, thumbUrl: thumbFor(imageThumbs, url) }));
   const addReports = async (files: File[]) => {
     setBusyReport(true);
-    const urls = await uploadAll(files);
-    if (urls.length) saveReportImages([...reportImages, ...urls]);
+    const { urls, thumbs } = await uploadAll(files);
+    if (urls.length) saveReportImages([...reportImages, ...urls], thumbs);
     setBusyReport(false);
   };
   const removeReports = (ids: string[]) => {
