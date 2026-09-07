@@ -552,12 +552,10 @@ function useMuqsitStore() {
     const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
     str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
-    // Restore visit date but advance to today if the draft is from a previous
-    // calendar day — fixes BOTH the loadPatient path and the page-reload path.
-    if (typeof d.ptDate === "string") {
-      const today = todayISO();
-      setPtDate(d.ptDate < today ? today : d.ptDate);
-    }
+    // Restore the visit date but advance it to today if the draft is from a prior
+    // calendar day. Keeps the prescription header and drug-history Current/Past
+    // split both anchored to today across all callers (loadPatient + page-reload).
+    str("ptDate", (v) => { const today = todayISO(); setPtDate(v < today ? today : v); });
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);
@@ -927,7 +925,10 @@ function useMuqsitStore() {
     // mirror-applied supervised patient (finding: stale supervised flag).
     supervisedRef.current = d.supervised === true;
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
-    str("ptAddress", setPtAddress); str("ptWeight", setPtWeight); str("ptDate", setPtDate);
+    str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
+    // Same stale-date guard as applyEditorSnapshot: a secondary device joining
+    // before the primary's first auto-save might receive a pre-advance snapshot.
+    str("ptDate", (v) => { const today = todayISO(); setPtDate(v < today ? today : v); });
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);

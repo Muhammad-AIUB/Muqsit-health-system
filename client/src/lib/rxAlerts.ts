@@ -230,15 +230,27 @@ function mentions(haystack: string, term: string): boolean {
   return !negatedRe(term).test(haystack);
 }
 
-/** True when `entryDate` (dd/mm/yyyy) is within 90 days before `visitDate` (dd/mm/yyyy). */
+/** How far back in drug history counts as "current" for drug-drug alert checks.
+ *  90 days covers a resumed stale draft (entries stamped a day earlier) while
+ *  excluding months-old medications the patient has likely stopped. */
+const RECENT_DRUG_HISTORY_DAYS = 90;
+
+/** Parse a dd/mm/yyyy string to milliseconds; returns NaN on an invalid or
+ *  rolled-over calendar date (e.g. "31/06/2026" which would silently become
+ *  July 1 without the round-trip check). */
+function ddmmyyyyMs(d: string): number {
+  const [dd, mm, yyyy] = d.split("/").map(Number);
+  if (isNaN(dd) || isNaN(mm) || isNaN(yyyy)) return NaN;
+  const dt = new Date(yyyy, mm - 1, dd);
+  if (dt.getDate() !== dd || dt.getMonth() !== mm - 1) return NaN; // calendar rollover
+  return dt.getTime();
+}
+
+/** True when `entryDate` (dd/mm/yyyy) is within RECENT_DRUG_HISTORY_DAYS before `visitDate`. */
 function recentEnough(entryDate: string, visitDate: string): boolean {
   if (entryDate === visitDate) return true;
-  const toMs = (d: string): number => {
-    const [dd, mm, yyyy] = d.split("/").map(Number);
-    return isNaN(dd) ? 0 : new Date(yyyy, mm - 1, dd).getTime();
-  };
-  const diffDays = (toMs(visitDate) - toMs(entryDate)) / 86_400_000;
-  return diffDays > 0 && diffDays <= 90;
+  const diffDays = (ddmmyyyyMs(visitDate) - ddmmyyyyMs(entryDate)) / 86_400_000;
+  return diffDays > 0 && diffDays <= RECENT_DRUG_HISTORY_DAYS;
 }
 
 /** Everything the patient is on: this prescription first, then current history. */

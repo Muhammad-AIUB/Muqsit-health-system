@@ -188,7 +188,13 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px" }}>
               {tab === "current" ? (
                 <>
-                  {current.filter((r) => r.isMedicine && r.drug.trim()).length === 0 && pastGroups.length > 0 && (
+                  {current.filter((r) => r.isMedicine && r.drug.trim()).length === 0 &&
+                    // Only show the hint when the most-recent past entry is from
+                    // within the last 3 days — i.e. a resumed stale draft whose
+                    // entries just moved to Distant Past. Normal returning patients
+                    // (last visit weeks ago) would see it on every new visit otherwise.
+                    pastGroups.length > 0 && pastGroups[0].date !== PAST_MARKER &&
+                    ts(pastGroups[0].date) > Date.now() - 3 * 86_400_000 && (
                     <div style={{ fontSize: 12, color: C.n[500], padding: "10px 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
                       <span>Previous visit&apos;s medications are in</span>
                       <button onClick={() => setTab("past")} style={{ color: C.pri[500], background: "none", border: "none", cursor: "pointer", fontSize: 12, fontFamily: font, padding: 0, textDecoration: "underline" }}>Distant Past →</button>
