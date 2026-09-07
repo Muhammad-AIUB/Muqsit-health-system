@@ -230,6 +230,17 @@ function mentions(haystack: string, term: string): boolean {
   return !negatedRe(term).test(haystack);
 }
 
+/** True when `entryDate` (dd/mm/yyyy) is within 90 days before `visitDate` (dd/mm/yyyy). */
+function recentEnough(entryDate: string, visitDate: string): boolean {
+  if (entryDate === visitDate) return true;
+  const toMs = (d: string): number => {
+    const [dd, mm, yyyy] = d.split("/").map(Number);
+    return isNaN(dd) ? 0 : new Date(yyyy, mm - 1, dd).getTime();
+  };
+  const diffDays = (toMs(visitDate) - toMs(entryDate)) / 86_400_000;
+  return diffDays > 0 && diffDays <= 90;
+}
+
 /** Everything the patient is on: this prescription first, then current history. */
 function drugPool(input: Normalised): DrugSource[] {
   // The index is captured BEFORE the empty rows are filtered out, so it still
@@ -243,7 +254,11 @@ function drugPool(input: Normalised): DrugSource[] {
   const hx = input.history;
   if (hx) {
     for (const m of drugMentions(hx.entries, hx.visitDate)) {
-      if (m.date !== hx.visitDate) continue; // distant past — see RxAlertInput
+      // Include entries from the current visit date OR from within the past 90 days.
+      // The 90-day window catches medications from a resumed stale draft (where the
+      // draft's entries are stamped with an earlier date than today's visitDate)
+      // while still excluding truly distant-past history the patient is no longer on.
+      if (!recentEnough(m.date, hx.visitDate)) continue;
       if (!m.name.trim()) continue;
       pool.push({ text: m.name.trim(), field: "Drug history", fromRx: false });
     }

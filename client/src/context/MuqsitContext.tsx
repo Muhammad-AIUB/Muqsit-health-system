@@ -77,6 +77,14 @@ const initialOeData: OeData = {
   diseaseHistory: "", surgicalHistory: "",
 };
 
+// Returns today's date as YYYY-MM-DD (ISO) in the device's local timezone.
+// Using an explicit template keeps the format stable on stripped-ICU runtimes
+// where toLocaleDateString("en-CA") may not return YYYY-MM-DD.
+function todayISO(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
 // ── The store hook (single source of truth) ─────────────────
 function useMuqsitStore() {
   const queryClient = useQueryClient();
@@ -117,7 +125,7 @@ function useMuqsitStore() {
   const [ptGender, setPtGender] = useState("");
   const [ptAddress, setPtAddress] = useState("");
   const [ptWeight, setPtWeight] = useState("");
-  const [ptDate, setPtDate] = useState(() => new Date().toLocaleDateString("en-CA"));
+  const [ptDate, setPtDate] = useState(todayISO);
   const [ptPhone, setPtPhone] = useState("");
   const [ptHospitalId, setPtHospitalId] = useState("");
 
@@ -527,7 +535,7 @@ function useMuqsitStore() {
   // ptInfo) is set by the caller right after.
   const resetEditor = useCallback(() => {
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
-    setPtDate(new Date().toLocaleDateString("en-CA")); setPtPhone(""); setPtHospitalId("");
+    setPtDate(todayISO()); setPtPhone(""); setPtHospitalId("");
     setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]);
     setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
@@ -543,7 +551,13 @@ function useMuqsitStore() {
     const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
     const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
-    str("ptAddress", setPtAddress); str("ptWeight", setPtWeight); str("ptDate", setPtDate);
+    str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
+    // Restore visit date but advance to today if the draft is from a previous
+    // calendar day — fixes BOTH the loadPatient path and the page-reload path.
+    if (typeof d.ptDate === "string") {
+      const today = todayISO();
+      setPtDate(d.ptDate < today ? today : d.ptDate);
+    }
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);
@@ -612,14 +626,7 @@ function useMuqsitStore() {
     supervisedRef.current = supervised; // gate the auto-save's incompleteRx/OPD writes
     const inc = p.incompleteRx;
     if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
-      applyEditorSnapshot(inc as Record<string, unknown>);
-      // If the draft's visit date is from a previous calendar day, advance it to
-      // today so the drug-history Current/Past split boundary is correct. Entries
-      // stored with the old date move to "Distant past" automatically; medicines
-      // the doctor records now get today's stamp.
-      const today = new Date().toLocaleDateString("en-CA");
-      const draftDate = (inc as Record<string, unknown>).ptDate;
-      if (typeof draftDate === "string" && draftDate < today) setPtDate(today);
+      applyEditorSnapshot(inc as Record<string, unknown>); // advances ptDate if draft is stale
       rxFlaggedRef.current = p.id; // already saved as incomplete
     } else {
       rxFlaggedRef.current = null;

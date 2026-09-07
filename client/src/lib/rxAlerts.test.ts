@@ -226,6 +226,19 @@ describe("sofosbuvir/velpatasvir co-prescribing", () => {
     ]);
   });
 
+  it("fires when the PPI is from a stale draft (within 90 days of visitDate)", () => {
+    // Doctor drafts Omeprazole into drug history 06/09/2026, ptDate advances to
+    // 07/09/2026 on resume — the entry is dated yesterday, still within the 90-day
+    // window → the sofosbuvir contraindication must fire.
+    expect(
+      messages({
+        rxDrugs: [{ text: "Sofosbuvir + Velpatasvir" }],
+        sidebar: [],
+        drugHistory: { entries: ["06/09/2026: Omeprazole — 1+0+1 — before food — continue"], visitDate: "07/09/2026" },
+      }),
+    ).toEqual(["Sofosbuvir/Velpatasvir dose must have atleast 4 hours gap before taking Proton Pump Inhibitor"]);
+  });
+
   it("ignores a drug stopped at an earlier visit", () => {
     expect(
       messages({

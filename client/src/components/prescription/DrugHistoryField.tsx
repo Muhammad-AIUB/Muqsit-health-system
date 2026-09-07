@@ -187,28 +187,43 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
 
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px" }}>
               {tab === "current" ? (
-                <MedicinePad rows={current} setRows={setCurrent} />
+                <>
+                  {current.filter((r) => r.isMedicine && r.drug.trim()).length === 0 && pastGroups.length > 0 && (
+                    <div style={{ fontSize: 12, color: C.n[500], padding: "10px 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>Previous visit&apos;s medications are in</span>
+                      <button onClick={() => setTab("past")} style={{ color: C.pri[500], background: "none", border: "none", cursor: "pointer", fontSize: 12, fontFamily: font, padding: 0, textDecoration: "underline" }}>Distant Past →</button>
+                    </div>
+                  )}
+                  <MedicinePad rows={current} setRows={setCurrent} />
+                </>
               ) : pastGroups.length === 0 ? (
                 <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever you record today moves here on the patient&apos;s next visit.</div>
               ) : (
                 <div style={{ paddingTop: 8 }}>
-                  {pastGroups.flatMap((g) => g.list).map((p, i, all) => {
-                    const parts = p.body.split(" — ").map((x) => x.trim());
-                    const isMed = p.kind === "med";
-                    return (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < all.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
-                        <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.n[800] }}>
-                          {p.kind === "cont" ? <span style={{ color: C.n[400] }}>↳ </span> : null}
-                          {p.kind === "note" ? <i style={{ color: C.n[600] }}>{p.body}</i> : (
-                            <><b style={{ fontWeight: 600 }}>{parts[0]}</b>{parts.slice(1).filter(Boolean).length ? <span style={{ color: C.n[500] }}> · {parts.slice(1).filter(Boolean).join(" · ")}</span> : null}</>
-                          )}
-                        </div>
-                        {isMed && parts[0] && (
-                          <button onClick={() => rePrescribe(p)} title="Add to current prescription" style={{ flexShrink: 0, padding: "3px 9px", borderRadius: 6, border: `0.5px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: font }}>↻ Rx</button>
-                        )}
+                  {pastGroups.map((g) => (
+                    <div key={g.date} style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.n[400], letterSpacing: "0.03em", textTransform: "uppercase", paddingBottom: 4, borderBottom: `0.5px solid ${C.n[100]}` }}>
+                        {g.date === PAST_MARKER ? "Earlier (no date)" : g.date}
                       </div>
-                    );
-                  })}
+                      {g.list.map((p, i) => {
+                        const parts = p.body.split(" — ").map((x) => x.trim());
+                        const isMed = p.kind === "med";
+                        return (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < g.list.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
+                            <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.n[800] }}>
+                              {p.kind === "cont" ? <span style={{ color: C.n[400] }}>↳ </span> : null}
+                              {p.kind === "note" ? <i style={{ color: C.n[600] }}>{p.body}</i> : (
+                                <><b style={{ fontWeight: 600 }}>{parts[0]}</b>{parts.slice(1).filter(Boolean).length ? <span style={{ color: C.n[500] }}> · {parts.slice(1).filter(Boolean).join(" · ")}</span> : null}</>
+                              )}
+                            </div>
+                            {isMed && parts[0] && (
+                              <button onClick={() => rePrescribe(p)} title="Add to current prescription" style={{ flexShrink: 0, padding: "3px 9px", borderRadius: 6, border: `0.5px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 10.5, fontWeight: 600, cursor: "pointer", fontFamily: font }}>↻ Rx</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
