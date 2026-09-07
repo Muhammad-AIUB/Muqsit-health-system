@@ -45,7 +45,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     setRxItems((prev) => (JSON.stringify(prev) === sig ? prev : items));
   }, [rows, setRxItems]);
 
-  // External changes (templates, prescribe-clear, "Add to main Rx") → pad.
+  // External changes (templates, prescribe-clear, drug history's "↻ Rx") → pad.
   useEffect(() => {
     const sig = JSON.stringify(rxItems);
     if (sig !== lastSync.current) {

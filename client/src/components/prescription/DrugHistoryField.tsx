@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import MedicinePad, { emptyRow, type Row } from "@/components/prescription/MedicinePad";
 
 // ── Date-stamped drug history ───────────────────────────────
 // One list, each entry stamped with the visit date it was added on:
@@ -14,6 +13,15 @@ import MedicinePad, { emptyRow, type Row } from "@/components/prescription/Medic
 // The Current vs Distant-past split is DERIVED, not stored: entries dated on the
 // current visit are "Current medications"; everything older auto-moves to
 // "Distant past medication" once the visit date advances.
+//
+// ⚕️ BOTH tabs are READ-ONLY (physician's decision, 2026-09-07). Current
+// medications is a VIEW of what is on today's ℞: the pad writes it through the
+// mirror in `MuqsitContext` (lib/rxDrugHistory.ts), and the pad is where it is
+// corrected. So this modal has no medicine pad, no checkboxes and no "Add to
+// main Rx" button — every medicine it lists is already on the prescription.
+// Do not re-add an editor here without asking: two writable surfaces over one
+// list is how a typed correction silently loses to the mirror, and that
+// confusion is what this replaced.
 const DATE_RE = /^(\d{2}\/\d{2}\/\d{4})(\(note\)|\(cont\))?:\s*(.*)$/;
 const OLD_RE = /^(Current|Past)(\(note\)|\(cont\))?:\s*(.*)$/; // legacy entries
 const PAST_MARKER = "01/01/2000";
@@ -31,112 +39,59 @@ function parseEntry(s: string, currentDate: string): Parsed {
   return { date: currentDate, kind: "med", body: s };
 }
 
-function toRow(p: Parsed): Row {
-  if (p.kind === "note") return { drug: p.body, dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false };
-  const parts = p.body.split(" — ").map((x) => x.trim());
-  if (p.kind === "cont") {
-    const [dose = "", food = "", duration = ""] = parts.length >= 3 ? parts : [parts[0] ?? "", "", parts[1] ?? ""];
-    return { drug: "", dose, food, duration, checked: true, isMedicine: true, continuation: true };
-  }
-  const [drug = "", dose = "", food = "", duration = ""] = parts.length >= 4 ? parts : [parts[0] ?? "", parts[1] ?? "", "", parts[2] ?? ""];
-  return { drug, dose, food, duration, checked: true, isMedicine: true, continuation: false };
-}
-
-function serialize(date: string, r: Row): string {
-  if (!r.isMedicine) return `${date}(note): ${r.drug.trim()}`;
-  if (r.continuation) return `${date}(cont): ${r.dose.trim()} — ${r.food.trim()} — ${r.duration.trim()}`;
-  return `${date}: ${r.drug.trim()} — ${r.dose.trim()} — ${r.food.trim()} — ${r.duration.trim()}`;
-}
-
 const ts = (d: string): number => { const [dd, mm, yy] = d.split("/").map(Number); return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0; };
-const filledRow = (r: Row) => r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim();
+
+/** "Drug — dose — food — duration" → the cells, blanks kept as blanks. */
+const cells = (body: string): string[] => body.split(" — ").map((x) => x.trim());
+
+const ROW_COLS = "26px minmax(0,1.7fr) 0.75fr 0.75fr 0.75fr";
 
 interface Props {
   items: string[];
-  setItems: Dispatch<SetStateAction<string[]>>; // unused — persisted via saveDrugHistory
-  onAdd?: (drug: string) => void;
 }
 
-export default function DrugHistoryField({ items, onAdd }: Props) {
-  const { setRxItems, ptDate, saveDrugHistory } = useMuqsit();
+export default function DrugHistoryField({ items }: Props) {
+  const { setRxItems, ptDate } = useMuqsit();
   const cd = isoToDdmmyyyy(ptDate); // current visit date, dd/mm/yyyy
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"current" | "past">("current");
-  const [current, setCurrent] = useState<Row[]>([emptyRow()]);
   const [rxMsg, setRxMsg] = useState("");
 
   const parsed = items.map((raw) => ({ raw, ...parseEntry(raw, cd) }));
-  const currentMeds = parsed.filter((p) => p.date === cd && p.kind === "med" && p.body.trim());
+  const todays = parsed.filter((p) => p.date === cd && p.body.trim());
+  const currentMeds = todays.filter((p) => p.kind === "med");
   const pastParsed = parsed.filter((p) => p.date !== cd);
   const pastGroups = (() => {
     const map = new Map<string, Parsed[]>();
     for (const p of pastParsed) { const a = map.get(p.date); if (a) a.push(p); else map.set(p.date, [p]); }
     return Array.from(map.entries()).map(([date, list]) => ({ date, list })).sort((a, b) => ts(b.date) - ts(a.date));
   })();
+  // Medicines are numbered as they are on the ℞; a tapering line belongs to the
+  // medicine above it and takes no number of its own.
+  const todaysNumbers = (() => { let n = 0; return todays.map((p) => (p.kind === "med" ? ++n : 0)); })();
+  const pastCount = pastParsed.filter((p) => p.kind === "med").length;
 
-  const handleOpen = () => {
-    const rows = parsed.filter((p) => p.date === cd).map(toRow);
-    setCurrent([...rows, emptyRow()]);
-    setTab("current");
-    setOpen(true);
-  };
+  const handleOpen = () => { setTab("current"); setOpen(true); };
+  const close = () => setOpen(false);
 
-  const cancel = () => setOpen(false);
-  const done = () => {
-    const newCurrent = current.filter(filledRow).map((r) => serialize(cd, r));
-    // Keep every entry not on the current visit date untouched — that preserves
-    // each older visit's date so they stay in "Distant past".
-    const keep = items.filter((i) => parseEntry(i, cd).date !== cd);
-    const next = [...keep, ...newCurrent];
-    const prevSet = new Set(items);
-    newCurrent.forEach((entry) => {
-      if (prevSet.has(entry) || /\(note\)|\(cont\)/.test(entry)) return;
-      const drug = (entry.match(DATE_RE)?.[3] ?? "").split(" — ")[0].trim();
-      if (drug) onAdd?.(drug);
-    });
-    saveDrugHistory(next);
-    setOpen(false);
-  };
-
-  // Collect ticked medicines (+ their tapering lines) from a row list for the Rx.
-  const collect = (list: Row[]) => {
-    const out: { drug: string; dose: string; duration: string; instruction: string }[] = [];
-    for (let i = 0; i < list.length; i++) {
-      const r = list[i];
-      if (r.isMedicine && !r.continuation && r.checked && r.drug.trim()) {
-        out.push({ drug: r.drug.trim(), dose: r.dose.trim() || "1+0+1", duration: r.duration.trim() || "Continue", instruction: r.food.trim() || "After meal" });
-        for (let j = i + 1; j < list.length && list[j].continuation; j++) {
-          const c = list[j];
-          if (c.dose.trim() || c.duration.trim()) out.push({ drug: "", dose: c.dose.trim() || "", duration: c.duration.trim() || "Continue", instruction: c.food.trim() || "After meal" });
-        }
-      }
-    }
-    return out;
-  };
-  const pushToRx = (picked: { drug: string; dose: string; duration: string; instruction: string }[]) => {
-    if (picked.length === 0) { setRxMsg("Tick the medicines you want to add"); setTimeout(() => setRxMsg(""), 2500); return; }
-    let added = 0;
-    setRxItems((prev) => {
-      const key = (x: { drug: string; dose: string; duration: string }) => `${x.drug}|${x.dose}|${x.duration}`;
-      const seen = new Set(prev.map(key));
-      const additions = picked.filter((x) => x.drug === "" || !seen.has(key(x)));
-      added = additions.length;
-      return [...prev, ...additions];
-    });
-    setRxMsg(added > 0 ? `Added ${added} to prescription ✓` : "Already in prescription");
-    setTimeout(() => setRxMsg(""), 2500);
-  };
-  const addToRx = () => pushToRx(collect(current));
-
-  // Re-prescribe a single distant-past medicine into the main Rx.
+  // Re-prescribe one distant-past medicine into the main ℞. The dose / food /
+  // duration fallbacks are the pad's own defaults and apply ONLY here, behind an
+  // explicit click — nothing about a stored entry is ever completed on its own.
   const rePrescribe = (p: Parsed) => {
-    const parts = p.body.split(" — ").map((x) => x.trim());
+    const parts = cells(p.body);
     const drug = parts[0] || "";
     if (!drug) return;
-    pushToRx([{ drug, dose: parts[1] || "1+0+1", instruction: parts[2] || "After meal", duration: parts[3] || "Continue" }]);
+    const picked = { drug, dose: parts[1] || "1+0+1", instruction: parts[2] || "After meal", duration: parts[3] || "Continue" };
+    let added = false;
+    setRxItems((prev) => {
+      const key = (x: { drug: string; dose: string; duration: string }) => `${x.drug}|${x.dose}|${x.duration}`;
+      if (prev.some((x) => key(x) === key(picked))) return prev;
+      added = true;
+      return [...prev, picked];
+    });
+    setRxMsg(added ? "Added to prescription ✓" : "Already in prescription");
+    setTimeout(() => setRxMsg(""), 2500);
   };
-
-  const pastCount = pastParsed.filter((p) => p.kind === "med").length;
 
   return (
     <div style={{ marginBottom: 2 }}>
@@ -144,40 +99,40 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6, minHeight: 28 }}>
         <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], paddingTop: 4, cursor: "pointer" }} onClick={handleOpen}>Drug history</span>
         {items.length === 0 ? (
-          <button onClick={handleOpen} style={{ width: 22, height: 22, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 }}
+          <button onClick={handleOpen} title="View drug history"
+            style={{ height: 22, borderRadius: 999, border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 11, padding: "0 10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0, fontFamily: font }}
             onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>view</button>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 2, flexWrap: "wrap" }}>
-            <button onClick={handleOpen} title="View / edit drug history"
+            <button onClick={handleOpen} title="View drug history"
               style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[400]}`, padding: "2px 10px", borderRadius: 999, cursor: "pointer", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 5 }}
               onMouseEnter={(e) => (e.currentTarget.style.background = C.pri[100] ?? C.pri[50])}
               onMouseLeave={(e) => (e.currentTarget.style.background = C.pri[50])}>
               💊 {currentMeds.length} current{pastCount ? ` · ${pastCount} past` : ""} · view
             </button>
-            <button onClick={handleOpen} style={{ width: 18, height: 18, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>+</button>
           </div>
         )}
       </div>
 
       {/* Modal */}
       {open && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={cancel}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={close}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "95vw", height: "82vh", maxHeight: "82vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>Drug history</div>
-                <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Today&apos;s meds go to <b>Current</b> ({cd}); they move to <b>Distant past</b> automatically on the next visit.</div>
+                <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Today&apos;s ℞ medicines show under <b>Current</b> ({cd}); they move to <b>Distant past</b> automatically on the next visit. Change them on the prescription.</div>
               </div>
-              <button onClick={cancel} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+              <button onClick={close} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
             </div>
 
             {/* Tabs */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, rowGap: 8, padding: "12px 20px 4px" }}>
               <button onClick={() => setTab("current")}
                 style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${tab === "current" ? C.pri[400] : C.n[200]}`, background: tab === "current" ? C.pri[50] : C.n[0], color: tab === "current" ? C.pri[600] : C.n[600], fontSize: 12.5, fontWeight: tab === "current" ? 600 : 400, cursor: "pointer", fontFamily: font }}>
-                Current medications{current.filter((r) => r.isMedicine && !r.continuation && r.drug.trim()).length ? ` (${current.filter((r) => r.isMedicine && !r.continuation && r.drug.trim()).length})` : ""}
+                Current medications{currentMeds.length ? ` (${currentMeds.length})` : ""}
               </button>
               <button onClick={() => setTab("past")}
                 style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${tab === "past" ? C.pri[400] : C.n[200]}`, background: tab === "past" ? C.pri[50] : C.n[0], color: tab === "past" ? C.pri[600] : C.n[600], fontSize: 12.5, fontWeight: tab === "past" ? 600 : 400, cursor: "pointer", fontFamily: font }}>
@@ -187,23 +142,55 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
 
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px" }}>
               {tab === "current" ? (
-                <>
-                  {current.filter((r) => r.isMedicine && r.drug.trim()).length === 0 &&
-                    // Only show the hint when the most-recent past entry is from
-                    // within the last 3 days — i.e. a resumed stale draft whose
-                    // entries just moved to Distant Past. Normal returning patients
-                    // (last visit weeks ago) would see it on every new visit otherwise.
-                    pastGroups.length > 0 && pastGroups[0].date !== PAST_MARKER &&
-                    ts(pastGroups[0].date) > Date.now() - 3 * 86_400_000 && (
-                    <div style={{ fontSize: 12, color: C.n[500], padding: "10px 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>Previous visit&apos;s medications are in</span>
-                      <button onClick={() => setTab("past")} style={{ color: C.pri[500], background: "none", border: "none", cursor: "pointer", fontSize: 12, fontFamily: font, padding: 0, textDecoration: "underline" }}>Distant Past →</button>
+                todays.length === 0 ? (
+                  <>
+                    <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px 6px" }}>
+                      Nothing on today&apos;s prescription yet. Every medicine written on the ℞ appears here.
                     </div>
-                  )}
-                  <MedicinePad rows={current} setRows={setCurrent} />
-                </>
+                    {/* Only when the most-recent past entry is from within the last
+                        3 days — i.e. a resumed stale draft whose entries have just
+                        moved to Distant past. A normal returning patient (last visit
+                        weeks ago) would otherwise see it on every new visit. */}
+                    {pastGroups.length > 0 && pastGroups[0].date !== PAST_MARKER &&
+                      ts(pastGroups[0].date) > Date.now() - 3 * 86_400_000 && (
+                      <div style={{ fontSize: 12, color: C.n[500], padding: "0 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>Previous visit&apos;s medications are in</span>
+                        <button onClick={() => setTab("past")} style={{ color: C.pri[500], background: "none", border: "none", cursor: "pointer", fontSize: 12, fontFamily: font, padding: 0, textDecoration: "underline" }}>Distant Past →</button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ paddingTop: 8 }}>
+                    {todays.map((p, i) => {
+                      const parts = cells(p.body);
+                      const last = i === todays.length - 1;
+                      const row = { display: "grid", gridTemplateColumns: ROW_COLS, gap: 8, alignItems: "baseline", padding: "8px 0", borderBottom: last ? "none" : `0.5px solid ${C.n[100]}`, fontSize: 12.5 };
+                      if (p.kind === "note") return (
+                        <div key={i} style={row}>
+                          <span />
+                          <i style={{ gridColumn: "2 / -1", color: C.n[600] }}>{p.body}</i>
+                        </div>
+                      );
+                      const isCont = p.kind === "cont";
+                      // A tapering line repeats the medicine above it with another
+                      // dose, so its three values sit in the same three columns.
+                      const [dose, food, duration] = isCont
+                        ? [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""]
+                        : [parts[1] ?? "", parts[2] ?? "", parts[3] ?? ""];
+                      return (
+                        <div key={i} style={row}>
+                          <span style={{ color: C.n[400], fontSize: 11.5 }}>{isCont ? "↳" : `${todaysNumbers[i]}.`}</span>
+                          <span style={{ color: C.n[900], fontWeight: isCont ? 400 : 500, overflowWrap: "anywhere" }}>{isCont ? "" : parts[0]}</span>
+                          <span style={{ color: C.n[700] }}>{dose}</span>
+                          <span style={{ color: C.n[700] }}>{food}</span>
+                          <span style={{ color: C.n[700] }}>{duration}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
               ) : pastGroups.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever you record today moves here on the patient&apos;s next visit.</div>
+                <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever is prescribed today moves here on the patient&apos;s next visit.</div>
               ) : (
                 <div style={{ paddingTop: 8 }}>
                   {pastGroups.map((g) => (
@@ -212,7 +199,7 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
                         {g.date === PAST_MARKER ? "Earlier (no date)" : g.date}
                       </div>
                       {g.list.map((p, i) => {
-                        const parts = p.body.split(" — ").map((x) => x.trim());
+                        const parts = cells(p.body);
                         const isMed = p.kind === "med";
                         return (
                           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < g.list.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
@@ -234,20 +221,11 @@ export default function DrugHistoryField({ items, onAdd }: Props) {
               )}
             </div>
 
-            {/* Footer */}
+            {/* Footer — nothing to save. The ℞ pad owns Current medications and
+                Distant past is a record; the only action here is re-prescribing. */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {tab === "current" && (
-                  <button onClick={addToRx} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: font, whiteSpace: "nowrap" }}>
-                    ℞ Add to main Rx
-                  </button>
-                )}
-                {rxMsg && <span style={{ fontSize: 11, color: C.pri[600] }}>{rxMsg}</span>}
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={cancel} style={{ padding: "8px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Cancel</button>
-                <button onClick={done} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Done</button>
-              </div>
+              <span style={{ fontSize: 11, color: C.pri[600] }}>{rxMsg}</span>
+              <button onClick={close} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Close</button>
             </div>
           </div>
         </div>

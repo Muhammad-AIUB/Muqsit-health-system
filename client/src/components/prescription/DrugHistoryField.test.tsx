@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
 //
-// ⚕️ The seam the reported bug fell through: what `lib/rxDrugHistory.ts` writes
-// has to be what `DrugHistoryField` reads back as a CURRENT medication. Two
+// ⚕️ Two things this file holds down.
+//
+// The seam the reported bug fell through: what `lib/rxDrugHistory.ts` writes has
+// to be what `DrugHistoryField` reads back as a CURRENT medication. Two
 // independent parsers of one stored format is exactly how a doctor ends up
 // looking at "0 current" with two medicines on the sheet in front of them.
+//
+// And the surface itself: both tabs are a READ-ONLY view (physician's decision,
+// 2026-09-07). The ℞ pad owns Current medications and is where it is corrected,
+// so this modal must offer no input, no checkbox and no "Add to main Rx". A
+// second writable surface over one list is how a typed correction silently loses
+// to the mirror.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -11,12 +19,12 @@ import DrugHistoryField from "./DrugHistoryField";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import type { RxItem } from "@/types";
 
-const saveDrugHistory = vi.fn();
+const setRxItems = vi.fn();
 vi.mock("@/context/MuqsitContext", () => ({
-  useMuqsit: () => ({ setRxItems: vi.fn(), ptDate: "2026-09-07", saveDrugHistory }),
+  useMuqsit: () => ({ setRxItems, ptDate: "2026-09-07" }),
 }));
 
-afterEach(() => { cleanup(); saveDrugHistory.mockClear(); });
+afterEach(() => { cleanup(); setRxItems.mockClear(); });
 
 // The patient in the report: three medications from earlier visits, and today's
 // two on the ℞ pad. The visit is 07/09/2026.
@@ -34,36 +42,39 @@ const mirrored = () => rxDrugHistoryEntries(TODAYS_RX, "07/09/2026");
 const badge = () => screen.getAllByRole("button").find((b) => /current/.test(b.textContent ?? ""))!;
 const badgeText = () => (badge().textContent ?? "").replace(/\s+/g, " ").trim();
 const openModal = () => fireEvent.click(badge());
-const inputValues = () => screen.getAllByRole("textbox").map((el) => (el as HTMLInputElement).value);
 
 describe("Drug history — today's ℞ reaches Current medications", () => {
   it("counted 0 current before the mirror existed (the reported bug)", () => {
-    render(<DrugHistoryField items={PAST} setItems={vi.fn()} />);
+    render(<DrugHistoryField items={PAST} />);
     expect(badgeText()).toBe("💊 0 current · 3 past · view");
   });
 
   it("counts today's prescribed medicines as current", () => {
-    render(<DrugHistoryField items={[...PAST, ...mirrored()]} setItems={vi.fn()} />);
+    render(<DrugHistoryField items={[...PAST, ...mirrored()]} />);
     expect(badgeText()).toBe("💊 2 current · 3 past · view");
   });
 
-  it("lists them by name in the Current medications tab", () => {
-    render(<DrugHistoryField items={[...PAST, ...mirrored()]} setItems={vi.fn()} />);
+  it("shows each medicine with the dose, food and duration the doctor wrote", () => {
+    const { container } = render(<DrugHistoryField items={[...PAST, ...mirrored()]} />);
     openModal();
-    expect(inputValues()).toContain("Tablet. Napa 500 mg");
-    expect(inputValues()).toContain("Tablet. Napa One 1000 mg");
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Tablet. Napa 500 mg");
+    expect(text).toContain("1+1+1");
+    expect(text).toContain("5 days");
+    expect(text).toContain("Tablet. Napa One 1000 mg");
   });
 
-  it("carries the dose across, and invents nothing for the line that has none", () => {
-    render(<DrugHistoryField items={mirrored()} setItems={vi.fn()} />);
+  it("invents nothing for the line that has no dose yet", () => {
+    const { container } = render(<DrugHistoryField items={mirrored()} />);
     openModal();
-    const v = inputValues();
-    expect(v).toContain("1+1+1");
-    expect(v.filter((x) => x === "1+0+1")).toHaveLength(0); // MedicinePad's default, never applied here
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("1+0+1");     // the pad's default dose
+    expect(text).not.toContain("After meal");
+    expect(text).not.toContain("Continue");
   });
 
   it("leaves the earlier visits in Distant past, unmoved", () => {
-    render(<DrugHistoryField items={[...PAST, ...mirrored()]} setItems={vi.fn()} />);
+    render(<DrugHistoryField items={[...PAST, ...mirrored()]} />);
     openModal();
     fireEvent.click(screen.getByText(/Distant past medication/));
     expect(screen.getByText("Metformin 500mg")).toBeTruthy();
@@ -71,28 +82,63 @@ describe("Drug history — today's ℞ reaches Current medications", () => {
   });
 
   // A taper belongs under its medicine, not beside it as a second drug.
-  it("does not count a tapering line as another current medicine", () => {
+  it("shows a tapering line under its medicine and does not count it", () => {
     const taper: RxItem[] = [
       { drug: "Tablet (Delayed Release). Mesacol 400 mg", dose: "2+2+2", duration: "7 week", instruction: "food" },
       { drug: "", dose: "2+0+2", duration: "4 week", instruction: "food", isCont: true },
     ];
-    render(<DrugHistoryField items={rxDrugHistoryEntries(taper, "07/09/2026")} setItems={vi.fn()} />);
+    const { container } = render(<DrugHistoryField items={rxDrugHistoryEntries(taper, "07/09/2026")} />);
     expect(badgeText()).toBe("💊 1 current · view");
-  });
-
-  it("round-trips — pressing Done re-saves exactly the same entries", () => {
-    const items = [...PAST, ...mirrored()];
-    render(<DrugHistoryField items={items} setItems={vi.fn()} />);
     openModal();
-    fireEvent.click(screen.getByText("Done"));
-    expect(saveDrugHistory).toHaveBeenCalledTimes(1);
-    expect([...(saveDrugHistory.mock.calls[0][0] as string[])].sort()).toEqual([...items].sort());
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("↳");
+    expect(text).toContain("2+0+2");
   });
 
-  // Both modules must read the visit date the same way, or the split moves.
   it("stamps entries with the dd/mm/yyyy the field itself splits on", () => {
-    const { container } = render(<DrugHistoryField items={mirrored()} setItems={vi.fn()} />);
+    const { container } = render(<DrugHistoryField items={mirrored()} />);
     openModal();
     expect(container.textContent).toContain("07/09/2026");
+  });
+});
+
+describe("Drug history is a view, not an editor", () => {
+  const openWith = (items: string[]) => {
+    const r = render(<DrugHistoryField items={items} />);
+    openModal();
+    return r;
+  };
+
+  it("offers nothing to type into, on either tab", () => {
+    const { container } = openWith([...PAST, ...mirrored()]);
+    expect(container.querySelectorAll("input, textarea")).toHaveLength(0);
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    expect(container.querySelectorAll("input, textarea")).toHaveLength(0);
+  });
+
+  it("has no 'Add to main Rx' button and no Select all", () => {
+    const { container } = openWith([...PAST, ...mirrored()]);
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Add to main Rx");
+    expect(text).not.toContain("Select all");
+  });
+
+  // Nothing is staged, so there is nothing to accept or abandon — one way out.
+  it("closes with a single button, not Cancel/Done", () => {
+    const { container } = openWith(mirrored());
+    expect(screen.getByText("Close")).toBeTruthy();
+    expect(screen.queryByText("Done")).toBeNull();
+    expect(screen.queryByText("Cancel")).toBeNull();
+    fireEvent.click(screen.getByText("Close"));
+    expect((container.textContent ?? "")).not.toContain("Distant past medication");
+  });
+
+  it("re-prescribing a distant-past medicine still reaches the ℞", () => {
+    openWith(PAST);
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    fireEvent.click(screen.getAllByTitle("Add to current prescription")[0]);
+    expect(setRxItems).toHaveBeenCalledTimes(1);
+    const next = setRxItems.mock.calls[0][0] as (prev: RxItem[]) => RxItem[];
+    expect(next([])).toEqual([{ drug: "Metformin 500mg", dose: "1+0+1", instruction: "after food", duration: "1 month" }]);
   });
 });

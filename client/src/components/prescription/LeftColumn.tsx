@@ -22,12 +22,13 @@ export default function LeftColumn() {
       {leftFields.map((f) => {
         if (f.label === "Drug history") {
           return (
+            // ⚕️ A read-only view since 2026-09-07 — it takes no setter and logs no
+            // additions, because there is no longer any way to add one here: the
+            // ℞ pad writes Current medications through the mirror. The Lock STAYS.
+            // An assistant without `rx.drugHistory` could not reach this list
+            // before and must not gain a patient's medications now.
             <Lock key={f.label} locked={!canEditLabel("Drug history")}>
-              <DrugHistoryField
-                items={f.items}
-                setItems={f.set}
-                onAdd={(drug) => logActivity("Drug history", drug)}
-              />
+              <DrugHistoryField items={f.items} />
             </Lock>
           );
         }
