@@ -58,7 +58,12 @@ export interface PrescriptionDoc {
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// ── Rx table: every cell on ONE line, one type size for the whole sheet ──────
+// ── Rx table: every cell on ONE line ────────────────────────────────────────
+// ⚠️ This block said "one type size for the whole sheet" until 2026-09-12. It
+// is no longer one size: the medicine NAME prints at `DRUG_PX` and everything
+// else in the table — the dose line under it, food, duration, a note row — at
+// the smaller `MID_PX`. The "14px" this comment refers to below is history;
+// read the constants.
 // A doctor reads "Tablet. Barcavir 0.5 mg" as a single phrase and a dispenser
 // reads the printed sheet the same way; broken across three lines it reads as
 // three separate things, which on a legal medical document is a misread risk,
@@ -101,12 +106,45 @@ const RIGHT_PAD_PX = 18;          // .right padding-left
 // medicine it belongs to.
 const RX_NO_PX = 32;
 export const CELL_PAD_PX = 8;     // td padding, both sides
-const DRUG_PX = 14;
-const MID_PX = 14;
-// How far the whole sheet may be scaled up to fill the page. 14 -> 22.4px is
-// already large print; past that a three-line prescription starts to read as a
-// poster rather than a medical document.
-export const MAX_SCALE = 1.6;
+// ⚕️ The ℞ table's two sizes. They were BOTH 14 until 2026-09-12, so a
+// medicine name and its dose printed identically and the table read as one flat
+// block. The physician's decision that day: the medicine name is the bigger of
+// the two, and the dose / food / duration under and beside it are smaller —
+// "medicine er name ektu boro thakbe, er nicher dose r ja likha thake segulo tar
+// theke choto thakbe".
+//
+// `MID_PX` covers every non-name cell: the dose line under the name, the food
+// column, the duration column and a free-typed note row. It is the SMALLEST
+// type on the sheet and a dispenser reads the dose off it, so treat it as a
+// floor to defend rather than a number to trim — the whole sheet can be brought
+// down with MAX_SCALE instead, which moves everything together.
+export const DRUG_PX = 13;
+export const MID_PX = 11;
+// The follow-up line and the signature. Kept level with the medicine name so
+// nothing on the ℞ side outranks it — at 14 they were the largest text on a
+// sheet whose medicines print at 13.
+const FOOT_PX = 13;
+// How far the whole sheet may be scaled up to fill the page.
+//
+// ⚕️ 1.25, down from 1.6 (physician's report, 2026-09-12: "when I print the
+// prescription all characters shows very big, it does not look good"). At 1.6
+// the ℞ printed at 22.4px, and a SPARSE prescription — four short clinical
+// lines and two medicines — hit the cap every time, because there was nothing
+// on the page to stop it: the fill script grows until the sheet is full or the
+// cap bites, and on a short sheet it is always the cap. The comment here used
+// to say 22.4px "is already large print; past that it reads as a poster". The
+// physician's answer is that it already did. 1.25 puts the ceiling at 17.5px,
+// still well above the 14px floor the fill was introduced to lift (2026-08-28,
+// when a six-medicine sheet at a flat 14px left two thirds of the page blank).
+//
+// This is the ONE number that sets how big a printed sheet can get. Lower it
+// again if the print still reads large; it can never print below the base
+// sizes, because the script starts at 1 and only grows.
+//
+// 1.25 → 1.15 later the same day, with the second "reduce the size from what
+// exists now". At 1.15 the ceiling is 14.95px for a medicine name and 12.65px
+// for a dose.
+export const MAX_SCALE = 1.15;
 // The smallest a single over-long row may be set to keep its one line. Below
 // this it wraps instead — a dispenser reading 9px type at arm's length is the
 // failure this whole table exists to avoid.
@@ -172,8 +210,19 @@ export function sheetContentPx(page?: PrescriptionDoc["page"]): number {
   return Math.round(Math.max(200, h * perUnit));
 }
 
+// The ↳ that marks a tapering row: 14px indent plus the glyph and the space
+// after it. That row has no medicine name, so its dose prints BESIDE the ↳
+// rather than under nothing — and the drug column has to be measured for it.
+const CONT_INDENT_PX = 24;
+
 export interface RxColumnLayout {
-  /** Column widths in px, in render order: drug, dose, [food], duration. */
+  /**
+   * Column widths in px, in render order: drug, [food], duration.
+   *
+   * ⚕️ There is no dose column. Since 2026-09-12 the dose prints on its own
+   * line UNDER the medicine name, inside the drug column (physician's
+   * decision) — so `cols[0]` is sized for whichever of name/dose is wider.
+   */
   cols: number[];
   /** False when no line carries a food/instruction value — that column is dropped. */
   hasFood: boolean;
@@ -281,7 +330,10 @@ export function layoutRxColumns(
 ): RxColumnLayout {
   const lines = rows.filter((r) => !r.isNote);
   const hasFood = lines.some((r) => r.instruction.trim());
-  const nCols = hasFood ? 4 : 3;
+  // Three columns at most now — the dose gave its column up to print under the
+  // medicine name (2026-09-12), which is also where the width it was holding
+  // went: straight to the drug names that used to wrap for want of it.
+  const nCols = hasFood ? 3 : 2;
   const avail = Math.max(60, innerPx - CELL_PAD_PX * nCols) * FIT_SAFETY;
 
   const width = (text: string, base: number, bold: boolean) => {
@@ -295,22 +347,35 @@ export function layoutRxColumns(
   // `td` carries `word-break: break-word`, so a narrower column does not spill
   // off the page — it splits a word in two, and "consti / pation" on a dose
   // line is not something a prescription should ever print.
+  const widestWordIn = (text: string, base: number, bold: boolean) =>
+    text.trim().split(/\s+/).reduce((m, w) => Math.max(m, width(w, base, bold)), 0);
   const widestWord = (pick: (r: RxLine) => string, base: number, bold: boolean) =>
-    lines.reduce(
-      (mx, r) => pick(r).trim().split(/\s+/).reduce((m, w) => Math.max(m, width(w, base, bold)), mx),
-      0,
-    );
+    lines.reduce((mx, r) => Math.max(mx, widestWordIn(pick(r), base, bold)), 0);
+
+  // ⚕️ What the DRUG column has to carry on one line.
+  //
+  // The name and the dose are two separate LINES in the same cell, so the
+  // column needs the WIDER of the two — never their sum. A tapering (`>>>`)
+  // row is the exception: it has no name, so its dose prints beside the ↳
+  // instead of under nothing, and that row needs the indent plus the dose.
+  const isContRow = (r: RxLine) => !r.drug.trim();
+  const drugLineNeed = (r: RxLine) =>
+    isContRow(r)
+      ? CONT_INDENT_PX + width(r.dose, MID_PX, false)
+      : Math.max(width(r.drug, DRUG_PX, true), width(r.dose, MID_PX, false));
+  const drugWordNeed = (r: RxLine) =>
+    isContRow(r)
+      ? CONT_INDENT_PX + widestWordIn(r.dose, MID_PX, false)
+      : Math.max(widestWordIn(r.drug, DRUG_PX, true), widestWordIn(r.dose, MID_PX, false));
 
   // What the widest line in each column actually needs, at the base size.
   const raw = [
-    widest((r) => r.drug, DRUG_PX, true),
-    widest((r) => r.dose, MID_PX, false),
+    lines.reduce((mx, r) => Math.max(mx, drugLineNeed(r)), 0),
     ...(hasFood ? [widest((r) => r.instruction, MID_PX, false)] : []),
     widest((r) => r.duration, MID_PX, false),
   ];
   const words = [
-    widestWord((r) => r.drug, DRUG_PX, true),
-    widestWord((r) => r.dose, MID_PX, false),
+    lines.reduce((mx, r) => Math.max(mx, drugWordNeed(r)), 0),
     ...(hasFood ? [widestWord((r) => r.instruction, MID_PX, false)] : []),
     widestWord((r) => r.duration, MID_PX, false),
   ];
@@ -338,10 +403,9 @@ export function layoutRxColumns(
   const rowWrap: boolean[] = [];
   for (const r of lines) {
     const need = [
-      width(r.drug, DRUG_PX, true) / inner[0],
-      width(r.dose, MID_PX, false) / inner[1],
-      ...(hasFood ? [width(r.instruction, MID_PX, false) / inner[2]] : []),
-      width(r.duration, MID_PX, false) / inner[hasFood ? 3 : 2],
+      drugLineNeed(r) / inner[0],
+      ...(hasFood ? [width(r.instruction, MID_PX, false) / inner[1]] : []),
+      width(r.duration, MID_PX, false) / inner[hasFood ? 2 : 1],
     ].filter((n) => Number.isFinite(n) && n > 0);
     const tightest = need.length ? Math.max(...need) : 0;
     if (tightest <= 1) {
@@ -413,7 +477,35 @@ const LEFT_SHARE = 0.7 / 2.4;     // .body grid is 0.7fr / 0.5px / 1.7fr
 const LEFT_PAD_PX = 16;           // .left padding-right
 const UL_PAD_PX = 16;             // ul padding-left — the bullet lives in it
 const PT_GAP_PX = 24;             // .pt column-gap, split between the two halves
-const BLOCK_TITLE_PX = 11;        // .block-title
+// The patient header's two halves. The right one (Date / Mobile / Address)
+// starts PAST the middle of the sheet — the physician's ask, 2026-09-12.
+//
+// ⚕️ They are SHARES of the page, never a px indent, so the offset is the same
+// on every page size Prescription settings allow: the date starts at the same
+// fraction of the paper on a 5.8in sheet as it does on A4. A fixed px nudge
+// would be a hair on A4 and a third of the column on a narrow page — which is
+// exactly what "keep it aligned for every paper size" rules out.
+//
+// Raise PT_LEFT_FR (and lower PT_RIGHT_FR by the same amount) to push the date
+// further right. Keeping the two summing to 1 is only a convention — the maths
+// below normalises by their total — but it keeps the numbers readable as
+// percentages of the sheet.
+const PT_LEFT_FR = 0.56;
+const PT_RIGHT_FR = 0.44;
+const PT_FR_TOTAL = PT_LEFT_FR + PT_RIGHT_FR;
+// ⚕️ The clinical blocks: the green heading and the lines under it
+// (physician's decision, 2026-09-12 — "the title should stay a bit bigger, but
+// smaller than it is now, and what is added under the title a bit smaller than
+// that"). The heading was 11px under 14px items, so the HEADING was the
+// smaller of the two and only its weight, colour and tracking made it read as
+// one. It is now the larger: 13px over 12px.
+//
+// Both are below the ℞ table's 14px on purpose — the medicines stay the most
+// prominent thing on the sheet, which is the one part a dispenser must not
+// misread. The 14px floor documented for this sheet is the ℞ table's; it has
+// never applied to the clinical prose.
+const BLOCK_TITLE_PX = 13;        // .block-title
+const PROSE_PX = 12;              // li — the lines under a block title
 // .block-title is uppercase with letter-spacing: .04em — measured on the
 // uppercased text, then widened by the tracking the canvas does not apply.
 const TITLE_TRACKING = 1.04;
@@ -479,7 +571,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   let rxNo = 0;
   const rxLines = d.rx.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim());
   const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page));
-  const noteSpan = lay.hasFood ? 4 : 3;
+  const noteSpan = lay.hasFood ? 3 : 2;
   // ⚕️ Column widths are a SHARE of the table, never a scaled px width.
   //
   // They used to be `calc(var(--k) * Npx)`, on the reasoning that a column can
@@ -520,13 +612,37 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       // stay on one line. Only such a row is allowed to wrap, and only once
       // shrinking it to ROW_MIN_PX was still not enough.
       const size = lay.rowPx[rxRowNo] ?? lay.drugPx;
+      // ⚕️ The dose, food and duration print SMALLER than the medicine name
+      // (2026-09-12). When a row had to be set smaller to hold its one line,
+      // BOTH shrink by the same factor — so the relationship is constant down
+      // the sheet, and the width guarantee still holds: `rowPx` was chosen from
+      // needs already measured at DRUG_PX and MID_PX respectively, so scaling
+      // both by the same ratio keeps every cell inside its own column.
+      // Rounded DOWN, like `rowPx` itself: a size rounded up is a size that
+      // does not fit, and every width guarantee on this table is an inequality
+      // that a fraction of a pixel can break.
+      const midSize = Math.floor(lay.midPx * (size / lay.drugPx) * 10) / 10;
       const nowrap = lay.rowWrap[rxRowNo] ? "" : "white-space:nowrap;";
-      const mid = ` style="font-size:${SCALE_PX(size)};${nowrap}"`;
+      const mid = ` style="font-size:${SCALE_PX(midSize)};${nowrap}"`;
+      // ⚕️ The dose prints on its own line UNDER the medicine name, in the same
+      // cell (physician's decision, 2026-09-12) — it is the instruction for the
+      // medicine directly above it, and a column of its own put it an inch away
+      // across white space. `white-space: nowrap` stays on the CELL and is
+      // inherited by both block lines, so neither wraps.
+      //
+      // A tapering (`>>>`) row has no name to sit under, so its dose goes
+      // BESIDE the ↳ — `drugLineNeed` measures that row the same way.
+      const dose = r.dose.trim();
+      // The dose sits INSIDE the drug cell, so it has to carry the smaller size
+      // itself — the cell's own font-size is the medicine name's.
+      const doseStyle = ` style="font-size:${SCALE_PX(midSize)}"`;
+      const body = isCont
+        ? `<span class="rx-cont">↳</span>${dose ? `<span class="rx-dose-inline"${doseStyle}>${esc(r.dose)}</span>` : ""}`
+        : `<span class="rx-name">${drugCell(r.drug)}</span>${dose ? `<span class="rx-dose"${doseStyle}>${esc(r.dose)}</span>` : ""}`;
       return `
         <tr>
           <td class="rx-no">${isCont ? "" : rxNo + "."}</td>
-          <td class="rx-drug" style="font-size:${SCALE_PX(size)};${nowrap}">${isCont ? '<span style="color:#999;padding-left:14px">↳</span>' : drugCell(r.drug)}</td>
-          <td class="rx-mid"${mid}>${esc(r.dose)}</td>
+          <td class="rx-drug" style="font-size:${SCALE_PX(size)};${nowrap}">${body}</td>
           ${lay.hasFood ? `<td class="rx-mid"${mid}>${esc(r.instruction)}</td>` : ""}
           <td class="rx-mid"${mid}>${esc(r.duration)}</td>
         </tr>`;
@@ -554,7 +670,13 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   const content = contentWidthPx(d.page);
   const leftAvail = content * LEFT_SHARE - LEFT_PAD_PX - UL_PAD_PX;
   const rightAvail = content * RX_COL_SHARE - RIGHT_PAD_PX - UL_PAD_PX;
-  const headAvail = content / 2 - PT_GAP_PX / 2;
+  // The header's halves are measured SEPARATELY, because they are no longer
+  // equal. The right one is the narrower of the two and carries the Address —
+  // the longest value on that side — so a single averaged bound would let the
+  // fill factor grow the type until an address word was broken.
+  const ptTrack = content - PT_GAP_PX;
+  const headLeftAvail = (ptTrack * PT_LEFT_FR) / PT_FR_TOTAL;
+  const headRightAvail = (ptTrack * PT_RIGHT_FR) / PT_FR_TOTAL;
   const rightItems = [...(privacyCopy ? [] : d.advice), ...d.adviceTest];
   const rightTitles = [
     ...(privacyCopy || !d.advice.length ? [] : ["Advice"]),
@@ -562,40 +684,56 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   ];
   const proseScale = wordHeadroom(
     [
-      { texts: clinicalText.flatMap((c) => c.items), px: 14, avail: leftAvail },
+      { texts: clinicalText.flatMap((c) => c.items), px: PROSE_PX, avail: leftAvail },
       {
         texts: clinicalText.map((c) => c.label.toUpperCase()),
         px: BLOCK_TITLE_PX,
         bold: true,
         avail: leftAvail / TITLE_TRACKING,
       },
-      { texts: rightItems, px: 14, avail: rightAvail },
+      { texts: rightItems, px: PROSE_PX, avail: rightAvail },
       { texts: rightTitles.map((t) => t.toUpperCase()), px: BLOCK_TITLE_PX, bold: true, avail: rightAvail / TITLE_TRACKING },
       // The Rx side's own prose: free-typed note rows, the follow-up line and
-      // the signature, none of which sit in a measured column.
+      // the signature, none of which sit in a measured column. Two entries, not
+      // one, because they no longer print at the same size — measuring a note
+      // at FOOT_PX would over-state its width and cap the sheet too low.
       {
-        texts: [
-          ...rxLines.filter((r) => r.isNote).map((r) => r.drug),
-          ...(d.followUp ? [`Follow-up: ${d.followUp}`] : []),
-          d.doctorName || "Signature",
-        ],
-        px: 14,
+        texts: rxLines.filter((r) => r.isNote).map((r) => r.drug),
+        px: MID_PX,
         bold: true,
         avail: content * RX_COL_SHARE - RIGHT_PAD_PX,
       },
-      // The patient header — two equal halves of the page.
+      {
+        texts: [
+          ...(d.followUp ? [`Follow-up: ${d.followUp}`] : []),
+          d.doctorName || "Signature",
+        ],
+        px: FOOT_PX,
+        bold: true,
+        avail: content * RX_COL_SHARE - RIGHT_PAD_PX,
+      },
+      // The patient header's LEFT half — the grid fills row-wise, so this is
+      // the first cell of each row.
       {
         texts: [
           `Name: ${ptName || "—"}`,
-          `Date: ${p.date || "—"}`,
           `Age / Sex: ${p.age || "—"} / ${p.gender || "—"}`,
-          `Mobile: ${ptPhone || "—"}`,
           `Weight: ${p.weight || "—"} kg`,
+        ],
+        px: 14,
+        bold: true,
+        avail: headLeftAvail,
+      },
+      // …and its RIGHT half, the narrower one.
+      {
+        texts: [
+          `Date: ${p.date || "—"}`,
+          `Mobile: ${ptPhone || "—"}`,
           `Address: ${p.address || "—"}`,
         ],
         px: 14,
         bold: true,
-        avail: headAvail,
+        avail: headRightAvail,
       },
     ],
     measureRxText,
@@ -745,7 +883,15 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   /* Empty by design — the rule under the (pre-printed) letterhead band. The
      brand/logo/doctor rules that used to fill it went with the printed name. */
   .head { border-bottom: 2px solid #1d9e75; }
-  .pt { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: ${SCALE_PX(14)}; margin: 14px 0 6px; }
+  /* Two UNEQUAL halves: the right one (Date / Mobile / Address) starts past the
+     middle of the sheet. minmax(0, …) for the same reason .body carries it — a
+     bare fr track floors at its content's min width, so one long name or
+     address would push the date column back to wherever it happened to fit and
+     the offset would change from patient to patient. With minmax(0, …) the
+     halves hold their share whatever they carry and long values wrap inside
+     their own column. The gap is written from PT_GAP_PX so the CSS and the
+     width bound above cannot drift apart. */
+  .pt { display: grid; grid-template-columns: minmax(0, ${PT_LEFT_FR}fr) minmax(0, ${PT_RIGHT_FR}fr); gap: 4px ${PT_GAP_PX}px; font-size: ${SCALE_PX(14)}; margin: 14px 0 6px; }
   .pt span { color: #6b6b6b; }
   /* minmax(0, …): an fr track floors at its content's min width, so anything
      too wide on the ℞ side (a table, a long word) used to STEAL the clinical
@@ -758,9 +904,11 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .right { padding-left: 18px; }
   .rx-symbol { font-size: ${SCALE_PX(26)}; font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
-  .block-title { font-size: ${SCALE_PX(11)}; font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  /* Written from the constants, so the sizes the width bound measures against
+     and the sizes that print can never drift apart. */
+  .block-title { font-size: ${SCALE_PX(BLOCK_TITLE_PX)}; font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
   ul { margin: 0; padding-left: 16px; }
-  li { font-size: ${SCALE_PX(14)}; line-height: 1.5; }
+  li { font-size: ${SCALE_PX(PROSE_PX)}; line-height: 1.5; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   /* Vertical padding scales with the sheet (it is height, which the fitting
      script measures). Horizontal padding does NOT: the column widths are shares
@@ -782,11 +930,23 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      guarantee this table has: no cell past its own column. */
   .rx-drug { font-weight: 400; }
   .rx-drug b { font-weight: 600; }
+  /* The medicine name and, under it, its dose — two block lines in ONE cell
+     (2026-09-12). They are blocks so each is its own line; the cell's own
+     white-space: nowrap is inherited, so neither wraps. The small top margin
+     keeps the dose visibly attached to the name above it rather than floating
+     midway between two medicines. A tapering row has no name, so its dose sits
+     inline beside the ↳ instead. */
+  .rx-name { display: block; }
+  .rx-dose { display: block; color: #333; margin-top: ${SCALE_PX(2)}; }
+  .rx-cont { color: #999; padding-left: 14px; }
+  .rx-dose-inline { color: #333; padding-left: 6px; }
   .rx-mid { color: #333; }
-  .rx-note { font-size: ${SCALE_PX(14)}; color: #444; font-style: italic; }
-  .followup { margin-top: 18px; font-size: ${SCALE_PX(14)}; }
+  /* A free-typed note is one of the ℞ table's own rows, so it takes the table's
+     smaller size — at 14 it printed LARGER than the medicine names above it. */
+  .rx-note { font-size: ${SCALE_PX(MID_PX)}; color: #444; font-style: italic; }
+  .followup { margin-top: 18px; font-size: ${SCALE_PX(FOOT_PX)}; }
   .followup b { color: #0f6e56; }
-  .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(14)}; color: #333; }
+  .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(FOOT_PX)}; color: #333; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in
