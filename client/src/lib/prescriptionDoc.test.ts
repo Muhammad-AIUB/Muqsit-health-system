@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  bodyShares,
   buildPrescriptionHtml,
+  DEFAULT_LEFT_SHARE,
   CELL_PAD_PX,
   DRUG_PX,
   layoutRxColumns,
@@ -556,7 +558,12 @@ describe("printed Rx markup", () => {
     //    the clinical column's width instead of wrapping inside its own.
     it("sizes the two columns from the page, never from what they carry", () => {
       const html = buildPrescriptionHtml(withDiagnosis());
-      expect(html).toContain("grid-template-columns: minmax(0, 0.7fr) 0.5px minmax(0, 1.7fr)");
+      // The shares are written normalised since the Body Section was wired up
+      // (2026-09-12); 0.291667 / 0.708333 is the same ratio the sheet has always
+      // printed, 0.7 / 1.7. minmax(0, …) is the part that must not be lost.
+      expect(html).toContain("grid-template-columns: minmax(0, 0.291667fr) 0.5px minmax(0, 0.708333fr)");
+      const [l, r] = html.match(/minmax\(0, ([\d.]+)fr\) 0\.5px minmax\(0, ([\d.]+)fr\)/)!.slice(1).map(Number);
+      expect(l / r).toBeCloseTo(0.7 / 1.7, 4);
     });
 
     // 2. The Rx cells' breaking rule is inherited — it used to reach the whole
@@ -738,5 +745,131 @@ describe("prescribing warnings are NOT printed", () => {
     const html = buildPrescriptionHtml(doc2(REPORTED));
     // Every ℞ row still opens with a number cell; five medicines, five rows.
     expect(html.match(/<td class="rx-no">/g)).toHaveLength(REPORTED.length);
+  });
+});
+
+// ⚕️ The Body Section's separator — reported 2026-09-12: "eikhane barale komale
+// seta apply hoy na, ami print kore dekhsi" (moving this changes nothing, I
+// printed and checked). It was saved to the database from the day the settings
+// wizard was built and read by NOTHING: the sheet's two columns were hard-coded
+// at 0.7fr / 1.7fr. These pin both halves of the fix — that an untouched slider
+// still prints exactly what it always did, and that a moved one actually moves
+// every width on the sheet, not just the grid.
+describe("body section — the separator actually reaches the paper", () => {
+  const A4: PrescriptionDoc["page"] = {
+    unit: "in", width: "8.27", height: "11.69", marginLeft: "0.4", marginRight: "0.4",
+    headerHeight: "0.5", footerHeight: "0.5",
+  };
+  // A4 printable width in the page's own unit: 8.27 - 0.4 - 0.4 = 7.47in.
+  const A4_UNITS = 8.27 - 0.4 - 0.4;
+
+  const sheet = (body?: PrescriptionDoc["body"], page = A4): PrescriptionDoc => ({
+    doctorName: "Dr Test",
+    patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "12/09/2026", phone: "01700000000" },
+    clinical: [{ label: "Final diagnosis", items: ["Chronic hepatitis B"] }],
+    rx: [{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "" }],
+    advice: [], adviceTest: [], followUp: "", page, body,
+  });
+
+  // ⚕️ THE SAFETY RULE. Every prescription printed before this change must go on
+  // printing identically — a doctor who never opens the Body Section must not
+  // discover a new layout on the sheet they hand to a patient.
+  it("prints byte-identical output when the slider was never moved", () => {
+    const before = buildPrescriptionHtml(sheet(undefined));
+    for (const body of [
+      {},
+      { split: "" },
+      { split: "0" },
+      { split: "abc" },
+      { split: "-3" },
+      { leftTopMargin: "", rightTopMargin: "", bottomLine: false },
+    ]) {
+      expect(buildPrescriptionHtml(sheet(body)), JSON.stringify(body)).toBe(before);
+    }
+    expect(bodyShares(A4, undefined)).toEqual(bodyShares(A4, { split: "" }));
+  });
+
+  it("puts the separator exactly where the slider says", () => {
+    // Half the printable width -> a 50/50 sheet.
+    const half = bodyShares(A4, { split: String(A4_UNITS / 2) });
+    expect(half.left).toBeCloseTo(0.5, 4);
+    expect(half.rx).toBeCloseTo(0.5, 4);
+    // And a quarter -> 25/75.
+    expect(bodyShares(A4, { split: String(A4_UNITS / 4) }).left).toBeCloseTo(0.25, 4);
+    // The two always account for the whole width — no width goes missing.
+    for (const s of ["1", "2", "3", "4", "5"]) {
+      const { left, rx } = bodyShares(A4, { split: s });
+      expect(left + rx).toBeCloseTo(1, 10);
+    }
+  });
+
+  it("writes that split into the grid the browser lays out", () => {
+    const html = buildPrescriptionHtml(sheet({ split: String(A4_UNITS / 2) }));
+    expect(html).toContain("grid-template-columns: minmax(0, 0.500000fr) 0.5px minmax(0, 0.500000fr)");
+  });
+
+  // ⚕️ The whole reason this needed care. The ℞ table is sized from the split
+  // too — if only the grid moved, the table would be measured for a track it no
+  // longer has, which is the 2026-08-30 overflow (clinical column 209px -> 87px,
+  // diagnosis one word per line).
+  it("moves the Rx table's own width with the separator", () => {
+    const narrowRx = rxTableInnerPx(A4, { split: String(A4_UNITS * 0.6) }); // big clinical column
+    const wideRx = rxTableInnerPx(A4, { split: String(A4_UNITS * 0.2) });   // small clinical column
+    expect(wideRx).toBeGreaterThan(narrowRx);
+    // Untouched keeps the browser-measured A4 number this suite is built on.
+    expect(Math.round(rxTableInnerPx(A4, { split: "" }))).toBe(A4_INNER);
+  });
+
+  // ⚕️ THE invariant, and the one a flat percentage cap got wrong. Measured on
+  // the reported 18.5cm page: a 0.70 cap left the ℞ side 169px of track while
+  // rxTableInnerPx's 160px FLOOR made the table 192px — the table wider than
+  // the column holding it, which is the 2026-08-30 overflow all over again. The
+  // ceiling has to come from the actual paper, so it is checked against real
+  // page sizes here rather than against a constant.
+  it("never lets the Rx table outgrow its own track, at any split on any paper", () => {
+    const pages: PrescriptionDoc["page"][] = [
+      A4,
+      { unit: "cm", width: "18.5", height: "27", marginLeft: "2", marginRight: "0", headerHeight: "4.5", footerHeight: "3" },
+      { unit: "in", width: "8.5", height: "11", marginLeft: "0.5", marginRight: "0.5", headerHeight: "0.5", footerHeight: "0.5" },
+      { unit: "in", width: "5.8", height: "8.3", marginLeft: "0.4", marginRight: "0.4", headerHeight: "0.5", footerHeight: "0.5" },
+      { unit: "cm", width: "14.8", height: "21", marginLeft: "1", marginRight: "1", headerHeight: "1.5", footerHeight: "1.5" },
+    ];
+    const RIGHT_PAD = 18, RX_NO = 32;
+    for (const page of pages) {
+      const perUnit = page!.unit === "cm" ? 37.8 : 96;
+      const contentPx = (Number(page!.width) - Number(page!.marginLeft) - Number(page!.marginRight)) * perUnit;
+      // Sweep the slider across the whole sheet, past both ends.
+      for (let pct = -20; pct <= 130; pct += 5) {
+        const split = String((contentPx / perUnit) * (pct / 100));
+        const { left, rx } = bodyShares(page, { split });
+        const label = `${page!.width}${page!.unit} @ ${pct}%`;
+
+        expect(left + rx, label).toBeCloseTo(1, 10);
+        // The ℞ table, serial column included, inside the track it is given.
+        const track = contentPx * rx - RIGHT_PAD;
+        expect(rxTableInnerPx(page, { split }) + RX_NO, label).toBeLessThanOrEqual(track + 0.001);
+        // And the clinical column keeps a column, not a sliver.
+        expect(contentPx * left, label).toBeGreaterThanOrEqual(Math.min(120, contentPx * DEFAULT_LEFT_SHARE) - 0.001);
+      }
+    }
+  });
+
+  // The top margins are distances on paper, so they carry the page's unit and
+  // must NOT be written through SCALE_PX — they would then grow with the type.
+  it("prints the per-column top margins in the page unit, unscaled", () => {
+    const html = buildPrescriptionHtml(sheet({ leftTopMargin: "1.5", rightTopMargin: "0.25" }));
+    expect(html).toContain("padding-top: 1.5in;");
+    expect(html).toContain("padding-top: 0.25in;");
+    expect(html).not.toMatch(/padding-top: calc\(var\(--k/);
+  });
+
+  it("keeps the unit the doctor chose", () => {
+    const cm: PrescriptionDoc["page"] = { ...A4, unit: "cm", width: "18.5", height: "27", marginLeft: "2", marginRight: "0" };
+    expect(buildPrescriptionHtml(sheet({ leftTopMargin: "2" }, cm))).toContain("padding-top: 2cm;");
+  });
+
+  it("draws the bottom rule only when it is asked for", () => {
+    expect(buildPrescriptionHtml(sheet({ bottomLine: true }))).toMatch(/\.body \{[^}]*border-bottom: 1px solid #444;/);
+    expect(buildPrescriptionHtml(sheet({ bottomLine: false }))).not.toMatch(/\.body \{[^}]*border-bottom/);
   });
 });

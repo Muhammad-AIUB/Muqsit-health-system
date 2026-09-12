@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
+import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
 import { type RxType, type OpdLayout } from "@/lib/rxPrivacy";
 import { useUpdatePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
 
@@ -696,7 +697,13 @@ function BodySection({
 }) {
   const u = unitShort;
   const bodyW = Math.max(0.1, bodyNum(totalWidth) - bodyNum(leftMargin) - bodyNum(rightMargin));
-  const sp = Math.min(split === "" ? bodyW / 2 : bodyNum(split), bodyW);
+  // ⚕️ An untouched slider shows the split the SHEET actually prints, not the
+  // middle of the page. It sat at bodyW / 2 while the printed sheet has always
+  // used 0.7 / 1.7 — so the preview claimed a 50/50 layout that no prescription
+  // has ever had. `DEFAULT_LEFT_SHARE` is imported from the print builder, so
+  // the two cannot drift: what this screen draws is what comes out of the
+  // printer.
+  const sp = Math.min(split === "" ? bodyW * DEFAULT_LEFT_SHARE : bodyNum(split), bodyW);
   const leftPct = (sp / bodyW) * 100;
   const leftPx = (sp / bodyW) * BODY_W;
   const leftW = sp;

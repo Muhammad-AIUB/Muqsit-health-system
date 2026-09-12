@@ -53,6 +53,34 @@ export interface PrescriptionDoc {
     headerHeight: string;
     footerHeight: string;
   };
+  // Body section from Prescription settings. Absent — and a blank `split` —
+  // print exactly as the sheet always has, so a doctor who never opens that
+  // step sees no change whatsoever.
+  body?: PrescriptionBody;
+}
+
+/**
+ * The Body Section of Prescription settings, as it reaches the printed sheet.
+ *
+ * ⚕️ Wired up 2026-09-12. These four values were saved to the database from the
+ * day the settings wizard was built and read by NOTHING — the sheet's two
+ * columns were hard-coded at 0.7fr / 1.7fr — so moving the separator slider
+ * changed the on-screen preview and never the paper (physician's report).
+ *
+ * All measurements are in the PAGE's unit (in/cm), and `split` is measured from
+ * the left edge of the PRINTABLE box (page minus left/right margin) — the same
+ * origin `BodySection` in the settings screen measures from, so the number
+ * under the slider is the number that prints.
+ */
+export interface PrescriptionBody {
+  /** Separator position. "" / absent ⇒ the sheet's historic 0.7 / 1.7 split. */
+  split?: string;
+  /** Top padding on the clinical (left) column. */
+  leftTopMargin?: string;
+  /** Top padding on the ℞ (right) column. */
+  rightTopMargin?: string;
+  /** Draw a rule under the whole body. */
+  bottomLine?: boolean;
 }
 
 const esc = (s: string) =>
@@ -97,7 +125,37 @@ const esc = (s: string) =>
 // with it — again the physician's decision, 2026-08-28. There is a floor
 // (`ROW_MIN_PX`); under it the row wraps, because unreadable type is worse than
 // a second line. Nothing is ever truncated or allowed past the printable width.
-const RX_COL_SHARE = 1.7 / 2.4;   // .body grid is 0.7fr / 0.5px / 1.7fr
+// ⚕️ The body's two columns. Until 2026-09-12 these were CONSTANTS — the sheet
+// was always 0.7fr / 0.5px / 1.7fr — and the Body Section's separator slider
+// was saved but never read. They are now derived from it (`bodyShares`), and
+// these two are what a blank slider still resolves to, so nothing a doctor has
+// already printed changes.
+//
+// EVERY width on the sheet hangs off this split: the ℞ table's own columns
+// (`rxTableInnerPx`), the clinical column's word bound and the ℞ side's prose
+// bound. They must be derived from ONE answer — see the 2026-08-30 entry in
+// client/CLAUDE.md for what a table measured against a width it did not have
+// actually prints (the diagnosis went one word per line, split mid-word).
+export const DEFAULT_LEFT_SHARE = 0.7 / 2.4;
+const DEFAULT_RX_SHARE = 1.7 / 2.4;
+// How far the separator may actually be moved.
+//
+// ⚕️ The ceiling is NOT a fixed percentage, and a fixed one is a bug: measured
+// on the reported 18.5cm page, a flat 0.70 cap left the ℞ side 169px of track
+// while `rxTableInnerPx`'s 160px FLOOR made the table 192px — the table wider
+// than the column it sits in, which is precisely the overflow this file exists
+// to prevent. The cap has to be derived from the actual paper.
+//
+// So the ℞ side must keep at least the width at which that floor stops binding
+// (160 + its own padding + the serial column), and the clinical column keeps
+// enough to set a long diagnosis word without breaking it. On paper too narrow
+// to satisfy both, the slider is ignored entirely and the sheet prints at its
+// historic split — a cramped sheet the doctor recognises beats a broken one.
+const RX_MIN_TRACK_PX = 160 + 18 + 32;   // the 160 floor + RIGHT_PAD_PX + RX_NO_PX
+const CLINICAL_MIN_TRACK_PX = 120;
+// Belt and braces, so a very wide page cannot hand either column the whole sheet.
+const BODY_MIN_LEFT = 0.12;
+const BODY_MAX_LEFT = 0.80;
 const RIGHT_PAD_PX = 18;          // .right padding-left
 // .rx-no fixed width. Wide enough for a TWO-digit serial: a 10-medicine
 // prescription is ordinary, and "10." measures 19.5px in 14px DM Sans
@@ -179,19 +237,62 @@ export function measureRxText(text: string, px: number, bold: boolean): number |
   return Number.isFinite(w) && w > 0 ? w : null;
 }
 
+const pageNum = (v: string | undefined, fallback: number) => {
+  const n = parseFloat(v ?? "");
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+/** The printable width of the sheet, in the PAGE's own unit (in/cm). */
+function contentWidthUnits(page?: PrescriptionDoc["page"]): number {
+  return pageNum(page?.width, 8.27) - pageNum(page?.marginLeft, 0.4) - pageNum(page?.marginRight, 0.4);
+}
+
 /** The printable width of the sheet, in CSS px. */
 function contentWidthPx(page?: PrescriptionDoc["page"]): number {
   const perUnit = (page?.unit ?? "in") === "cm" ? 37.8 : 96;
-  const num = (v: string | undefined, fallback: number) => {
-    const n = parseFloat(v ?? "");
-    return Number.isFinite(n) && n > 0 ? n : fallback;
-  };
-  return (num(page?.width, 8.27) - num(page?.marginLeft, 0.4) - num(page?.marginRight, 0.4)) * perUnit;
+  return contentWidthUnits(page) * perUnit;
+}
+
+/**
+ * How the printable width is split between the clinical column and the ℞ side.
+ *
+ * ⚕️ ONE answer, used by every width on the sheet — the `.body` grid, the ℞
+ * table's own columns, and both halves of the page-fill word bound. A second,
+ * independently-derived answer is exactly how a table ends up measured against
+ * a width it does not have.
+ *
+ * `body.split` is a distance from the left edge of the printable box, in the
+ * page's unit — the same origin the settings screen's slider uses, so the
+ * number printed under that slider is the number that prints on paper. Blank,
+ * absent, unparseable or zero all fall back to the historic 0.7 / 1.7, so a
+ * doctor who never touches the Body Section sees no change at all.
+ */
+export function bodyShares(
+  page?: PrescriptionDoc["page"],
+  body?: PrescriptionBody,
+): { left: number; rx: number } {
+  const fallback = { left: DEFAULT_LEFT_SHARE, rx: DEFAULT_RX_SHARE };
+  const split = parseFloat(body?.split ?? "");
+  const total = contentWidthUnits(page);
+  if (!Number.isFinite(split) || split <= 0 || !(total > 0)) return fallback;
+
+  // The window the split may actually land in, derived from THIS paper — see
+  // the constants above for why a fixed percentage is not enough.
+  const px = contentWidthPx(page);
+  if (!(px > 0)) return fallback;
+  const lo = Math.max(BODY_MIN_LEFT, CLINICAL_MIN_TRACK_PX / px);
+  const hi = Math.min(BODY_MAX_LEFT, 1 - RX_MIN_TRACK_PX / px);
+  // Paper too narrow to give both columns a usable track: keep the split the
+  // sheet has always printed rather than obey the slider into an overflow.
+  if (!(hi > lo)) return fallback;
+
+  const left = Math.min(hi, Math.max(lo, split / total));
+  return { left, rx: 1 - left };
 }
 
 /** Width available to the Rx data columns (everything right of the number). */
-export function rxTableInnerPx(page?: PrescriptionDoc["page"]): number {
-  return Math.max(160, contentWidthPx(page) * RX_COL_SHARE - RIGHT_PAD_PX - RX_NO_PX);
+export function rxTableInnerPx(page?: PrescriptionDoc["page"], body?: PrescriptionBody): number {
+  return Math.max(160, contentWidthPx(page) * bodyShares(page, body).rx - RIGHT_PAD_PX - RX_NO_PX);
 }
 
 /**
@@ -473,7 +574,8 @@ export const SCALE_PX = (n: number) => `calc(var(--k, 1) * ${n}px)`;
 // diagnosis was hyphen-less-broken down the left edge as "multifoc / al HCC"
 // (reported 2026-08-30). Paper does not stretch: every column on this sheet is
 // a fixed share of the page, so every column needs a bound.
-const LEFT_SHARE = 0.7 / 2.4;     // .body grid is 0.7fr / 0.5px / 1.7fr
+// (The two column shares now come from `bodyShares(page, body)` — the Body
+// Section's separator, or the historic 0.7/1.7 when it is untouched.)
 const LEFT_PAD_PX = 16;           // .left padding-right
 const UL_PAD_PX = 16;             // ul padding-left — the bullet lives in it
 const PT_GAP_PX = 24;             // .pt column-gap, split between the two halves
@@ -570,7 +672,9 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
 
   let rxNo = 0;
   const rxLines = d.rx.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim());
-  const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page));
+  // ONE split, read once and handed to everything that measures a width.
+  const share = bodyShares(d.page, d.body);
+  const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page, d.body));
   const noteSpan = lay.hasFood ? 3 : 2;
   // ⚕️ Column widths are a SHARE of the table, never a scaled px width.
   //
@@ -668,8 +772,8 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   // single word it carries. The smallest wins, and the fitting script never
   // goes past it.
   const content = contentWidthPx(d.page);
-  const leftAvail = content * LEFT_SHARE - LEFT_PAD_PX - UL_PAD_PX;
-  const rightAvail = content * RX_COL_SHARE - RIGHT_PAD_PX - UL_PAD_PX;
+  const leftAvail = content * share.left - LEFT_PAD_PX - UL_PAD_PX;
+  const rightAvail = content * share.rx - RIGHT_PAD_PX - UL_PAD_PX;
   // The header's halves are measured SEPARATELY, because they are no longer
   // equal. The right one is the narrower of the two and carries the Address —
   // the longest value on that side — so a single averaged bound would let the
@@ -701,7 +805,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
         texts: rxLines.filter((r) => r.isNote).map((r) => r.drug),
         px: MID_PX,
         bold: true,
-        avail: content * RX_COL_SHARE - RIGHT_PAD_PX,
+        avail: content * share.rx - RIGHT_PAD_PX,
       },
       {
         texts: [
@@ -710,7 +814,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
         ],
         px: FOOT_PX,
         bold: true,
-        avail: content * RX_COL_SHARE - RIGHT_PAD_PX,
+        avail: content * share.rx - RIGHT_PAD_PX,
       },
       // The patient header's LEFT half — the grid fills row-wise, so this is
       // the first cell of each row.
@@ -863,6 +967,22 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   const padB = `${pg?.footerHeight || "0.5"}${u}`;
   const padL = `${pg?.marginLeft || "0.4"}${u}`;
 
+  // ── Body Section (Prescription settings) ──────────────────────────────────
+  // The same `bodyShares` call `buildSheet` measured its columns against, so
+  // the grid the browser lays out and the widths the ℞ table was sized for can
+  // never be two different answers.
+  const share = bodyShares(d.page, d.body);
+  // A top margin is a distance on paper, so it keeps the page's unit. Anything
+  // unreadable or non-positive means "none" — a settings value must never be
+  // guessed at on a printed medical document.
+  const bodyTop = (v: string | undefined) => {
+    const n = parseFloat(v ?? "");
+    return Number.isFinite(n) && n > 0 ? `${n}${u}` : "0";
+  };
+  const leftTop = bodyTop(d.body?.leftTopMargin);
+  const rightTop = bodyTop(d.body?.rightTopMargin);
+  const bodyRule = d.body?.bottomLine ? " border-bottom: 1px solid #444;" : "";
+
   // The document is written into an about:blank window / off-screen iframe, so a
   // relative image src has no reliable base to resolve against. Pin one.
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -898,10 +1018,17 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      column's share and print a diagnosis one word per line. The two columns now
      hold their proportions whatever they carry, and content that does not fit
      wraps inside its own column. */
-  .body { display: grid; grid-template-columns: minmax(0, 0.7fr) 0.5px minmax(0, 1.7fr); gap: 0; margin-top: 10px; }
-  .left { padding-right: 16px; }
+  /* The two fr values are the Body Section's separator (bodyShares), or the
+     historic 0.7 / 1.7 when the slider has never been moved. They are written
+     from the SAME call that sized the ℞ table and bounded the fill factor —
+     a second answer here is how a table ends up wider than its own track. */
+  .body { display: grid; grid-template-columns: minmax(0, ${share.left.toFixed(6)}fr) 0.5px minmax(0, ${share.rx.toFixed(6)}fr); gap: 0; margin-top: 10px;${bodyRule} }
+  /* Per-column top margins from the Body Section. In the PAGE's unit, not
+     through SCALE_PX: this is a distance the doctor measured on paper, like the
+     page margins, and it must not grow when the type does. */
+  .left { padding-right: 16px; padding-top: ${leftTop}; }
   .divider { background: #e5e5e3; }
-  .right { padding-left: 18px; }
+  .right { padding-left: 18px; padding-top: ${rightTop}; }
   .rx-symbol { font-size: ${SCALE_PX(26)}; font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
   /* Written from the constants, so the sizes the width bound measures against

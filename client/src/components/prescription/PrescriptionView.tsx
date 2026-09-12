@@ -148,6 +148,16 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         headerHeight: layout.headerHeight,
         footerHeight: layout.footerHeight,
       } : undefined,
+      // Body section from Prescription settings. Saved since the wizard was
+      // built and read by nothing until 2026-09-12 — moving the separator
+      // slider changed the settings preview and never the paper. A blank
+      // `split` still prints the sheet's historic 0.7/1.7 columns.
+      body: layout ? {
+        split: layout.bodySplit,
+        leftTopMargin: layout.bodyLeftTopMargin,
+        rightTopMargin: layout.bodyRightTopMargin,
+        bottomLine: layout.bodyBottomLine,
+      } : undefined,
     });
   };
 
