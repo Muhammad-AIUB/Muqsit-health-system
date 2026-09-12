@@ -370,7 +370,19 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
 
       {/* ── Footer (Save + Next) ── */}
       <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center", marginTop: 22, minHeight: 40 }}>
-        {saved && <span style={{ position: "absolute", left: stepIndex > 0 ? 110 : 0, fontSize: 12, color: saved === "Saved." ? C.pri[600] : C.danger[800] }}>{saved}</span>}
+        {/* Directly UNDER the Save button, not at the far left of the row.
+            It used to sit at `left: 0` of a full-width footer — ~700px from the
+            button on a desktop, in 12px type — so a doctor pressing Save saw no
+            response anywhere near where they were looking and read it as "the
+            button does nothing" (reported 2026-09-12). Feedback belongs beside
+            the control that produced it. Centred on the row, so it cannot
+            collide with Previous (left: 0) or Next (right: 0). */}
+        {saved && (
+          <span style={{
+            position: "absolute", top: "100%", marginTop: 6, left: "50%", transform: "translateX(-50%)",
+            whiteSpace: "nowrap", fontSize: 12, color: saved === "Saved." ? C.pri[600] : C.danger[800],
+          }}>{saved}</span>
+        )}
         {stepIndex > 0 && (
           <button onClick={goPrev} style={{ ...btnNext, background: C.n[100], color: C.n[800], position: "absolute", left: 0 }}>
             <span style={{ marginRight: 4 }}>‹</span> Previous
