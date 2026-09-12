@@ -427,6 +427,25 @@ describe("printed Rx markup", () => {
     );
   });
 
+  // ⚕️ The ↳ is a SCREEN aid: on the print preview and in the gallery snapshot,
+  // never on paper (physician's decision, 2026-09-12). A print-only rule is
+  // invisible to every other check in this suite, so it is pinned here.
+  it("hides the ↳ on paper but keeps the line indented under its medicine", () => {
+    const html = buildPrescriptionHtml(doc([
+      line("Capsule. Lenva 4 mg", "0+0+1", "7 days"),
+      { drug: "", dose: "0+0+2", duration: "Continue", instruction: "" },
+    ]));
+    // The marker is still in the markup — it is hidden by the print stylesheet,
+    // not dropped from the document, so the screen still shows it.
+    expect(html).toContain('<span class="rx-cont">↳</span>');
+    expect(html).toMatch(/@media print \{[\s\S]*\.rx-cont \{ visibility: hidden; \}[\s\S]*\}/);
+    // ⚕️ visibility, NEVER display: none. The dose keeps the ↳'s space and stays
+    // indented under the medicine it continues; flush left it would read as a
+    // medicine of its own with no name. It also keeps the width maths honest —
+    // drugLineNeed measures that row as CONT_INDENT_PX + the dose.
+    expect(html).not.toMatch(/\.rx-cont \{[^}]*display:\s*none/);
+  });
+
   // An empty dose prints nothing at all — not a blank second line that would
   // space the medicine below it away from its own row.
   it("adds no dose line when the doctor typed no dose", () => {

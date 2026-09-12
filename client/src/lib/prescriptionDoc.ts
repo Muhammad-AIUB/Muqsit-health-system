@@ -975,7 +975,23 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      table fragments across pages, and in print the tfoot repeats per fragment
      anyway (page bottom on a full page, under the content on a short one). */
   @media screen { .sheet { display: flex; flex-direction: column; } .pagegrid { flex: 1 1 auto; height: 100%; } }
-  @media print { body { background: #fff; } .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
+  @media print {
+    body { background: #fff; }
+    .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; }
+    /* ⚕️ The ↳ tapering marker is a SCREEN aid and does not go on paper
+       (physician's decision, 2026-09-12). It is on screen — in the print
+       preview and in the gallery snapshot — and hidden on the printed sheet.
+
+       visibility: hidden, NOT display: none, and both halves of that matter.
+       The dose on a tapering row keeps the arrow's space, so it stays
+       indented under the medicine it continues — without the indent
+       "0+0+2 · Continue" would read as a medicine of its own with no name,
+       which on a dispensed sheet is a misread, not a tidier line. It also
+       keeps the width maths honest: drugLineNeed measures that row as
+       CONT_INDENT_PX + the dose, and hiding the box would make the printed
+       row narrower than the column it was measured for. */
+    .rx-cont { visibility: hidden; }
+  }
 </style></head>
 <body>
   ${fullPage}
