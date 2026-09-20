@@ -2,6 +2,7 @@
 // visit date (e.g. "BP: 120/60 mmHg"). Mirrors the investigation summary but the
 // values are free-text lines instead of test/value pairs.
 
+import { ddmmyyyyMs } from "@/lib/dateInput";
 export interface OeFinding {
   date: string; // dd/mm/yyyy — the visit it was written on
   text: string; // e.g. "BP: 120/60 mmHg"
@@ -25,11 +26,6 @@ export function oeEntriesForDate(lines: string[], date: string): OeFinding[] {
   return lines.map((l) => l.trim()).filter(Boolean).map((text) => ({ date, text }));
 }
 
-const ts = (d: string): number => {
-  const [dd, mm, yy] = d.split("/").map(Number);
-  return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0;
-};
-
 // Group findings by date (newest date first).
 export function groupOeByDate(findings: OeFinding[]): { date: string; items: OeFinding[] }[] {
   const groups: { date: string; items: OeFinding[] }[] = [];
@@ -38,6 +34,6 @@ export function groupOeByDate(findings: OeFinding[]): { date: string; items: OeF
     if (!g) { g = { date: f.date, items: [] }; groups.push(g); }
     g.items.push(f);
   }
-  groups.sort((a, b) => ts(b.date) - ts(a.date));
+  groups.sort((a, b) => ddmmyyyyMs(b.date) - ddmmyyyyMs(a.date));
   return groups;
 }

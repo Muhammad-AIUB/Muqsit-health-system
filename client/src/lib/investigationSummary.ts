@@ -1,4 +1,5 @@
 import { INV_CATS } from "@/data/investigations";
+import { ddmmyyyyMs } from "@/lib/dateInput";
 
 // One persisted investigation result in a patient's history.
 export interface InvFinding {
@@ -58,11 +59,6 @@ export function mergeFindings(existing: InvFinding[], additions: InvFinding[]): 
   return out;
 }
 
-const ts = (d: string): number => {
-  const [dd, mm, yy] = d.split("/").map(Number);
-  return new Date(yy, (mm || 1) - 1, dd || 1).getTime() || 0;
-};
-
 // Group findings by date (newest date first).
 export function groupByDate(findings: InvFinding[]): { date: string; items: InvFinding[] }[] {
   const groups: { date: string; items: InvFinding[] }[] = [];
@@ -71,7 +67,7 @@ export function groupByDate(findings: InvFinding[]): { date: string; items: InvF
     if (!g) { g = { date: f.date, items: [] }; groups.push(g); }
     g.items.push(f);
   }
-  groups.sort((a, b) => ts(b.date) - ts(a.date));
+  groups.sort((a, b) => ddmmyyyyMs(b.date) - ddmmyyyyMs(a.date));
   return groups;
 }
 
@@ -83,7 +79,7 @@ export function groupByCategory(findings: InvFinding[]): { category: string; ite
     if (!g) { g = { category: f.category, items: [] }; groups.push(g); }
     g.items.push(f);
   }
-  groups.forEach((g) => g.items.sort((a, b) => ts(b.date) - ts(a.date)));
+  groups.forEach((g) => g.items.sort((a, b) => ddmmyyyyMs(b.date) - ddmmyyyyMs(a.date)));
   groups.sort((a, b) => a.category.localeCompare(b.category));
   return groups;
 }
@@ -91,7 +87,7 @@ export function groupByCategory(findings: InvFinding[]): { category: string; ite
 // Filter by a date window (epoch ms, inclusive). null bound = open.
 export function filterByDate(findings: InvFinding[], fromMs: number | null, toMs: number | null): InvFinding[] {
   return findings.filter((f) => {
-    const t = ts(f.date);
+    const t = ddmmyyyyMs(f.date);
     if (fromMs != null && t < fromMs) return false;
     if (toMs != null && t > toMs) return false;
     return true;

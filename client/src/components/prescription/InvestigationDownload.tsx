@@ -6,11 +6,11 @@ import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/lib/investigationSummary";
 import DateField from "@/components/common/DateField";
+import { ddmmyyyyMs } from "@/lib/dateInput";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
 const isoToMs = (iso: string) => (iso ? new Date(iso + "T00:00:00").getTime() : null);
-const dmyMs = (d: string) => { const [dd, mm, yy] = d.split("/").map(Number); return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0; };
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // Download the patient's investigation history as PDF or Excel, filtered by date
@@ -94,7 +94,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
   // each cell the value for that test on that date (blank if none).
   const downloadXlsx = () => {
     const rows = filtered;
-    const dateList = Array.from(new Set(rows.map((f) => f.date))).sort((a, b) => dmyMs(a) - dmyMs(b));
+    const dateList = Array.from(new Set(rows.map((f) => f.date))).sort((a, b) => ddmmyyyyMs(a) - ddmmyyyyMs(b));
     const testList: string[] = [];
     const cell = new Map<string, string[]>(); // `${test}||${date}` -> values
     for (const f of rows) {

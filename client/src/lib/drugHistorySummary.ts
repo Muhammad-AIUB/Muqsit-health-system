@@ -11,6 +11,7 @@
 //   "dd/mm/yyyy(cont): dose — food — duration"    (tapering continuation)
 //   "Current: Drug — ..." / "Past: Drug — ..."    (legacy, pre-migration)
 
+import { ddmmyyyyMs } from "@/lib/dateInput";
 export interface DrugMention { name: string; date: string } // date: dd/mm/yyyy
 export interface MentionRange { name: string; start: string; end: string } // dd/mm/yyyy
 
@@ -31,11 +32,6 @@ function parseDrugEntry(raw: string, today: string): { date: string; kind: Kind;
   if (m) return m[1] === "Past" ? null : { date: today, kind: kindOf(m[2]), body: m[3] };
   return null;
 }
-
-const ts = (d: string): number => {
-  const [dd, mm, yy] = d.split("/").map(Number);
-  return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0;
-};
 
 // today: dd/mm/yyyy — used only as the resolved date for legacy "Current:" entries.
 export function drugMentions(entries: string[], today: string): DrugMention[] {
@@ -62,8 +58,8 @@ export function drugMentionRanges(entries: string[], today: string): MentionRang
   for (const m of drugMentions(entries, today)) {
     const cur = map.get(m.name);
     if (!cur) { map.set(m.name, { start: m.date, end: m.date }); continue; }
-    if (ts(m.date) < ts(cur.start)) cur.start = m.date;
-    if (ts(m.date) > ts(cur.end)) cur.end = m.date;
+    if (ddmmyyyyMs(m.date) < ddmmyyyyMs(cur.start)) cur.start = m.date;
+    if (ddmmyyyyMs(m.date) > ddmmyyyyMs(cur.end)) cur.end = m.date;
   }
   return Array.from(map.entries()).map(([name, r]) => ({ name, ...r }));
 }

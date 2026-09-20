@@ -126,3 +126,69 @@ export function isoToDdmmyyyy(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
+
+/**
+ * `dd/mm/yyyy` → epoch milliseconds at local midnight. 0 when the string is not
+ * a well-formed dd/mm/yyyy.
+ *
+ * ⚕️ THE one place this conversion lives. It was copied into eight files, each
+ * written slightly differently, and two screens disagreeing about which of two
+ * findings is newer is a real hazard in this app — the whole Health-trend chart,
+ * the investigation summary, the drug-history ranges and the printed sheet's
+ * ordering all hang off it.
+ *
+ * Milliseconds, not a `yyyymmdd` sort key, because three callers do real time
+ * ARITHMETIC with the result and not just comparison: `rxAlerts` divides a
+ * difference by 86_400_000 to get days, `DrugHistoryField` compares against
+ * `Date.now()`, and `investigationSummary.filterByDate` is handed epoch bounds
+ * from a date picker.
+ *
+ * Built from the three integers, never `new Date(str)` — JS reads a slashed date
+ * as month/day/year, so `new Date("25/07/2026")` is Invalid Date and
+ * `new Date("03/06/2026")` is silently 6 March (root CLAUDE.md).
+ *
+ * Deliberately LENIENT about the calendar, matching the seven call sites this
+ * replaced: `31/06/2026` rolls over to 1 July rather than failing. The one
+ * caller that must reject a rolled-over date does its own round-trip check —
+ * see `ddmmyyyyMs` in `lib/rxAlerts.ts`, which is a stricter, NaN-returning
+ * variant kept separate on purpose.
+ *
+ * A malformed value returns 0, which sorts older than every real clinical date,
+ * so a junk entry lands at the end of a newest-first list instead of the top.
+ */
+export function ddmmyyyyMs(d: unknown): number {
+  if (typeof d !== "string") return 0;
+  const m = d.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return 0;
+  const t = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+/**
+ * `dd/mm/yyyy` → epoch milliseconds, or **NaN** when the string is not a real
+ * calendar date. The strict sibling of `ddmmyyyyMs`.
+ *
+ * ⚕️ Use this wherever an unreadable date must be DROPPED rather than placed:
+ *  • `HealthTrendsChart` plots on a shared time axis. When its parser returned 0
+ *    for junk, ONE malformed record stretched the axis across 126 years and
+ *    squeezed every real value into a couple of pixels.
+ *  • `rxAlerts` divides a difference by 86_400_000 to decide whether a drug is
+ *    one the patient is CURRENTLY on. An epoch-zero stamp would compute a
+ *    ~56-year gap and silence an alert that should fire.
+ *
+ * It also REFUSES a rolled-over date: `new Date(2026, 1, 31)` is 3 March, and
+ * drawing `31/02/2026` there would present a date the record never held.
+ *
+ * `ddmmyyyyMs` above is the LENIENT one, for ordering — there, junk must simply
+ * sort last, and dropping a finding off a printed list would be far worse than
+ * placing it at the bottom.
+ */
+export function ddmmyyyyMsStrict(d: unknown): number {
+  if (typeof d !== "string") return NaN;
+  const m = d.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return NaN;
+  const dd = Number(m[1]), mm = Number(m[2]), yy = Number(m[3]);
+  const dt = new Date(yy, mm - 1, dd);
+  const real = dt.getFullYear() === yy && dt.getMonth() === mm - 1 && dt.getDate() === dd;
+  return real ? dt.getTime() : NaN;
+}

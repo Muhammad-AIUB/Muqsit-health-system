@@ -7,7 +7,7 @@ import { chartableParams, numericSeriesFor, type ChartableParam, type NumericPoi
 import type { MentionRange } from "@/lib/drugHistorySummary";
 import type { SymptomMentionRange } from "@/lib/symptomSummary";
 import { cellToDate, type DrugDateMap } from "@/lib/hmDates";
-import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
+import { isImplausibleDate, YEAR_POLICY, ddmmyyyyMsStrict } from "@/lib/dateInput";
 import { computeTimeRange, makeToX, monthTicks, isInRange } from "@/lib/timelineGeometry";
 
 interface Props {
@@ -79,17 +79,6 @@ const msToDdmmyyyy = (ms: number): string => {
 // `yy || 0` turned a missing year into 1900, so ONE malformed record stretched
 // the shared axis across 126 years and squeezed every real value into a couple
 // of pixels. Callers drop what they cannot place and say how many.
-const DDMMYYYY_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-const ddmmyyyyMs = (d: string): number => {
-  const m = DDMMYYYY_RE.exec((d ?? "").trim());
-  if (!m) return NaN;
-  const dd = +m[1], mm = +m[2], yy = +m[3];
-  const dt = new Date(yy, mm - 1, dd);
-  // Reject rolled-over calendar dates: new Date(2026, 1, 31) is 3 March, and
-  // drawing 31/02/2026 there would present a date the record never held.
-  const ok = dt.getFullYear() === yy && dt.getMonth() === mm - 1 && dt.getDate() === dd;
-  return ok ? dt.getTime() : NaN;
-};
 const isoMs = (d: string): number => {
   const t = new Date(d ?? "").getTime();
   return Number.isFinite(t) ? t : NaN;
@@ -203,7 +192,7 @@ export default function HealthTrendsChart({
     for (const param of chartableParams()) {
       const findings = findingsByTest.get(param.test);
       if (!findings) continue;
-      const points = numericSeriesFor(findings, param).map((p) => ({ ...p, ms: ddmmyyyyMs(p.date) }));
+      const points = numericSeriesFor(findings, param).map((p) => ({ ...p, ms: ddmmyyyyMsStrict(p.date) }));
       if (points.length > 0) out.push({ param, points });
     }
     return out;
@@ -251,7 +240,7 @@ export default function HealthTrendsChart({
 
   useEffect(() => {
     if (selectedDrugs !== null || drugRanges.length === 0) return;
-    const top = [...drugRanges].sort((a, b) => ddmmyyyyMs(b.end) - ddmmyyyyMs(a.end)).slice(0, DEFAULT_TRACK_LIMIT);
+    const top = [...drugRanges].sort((a, b) => ddmmyyyyMsStrict(b.end) - ddmmyyyyMsStrict(a.end)).slice(0, DEFAULT_TRACK_LIMIT);
     setSelectedDrugs(new Set(top.map((r) => r.name)));
   }, [drugRanges, selectedDrugs]);
 
@@ -276,7 +265,7 @@ export default function HealthTrendsChart({
   // the omission is stated instead of silent.
   const drugTracks = useMemo(
     () => drugRanges
-      .map((r) => ({ r, s: ddmmyyyyMs(r.start), e: ddmmyyyyMs(r.end) }))
+      .map((r) => ({ r, s: ddmmyyyyMsStrict(r.start), e: ddmmyyyyMsStrict(r.end) }))
       .filter((x) => Number.isFinite(x.s) && Number.isFinite(x.e))
       .map(({ r, s, e }) => buildTrack("drug", r.name, s, e, drugDates[r.name])),
     [drugRanges, drugDates],

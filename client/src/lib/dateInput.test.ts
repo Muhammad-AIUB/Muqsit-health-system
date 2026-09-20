@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   YEAR_POLICY,
+  ddmmyyyyMs,
+  ddmmyyyyMsStrict,
   isImplausibleDate,
   isoToDdmmyyyy,
   parseDateInput,
@@ -138,5 +140,101 @@ describe("isoToDdmmyyyy", () => {
     expect(isoToDdmmyyyy("1998-03-03")).toBe("03/03/1998");
     expect(isoToDdmmyyyy("")).toBe("");
     expect(isoToDdmmyyyy("03/03/1998")).toBe("03/03/1998");
+  });
+});
+
+// ⚕️ The one dd/mm/yyyy → ms conversion the whole app orders findings by.
+// It replaced seven hand-written copies (2026-09-21); a red test here means two
+// screens can disagree about which of two clinical findings is newer.
+describe("ddmmyyyyMs", () => {
+  const ms = (d: string) => ddmmyyyyMs(d);
+
+  it("orders by year, then month, then day", () => {
+    expect(ms("01/01/2026")).toBeGreaterThan(ms("31/12/2025"));   // year wins
+    expect(ms("01/02/2026")).toBeGreaterThan(ms("28/01/2026"));   // then month
+    expect(ms("09/09/2026")).toBeGreaterThan(ms("08/09/2026"));   // then day
+  });
+
+  // The trap the root CLAUDE.md names: `new Date("25/07/2026")` is Invalid Date
+  // and `new Date("03/06/2026")` is silently 6 March, so a naive parser would
+  // put these two in the wrong order — or drop one of them entirely.
+  it("reads 25/07 as 25 July and 03/06 as 3 June, which new Date(str) cannot", () => {
+    expect(ms("25/07/2026")).toBeGreaterThan(ms("03/06/2026"));
+    expect(new Date(ms("25/07/2026")).getMonth()).toBe(6);  // July
+    expect(new Date(ms("03/06/2026")).getDate()).toBe(3);   // the 3rd, not March
+    expect(Number.isNaN(new Date("25/07/2026").getTime())).toBe(true); // the trap itself
+  });
+
+  it("lands on local midnight of that calendar day", () => {
+    const d = new Date(ms("08/09/2026"));
+    expect([d.getFullYear(), d.getMonth() + 1, d.getDate()]).toEqual([2026, 9, 8]);
+    expect([d.getHours(), d.getMinutes()]).toEqual([0, 0]);
+  });
+
+  // Three callers do arithmetic with the result, not just comparison.
+  it("is real epoch milliseconds, so a day difference is 86_400_000", () => {
+    expect(ms("09/09/2026") - ms("08/09/2026")).toBe(86_400_000);
+  });
+
+  // ⚕️ 0, not NaN and not a negative year-1900 stamp: it must sort OLDER than
+  // every real clinical date so a junk entry lands at the end of a newest-first
+  // list, never at the top.
+  it("returns 0 for a missing or malformed date, which sorts oldest", () => {
+    for (const bad of ["", "   ", "Current", "Past", "2026-09-08", "08/09/26", "08-09-2026", "//"]) {
+      expect(ddmmyyyyMs(bad)).toBe(0);
+    }
+    expect(ms("08/09/2026")).toBeGreaterThan(ddmmyyyyMs("Current"));
+    expect(ms("01/01/1971")).toBeGreaterThan(ddmmyyyyMs("rubbish"));
+  });
+
+  it("never throws on a non-string", () => {
+    expect(ddmmyyyyMs(null)).toBe(0);
+    expect(ddmmyyyyMs(undefined)).toBe(0);
+    expect(ddmmyyyyMs(42)).toBe(0);
+  });
+
+  // Matching the seven call sites this replaced. The one caller that must
+  // REFUSE a rolled-over date keeps its own stricter parser in lib/rxAlerts.ts.
+  it("is lenient about the calendar, as every call site it replaced was", () => {
+    const d = new Date(ms("31/06/2026"));
+    expect([d.getMonth() + 1, d.getDate()]).toEqual([7, 1]); // rolls to 1 July
+  });
+
+  it("accepts a single-digit day or month, as the old parsers did", () => {
+    expect(ms("8/9/2026")).toBe(ms("08/09/2026"));
+  });
+});
+
+// ⚕️ The strict sibling. Two callers must DROP a date they cannot read rather
+// than place it: the Health-trend chart (one junk record used to stretch the
+// shared axis across 126 years) and rxAlerts (an epoch-zero stamp computes a
+// ~56-year gap and silences an alert that should fire).
+describe("ddmmyyyyMsStrict", () => {
+  it("agrees with the lenient parser on every real date", () => {
+    for (const d of ["08/09/2026", "24/01/2025", "25/07/2026", "03/06/2026", "8/9/2026"]) {
+      expect(ddmmyyyyMsStrict(d)).toBe(ddmmyyyyMs(d));
+    }
+  });
+
+  it("returns NaN, not 0, for a date it cannot read", () => {
+    for (const bad of ["", "Current", "2026-09-08", "08/09/26", "rubbish", "//"]) {
+      expect(ddmmyyyyMsStrict(bad)).toBeNaN();
+      expect(ddmmyyyyMs(bad)).toBe(0);      // the documented difference
+    }
+    expect(ddmmyyyyMsStrict(null)).toBeNaN();
+  });
+
+  // new Date(2026, 1, 31) is 3 March. Drawing 31/02/2026 there would present a
+  // date the record never held.
+  it("refuses a rolled-over calendar date that the lenient parser accepts", () => {
+    expect(ddmmyyyyMsStrict("31/02/2026")).toBeNaN();
+    expect(ddmmyyyyMsStrict("31/06/2026")).toBeNaN();
+    expect(ddmmyyyyMs("31/06/2026")).not.toBeNaN();   // the documented difference
+  });
+
+  it("accepts the last real day of a short month", () => {
+    expect(ddmmyyyyMsStrict("30/06/2026")).not.toBeNaN();
+    expect(ddmmyyyyMsStrict("29/02/2024")).not.toBeNaN();   // leap year
+    expect(ddmmyyyyMsStrict("29/02/2025")).toBeNaN();       // not a leap year
   });
 });

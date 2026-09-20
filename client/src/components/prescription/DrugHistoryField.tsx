@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { isoToDdmmyyyy } from "@/lib/dateInput";
+import { isoToDdmmyyyy, ddmmyyyyMs } from "@/lib/dateInput";
 import { appendBlocks, blocksFromRows, moveSummary, type HistoryBlock } from "@/lib/drugHistorySelect";
 import HideToggle from "@/components/common/HideToggle";
 
@@ -48,7 +48,6 @@ function parseEntry(s: string, currentDate: string): Parsed {
   return { date: currentDate, kind: "med", body: s };
 }
 
-const ts = (d: string): number => { const [dd, mm, yy] = d.split("/").map(Number); return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0; };
 
 /** "Drug — dose — food — duration" → the cells, blanks kept as blanks. */
 const cells = (body: string): string[] => body.split(" — ").map((x) => x.trim());
@@ -104,7 +103,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
   const pastGroups = (() => {
     const map = new Map<string, Parsed[]>();
     for (const p of pastParsed) { const a = map.get(p.date); if (a) a.push(p); else map.set(p.date, [p]); }
-    return Array.from(map.entries()).map(([date, list]) => ({ date, list })).sort((a, b) => ts(b.date) - ts(a.date));
+    return Array.from(map.entries()).map(([date, list]) => ({ date, list })).sort((a, b) => ddmmyyyyMs(b.date) - ddmmyyyyMs(a.date));
   })();
   // Medicines are numbered as they are on the ℞; a tapering line belongs to the
   // medicine above it and takes no number of its own.
@@ -222,7 +221,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                         moved to Distant past. A normal returning patient (last visit
                         weeks ago) would otherwise see it on every new visit. */}
                     {pastGroups.length > 0 && pastGroups[0].date !== PAST_MARKER &&
-                      ts(pastGroups[0].date) > Date.now() - 3 * 86_400_000 && (
+                      ddmmyyyyMs(pastGroups[0].date) > Date.now() - 3 * 86_400_000 && (
                       <div style={{ fontSize: 12, color: C.n[500], padding: "0 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
                         <span>Previous visit&apos;s medications are in</span>
                         <button onClick={() => setTab("past")} style={{ color: C.pri[500], background: "none", border: "none", cursor: "pointer", fontSize: 12, fontFamily: font, padding: 0, textDecoration: "underline" }}>Distant Past →</button>

@@ -5,6 +5,7 @@
 
 import { INV_CATS } from "@/data/investigations";
 import type { InvFinding } from "./investigationSummary";
+import { ddmmyyyyMs } from "@/lib/dateInput";
 
 // Fields whose value is written bare (no "Label:" prefix) — mirrors
 // InvestigationPopup.tsx's VALUE_LABELS exactly.
@@ -94,11 +95,6 @@ function parseAndNormalize(raw: string, param: ChartableParam): { value: number;
   return null;
 }
 
-const ts = (d: string): number => {
-  const [dd, mm, yy] = d.split("/").map(Number);
-  return new Date(yy || 0, (mm || 1) - 1, dd || 1).getTime() || 0;
-};
-
 // Numeric time series for one chartable parameter, derived from a patient's
 // investigationSummary findings, oldest first. Same-date re-entries are
 // never deduped/merged — dropping a recorded value based on a guess about
@@ -117,5 +113,5 @@ export function numericSeriesFor(findings: InvFinding[], param: ChartableParam):
     const label = parsed.usedU2 ? `${round2(parsed.value)}${param.unit} (${raw})` : raw;
     points.push({ date: f.date, value: parsed.value, label });
   }
-  return points.sort((a, b) => ts(a.date) - ts(b.date));
+  return points.sort((a, b) => ddmmyyyyMs(a.date) - ddmmyyyyMs(b.date));
 }
