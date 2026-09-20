@@ -11,6 +11,7 @@ import { hasImageUrl, hasValueLine, markerFor, nextImageKey, parseFindingKey, te
 import CalcRenderer from "./CalcRenderer";
 import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
+import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -487,7 +488,7 @@ export default function InvestigationPopup() {
               border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[700],
             }}>
               🖼 Add all reports image
-              <input type="file" accept="image/*" multiple style={{ display: "none" }}
+              <input type="file" accept={IMAGE_ACCEPT} multiple style={{ display: "none" }}
                 onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
             </label>
             <button onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
@@ -663,7 +664,7 @@ export default function InvestigationPopup() {
                         display: "inline-flex", alignItems: "center", gap: 4,
                       }}>
                         <span>Add report image</span>
-                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={async (e) => {
+                        <input type="file" accept={IMAGE_ACCEPT} capture="environment" style={{ display: "none" }} onChange={async (e) => {
                           const file = e.target.files && e.target.files[0];
                           if (file) {
                             try {

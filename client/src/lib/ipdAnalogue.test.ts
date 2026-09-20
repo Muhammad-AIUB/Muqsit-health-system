@@ -35,10 +35,47 @@ describe("checkSheetFiles", () => {
     expect(rejected).toEqual([{ name: "orders.pdf", reason: "not an image" }]);
   });
 
-  // iPhones produce HEIC, the server's magic-byte check accepts it, and
-  // compressImage passes it through. Refusing it would refuse the ward's phones.
+  // iPhones produce HEIC. Refusing it would refuse the ward's phones.
+  // (Since 2026-09-20 `compressImage` CONVERTS it to JPEG before upload rather
+  // than passing it through — the ward PC's browser cannot draw HEIC either.)
   it("accepts HEIC", () => {
     expect(checkSheetFiles([file("IMG_0001.HEIC", "image/heic")]).accepted).toHaveLength(1);
+  });
+
+  // This panel used to keep its OWN format list, which had drifted from the
+  // server's: GIF and BMP were stored happily by the API and called "not an
+  // image" here, and TIFF — what the ward's scanner produces — was refused
+  // everywhere. One table now (`lib/imageFormats.ts`).
+  it.each([
+    ["page.gif", "image/gif"],
+    ["page.bmp", "image/bmp"],
+    ["scan.tif", "image/tiff"],
+    ["scan.TIFF", "image/tiff"],
+    ["page.avif", "image/avif"],
+    ["page.webp", "image/webp"],
+  ])("accepts %s, which its own old list refused", (name, type) => {
+    expect(checkSheetFiles([file(name, type)]).accepted).toHaveLength(1);
+  });
+
+  // A HEIC picked on Windows arrives with no usable MIME type at all. Matching
+  // on `file.type` alone called the doctor's own photograph "not an image".
+  it.each([
+    ["IMG_0001.HEIC", "application/octet-stream"],
+    ["scan.tif", "application/octet-stream"],
+  ])("accepts %s when the browser sends octet-stream", (name, type) => {
+    expect(checkSheetFiles([file(name, type)]).accepted).toHaveLength(1);
+  });
+
+  it("still refuses what is genuinely not an image", () => {
+    const { accepted, rejected } = checkSheetFiles([
+      file("orders.pdf", "application/pdf"),
+      file("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+      // ⚕️ SVG carries script and stored images render inline — it must never
+      // become an accepted format on any screen.
+      file("logo.svg", "image/svg+xml"),
+    ]);
+    expect(accepted).toHaveLength(0);
+    expect(rejected.map((r) => r.name)).toEqual(["orders.pdf", "notes.docx", "logo.svg"]);
   });
 
   it("falls back to the extension when the browser gives no type", () => {

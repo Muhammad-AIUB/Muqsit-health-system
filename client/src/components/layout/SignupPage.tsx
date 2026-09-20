@@ -7,6 +7,7 @@ import { inputSm } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, authApi, uploadImage, type Profession, type RegisterInput } from "@/lib/api";
 import { verifyNidNumber, type NidMatch } from "@/lib/ocr";
+import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 
 // ── Profession metadata (drives conditional fields) ──────────
 const PROFESSIONS: { value: Profession; label: string }[] = [
@@ -532,7 +533,7 @@ function FileField({
           ) : (
             <span style={{ fontSize: 26, color: C.n[500] }}>{busy ? "…" : "📷"}</span>
           )}
-          <input type="file" accept="image/*" style={{ display: "none" }} onChange={onChange} disabled={busy} />
+          <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onChange} disabled={busy} />
         </label>
         <span style={{ fontSize: 11, color: value ? C.pri[600] : C.n[600], fontWeight: 500 }}>
           {busy ? "Uploading…" : value ? "✓ Change photo" : label}
@@ -551,7 +552,7 @@ function FileField({
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, border: `0.5px dashed ${value ? C.pri[400] : C.n[300]}`, background: value ? C.pri[50] : C.n[50], color: value ? C.pri[600] : C.n[600], fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
           {busy ? "Uploading…" : value ? "✓ Uploaded — replace" : "Choose image"}
-          <input type="file" accept="image/*" style={{ display: "none" }} onChange={onChange} disabled={busy} />
+          <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onChange} disabled={busy} />
         </label>
         {value && <img src={value} alt="preview" style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 6, border: `0.5px solid ${C.n[200]}` }} />}
       </div>

@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useImageUpload } from "@/hooks/useImageUpload";
+import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 
 // BMDC (registrationNo / registrationCertUrl) and name are intentionally not
 // in the draft — they're shown read-only from the original profile and no
@@ -492,7 +493,7 @@ function PhotoUploader({
       ) : (
         <span style={{ fontSize: 20, color: C.pri[600], fontWeight: 600 }}>{busy ? "…" : fallback}</span>
       )}
-      <input type="file" accept="image/*" onChange={onPick} style={{ display: "none" }} disabled={busy} />
+      <input type="file" accept={IMAGE_ACCEPT} onChange={onPick} style={{ display: "none" }} disabled={busy} />
     </label>
   );
 }
@@ -576,7 +577,7 @@ function DocUploader({
         }}
       >
         {busy ? "Uploading…" : value ? "✓ Replace" : placeholder}
-        <input type="file" accept="image/*" style={{ display: "none" }} onChange={onPick} disabled={busy} />
+        <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPick} disabled={busy} />
       </label>
       {value && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -628,7 +629,7 @@ function CertImageUploader({
             {busy ? "Uploading…" : "+ Upload image"}
           </span>
         )}
-        <input type="file" accept="image/*" style={{ display: "none" }} onChange={onPick} disabled={busy} />
+        <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPick} disabled={busy} />
       </label>
       {value && (
         <a href={value} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: C.n[600], textDecoration: "none" }}>

@@ -27,12 +27,20 @@ export class UploadController {
       // rejects real uploads. The hardening that matters is the magic-byte check,
       // not the last 3 MB.
       limits: { fileSize: 8 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.startsWith('image/')) {
-          return cb(new BadRequestException('Only image files are allowed'), false);
-        }
-        cb(null, true);
-      },
+      // ⚠️ Deliberately NOT a MIME allowlist any more (2026-09-20). It used to
+      // refuse anything whose Content-Type did not start with `image/`, which
+      // threw away real uploads: a HEIC photo picked on Windows arrives as
+      // `application/octet-stream`, and so does a `.tif` scan on a machine with
+      // no MIME registration for it. The doctor was told "Only image files are
+      // allowed" about their own photograph.
+      //
+      // Nothing is weakened by dropping it. The multipart Content-Type is
+      // caller-supplied and was never evidence of anything — the check that
+      // actually decides is `UploadService.sniff`, which reads the file's own
+      // signature and is the only gate that can't be lied to. An empty
+      // `Content-Type` filter plus a magic-byte check is strictly stronger than
+      // a trusted-header filter plus the same check.
+      fileFilter: (_req, _file, cb) => cb(null, true),
     }),
   )
   async uploadImage(@UploadedFile() file: Express.Multer.File) {

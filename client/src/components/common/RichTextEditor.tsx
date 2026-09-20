@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { C } from "@/theme";
 import { ApiError, uploadImage } from "@/lib/api";
+import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 
 // Font list mirroring Microsoft Word's font menu (theme fonts + the standard
 // Windows/Office font set). Label is what shows in the dropdown; value is the
@@ -232,7 +233,7 @@ const RichTextEditor = forwardRef<
         >
           {imgBusy ? "…" : "🖼 Image"}
         </button>
-        <input ref={imageInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onPickImage} />
+        <input ref={imageInputRef} type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPickImage} />
       </div>
 
       {/* Editable surface */}

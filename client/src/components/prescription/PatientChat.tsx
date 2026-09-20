@@ -6,13 +6,19 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatientChat, useSendChat } from "@/hooks/useChat";
 import { uploadImage, type ChatMessage } from "@/lib/api";
 import { formatActivityTime } from "@/lib/activityFormat";
+import { imageUrlIsRenderable } from "@/lib/imageFormats";
 
 // 4.docx: a per-patient team chat. Shown under the prescription's Notification
 // area whenever a patient is loaded. Participants — owner, assistants and
 // assigned supervising doctors — discuss the patient. Text + image/file
 // attachment; polled; no edit/delete.
 
-const isImageUrl = (u: string) => /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(u);
+// One table for the whole app (`lib/imageFormats.ts`). This regex was the app's
+// FIFTH disagreeing format list: it knew nothing of AVIF — which the server
+// stores — so an AVIF attachment rendered as a bare link, and it listed `svg`,
+// which the magic-byte check has never accepted and which must never be drawn
+// inline anyway (an SVG carries script).
+const isImageUrl = imageUrlIsRenderable;
 // Only ever emit an href/src for an http(s) URL. A javascript:/data: payload
 // (e.g. a stored-XSS attempt from a supervising doctor) is rendered as plain
 // text instead of a clickable/loadable link so it can never execute.

@@ -1,5 +1,6 @@
 import type { IpdAnalogueSheet } from "./api";
 import { THUMB_MAX_DIM } from "./imageThumbs";
+import { kindFromNameOrType } from "./imageFormats";
 
 // ── The paper ("analogue") order sheet: pure rules ──────────────────────────
 // Everything here is a decision about a patient's record, so it lives outside
@@ -28,16 +29,13 @@ export const MAX_FILES_PER_BATCH = 20;
 // confusing 413 into a named file the doctor can do something about.
 export const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
-// HEIC is on the list on purpose: iPhones produce it, the server's magic-byte
-// check accepts it, and `compressImage` passes it through untouched.
-const ACCEPTED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  "image/avif",
-];
+// ⚕️ The accepted formats are NOT listed here any more (2026-09-20). This panel
+// kept its own list, which had drifted: it refused GIF and BMP that the server
+// accepts, and knew nothing of TIFF — so a ward scan was "not an image" on this
+// screen and fine on the patient's report gallery. `lib/imageFormats.ts` is now
+// the one table, and it decides by the file's own bytes rather than by the
+// `type` the browser guessed. See `kindFromNameOrType` for the fallback that
+// replaced `guessTypeFromName`.
 
 export interface RejectedFile {
   name: string;
@@ -66,10 +64,10 @@ export function checkSheetFiles(files: File[]): FileCheck {
       rejected.push({ name: file.name, reason: `more than ${MAX_FILES_PER_BATCH} pages at once` });
       continue;
     }
-    // Some browsers hand over an empty `type` for a dragged file; fall back to
-    // the extension rather than refusing something that is probably fine.
-    const type = file.type || guessTypeFromName(file.name);
-    if (!ACCEPTED_TYPES.includes(type)) {
+    // Some browsers hand over an empty `type` for a dragged file, and a HEIC
+    // picked on Windows arrives as `application/octet-stream`; fall back to the
+    // extension rather than refusing the doctor's own photograph.
+    if (!kindFromNameOrType(file.name, file.type)) {
       rejected.push({ name: file.name, reason: "not an image" });
       continue;
     }
@@ -81,17 +79,6 @@ export function checkSheetFiles(files: File[]): FileCheck {
   }
 
   return { accepted, rejected };
-}
-
-function guessTypeFromName(name: string): string {
-  const ext = name.toLowerCase().split(".").pop() ?? "";
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-  if (ext === "png") return "image/png";
-  if (ext === "webp") return "image/webp";
-  if (ext === "heic") return "image/heic";
-  if (ext === "heif") return "image/heif";
-  if (ext === "avif") return "image/avif";
-  return "";
 }
 
 export interface UploadedSheet {

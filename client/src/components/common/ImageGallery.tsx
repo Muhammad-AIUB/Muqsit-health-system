@@ -2,6 +2,7 @@
 
 import { useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { C, font } from "@/theme";
+import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 
 // ── A titled image gallery: upload, edit/remove, drag-reorder, open ─────────
 //
@@ -190,7 +191,7 @@ export default function ImageGallery({
               <input
                 ref={inputRef}
                 type="file"
-                accept="image/*"
+                accept={IMAGE_ACCEPT}
                 multiple
                 aria-label={addLabel}
                 style={{ display: "none" }}

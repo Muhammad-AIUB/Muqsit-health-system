@@ -544,11 +544,30 @@ SSE route.
 
 Public on purpose: the registration flow uploads NID, certificate and profile
 images **before any account exists**, so no JWT guard can apply. Abuse is bounded by
-the global throttler, the 8 MB limit and a magic-byte check (JPEG, PNG, WEBP, GIF,
-BMP, AVIF/HEIC/HEIF — iPhone report photos are routinely 3–8 MB, so the limit is
-deliberately not lower). The returned URL is absolute, built from `PUBLIC_URL`, and
+the global throttler, the 8 MB limit and a magic-byte check (iPhone report photos
+are routinely 3–8 MB, so the limit is deliberately not lower).
+
+**Accepted formats (2026-09-20): JPEG, PNG, GIF, BMP, WEBP, AVIF, HEIC/HEIF, TIFF.**
+Decided by the file's own signature — the multipart `Content-Type` is not consulted
+at all (it is caller-supplied, and a HEIC picked on Windows arrives as
+`application/octet-stream`). The stored filename's extension is derived from the
+same bytes, because it is what `express.static` serves the `Content-Type` from.
+**SVG and PDF are refused**: an SVG carries script and stored images render inline,
+and a PDF is not an image. The client converts HEIC and TIFF to JPEG before upload
+(`client/src/lib/decodeImage.ts`), so one reaching this route is a browser that
+could not. `400` names every accepted format. The returned URL is absolute, built from `PUBLIC_URL`, and
 the file is served from the API's own disk at `/uploads/<name>`; hosted URLs are
 stored in the DB, never base64.
+
+**`503` when `PUBLIC_URL` is localhost** (2026-09-20). That URL is written into a
+patient's record verbatim and the database is shared with production, so an upload
+from a developer's laptop used to put `http://localhost:4000/uploads/…` into
+doctors' real records — unopenable anywhere else, showing as "Did not load" with
+`ERR_CONNECTION_REFUSED` on the live site, and invisible to the developer who
+created it. The upload is now refused **before the file is written**. Opt in with
+`ALLOW_LOCALHOST_UPLOAD_URLS=true` only for a database that is genuinely local.
+Pinned in `src/uploads/upload.service.spec.ts`; repair tool:
+`server/scripts/repair-localhost-image-urls.js`.
 
 ---
 
@@ -562,7 +581,8 @@ stored in the DB, never base64.
 | `NODE_ENV` | enables HSTS, secure cookies, and the JWT-secret check |
 | `CORS_ORIGIN` | comma-separated allowed origins |
 | `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN` | cookie flags for cross-domain deployments |
-| `PUBLIC_URL` | base of the URLs returned by `/uploads/image` |
+| `PUBLIC_URL` | base of the URLs returned by `/uploads/image`. A localhost value **refuses every upload** — see 5.19 |
+| `ALLOW_LOCALHOST_UPLOAD_URLS` | `true` lifts that refusal. Only for a genuinely local-only database |
 | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | OTP and notification email; unset → the transporter is null and OTPs don't send (configuration, not a bug) |
 | `SMS_CUSTOMER_ID`, `SMS_API_KEY`, `SMS_API_URL` | SMS gateway. `SmsModule` is deliberately **not** wired into `AppModule` — nothing consumes it yet |
 | `ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD` | `npm run seed` |
