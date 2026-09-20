@@ -14,6 +14,7 @@ import { formatActivityTime } from "@/lib/activityFormat";
 import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
+import { printableInvestigation } from "@/lib/investigationHidden";
 import { rxSnapshotKey } from "@/lib/rxSnapshot";
 import { THUMB_UPLOAD } from "@/lib/imageThumbs";
 import LeftColumn from "./LeftColumn";
@@ -111,7 +112,11 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         { label: "Chief complaints", items: m.chiefComplaints },
         { label: "Previous complaints", items: m.previousComplaints.map(formatPc) },
         { label: "History", items: m.history },
-        { label: "Investigation findings", items: m.investigation.filter((s) => !s.includes("[image attached]") && !/^\d{2}\/\d{2}\/\d{4}:Report \d+(:|$)/i.test(s)) },
+        // ⚕️ `printableInvestigation` drops what never printed (attached-report
+        // markers, report-pool staging rows) AND what the doctor marked ⊘ Hide
+        // on this visit. The finding itself stays in the record and on screen —
+        // only this document omits it. See lib/investigationHidden.ts.
+        { label: "Investigation findings", items: printableInvestigation(m.investigation, m.hiddenInvestigation) },
         // ⚕️ The ℞ mirror is stripped back out of the printed document. Today's
         // medicines ARE the ℞ table below; listing them again under "Drug
         // history" would tell whoever reads the sheet that the patient was
@@ -119,7 +124,10 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         // medical document. Matched on the exact stored entry, so a medication
         // the doctor typed into Drug history by hand on this same date, which is
         // a real prior medication, still prints.
-        { label: "Drug history", items: printableDrugHistory },
+        // ⚕️ ⊘ Hide on the Drug history row takes the WHOLE section off this
+        // document (physician's decision, 2026-09-21). The entries themselves
+        // are untouched — still in the patient's record, still on screen.
+        { label: "Drug history", items: m.hideDrugHistory ? [] : printableDrugHistory },
         { label: "On examination", items: m.onExamination },
         { label: "Note", items: m.note },
         { label: "Plan", items: m.plan },

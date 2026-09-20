@@ -26,6 +26,7 @@ import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries } from "@/lib/rxDrugHistory";
+import { pruneHidden } from "@/lib/investigationHidden";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import type {
   Page,
@@ -135,6 +136,28 @@ function useMuqsitStore() {
   const [previousComplaints, setPreviousComplaints] = useState<StringList>([]);
   const [history, setHistory] = useState<StringList>([]);
   const [investigation, setInvestigation] = useState<StringList>([]);
+  // ⚕️ Investigation findings the doctor marked "do not print" (2026-09-21),
+  // by their exact stored string. It changes the printed document only — the
+  // findings themselves stay in the record and stay on screen. Carried in the
+  // draft snapshot, so the marks survive a reload and a patient switch and last
+  // until the doctor unhides them; a new visit starts with an empty list and so
+  // with nothing hidden. See `lib/investigationHidden.ts`.
+  const [hiddenInvestigation, setHiddenInvestigation] = useState<StringList>([]);
+  // ⚕️ The WHOLE Drug history section, kept off the printed sheet (2026-09-21).
+  // A boolean, not a list: the medicines live behind a modal, so this row can
+  // only offer an all-or-nothing choice — see `DrugHistoryField`.
+  const [hideDrugHistory, setHideDrugHistory] = useState(false);
+  // ⚕️ A hide mark must not outlive the finding it was put on. Without this, a
+  // line deleted and later re-typed — the same words, a different clinical
+  // moment — would come back already hidden, with nothing on screen saying why.
+  // Returns `prev` unchanged when nothing was orphaned, so this cannot loop.
+  useEffect(() => {
+    setHiddenInvestigation((prev) => {
+      if (prev.length === 0) return prev;
+      const next = pruneHidden(prev, investigation);
+      return next.length === prev.length ? prev : next;
+    });
+  }, [investigation]);
   const [drugHistory, setDrugHistory] = useState<StringList>([]);
   const [onExamination, setOnExamination] = useState<StringList>([]);
   // "Note / plan" was one field until 2026-09-07; the physician split it into
@@ -558,7 +581,7 @@ function useMuqsitStore() {
   const resetEditor = useCallback(() => {
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
     setPtDate(todayISO()); setPtPhone(""); setPtHospitalId("");
-    setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]);
+    setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(false);
     setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
     setRxItems([]); setAdvice([]); setAdviceTest([]);
@@ -582,6 +605,7 @@ function useMuqsitStore() {
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);
+    arr("hiddenInvestigation", setHiddenInvestigation);
     arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
     arr("note", setNote); arr("plan", setPlan); arr("provisionalDiagnosis", setProvisionalDiagnosis);
     arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
@@ -589,6 +613,7 @@ function useMuqsitStore() {
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
+    if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);
     if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
     if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
   }, []);
@@ -867,7 +892,9 @@ function useMuqsitStore() {
       chiefComplaints, previousComplaints, history, investigation, drugHistory,
       onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
       rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+      hideDrugHistory,
       invImages, oeData, currentPatientId,
+      hiddenInvestigation,
     };
     // Keep the latest snapshot available for a synchronous flush on switch.
     pendingDraftRef.current = { snapshot, pid: currentPatientId, supervised: supervisedRef.current, hasRx: hasRxContent };
@@ -895,7 +922,9 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    hideDrugHistory,
     invImages, oeData, currentPatientId,
+    hiddenInvestigation,
   ]);
 
   // "Save to complete later" — the doctor-initiated twin of the auto-save above, for a visit
@@ -958,7 +987,9 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    hideDrugHistory,
     invImages, oeData,
+    hiddenInvestigation,
     // Patient settings: the info form, its Edit/locked state, family tree
     ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
     // Popups / pickers, so opening one shows up on the other device too
@@ -970,7 +1001,9 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    hideDrugHistory,
     invImages, oeData,
+    hiddenInvestigation,
     ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
     showOePopup, showInvPopup, invActiveCat, invFormData, invSearch,
     showDrugPicker, drugSearch,
@@ -998,6 +1031,7 @@ function useMuqsitStore() {
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);
+    arr("hiddenInvestigation", setHiddenInvestigation);
     arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
     arr("note", setNote); arr("plan", setPlan); arr("provisionalDiagnosis", setProvisionalDiagnosis);
     arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
@@ -1005,6 +1039,7 @@ function useMuqsitStore() {
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
+    if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);
     if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
     if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
     // Patient settings form + family tree
@@ -1101,6 +1136,8 @@ function useMuqsitStore() {
     ptHospitalId, setPtHospitalId,
     chiefComplaints, setChiefComplaints, previousComplaints, setPreviousComplaints,
     history, setHistory, investigation, setInvestigation,
+    hiddenInvestigation, setHiddenInvestigation,
+    hideDrugHistory, setHideDrugHistory,
     drugHistory, setDrugHistory, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,

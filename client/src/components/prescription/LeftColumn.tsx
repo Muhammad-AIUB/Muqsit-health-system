@@ -12,7 +12,7 @@ import { usePreviousDiagnoses } from "@/hooks/usePreviousDiagnoses";
 import { isInlineEditField } from "@/lib/inlineEditFields";
 
 export default function LeftColumn() {
-  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel } = useMuqsit();
+  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory } = useMuqsit();
   const logActivity = useActivityLog();
   // "P.D" — offered inside the Final diagnosis popup only.
   const previousDiagnoses = usePreviousDiagnoses();
@@ -28,7 +28,7 @@ export default function LeftColumn() {
             // An assistant without `rx.drugHistory` could not reach this list
             // before and must not gain a patient's medications now.
             <Lock key={f.label} locked={!canEditLabel("Drug history")}>
-              <DrugHistoryField items={f.items} />
+              <DrugHistoryField items={f.items} hidden={hideDrugHistory} onHidden={setHideDrugHistory} />
             </Lock>
           );
         }
@@ -36,10 +36,18 @@ export default function LeftColumn() {
           return <PreviousComplaintsField key={f.label} items={f.items} setItems={f.set} />;
         }
         if (f.label === "Investigation report findings" || f.label === "On examination") {
-          const openFn = f.label === "Investigation report findings" ? () => setShowInvPopup(true) : () => setShowOePopup(true);
+          const isInv = f.label === "Investigation report findings";
+          const openFn = isInv ? () => setShowInvPopup(true) : () => setShowOePopup(true);
           return (
             <Lock key={f.label} locked={!canEditLabel(f.label)}>
-              <InvestigationFindingsField label={f.label} items={f.items} invImages={invImages} onOpen={openFn} />
+              {/* ⚕️ ⊘ Hide is opt-in and Investigation-only (physician's
+                  decision, 2026-09-21). On examination renders the same
+                  component and passes nothing, so it prints as it always has. */}
+              <InvestigationFindingsField
+                label={f.label} items={f.items} invImages={invImages} onOpen={openFn}
+                hidden={isInv ? hiddenInvestigation : undefined}
+                onHidden={isInv ? setHiddenInvestigation : undefined}
+              />
             </Lock>
           );
         }
