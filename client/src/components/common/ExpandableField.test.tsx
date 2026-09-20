@@ -11,8 +11,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import ExpandableField from "./ExpandableField";
 
+let recents: string[] = [];
 vi.mock("@/hooks/useFieldRecents", () => ({
-  useFieldRecents: () => ({ getRecents: () => [], addRecents: vi.fn() }),
+  useFieldRecents: () => ({ getRecents: () => recents, addRecents: vi.fn() }),
+}));
+
+// The doctor's own learned phrases, as the server would return them.
+let learned: { id: string; text: string; patientCount: number }[] = [];
+vi.mock("@/hooks/useDoctorPhrases", () => ({
+  useDoctorPhrases: (_s: string, _q: string, enabled: boolean) => ({
+    phrases: enabled ? learned : [],
+    refresh: vi.fn(),
+  }),
 }));
 
 let canEdit = true;
@@ -23,6 +33,8 @@ vi.mock("@/context/MuqsitContext", () => ({
 afterEach(() => {
   cleanup();
   canEdit = true;
+  recents = [];
+  learned = [];
 });
 
 const bullet = (text: string) => screen.getByText(text);
@@ -319,5 +331,74 @@ describe("ExpandableField — two in-place fields side by side", () => {
     expect(screen.getAllByTestId(/^edit-/)).toHaveLength(1);
     expect(screen.getByText("Dengue")).toBeTruthy();
     expect(setProv).not.toHaveBeenCalled();
+  });
+});
+
+// ⚕️ "Learn from each doctor's previous manually written advice" (physician's
+// request, 2026-09-21). Three sources feed one list and their ORDER is the
+// feature: what this doctor actually writes, then what they typed recently,
+// then the app's static list. Learned phrases can only come from a prescription
+// already saved and printed, which is why recents are kept as well.
+describe("ExpandableField — the doctor's own learned phrases", () => {
+  const open = (props: Partial<React.ComponentProps<typeof ExpandableField>> = {}) => {
+    const r = render(
+      <ExpandableField label="Advice" items={[]} setItems={vi.fn()} suggestions={["Plenty of fluids"]} {...props} />,
+    );
+    fireEvent.click(screen.getByText("+"));
+    return r;
+  };
+  const chips = () =>
+    screen.getAllByRole("button")
+      .map((b) => (b.textContent ?? "").replace(/^[★↺]\s*/, "").trim())
+      .filter((t) => t && !["+", "×", "Done", "Cancel"].includes(t));
+
+  it("offers nothing learned unless the field opts in", () => {
+    learned = [{ id: "p1", text: "Insulin as before", patientCount: 4 }];
+    open();                                  // no learnedSource
+    expect(screen.queryByText(/Insulin as before/)).toBeNull();
+  });
+
+  it("offers this doctor's learned phrase when the field opts in", () => {
+    learned = [{ id: "p1", text: "Insulin as before", patientCount: 4 }];
+    open({ learnedSource: "advice" });
+    expect(screen.getByText(/Insulin as before/)).toBeTruthy();
+  });
+
+  it("ranks a learned phrase above a recent one, and both above the static list", () => {
+    learned = [{ id: "p1", text: "Insulin as before", patientCount: 4 }];
+    recents = ["Typed earlier today"];
+    open({ learnedSource: "advice" });
+    const order = chips();
+    expect(order.indexOf("Insulin as before")).toBeLessThan(order.indexOf("Typed earlier today"));
+    expect(order.indexOf("Typed earlier today")).toBeLessThan(order.indexOf("Plenty of fluids"));
+  });
+
+  it("shows one chip when a phrase is both learned and recent", () => {
+    learned = [{ id: "p1", text: "Insulin as before", patientCount: 4 }];
+    recents = ["Insulin as before"];
+    open({ learnedSource: "advice" });
+    expect(chips().filter((t) => t.startsWith("Insulin as before"))).toHaveLength(1);
+  });
+
+  // DISTINCT PATIENTS, not prescriptions — the only thing separating routine
+  // practice from one memorable visit, so the doctor gets to see it.
+  it("shows how many patients the phrase was written for", () => {
+    learned = [{ id: "p1", text: "Insulin as before", patientCount: 4 }];
+    open({ learnedSource: "advice" });
+    expect(screen.getByText(/Insulin as before · 4/)).toBeTruthy();
+  });
+
+  it("does not count a phrase written for a single patient", () => {
+    learned = [{ id: "p1", text: "Insulin as before", patientCount: 1 }];
+    open({ learnedSource: "advice" });
+    expect(screen.queryByText(/· 1$/)).toBeNull();
+  });
+
+  // Nothing is auto-filled: a suggestion reaches the list only on a click.
+  it("adds nothing until the doctor clicks the suggestion", () => {
+    const setItems = vi.fn();
+    learned = [{ id: "p1", text: "Insulin as before", patientCount: 4 }];
+    open({ learnedSource: "advice", setItems });
+    expect(setItems).not.toHaveBeenCalled();
   });
 });

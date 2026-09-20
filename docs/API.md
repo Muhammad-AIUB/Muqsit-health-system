@@ -490,6 +490,26 @@ patients**, not prescriptions. Nothing here is ever written back to
 `Prescription` / `PrescriptionItem`, and the table is rebuildable with
 `node server/scripts/rebuild-rx-habits.js`.
 
+### 5.14b Learned phrases — `/doctor-phrases` (JWT + WS)
+
+The free-text sibling of `/rx-habits`: the ADVICE lines and the free-typed ℞
+note lines this doctor has written before, offered back as they type.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/doctor-phrases?source=&q=` | `source` is `advice` or `rxNote`; an unknown source returns `[]`, not 400 — this feeds a dropdown while the doctor types. Blank `q` returns their most-used lines. Max 8, ordered by `patientCount` desc. |
+| PATCH | `/doctor-phrases/:id` | `{ hidden }` |
+
+Scoped by `@WorkstationDoctorId()` — an assistant sees the doctor they are
+assisting; **no doctor ever sees another's phrases**.
+
+⚠️ Same rules as `/rx-habits`, and for the same reasons. **No DELETE route** —
+"deleting" sets `hidden`, and a later save never un-hides it. `patientCount` is
+**distinct patients**, not prescriptions. Only COMPLETED prescriptions teach
+(drafts and "Save to complete later" never do). Nothing here is written back to
+`Prescription` / `PrescriptionItem`, and the table is rebuildable with
+`node server/scripts/rebuild-doctor-phrases.js`.
+
 ### 5.15 Medicines — `/medicines` (JWT)
 
 | Method | Path | Notes |

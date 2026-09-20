@@ -3,6 +3,8 @@
 import { useId, useState, useRef, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C } from "@/theme";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
+import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
+import type { PhraseSource } from "@/lib/api";
 import { useMuqsit } from "@/context/MuqsitContext";
 
 interface ExpandableFieldProps {
@@ -26,6 +28,12 @@ interface ExpandableFieldProps {
   // Opt-in (Final diagnosis): the "P.D" panel beside the popup — this patient's
   // diagnoses from past visits, ticked to carry them into today's list.
   previousItems?: string[];
+  // Opt-in: offer the phrases THIS doctor has written on this surface before,
+  // ranked above the profile recents and the static list. Server-backed and
+  // doctor-scoped (`hooks/useDoctorPhrases`). Learned only from prescriptions
+  // that were saved and printed, and counted by DISTINCT PATIENTS — so what
+  // rises to the top is routine practice, not one memorable visit.
+  learnedSource?: PhraseSource;
   // ⚕️ The assistant permission key that gates this field, when the LABEL is not
   // enough to identify it. Gating is normally by label (`canEditLabel`), but two
   // screens can spell one label the same way and mean different things: "Plan"
@@ -35,7 +43,7 @@ interface ExpandableFieldProps {
   permKey?: string;
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
   // Inline edit (inlineEdit only): every line is open at once, staged here
@@ -48,6 +56,12 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   // Per-doctor "recently typed" entries for this field (server-backed).
   const { getRecents, addRecents } = useFieldRecents();
   const recents = getRecents(label);
+  // ⚕️ Phrases this doctor has written on this surface before (opt-in). They
+  // rank ABOVE recents, which rank above the static list. Both are kept: the
+  // learned list can only contain lines from prescriptions already printed, so
+  // recents are what covers a line typed earlier today.
+  const { phrases } = useDoctorPhrases(learnedSource ?? "advice", inputVal, !!learnedSource);
+  const learned = phrases.map((p) => p.text);
   const inputRef = useRef<HTMLInputElement>(null);
   // This field's edit boxes, its bullet list and its ✓ Done button form ONE
   // group, scoped to this instance. Now that three fields open boxes in place,
@@ -61,8 +75,15 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   const pd = previousItems ?? [];
 
   const getFiltered = () => {
-    // Recent entries first, then the static suggestion list.
-    const sugs = [...recents.filter((r) => !(suggestions || []).includes(r)), ...(suggestions || [])];
+    // Learned phrases first, then recents, then the static suggestion list —
+    // de-duplicated by text, because one line can legitimately be in all three.
+    const seen = new Set<string>();
+    const sugs = [...learned, ...recents, ...(suggestions || [])].filter((t) => {
+      const k = t.trim().toLowerCase();
+      if (!t.trim() || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
     const allText = Object.values(allFields || {}).flat().join(" ").toLowerCase();
     let scored = sugs.map((s, i) => {
       let score = 0;
@@ -72,7 +93,10 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       if (allText.includes("diabetes") && (s.toLowerCase().includes("diab") || s.toLowerCase().includes("sugar"))) score += 3;
       if (allText.includes("hypertension") && (s.toLowerCase().includes("hypertens") || s.toLowerCase().includes("bp"))) score += 3;
       if (!inputVal) score += 1;
-      if (i < recents.length) score += 2; // recents rank above static suggestions
+      // The order of `sugs` is learned → recents → static, so a position-based
+      // bonus keeps that order without a second lookup per entry.
+      if (i < learned.length) score += 3;                        // what this doctor actually writes
+      else if (i < learned.length + recents.length) score += 2;  // typed recently, maybe not printed yet
       return { text: s, score };
     });
     if (inputVal) scored = scored.filter((s) => s.score > 0);
@@ -363,13 +387,20 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                 </div>
               )}
 
-              {/* Suggestions (recent entries first, then the standard list) */}
+              {/* Suggestions: ★ this doctor's own learned phrases (with the
+                  number of patients they wrote it for), then ↺ recently typed,
+                  then the standard list. */}
               {filteredSugs.length > 0 && (
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Suggestions</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {filteredSugs.map((s) => {
-                      const isRecent = recents.includes(s.text);
+                      // ⚕️ A learned phrase carries a patient count: how many
+                      // DIFFERENT patients this doctor wrote it for. It is the
+                      // only thing separating routine practice from one
+                      // memorable visit, so it is shown, not hidden.
+                      const lp = phrases.find((p) => p.text === s.text);
+                      const isRecent = !!lp || recents.includes(s.text);
                       return (
                         <button key={s.text} onClick={() => pickSuggestion(s.text)} style={{
                           padding: "6px 14px", borderRadius: 6, fontSize: 11, cursor: "pointer",
@@ -380,7 +411,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                         }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; e.currentTarget.style.color = C.pri[600]; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = isRecent ? C.pri[50] : C.n[50]; e.currentTarget.style.borderColor = isRecent ? C.pri[100] : C.n[200]; e.currentTarget.style.color = isRecent ? C.pri[600] : C.n[800]; }}
-                        >{isRecent ? "↺ " : ""}{s.text}</button>
+                        >{lp ? "★ " : isRecent ? "↺ " : ""}{s.text}{lp && lp.patientCount > 1 ? ` · ${lp.patientCount}` : ""}</button>
                       );
                     })}
                   </div>

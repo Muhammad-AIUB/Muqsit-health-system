@@ -447,6 +447,32 @@ export const rxHabitsApi = {
     }),
 };
 
+// ── Learned phrases (Advice + ℞ note lines) ─────────────────
+// The free-text sibling of rxHabitsApi: lines this doctor has written before,
+// offered back as they type. Doctor-scoped server-side (@WorkstationDoctorId).
+export type PhraseSource = "advice" | "rxNote";
+
+export interface DoctorPhrase {
+  id: string;
+  text: string;
+  /** DISTINCT PATIENTS this phrase was written for, never prescriptions. */
+  patientCount: number;
+}
+
+export const doctorPhrasesApi = {
+  list: (source: PhraseSource, q: string) =>
+    apiFetch<DoctorPhrase[]>(
+      `/doctor-phrases?source=${encodeURIComponent(source)}&q=${encodeURIComponent(q)}`,
+    ),
+  // No remove(): the prescription the phrase was learned from is never touched,
+  // so "deleting" a suggestion means hiding it — and hiding is reversible.
+  setHidden: (id: string, hidden: boolean) =>
+    apiFetch<DoctorPhrase>(`/doctor-phrases/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ hidden }),
+    }),
+};
+
 // ── Prescription print layout ───────────────────────────────
 export interface PrescriptionLayout {
   rxType: "opd" | "ipd";

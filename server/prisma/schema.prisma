@@ -100,6 +100,7 @@ model User {
   // Learned prescribing habits ("my usual dose") — derived from this doctor's
   // own saved prescriptions, never shared across doctors.
   rxHabits DoctorRxHabit[]
+  phraseHabits DoctorPhraseHabit[]
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -663,4 +664,49 @@ model DoctorRxHabit {
   // "C"/"POSIX". It is created in prisma/manual-rx-habits.sql — verified with
   // EXPLAIN, not assumed.
   @@index([doctorId, searchKey])
+}
+
+/// A phrase this doctor has written before, offered back as they type.
+///
+/// ⚕️ The free-text sibling of `DoctorRxHabit`, and it inherits that model's
+/// rules verbatim (root CLAUDE.md, "Prescribing habit"):
+///   • it NEVER originates clinical content — every character is echoed from a
+///     prescription this doctor already saved and printed;
+///   • `patientCount` is DISTINCT PATIENTS, so one patient returning monthly
+///     cannot make a one-off line look routine;
+///   • only COMPLETED prescriptions teach — a parked draft is not a decision
+///     the doctor stood behind;
+///   • "deleting" a suggestion sets `hidden`; there is no DELETE route, and a
+///     later save never un-hides it;
+///   • the whole table is derived and rebuildable from the record
+///     (`scripts/rebuild-doctor-phrases.js`).
+model DoctorPhraseHabit {
+  id       String @id @default(cuid())
+  doctorId String
+  doctor   User   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  /// Which surface the phrase was written on: "advice" (the ADVICE list) or
+  /// "rxNote" (a free-typed line between medicines on the ℞ pad). One table,
+  /// two surfaces, never mixed in a suggestion list.
+  source String
+
+  /// The matching key: typography-normalised ONLY (case, whitespace, one
+  /// trailing full stop). Never clinically normalised — "Insulin as before" and
+  /// "Inj. Insulin as before" are two different instructions and stay apart.
+  signature String
+  /// The phrase as the doctor last wrote it. This is what gets inserted.
+  text      String
+
+  /// DISTINCT PATIENTS, not prescriptions. Established by asking the record
+  /// which patients already contributed this phrase, never by `increment: 1`.
+  patientCount Int      @default(0)
+  lastUsedAt   DateTime
+
+  hidden Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doctorId, source, signature])
+  @@index([doctorId, source, patientCount])
 }

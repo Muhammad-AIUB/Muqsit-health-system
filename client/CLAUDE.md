@@ -147,6 +147,32 @@ Server side, `dob` is validated in `patients/dto/patient.dto.ts` (`@IsISO8601({s
 - Each reading carries its parsed `ms` from the memo that builds the series; the render path compares numbers. Typing in a duration box re-renders the whole chart, so don't move date parsing back into render.
 - `hmSelectedDrugs` no longer has a UI writer (the chart's checkboxes are view state). It is still seeded on patient load and carried over by the family-link flow, so the column and its data stay.
 
+## Learned phrases: what this doctor has written before (2026-09-21)
+
+Two surfaces offer back the free text a doctor has written before, both fed by
+`GET /api/doctor-phrases` through `hooks/useDoctorPhrases` (300 ms debounce,
+out-of-order guard, **failure resolves to `[]`** — on a clinical screen "no
+saved phrases" and "the lookup failed" must not look alike).
+
+- **Advice** — `ExpandableField`'s opt-in `learnedSource` prop, passed only by
+  `RightColumn` for the Advice field. The chip list is ordered **learned (★, with
+  the number of PATIENTS it was written for) → recents (↺) → the static list**,
+  de-duplicated by text. Position in `sugs` carries the ranking, so the array
+  order and the score bonus must stay in step.
+- **℞ note line** — a "Your usual notes" section in the `MedicinePad` dropdown,
+  shown only on a row that is NOT a medicine. Gated by the same `showHabits`
+  opt-in as the medicine habits, so the IPD order sheet, the Drug-history pad and
+  the template editor are untouched.
+
+**Why recents are KEPT alongside** (`useFieldRecents`, `User.fieldRecents`): a
+learned phrase can only come from a prescription already saved and printed, so
+recents are what covers a line typed earlier today. They are two sources with
+two jobs, not a duplication to tidy away.
+
+Nothing is ever auto-filled — every suggestion needs a click — and the client
+never writes to the phrase table; only a completed prescription teaches it.
+Pinned in `ExpandableField.test.tsx`.
+
 ## Editor lifecycle (easy to break — know it)
 
 - `resetEditor()` blanks everything and sets `ptDate` = today. `loadPatient(p)` = reset + header fields + restore `p.incompleteRx` **only when the patient belongs to the effective doctor** (`activeWsRef.current ?? authIdRef.current`). **Supervised patients (other doctor's) always open with a blank editor** — also enforced during draft hydration (the draft's patient is fetched and checked). Do not weaken either check.

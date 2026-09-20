@@ -3,6 +3,7 @@ import { Prescription, PrescriptionItem } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePrescriptionDto } from './dto/prescription.dto';
 import { RxHabitsService } from '../rx-habits/rx-habits.service';
+import { DoctorPhrasesService } from '../doctor-phrases/doctor-phrases.service';
 
 @Injectable()
 export class PrescriptionsService {
@@ -11,6 +12,7 @@ export class PrescriptionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly habits: RxHabitsService,
+    private readonly phrases: DoctorPhrasesService,
   ) {}
 
   async create(doctorId: string, dto: CreatePrescriptionDto): Promise<Prescription> {
@@ -51,6 +53,14 @@ export class PrescriptionsService {
     try {
       const rxItems = (rx as Prescription & { items?: PrescriptionItem[] }).items ?? [];
       await this.habits.recordFrom(doctorId, patientId, rx.id, rxItems);
+      // The free-text sibling: the ADVICE lines and the ℞ note lines this
+      // doctor wrote, learned under the same rules (completed prescriptions
+      // only, distinct patients). Same try/catch — a suggestion is never worth
+      // failing a saved prescription for.
+      await this.phrases.recordFrom(doctorId, patientId, rx.id, {
+        advice: rx.advice ?? [],
+        noteTexts: rxItems.filter((i) => i.isNote).map((i) => i.drug),
+      });
     } catch (e) {
       this.log.warn(`habit write failed for prescription ${rx.id}: ${String(e)}`);
     }

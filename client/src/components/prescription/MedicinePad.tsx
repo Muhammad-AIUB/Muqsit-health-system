@@ -4,6 +4,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSPropert
 import { C, font } from "@/theme";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { useRxHabits } from "@/hooks/useRxHabits";
+import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
 import { rxHabitsApi, type RxHabitGroup, type RxHabitItem } from "@/lib/api";
@@ -296,6 +297,18 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   }, [acRow, rows]);
   const { results: acItems } = useMedicineSearch(acQuery);
   const { groups: habitGroups, refresh: refreshHabits } = useRxHabits(showHabits ? acQuery : "");
+  // ⚕️ Free-typed NOTE lines this doctor has written before ("Insulin as
+  // before"). The medicine dropdown above learns doses; this learns the plain
+  // lines between medicines, which until now learned nothing at all. Same
+  // opt-in as the habits (`showHabits`), so the IPD order sheet, the
+  // drug-history pad and the template editor are untouched.
+  const noteRowActive =
+    acRow !== null && !!rows[acRow] && !rows[acRow].isMedicine && !rows[acRow].continuation;
+  const { phrases: notePhrases } = useDoctorPhrases(
+    "rxNote",
+    acRow !== null ? (rows[acRow]?.drug ?? "") : "",
+    showHabits && noteRowActive,
+  );
 
   // Which medicine's hidden suggestions the doctor has chosen to reveal.
   const [showHiddenFor, setShowHiddenFor] = useState<string | null>(null);
@@ -514,7 +527,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                   </button>
                 )}
 
-                {!isCont && acRow === idx && (acItems.length > 0 || visibleHabitGroups.length > 0 || (looksLikeMedicine(row.drug) && !row.isMedicine)) && (
+                {!isCont && acRow === idx && (acItems.length > 0 || visibleHabitGroups.length > 0 || (notePhrases.length > 0 && !row.isMedicine) || (looksLikeMedicine(row.drug) && !row.isMedicine)) && (
                   <div style={{ position: "fixed", top: acPos?.top, bottom: acPos?.bottom, left: acPos?.left ?? 0, visibility: acPos ? "visible" : "hidden", minWidth: 200, maxWidth: "min(520px, 92vw)", background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: acPos?.maxHeight ?? 320, overflowY: "auto" }}>
                     {/* "Your usual" — this doctor's own past instructions for the
                         medicine being typed. Renders NOTHING when there are none:
@@ -566,6 +579,39 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                               )
                             )}
                           </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* ⚕️ "Your usual notes" — the free-typed lines this doctor
+                        has written between medicines before. Only on a NOTE row:
+                        a line already marked as a medicine is a prescription
+                        line, and a note must never be offered in its place.
+                        Every character is echoed from a prescription this doctor
+                        saved and printed; nothing is inserted without a click. */}
+                    {notePhrases.length > 0 && !row.isMedicine && (
+                      <div style={{ borderBottom: `1px solid ${C.n[200]}` }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: C.n[500], padding: "8px 14px 4px" }}>
+                          Your usual notes
+                        </div>
+                        {notePhrases.map((p) => (
+                          <button
+                            key={p.id}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              updateRow(idx, { drug: p.text, isMedicine: false });
+                              setAcRow(null);
+                            }}
+                            style={{ display: "flex", alignItems: "baseline", gap: 8, width: "100%", textAlign: "left", padding: "7px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: font }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = C.n[50])}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <span style={{ flex: 1, fontSize: 13, color: C.n[900], fontStyle: "italic" }}>{p.text}</span>
+                            {/* DISTINCT PATIENTS, not prescriptions — the only
+                                thing separating routine practice from one visit. */}
+                            {p.patientCount > 1 && (
+                              <span style={{ fontSize: 10.5, color: C.n[500], flexShrink: 0 }}>{p.patientCount} patients</span>
+                            )}
+                          </button>
                         ))}
                       </div>
                     )}

@@ -21,6 +21,7 @@ import { TemplatesModule } from './templates/templates.module';
 import { ActivityModule } from './activity/activity.module';
 import { MedicinesModule } from './medicines/medicines.module';
 import { RxHabitsModule } from './rx-habits/rx-habits.module';
+import { DoctorPhrasesModule } from './doctor-phrases/doctor-phrases.module';
 import { WorkstationsModule } from './workstations/workstations.module';
 import { PatientChatModule } from './patient-chat/patient-chat.module';
 import { MirrorModule } from './mirror/mirror.module';
@@ -50,6 +51,7 @@ import { MirrorModule } from './mirror/mirror.module';
     ActivityModule,
     MedicinesModule,
     RxHabitsModule,
+    DoctorPhrasesModule,
     WorkstationsModule,
     PatientChatModule,
     MirrorModule,

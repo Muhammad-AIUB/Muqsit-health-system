@@ -2,6 +2,7 @@ import { Logger, NotFoundException } from '@nestjs/common';
 import { PrescriptionsService } from './prescriptions.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RxHabitsService } from '../rx-habits/rx-habits.service';
+import type { DoctorPhrasesService } from '../doctor-phrases/doctor-phrases.service';
 
 // ⚕️ REGRESSION SPEC — the single most important write path in the product.
 //
@@ -18,7 +19,13 @@ const RX = {
   id: 'rx_1',
   patientId: 'pt_1',
   doctorId: 'doc_1',
-  items: [{ id: 'i1', drug: 'Tablet. Napa 500mg', dose: '1+1+1', duration: '7 days', instruction: '', order: 0, isNote: false }],
+  // One ADVICE line and one free-typed ℞ NOTE line, so the phrase learner has
+  // both of its sources to pick apart.
+  advice: ['Insulin as before'],
+  items: [
+    { id: 'i1', drug: 'Tablet. Napa 500mg', dose: '1+1+1', duration: '7 days', instruction: '', order: 0, isNote: false },
+    { id: 'i2', drug: 'Review sugar chart', dose: '', duration: '', instruction: '', order: 1, isNote: true },
+  ],
 };
 
 const DTO = {
@@ -35,8 +42,13 @@ function makeService(habitImpl: () => Promise<void>) {
 
   const recordFrom = jest.fn(habitImpl);
   const habits = { recordFrom } as unknown as RxHabitsService;
+  const recordPhrases = jest.fn(async () => {});
+  const phrases = { recordFrom: recordPhrases } as unknown as DoctorPhrasesService;
 
-  return { service: new PrescriptionsService(prisma, habits), create, recordFrom, prisma };
+  return {
+    service: new PrescriptionsService(prisma, habits, phrases),
+    create, recordFrom, recordPhrases, prisma,
+  };
 }
 
 describe('PrescriptionsService.create — the habit write must never cost the record', () => {
@@ -98,7 +110,8 @@ describe('PrescriptionsService.create — the habit write must never cost the re
       }),
     } as unknown as RxHabitsService;
 
-    await new PrescriptionsService(prisma, habits).create('doc_1', DTO);
+    const phrases = { recordFrom: jest.fn(async () => {}) } as unknown as DoctorPhrasesService;
+    await new PrescriptionsService(prisma, habits, phrases).create('doc_1', DTO);
     expect(order).toEqual(['prescription.create', 'habits.recordFrom']);
   });
 
@@ -106,6 +119,17 @@ describe('PrescriptionsService.create — the habit write must never cost the re
     const { service, recordFrom } = makeService(async () => {});
     await service.create('doc_1', DTO);
     expect(recordFrom).toHaveBeenCalledWith('doc_1', 'pt_1', 'rx_1', RX.items);
+  });
+
+  // ⚕️ The free-text sibling learns from the SAME committed prescription, and
+  // gets the same guarantee: it can never cost the record.
+  it('hands the phrase learner the advice lines and the ℞ note lines', async () => {
+    const { service, recordPhrases } = makeService(async () => {});
+    await service.create('doc_1', DTO);
+    expect(recordPhrases).toHaveBeenCalledWith('doc_1', 'pt_1', 'rx_1', {
+      advice: ['Insulin as before'],
+      noteTexts: ['Review sugar chart'],   // the medicine line is NOT a phrase
+    });
   });
 
   it('logs a warning when the habit write fails, so the operator can see it', async () => {
@@ -121,7 +145,8 @@ describe('PrescriptionsService.create — the habit write must never cost the re
       prescription: { create: jest.fn() },
     } as unknown as PrismaService;
     const habits = { recordFrom: jest.fn() } as unknown as RxHabitsService;
-    const service = new PrescriptionsService(prisma, habits);
+    const phrases = { recordFrom: jest.fn() } as unknown as DoctorPhrasesService;
+    const service = new PrescriptionsService(prisma, habits, phrases);
 
     await expect(service.create('doc_1', DTO)).rejects.toBeInstanceOf(NotFoundException);
     expect(habits.recordFrom).not.toHaveBeenCalled();

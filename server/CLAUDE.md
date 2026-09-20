@@ -118,6 +118,34 @@ these are the ones that live in this app's code and are easy to break.
   `WorkstationsService`, and Nest resolves that at BOOT: `npx tsc --noEmit` is
   green without the import and the API then crash-loops on start. Typecheck is
   not enough for a new guarded module — start the server.
+`doctor-phrases` (2026-09-21) is the FREE-TEXT sibling of `rx-habits`: it learns
+the ADVICE lines and the free-typed ℞ **note** lines a doctor writes, and offers
+them back as they type. It is built to the same five rules and shares the same
+seam — `PrescriptionsService.create` calls `phrases.recordFrom(...)` beside
+`habits.recordFrom(...)`, in the same try/catch that can never fail the save.
+
+- **`manual-doctor-phrase-habit.sql` must be applied** before it does anything.
+  Until then `DoctorPhrasesService.onModuleInit` logs one ERROR naming that file
+  and the rebuild script, and both fields keep working, silently. That boot
+  check is the only place a missing table can be announced: on the clinical
+  screen an empty list and a dead feature look identical.
+- **`patientCount` is DISTINCT PATIENTS.** `recordFrom` asks the record which
+  patients already contributed each signature on an EARLIER prescription
+  (`priorSignatures`, excluding the one being learned from) and increments only
+  for a genuinely new one. Never `increment: 1` unconditionally.
+- **Typography-only normalisation** (`doctor-phrases/normalise.ts`): case,
+  whitespace, one trailing full stop. It must never drop a word, number, unit or
+  parenthesised qualifier — `Insulin as before` and `Inj. Insulin as before` are
+  two instructions. Pinned in `normalise.spec.ts`, including everything it must
+  NOT fold.
+- **`hidden` is never un-set by a later save.** A suppressed line stays
+  suppressed even when the doctor writes it again by hand; un-hiding is the
+  PATCH route.
+- **Repair, never hand-edit:** `node scripts/rebuild-doctor-phrases.js
+  [--dry-run]` recomputes the table from `Prescription.advice` and
+  `PrescriptionItem where isNote`, in one transaction, re-applying `hidden`
+  **by content** for the same reason the medicine rebuild does.
+
 - **Repair, never hand-edit:** `node scripts/rebuild-rx-habits.js [--dry-run]`
   recomputes the table from `Prescription`/`PrescriptionItem`, one transaction
   per doctor, and re-applies `pinned`/`hidden` **by content**. Do not "simplify"
