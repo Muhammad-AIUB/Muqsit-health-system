@@ -120,11 +120,12 @@ const esc = (s: string) =>
 //   · this table's own width — every ℞ cell stays on ONE line, so `--k` can
 //     never exceed the room the widest line has left over (`maxScale` below).
 //
-// A row that cannot be held to one line even at the base size is set SMALLER,
-// on its own (`rowPx`), rather than wrapping or dragging the whole sheet down
-// with it — again the physician's decision, 2026-08-28. There is a floor
-// (`ROW_MIN_PX`); under it the row wraps, because unreadable type is worse than
-// a second line. Nothing is ever truncated or allowed past the printable width.
+// A row that cannot be held to one line at the base size WRAPS. It used to be
+// set SMALLER on its own instead (`rowPx`, 2026-08-28, with a `ROW_MIN_PX`
+// floor); the physician reversed that on 2026-09-21, because it printed a
+// column of medicine names in several different sizes and a size difference on
+// a prescription reads as a meaning difference. Every name is now one size and
+// nothing is ever truncated or allowed past the printable width.
 // ⚕️ The body's two columns. Until 2026-09-12 these were CONSTANTS — the sheet
 // was always 0.7fr / 0.5px / 1.7fr — and the Body Section's separator slider
 // was saved but never read. They are now derived from it (`bodyShares`), and
@@ -203,10 +204,6 @@ const FOOT_PX = 13;
 // exists now". At 1.15 the ceiling is 14.95px for a medicine name and 12.65px
 // for a dose.
 export const MAX_SCALE = 1.15;
-// The smallest a single over-long row may be set to keep its one line. Below
-// this it wraps instead — a dispenser reading 9px type at arm's length is the
-// failure this whole table exists to avoid.
-export const ROW_MIN_PX = 11;
 // Leave a sliver for the printer's own rounding and font hinting.
 const FIT_SAFETY = 0.98;
 // Fallback only, for when canvas text metrics are unavailable: mean advance per
@@ -331,11 +328,12 @@ export interface RxColumnLayout {
   drugPx: number;
   /** One size for dose / food / duration. */
   midPx: number;
-  /** True when any row still has to wrap — it could not be held to one line even at ROW_MIN_PX. */
+  /** True when any row has to wrap — it did not fit its columns at `drugPx`. */
   wrap: boolean;
-  /** Per non-note row, in order: the size that row prints at (<= drugPx). */
+  /** Per non-note row, in order: the size that row prints at. Always `drugPx`
+   *  since 2026-09-21 — every medicine name on the sheet is one size. */
   rowPx: number[];
-  /** Per non-note row: that row may take a second line (only when shrinking was not enough). */
+  /** Per non-note row: that row takes a second line, because it did not fit. */
   rowWrap: boolean[];
   /**
    * The most the sheet may be scaled up before this table's widest line stops
@@ -497,9 +495,21 @@ export function layoutRxColumns(
   const headroom = raw.map((w, i) => (w > 0 ? inner[i] / w : Infinity));
   const maxScale = Math.max(1, Math.min(MAX_SCALE, ...headroom));
 
-  // A row that does not fit its columns at the base size is set smaller — just
-  // that row. It is measured against every column it fills, and the tightest
-  // one decides.
+  // ⚕️ EVERY medicine name on the sheet prints at ONE size — `DRUG_PX`
+  // (physician's decision, 2026-09-21, reversing the per-row shrink of
+  // 2026-08-26). A row that does not fit its columns at that size WRAPS; it is
+  // never set smaller.
+  //
+  // What the shrink bought was one line per medicine. What it cost was a column
+  // of drug names in four different sizes on one sheet — `Capsule (Enteric
+  // Coated). Maxpro 40mg` at 11px directly above `Tablet Amaryl 1mg` at 13px —
+  // and the physician's judgement is that a reader scanning a prescription
+  // takes a size difference for a meaning difference. A wrapped name is one
+  // medicine on two lines, which the numbered column already makes unambiguous;
+  // a smaller name looks like a lesser instruction.
+  //
+  // `rowPx` is kept in the shape rather than removed: the row markup reads it,
+  // and a future decision to size a row differently has somewhere to land.
   const rowPx: number[] = [];
   const rowWrap: boolean[] = [];
   for (const r of lines) {
@@ -509,15 +519,8 @@ export function layoutRxColumns(
       width(r.duration, MID_PX, false) / inner[hasFood ? 2 : 1],
     ].filter((n) => Number.isFinite(n) && n > 0);
     const tightest = need.length ? Math.max(...need) : 0;
-    if (tightest <= 1) {
-      rowPx.push(DRUG_PX);
-      rowWrap.push(false);
-      continue;
-    }
-    // Rounded DOWN: a size rounded up is a size that does not fit.
-    const fits = Math.floor(DRUG_PX / tightest);
-    rowPx.push(Math.max(ROW_MIN_PX, fits));
-    rowWrap.push(fits < ROW_MIN_PX);
+    rowPx.push(DRUG_PX);
+    rowWrap.push(tightest > 1);
   }
 
   return {
@@ -712,19 +715,16 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       const isCont = !r.drug.trim();
       if (!isCont) rxNo += 1;
       rxRowNo += 1;
-      // This row's own size: the base, unless the row had to be set smaller to
-      // stay on one line. Only such a row is allowed to wrap, and only once
-      // shrinking it to ROW_MIN_PX was still not enough.
+      // ⚕️ Every medicine name on the sheet is the SAME size (physician's
+      // decision, 2026-09-21). `rowPx` is `drugPx` for every row; the row that
+      // does not fit takes a second line instead of a smaller type. Read from
+      // the layout rather than hard-coded, so this markup does not have to be
+      // revisited if a row is ever given its own size again.
       const size = lay.rowPx[rxRowNo] ?? lay.drugPx;
-      // ⚕️ The dose, food and duration print SMALLER than the medicine name
-      // (2026-09-12). When a row had to be set smaller to hold its one line,
-      // BOTH shrink by the same factor — so the relationship is constant down
-      // the sheet, and the width guarantee still holds: `rowPx` was chosen from
-      // needs already measured at DRUG_PX and MID_PX respectively, so scaling
-      // both by the same ratio keeps every cell inside its own column.
-      // Rounded DOWN, like `rowPx` itself: a size rounded up is a size that
-      // does not fit, and every width guarantee on this table is an inequality
-      // that a fraction of a pixel can break.
+      // The dose, food and duration print SMALLER than the medicine name
+      // (2026-09-12), in the same proportion on every row. Rounded DOWN: a size
+      // rounded up is a size that does not fit, and every width guarantee on
+      // this table is an inequality a fraction of a pixel can break.
       const midSize = Math.floor(lay.midPx * (size / lay.drugPx) * 10) / 10;
       const nowrap = lay.rowWrap[rxRowNo] ? "" : "white-space:nowrap;";
       const mid = ` style="font-size:${SCALE_PX(midSize)};${nowrap}"`;
