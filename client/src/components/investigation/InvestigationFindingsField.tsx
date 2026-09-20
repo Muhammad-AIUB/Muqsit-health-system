@@ -4,6 +4,7 @@ import { useState } from "react";
 import { C } from "@/theme";
 import { IMAGE_MARKER, testImageUrls } from "@/lib/investigationImages";
 import { allPrintable, isPrintableFinding, toggleHidden } from "@/lib/investigationHidden";
+import { sortDateGroups } from "@/lib/investigationOrder";
 import ImageLightbox from "@/components/common/ImageLightbox";
 import HideToggle from "@/components/common/HideToggle";
 
@@ -138,10 +139,16 @@ export default function InvestigationFindingsField({
 
         if (groups.every((g) => g.rows.length === 0)) return null;
 
+        // ⚕️ Newest visit first (physician's report, 2026-09-21). The groups
+        // are built in the order the findings were TYPED, which across a year of
+        // labs is no order at all. The same rule orders the printed sheet, from
+        // the same module, so what the doctor checks here is what prints.
+        const ordered = sortDateGroups(groups);
+
         return (
           <div style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
-            {groups.map((g, gi) => (
-              <div key={gi} style={{ marginBottom: g.date ? 5 : 0 }}>
+            {ordered.map((g) => (
+              <div key={g.date || "undated"} style={{ marginBottom: g.date ? 5 : 0 }}>
                 {g.date && <div style={{ fontSize: 11, fontWeight: 600, color: C.n[700], margin: "3px 0 1px" }}>{g.date}</div>}
                 {g.rows.map((row, idx) => {
                   const n = row.images.length;

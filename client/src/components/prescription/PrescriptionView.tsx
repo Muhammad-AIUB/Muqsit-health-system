@@ -15,6 +15,7 @@ import { formatPc } from "@/lib/previousComplaints";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import { printableInvestigation } from "@/lib/investigationHidden";
+import { sortFindingsByDate } from "@/lib/investigationOrder";
 import { rxSnapshotKey } from "@/lib/rxSnapshot";
 import { THUMB_UPLOAD } from "@/lib/imageThumbs";
 import LeftColumn from "./LeftColumn";
@@ -116,7 +117,10 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         // markers, report-pool staging rows) AND what the doctor marked ⊘ Hide
         // on this visit. The finding itself stays in the record and on screen —
         // only this document omits it. See lib/investigationHidden.ts.
-        { label: "Investigation findings", items: printableInvestigation(m.investigation, m.hiddenInvestigation) },
+        // ⚕️ Newest visit first, same order the sidebar shows (2026-09-21).
+        // The reported sheet printed 29 findings in the order they had been
+        // typed across a year of visits, which nobody can scan.
+        { label: "Investigation findings", items: sortFindingsByDate(printableInvestigation(m.investigation, m.hiddenInvestigation)) },
         // ⚕️ The ℞ mirror is stripped back out of the printed document. Today's
         // medicines ARE the ℞ table below; listing them again under "Drug
         // history" would tell whoever reads the sheet that the patient was

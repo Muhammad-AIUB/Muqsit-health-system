@@ -9,6 +9,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import InvestigationFindingsField from "./InvestigationFindingsField";
+import { sortFindingsByDate } from "@/lib/investigationOrder";
+import { printableInvestigation } from "@/lib/investigationHidden";
 
 afterEach(cleanup);
 
@@ -126,5 +128,86 @@ describe("⊘ Hide — the rows", () => {
     });
     expect(container.textContent).toContain("Ultrasound");
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+  });
+});
+
+// ⚕️ A year of labs typed across many visits has no order of its own. The
+// sidebar and the printed sheet are ordered by the SAME module
+// (`lib/investigationOrder.ts`), so what the doctor checks here is what prints.
+describe("date order", () => {
+  const MIXED = [
+    "08/09/2026:CBC:Hb 11.7 g/dL",
+    "19/06/2026:USG:Chronic liver disease",
+    "24/01/2025:CBC:Hb 11.7 g/dL",
+    "08/09/2026:TSH:2.75 mIU/L",
+    "19/09/2026:AFP:5.57 ng/mL",
+  ];
+  const headings = (container: HTMLElement) =>
+    (container.textContent ?? "").match(/\d{2}\/\d{2}\/\d{4}/g) ?? [];
+
+  it("puts the most recent date at the top and the oldest last", () => {
+    const { container } = view({ items: MIXED });
+    expect(headings(container)).toEqual(["19/09/2026", "08/09/2026", "19/06/2026", "24/01/2025"]);
+  });
+
+  it("gathers every finding of one date under a single heading", () => {
+    const { container } = view({ items: MIXED });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    // The two 08/09 findings sit together, under one date, in the order typed.
+    expect(text).toMatch(/08\/09\/2026.*CBC:Hb 11\.7 g\/dL.*TSH:2\.75 mIU\/L/);
+    expect(headings(container).filter((d) => d === "08/09/2026")).toHaveLength(1);
+  });
+
+  it("keeps an undated finding at the end rather than dating it", () => {
+    const { container } = view({ items: ["Urine R/E normal", "08/09/2026:CBC:Hb 11.7 g/dL"] });
+    const text = (container.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toMatch(/08\/09\/2026.*CBC:Hb 11\.7 g\/dL.*Urine R\/E normal/);
+  });
+});
+
+// ⚕️ The physician's requirement, 2026-09-21: "the website screen and printed
+// prescription must follow exactly the same serial order". Both read their
+// order from `lib/investigationOrder.ts`; this test is what stops them drifting
+// apart, by walking the rendered DOM and comparing it to the list the printed
+// sheet is built from.
+describe("screen order === printed order", () => {
+  const SCRAMBLED = [
+    "08/09/2026:CBC:Hb 11.7 g/dL",
+    "19/06/2026:USG:Chronic liver disease",
+    "24/01/2025:CBC:Hb 11.7 g/dL",
+    "08/09/2026:TSH:2.75 mIU/L",
+    "19/09/2026:AFP:5.57 ng/mL",
+    "23/01/2025:HbA1c:7.4 %",
+    "08/09/2026:Bilirubin Total:2.14 mg/dL",
+    "22/01/2025:Dengue NS1:Negative",
+    "19/06/2026:HBV DNA:Not Detected IU/mL",
+    "12/06/2025:S. Insulin (Fasting):1.37 uIU/mL",
+  ];
+
+  /** Every finding row the sidebar renders, in DOM order. The trailing ⊘ on a
+   *  hidden row is a marker, not part of the finding, so it is stripped. */
+  const onScreen = (container: HTMLElement): string[] =>
+    [...container.querySelectorAll("span")]
+      .map((el) => (el.textContent ?? "").replace(/⊘/g, "").trim())
+      .filter((t) => t.includes(":") && !/^\d{2}\/\d{2}\/\d{4}$/.test(t));
+
+  it("renders the findings in the exact order the printed sheet lists them", () => {
+    const { container } = view({ items: SCRAMBLED });
+    // What PrescriptionView hands to the document, minus the date stamps that
+    // the sidebar prints once per group instead of once per row.
+    const printed = sortFindingsByDate(printableInvestigation(SCRAMBLED, []))
+      .map((s) => s.replace(/^\d{2}\/\d{2}\/\d{4}:/, ""));
+    expect(onScreen(container)).toEqual(printed);
+  });
+
+  // A hidden finding stays on screen and leaves the paper; the ones that remain
+  // must not be re-ordered by its absence.
+  it("keeps the same relative order when a finding is hidden from the print", () => {
+    const hidden = ["08/09/2026:TSH:2.75 mIU/L"];
+    const { container } = view({ items: SCRAMBLED, hidden, onHidden: vi.fn() });
+    const printed = sortFindingsByDate(printableInvestigation(SCRAMBLED, hidden))
+      .map((s) => s.replace(/^\d{2}\/\d{2}\/\d{4}:/, ""));
+    const screenMinusHidden = onScreen(container).filter((t) => t !== "TSH:2.75 mIU/L");
+    expect(screenMinusHidden).toEqual(printed);
   });
 });
