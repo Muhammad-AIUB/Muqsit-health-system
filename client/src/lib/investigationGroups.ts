@@ -32,7 +32,7 @@ const key = (s: string) => s.trim().toLowerCase();
 /** Why a new group cannot be saved yet, in words for the doctor — or null. */
 export function newGroupProblem(name: string, tests: string[], existing: InvestigationGroup[]): string | null {
   if (!name.trim()) return "Give the group a name.";
-  if (tests.length === 0) return "Tick at least one test from the directories.";
+  if (tests.length === 0) return "Add at least one test: type one, or tick them in the directories.";
   if (existing.some((g) => key(g.name) === key(name))) return `A group named "${name.trim()}" already exists.`;
   return null;
 }

@@ -61,7 +61,16 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [tests, setTests] = useState<string[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
+  // A test typed by hand (one not in the directories, or quicker to type).
+  const [typed, setTyped] = useState("");
 
+  const addTyped = () => {
+    const t = typed.trim();
+    if (!t) return;
+    setTests((p) => (p.includes(t) ? p : [...p, t]));
+    setTyped("");
+    setProblem(null);
+  };
   const toggle = (t: string) => setTests((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]));
   const submit = async () => {
     const why = newGroupProblem(name, tests, groups);
@@ -102,8 +111,37 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
             placeholder="e.g. DM follow-up"
             style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 8, fontSize: 13, border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50], color: C.n[900], fontFamily: "inherit" }}
           />
-          <div style={{ fontSize: 11.5, color: C.n[600], marginTop: 8 }}>
-            {tests.length === 0 ? "No tests ticked yet." : `${tests.length} test${tests.length === 1 ? "" : "s"}: ${tests.join(", ")}`}
+
+          {/* The group's tests so far — ticked or typed — each removable, since
+              a typed test has no tick box to take it back out with. */}
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], margin: "14px 0 6px" }}>Tests in this group ({tests.length})</div>
+          {tests.length === 0 ? (
+            <div style={{ fontSize: 11.5, color: C.n[500] }}>No tests yet. Type one below, or tick them in the directories.</div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {tests.map((t) => (
+                <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 6, background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, color: C.pri[600], fontSize: 12 }}>
+                  {t}
+                  <button type="button" onClick={() => toggle(t)} aria-label={`Remove ${t}`} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTyped(); } }}
+              placeholder="Type a test and press Enter..."
+              aria-label="Type a test"
+              style={{ flex: 1, minWidth: 0, padding: "10px 14px", borderRadius: 8, fontSize: 13, border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50], color: C.n[900], fontFamily: "inherit" }}
+            />
+            <button
+              type="button"
+              onClick={addTyped}
+              style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}
+            >Add</button>
           </div>
 
           <InvestigationDirectory selected={tests} onToggle={(t) => { toggle(t); setProblem(null); }} />

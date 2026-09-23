@@ -84,6 +84,26 @@ describe("InvestigationGroups", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("a test can be typed and added with Add or Enter, alongside ticked ones, and removed with ×", async () => {
+    mutateAsync.mockResolvedValue({});
+    render(<Harness />);
+    fireEvent.click(screen.getByText("+ Add new group"));
+    fireEvent.change(screen.getByPlaceholderText(/DM follow-up/), { target: { value: "Custom" } });
+    const box = screen.getByLabelText("Type a test");
+    fireEvent.change(box, { target: { value: "  Serum ferritin  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.change(box, { target: { value: "Vit D" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    fireEvent.change(box, { target: { value: "Serum ferritin" } }); // a repeat is not added twice
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: /Hematology/ }));
+    fireEvent.click(screen.getByLabelText(hema.tests[0].name));
+    expect(screen.getByText("Tests in this group (3)")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Remove Vit D"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(mutateAsync).toHaveBeenCalledWith([{ name: "Custom", tests: ["Serum ferritin", hema.tests[0].name] }]);
+  });
+
   it("a failed save keeps the window open with the doctor's work", async () => {
     mutateAsync.mockRejectedValue(new Error("Network error"));
     render(<Harness />);
