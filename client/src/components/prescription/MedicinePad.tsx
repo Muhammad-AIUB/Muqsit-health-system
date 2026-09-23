@@ -7,6 +7,7 @@ import { useRxHabits } from "@/hooks/useRxHabits";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
+import { BANGLA_ATTR } from "@/lib/banglaInput";
 import { rxHabitsApi, type RxHabitGroup, type RxHabitItem } from "@/lib/api";
 import {
   focusIndexAfterInsert,
@@ -76,13 +77,14 @@ const cellArea: CSSProperties = {
   minHeight: ROW_H - 8,
 };
 
-function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, refCb, style }: {
+function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, bangla, refCb, style }: {
   value: string;
   onChange: (v: string) => void;
   onBlur: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder: string;
   title?: string;
+  bangla?: boolean;
   refCb: (el: HTMLTextAreaElement | null) => void;
   style: CSSProperties;
 }) {
@@ -106,6 +108,7 @@ function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, refC
       placeholder={placeholder}
       title={title}
       style={style}
+      {...(bangla ? BANGLA_ATTR : {})}
     />
   );
 }
@@ -237,9 +240,12 @@ interface Props {
   // (`useRxAlertInput`); the MATCHING runs inside `RxPadAlerts`'s own error
   // boundary, never here — see client/CLAUDE.md.
   alertInput?: RxAlertInput;
+  // BAN mode types Bangla into dose / food / duration (physician's decision,
+  // 2026-09-23) — OPD pad only. The medicine name never: it is a search.
+  bangla?: boolean;
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   // Which drug box the caret is in. Only used to decide whether that line
   // shows its plain <input> text or the read-only overlay that sets the brand
@@ -669,6 +675,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     onBlur={() => updateRow(idx, { dose: parseDose(row.dose) })}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: parseDose(row.dose) }); foodRefs.current[idx]?.focus(); } }}
                     placeholder="dose"
+                    bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.dose.length)} 1 0`, minWidth: 52 }}
                   />
                   <AutoCell
@@ -678,6 +685,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     onBlur={() => updateRow(idx, { food: parseFood(row.food) })}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: parseFood(row.food) }); durRefs.current[idx]?.focus(); } }}
                     placeholder="food"
+                    bangla={bangla}
                     title={FOOD_HINT}
                     style={{ ...cellArea, flex: `${Math.max(10, row.food.length)} 1 0`, minWidth: 52 }}
                   />
@@ -688,6 +696,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     onBlur={() => updateRow(idx, { duration: parseDuration(row.duration) })}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: parseDuration(row.duration) }); drugRefs.current[idx + 1]?.focus(); } }}
                     placeholder="duration"
+                    bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.duration.length)} 1 0`, minWidth: 52 }}
                   />
                 </div>

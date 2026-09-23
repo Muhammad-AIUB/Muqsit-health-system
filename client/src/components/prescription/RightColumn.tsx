@@ -106,6 +106,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             noteText="Start typing a medicine or note…"
             showCheck={false}
             showHabits
+            bangla
             alertInput={alertInput}
           />
         </div>
@@ -114,7 +115,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
       {/* ⚕️ `learnedSource` offers back the Advice lines THIS doctor has
           written before, ranked above the recents and the static list
           (physician’s request, 2026-09-21). Doctor-scoped server-side. */}
-      <ExpandableField label="Advice" items={advice} setItems={setAdvice} suggestions={adviceSuggestions} allFields={allFieldValues} learnedSource="advice" />
+      <ExpandableField label="Advice" items={advice} setItems={setAdvice} suggestions={adviceSuggestions} allFields={allFieldValues} learnedSource="advice" bangla />
       <Lock locked={!can("rx.adviceTest")}>
         <ExpandableField label="Advised tests / investigation" items={adviceTest} setItems={setAdviceTest} suggestions={advisedTestSuggestions} allFields={allFieldValues} />
       </Lock>

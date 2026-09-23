@@ -5,6 +5,7 @@ import { C } from "@/theme";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import type { PhraseSource } from "@/lib/api";
+import { BANGLA_ATTR } from "@/lib/banglaInput";
 import { useMuqsit } from "@/context/MuqsitContext";
 
 interface ExpandableFieldProps {
@@ -41,9 +42,12 @@ interface ExpandableFieldProps {
   // sheet's own list (deliberately not gated by any assistant key). Whoever owns
   // the ambiguity says so here; everyone else keeps the label lookup.
   permKey?: string;
+  // Opt-in: in BAN mode this field's boxes type Bangla (lib/banglaInput.ts).
+  // Off by default so a new caller never picks it up by accident.
+  bangla?: boolean;
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [inputVal, setInputVal] = useState("");
   // Inline edit (inlineEdit only): every line is open at once, staged here
@@ -251,6 +255,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
               <span style={{ color: C.n[500], lineHeight: 1.45, flexShrink: 0 }}>•</span>
               {editOpen ? (
                 <input
+                  {...(bangla ? BANGLA_ATTR : {})}
                   autoFocus={idx === editFocus}
                   data-testid={`edit-${idx}`}
                   value={editLines[idx] ?? ""}
@@ -280,6 +285,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
               )}
               {itemNotes && (
                 <input
+                  {...(bangla ? BANGLA_ATTR : {})}
                   value={itemNotes[item] ?? ""}
                   onChange={(e) => onItemNote?.(item, e.target.value)}
                   placeholder={notePlaceholder ?? ""}
@@ -354,7 +360,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
 
               {/* Input row */}
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <input ref={inputRef} value={inputVal}
+                <input ref={inputRef} value={inputVal} {...(bangla ? BANGLA_ATTR : {})}
                   onChange={(e) => setInputVal(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && inputVal.trim()) addToDraft(inputVal); }}
                   placeholder={`Type ${label.toLowerCase()} and press Enter...`}

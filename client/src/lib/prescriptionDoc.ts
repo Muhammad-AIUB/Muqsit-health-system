@@ -217,6 +217,14 @@ const EM_PER_CHAR = 0.58;
 // guessing wide shrinks a name that would have fitted. The sheet is built in the
 // doctor's browser, so a canvas is there to ask. Cached — this runs per line on
 // every rebuild of the preview.
+// The sheet's one font stack, shared by the stylesheet and the width measure so
+// the two can never resolve different fonts. The Bangla faces come AFTER Arial
+// on purpose: neither DM Sans nor Arial carries Bangla glyphs, so Bangla text
+// (BAN typing, 2026-09-23) falls through to a real Bangla font, while an English
+// line still resolves exactly as it did before — Nirmala UI has Latin letters
+// too, and ahead of Arial it would have changed every English width on the page.
+export const PRINT_FONT = `"DM Sans", Arial, "Nirmala UI", "Noto Sans Bengali", "Kohinoor Bangla", Vrinda, sans-serif`;
+
 let measureCtx: CanvasRenderingContext2D | null | undefined;
 export function measureRxText(text: string, px: number, bold: boolean): number | null {
   if (measureCtx === undefined) {
@@ -229,7 +237,7 @@ export function measureRxText(text: string, px: number, bold: boolean): number |
     }
   }
   if (!measureCtx) return null;
-  measureCtx.font = `${bold ? 600 : 400} ${px}px "DM Sans", Arial, sans-serif`;
+  measureCtx.font = `${bold ? 600 : 400} ${px}px ${PRINT_FONT}`;
   const w = measureCtx.measureText(text).width;
   return Number.isFinite(w) && w > 0 ? w : null;
 }
@@ -998,7 +1006,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      just page 1 (a one-time .sheet padding would be overprinted on overflow
      pages). The on-screen preview keeps the padding for WYSIWYG. */
   @page { size: ${pageW} ${pageH}; margin: ${padT} ${padR} ${padB} ${padL}; }
-  body { font-family: "DM Sans", Arial, sans-serif; color: #1a1a1a; margin: 0; background: #f0f0f0; }
+  body { font-family: ${PRINT_FONT}; color: #1a1a1a; margin: 0; background: #f0f0f0; }
   .sheet { background: #fff; width: ${pageW}; min-height: ${pageH}; margin: 16px auto; padding: ${padT} ${padR} ${padB} ${padL}; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
   /* Empty by design — the rule under the (pre-printed) letterhead band. The
      brand/logo/doctor rules that used to fill it went with the printed name. */

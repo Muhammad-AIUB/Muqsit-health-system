@@ -6,6 +6,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import AccountMenu from "./AccountMenu";
 import MirrorToggle from "./MirrorToggle";
+import { BanglaTyping, LanguageToggle } from "./BanglaTyping";
 import PatientSearch from "./PatientSearch";
 import { WorkstationIndicator } from "./WorkstationSwitcher";
 import CriticalAlert from "@/components/ipd/CriticalAlert";
@@ -37,6 +38,10 @@ export default function DesktopShell() {
                 </Fragment>
               );
             })}
+            {/* BAN / EN sits at the end of the tab row, beside Settings. */}
+            <div style={{ display: "flex", alignItems: "center", marginLeft: 8 }}>
+              <LanguageToggle />
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -53,6 +58,7 @@ export default function DesktopShell() {
       <DrugPicker />
       <InvestigationPopup />
       <OePopup />
+      <BanglaTyping />
     </div>
   );
 }

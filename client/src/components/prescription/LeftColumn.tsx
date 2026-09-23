@@ -10,6 +10,7 @@ import PreviousComplaintsField from "@/components/prescription/PreviousComplaint
 import { useActivityLog } from "@/hooks/useActivity";
 import { usePreviousDiagnoses } from "@/hooks/usePreviousDiagnoses";
 import { isInlineEditField } from "@/lib/inlineEditFields";
+import { BANGLA_FIELDS } from "@/lib/banglaInput";
 
 export default function LeftColumn() {
   const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory } = useMuqsit();
@@ -62,6 +63,7 @@ export default function LeftColumn() {
             checkboxOptions={f.label === "Associated illness" ? ["BA", "COPD", "Hypothyroidism", "CKD", "CLD"] : undefined}
             inlineEdit={isInlineEditField(f.label)}
             permKey={f.permKey}
+            bangla={BANGLA_FIELDS.includes(f.label)}
             previousItems={f.label === "Final diagnosis" ? previousDiagnoses : undefined}
             onAdd={(item) => logActivity(f.label, item)}
           />

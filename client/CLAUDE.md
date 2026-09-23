@@ -173,6 +173,17 @@ Nothing is ever auto-filled — every suggestion needs a click — and the clien
 never writes to the phrase table; only a completed prescription teaches it.
 Pinned in `ExpandableField.test.tsx`.
 
+## BAN / EN — phonetic Bangla typing (2026-09-23)
+
+A `BAN | EN` switch at the end of the desktop tab row, beside Settings (`components/layout/BanglaTyping.tsx`). In BAN a doctor types the SOUND of a word on an ordinary keyboard — `khabar por` — and it becomes `খাবার পর` as they type, by **Avro Phonetic's own rule table** (vendored unmodified but for one `export` line at `src/vendor/avro-phonetic/`, **MPL-1.1** — keep the header and the licence file beside it). The engine is pure (`lib/banglaInput.ts`) and pinned in `banglaInput.test.ts`; the wiring in `BanglaTyping.test.tsx`.
+
+- **Only the fields the physician named convert:** Chief complaints, Previous complaints (the note box), Note, Plan, Advice (`BANGLA_FIELDS`), and the OPD ℞ pad's dose / food / duration (`MedicinePad`'s `bangla` prop, passed by `RightColumn` only). A field opts in with `data-bangla="on"` (`BANGLA_ATTR`); `ExpandableField`'s `bangla` prop puts it on the popup box, the in-place edit boxes and the per-item note box. **Everything else types English in BAN mode and shows a notice** (once per visit to the field) — a medicine search, a date or a mobile number typed in Bangla would silently find nothing. The medicine NAME box is deliberately excluded: it is a search. Widening the list is a product decision.
+- **⚕️ Numbers are never converted.** Only letters (plus Avro's `` ` `` and `^`) feed the phonetic buffer; digits, `+`, `/`, `-` pass through as typed. Avro itself turns digits Bangla and `.` into the dari — which would turn a half-tablet `0.5` into `০।৫`. So `1+0+1` and `0.5` stay exactly as keyed, and the dose shorthand (`101` → `1+0+1`) still works in BAN mode. `.` becomes `।` only straight after a Bangla letter.
+- **Food/duration shorthand is English letters**, so in BAN mode `am` becomes `আম`, not "After meal" — the doctor sees it immediately. Units (`ml`) convert too. Switch to EN for either.
+- The handler is ONE document-level **capture-phase** `keydown` listener: the conversion must land before a field's own Enter handler reads the value. It writes through the native value setter plus an `input` event, so each field's own `onChange` stays the source of truth — no field holds Bangla state of its own.
+- The choice is remembered per signed-in user on this device (`mhs_kbd_lang:<userId>`), like the IPD view; logout returns to EN. Not mirrored across devices, and not offered in `MobileShell` (a phone's own keyboard already types Bangla).
+- **Print:** `PRINT_FONT` in `prescriptionDoc.ts` is shared by the stylesheet and `measureRxText`. The Bangla faces (Nirmala UI, Noto Sans Bengali, Kohinoor Bangla, Vrinda) sit **after Arial**, so an English line resolves exactly as before — Nirmala UI has Latin glyphs too, and ahead of Arial it would have moved every English width on the sheet.
+
 ## Editor lifecycle (easy to break — know it)
 
 - `resetEditor()` blanks everything and sets `ptDate` = today. `loadPatient(p)` = reset + header fields + restore `p.incompleteRx` **only when the patient belongs to the effective doctor** (`activeWsRef.current ?? authIdRef.current`). **Supervised patients (other doctor's) always open with a blank editor** — also enforced during draft hydration (the draft's patient is fetched and checked). Do not weaken either check.

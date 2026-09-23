@@ -6,6 +6,7 @@ import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { prescriptionsApi } from "@/lib/api";
 import { decodePc, encodePc } from "@/lib/previousComplaints";
+import { BANGLA_ATTR } from "@/lib/banglaInput";
 
 // Read-only complaints carried over from the patient's most recent past visit,
 // each with an editable note the doctor writes on the right. The complaint text
@@ -67,6 +68,7 @@ export default function PreviousComplaintsField({
                 <span style={{ color: C.n[500], flexShrink: 0 }}>•</span>
                 <span style={{ fontSize: 12, color: C.n[800], flexShrink: 0, maxWidth: "45%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={complaint}>{complaint}</span>
                 <input
+                  {...BANGLA_ATTR}
                   value={note}
                   onChange={(e) => setNote(idx, e.target.value)}
                   placeholder="write a note…"
