@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockOf, canMove, moveBlock, moveBlockTo, type MovableRow } from "./rxRowMove";
+import { blockOf, canMove, moveBlock, type MovableRow } from "./rxRowMove";
 
 const med = (drug: string, dose = ""): MovableRow => ({ drug, dose, food: "", duration: "", isMedicine: true, continuation: false });
 const taper = (dose: string): MovableRow => ({ drug: "", dose, food: "", duration: "", isMedicine: true, continuation: true });
@@ -55,26 +55,5 @@ describe("moveBlock (▲ / ▼)", () => {
     const moved = moveBlock(rows, 5, -1);
     expect([...moved].sort((a, b) => a.drug.localeCompare(b.drug) || a.dose.localeCompare(b.dose)))
       .toEqual([...rows].sort((a, b) => a.drug.localeCompare(b.drug) || a.dose.localeCompare(b.dose)));
-  });
-});
-
-describe("moveBlockTo (drag)", () => {
-  it("drops a block before a later one", () => {
-    expect(show(moveBlockTo(pad(), 0, 5, "before"))).toEqual(["Pred", "↳1+0+0", "↳1/2+0+0", "Insulin as before", "Napa", "Omep", "∅"]);
-  });
-  it("drops a block after a later one", () => {
-    expect(show(moveBlockTo(pad(), 0, 5, "after"))).toEqual(["Pred", "↳1+0+0", "↳1/2+0+0", "Insulin as before", "Omep", "Napa", "∅"]);
-  });
-  it("drops a later block before an earlier one", () => {
-    expect(show(moveBlockTo(pad(), 5, 0, "before"))).toEqual(["Omep", "Napa", "Pred", "↳1+0+0", "↳1/2+0+0", "Insulin as before", "∅"]);
-  });
-  it("⚕️ dropping onto a taper row lands at a block edge, never inside another medicine's tapers", () => {
-    expect(show(moveBlockTo(pad(), 5, 2, "before"))).toEqual(["Napa", "Omep", "Pred", "↳1+0+0", "↳1/2+0+0", "Insulin as before", "∅"]);
-    expect(show(moveBlockTo(pad(), 0, 2, "after"))).toEqual(["Pred", "↳1+0+0", "↳1/2+0+0", "Napa", "Insulin as before", "Omep", "∅"]);
-  });
-  it("dropping onto its own block or the typing row changes nothing", () => {
-    const rows = pad();
-    expect(moveBlockTo(rows, 1, 3, "after")).toBe(rows);
-    expect(moveBlockTo(rows, 0, 6, "before")).toBe(rows);
   });
 });

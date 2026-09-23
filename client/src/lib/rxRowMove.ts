@@ -1,5 +1,7 @@
 // Moving a line up or down the ℞ pad (physician's request, 2026-09-23): by drag
-// on its serial number, or ▲ / ▼ while ✎ Edit is on.
+// on its serial number, or ▲ / ▼ while ✎ Edit is on. Both go through
+// `moveBlock`, one neighbouring block per step — a drag takes one step each
+// time the pointer passes a neighbour's middle (see MedicinePad's dragStep).
 //
 // ⚕️ What moves is a BLOCK, never a single row: a medicine together with its
 // ">>>" tapering lines. A taper row carries no drug name of its own — it
@@ -62,18 +64,3 @@ export function moveBlock<T extends MovableRow>(rows: T[], idx: number, dir: -1 
   ];
 }
 
-/**
- * Drag and drop: put the block holding `from` before or after the block holding
- * `to`. Dropping onto its own block, or onto the typing row, changes nothing.
- */
-export function moveBlockTo<T extends MovableRow>(rows: T[], from: number, to: number, place: "before" | "after"): T[] {
-  const src = blockOf(rows, from);
-  const dst = blockOf(rows, to);
-  if (!src || !dst || src[0] === dst[0]) return rows;
-  const moving = rows.slice(src[0], src[1]);
-  const rest = [...rows.slice(0, src[0]), ...rows.slice(src[1])];
-  // Where the target block sits once the moving block is lifted out.
-  const shift = dst[0] > src[0] ? src[1] - src[0] : 0;
-  const at = place === "before" ? dst[0] - shift : dst[1] - shift;
-  return [...rest.slice(0, at), ...moving, ...rest.slice(at)];
-}

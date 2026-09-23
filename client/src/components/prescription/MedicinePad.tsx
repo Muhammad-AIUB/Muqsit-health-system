@@ -8,7 +8,7 @@ import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
-import { blockOf, canMove, moveBlock, moveBlockTo } from "@/lib/rxRowMove";
+import { blockOf, canMove, moveBlock } from "@/lib/rxRowMove";
 import { rxHabitsApi, type RxHabitGroup, type RxHabitItem } from "@/lib/api";
 import {
   focusIndexAfterInsert,
@@ -261,14 +261,69 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // sign in the toolbar is the only way in, so a doctor never has to hunt for
   // which line is hiding one.
   const [alertsOpen, setAlertsOpen] = useState(false);
-  // Drag-to-move: the row being dragged, and where it would land.
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const [dropAt, setDropAt] = useState<{ idx: number; place: "before" | "after" } | null>(null);
-  const endDrag = () => { setDragFrom(null); setDropAt(null); };
   const move = (idx: number, dir: -1 | 1) => { setAcRow(null); setRows((prev) => moveBlock(prev, idx, dir)); };
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
   // The row each dropdown hangs off, measured against the viewport.
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Drag-to-move, LIVE: the line moves one step each time the pointer passes
+  // the middle of the neighbouring block, in either direction, while the
+  // doctor is still holding it. (2026-09-23: the first version used native
+  // drag-and-drop and decided the landing spot at release from state set
+  // during the drag. A quick release read the previous render's value and fell
+  // back to "before", so a move up went one step too far and a move down one
+  // step short.) Nothing is decided at release any more.
+  //
+  // Row heights are measured ONCE, when the line is picked up, and travel with
+  // their rows through every swap; positions are then worked out from them.
+  // Reading positions off the screen instead meant waiting for a re-render
+  // between steps — a quick sweep across three lines, which a browser reports
+  // as only two pointer events, moved the line two places.
+  type DragRow = Row & { h: number };
+  const drag = useRef<{ at: number; list: DragRow[]; top0: number } | null>(null);
+  const [dragAt, setDragAt] = useState<number | null>(null);
+
+  const startDrag = (idx: number) => {
+    const first = rowRefs.current[0]?.getBoundingClientRect();
+    if (!first) return;
+    const list = rows.map((r, i) => ({ ...r, h: rowRefs.current[i]?.getBoundingClientRect().height ?? ROW_H }));
+    drag.current = { at: idx, list, top0: first.top };
+    setDragAt(idx);
+  };
+  const dragStep = (clientY: number) => {
+    const d = drag.current;
+    if (!d) return;
+    // The pad can scroll mid-drag: re-anchor on where its first row is now.
+    const top0 = rowRefs.current[0]?.getBoundingClientRect().top ?? d.top0;
+    const mid = (b: [number, number]) => {
+      let y = top0;
+      for (let i = 0; i < b[0]; i++) y += d.list[i].h;
+      let h = 0;
+      for (let i = b[0]; i < b[1]; i++) h += d.list[i].h;
+      return y + h / 2;
+    };
+    let { at, list } = d;
+    // As many single steps as the pointer has crossed block middles — one
+    // neighbour at a time, the same rule in both directions.
+    for (let guard = 0; guard < list.length; guard++) {
+      const b = blockOf(list, at);
+      if (!b) break;
+      const above = b[0] > 0 ? blockOf(list, b[0] - 1) : null;
+      const below = canMove(list, at, 1) ? blockOf(list, b[1]) : null;
+      if (above && clientY < mid(above)) {
+        list = moveBlock(list, at, -1);
+        at = above[0];
+      } else if (below && clientY > mid(below)) {
+        list = moveBlock(list, at, 1);
+        at = b[0] + (below[1] - below[0]);
+      } else break;
+    }
+    if (list === d.list) return;
+    drag.current = { at, list, top0 };
+    setDragAt(at);
+    setRows(list.map((x) => { const r: Row & { h?: number } = { ...x }; delete r.h; return r; }));
+  };
+  const endDrag = () => { drag.current = null; setDragAt(null); };
   const [acPos, setAcPos] = useState<DropdownAnchor | null>(null);
   const doseRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const foodRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
@@ -409,7 +464,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   };
 
   const alertLineIndex = alertInput ? rxDrugIndexByRow(rows) : [];
-  const dragBlock = dragFrom != null ? blockOf(rows, dragFrom) : null;
+  const dragBlock = dragAt != null ? blockOf(rows, dragAt) : null;
 
   const lineInput: CSSProperties = { border: "none", outline: "none", background: "transparent", fontSize: 13.5, color: C.n[900], fontFamily: font, padding: "0 4px", height: ROW_H - 8 };
 
@@ -441,6 +496,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
 
       {/* Notebook writing pad */}
       <div
+        className={dragAt != null ? "rx-dragging" : undefined}
         style={{
           background: C.n[0],
           minHeight: minHeight ?? "100%",
@@ -456,32 +512,18 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
           const isCont = row.continuation;
           const lineIndex = alertLineIndex[idx];
           const grip = reorderable && !isCont && !!blockOf(rows, idx);
+          const inDrag = !!dragBlock && dragBlock[0] <= idx && idx < dragBlock[1];
           return (
             <Fragment key={idx}>
             <div
               ref={(el) => { rowRefs.current[idx] = el; }}
-              onDragOver={dragFrom != null ? (e) => {
-                if (!blockOf(rows, idx)) return; // the typing row is not a drop target
-                e.preventDefault();
-                const r = e.currentTarget.getBoundingClientRect();
-                const place = e.clientY < r.top + r.height / 2 ? "before" : "after";
-                setDropAt((d) => (d && d.idx === idx && d.place === place ? d : { idx, place }));
-              } : undefined}
-              onDrop={dragFrom != null ? (e) => {
-                e.preventDefault();
-                const from = dragFrom;
-                const place = dropAt?.idx === idx ? dropAt.place : "before";
-                endDrag();
-                setAcRow(null);
-                setRows((prev) => moveBlockTo(prev, from, idx, place));
-              } : undefined}
+              data-rx-row={idx}
               style={{
                 position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H,
                 borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined,
-                // Where the dragged line will land: a green rule on that edge.
-                boxShadow: dropAt?.idx === idx ? `inset 0 ${dropAt.place === "before" ? 2 : -2}px 0 ${C.pri[400]}` : undefined,
-                // The block being dragged is dimmed, tapers included.
-                opacity: dragBlock && dragBlock[0] <= idx && idx < dragBlock[1] ? 0.45 : 1,
+                // The block in the doctor's hand, tapers included: lifted and
+                // tinted, so it reads as the thing moving.
+                ...(inDrag ? { background: C.pri[50], boxShadow: "0 2px 10px rgba(0,0,0,0.10)", zIndex: 6 } : null),
               }}
             >
               {/* Checkbox (optional) + serial — only for medicine head rows */}
@@ -489,16 +531,25 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                   handle of its own: it moves with its medicine. */}
               <div
                 className={grip ? "rx-grip" : undefined}
-                draggable={grip}
-                onDragStart={grip ? (e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", String(idx)); // Firefox needs data to start a drag
+                data-rx-grip={grip ? idx : undefined}
+                onPointerDown={grip ? (e) => {
+                  if (e.button !== 0) return;
+                  e.preventDefault(); // no text selection while dragging
+                  // Captured, so the moves keep arriving here wherever the
+                  // pointer goes — above the pad, below it, over another row.
+                  e.currentTarget.setPointerCapture?.(e.pointerId);
                   setAcRow(null);
-                  setDragFrom(idx);
+                  startDrag(idx);
                 } : undefined}
-                onDragEnd={grip ? endDrag : undefined}
+                // Not gated on `grip`: rows are keyed by position, so after a
+                // swap the element holding the pointer may now be a taper row,
+                // which has no grip — and the drag must not stop there.
+                onPointerMove={reorderable ? (e) => dragStep(e.clientY) : undefined}
+                onPointerUp={reorderable ? endDrag : undefined}
+                onPointerCancel={reorderable ? endDrag : undefined}
+                onLostPointerCapture={reorderable ? endDrag : undefined}
                 title={grip ? "Drag to move this line up or down" : undefined}
-                style={{ width: showCheck ? 44 : 26, alignSelf: "stretch", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, cursor: grip ? "grab" : undefined }}
+                style={{ width: showCheck ? 44 : 26, alignSelf: "stretch", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, cursor: grip ? (dragAt != null ? "grabbing" : "grab") : undefined, touchAction: grip ? "none" : undefined }}
               >
                 {isHead && showCheck && <input type="checkbox" checked={row.checked} onChange={(e) => updateRow(idx, { checked: e.target.checked })} style={{ width: 14, height: 14, accentColor: C.pri[400], cursor: "pointer" }} />}
                 {isHead && <span className="rx-num" style={{ fontSize: 12, color: C.n[500], width: 18, textAlign: "right" }}>{medNumbers[idx]}.</span>}
@@ -833,6 +884,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
           .rx-grip:hover .rx-handle{display:inline}
           .rx-grip:hover .rx-num{display:none}
           .rx-grip:active{cursor:grabbing}
+          .rx-dragging .rx-grip .rx-handle{display:none}
+          .rx-dragging .rx-grip .rx-num{display:inline}
         `}</style>
       )}
 
