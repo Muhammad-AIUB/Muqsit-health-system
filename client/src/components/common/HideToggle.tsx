@@ -34,8 +34,8 @@ export default function HideToggle({
       aria-pressed={hidden}
       aria-label={`${hidden ? "Show" : "Hide"} ${what} in printed prescription`}
       style={{
-        fontSize: 11, borderRadius: 6, padding: "2px 10px", cursor: "pointer",
-        fontFamily: "inherit", flexShrink: 0,
+        fontSize: 11, lineHeight: 1.4, borderRadius: 6, padding: "1px 8px", cursor: "pointer",
+        fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap",
         color: hidden ? C.warn[800] : C.n[600],
         background: hidden ? C.warn[100] : "transparent",
         border: `0.5px solid ${hidden ? C.warn[400] : C.n[300]}`,

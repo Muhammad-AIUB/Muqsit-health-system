@@ -70,7 +70,7 @@ export default function InvestigationFindingsField({
           onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
         {items.length > 0 && (
-          <button onClick={onOpen} style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}>✎ Edit</button>
+          <button onClick={onOpen} style={{ fontSize: 11, lineHeight: 1.4, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "1px 8px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}>✎ Edit</button>
         )}
         {canHide && printable.length > 0 && (
           <HideToggle hidden={hiddenCount > 0} count={hiddenCount} onToggle={toggleAll} what={label} />
