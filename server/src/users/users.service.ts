@@ -121,6 +121,10 @@ export class UsersService {
     if (dto.favouriteInvestigations !== undefined) extra.favouriteInvestigations = dto.favouriteInvestigations;
     if (dto.investigationUnitPrefs !== undefined) extra.investigationUnitPrefs = dto.investigationUnitPrefs;
     if (dto.fieldRecents !== undefined) extra.fieldRecents = dto.fieldRecents;
+    // Stored as plain {name, tests} objects — never the DTO class instances.
+    if (dto.investigationGroups !== undefined) {
+      extra.investigationGroups = dto.investigationGroups.map((g) => ({ name: g.name, tests: [...g.tests] }));
+    }
 
     // Chambers and otherCertificates: replace the whole set in a transaction
     // so a half-saved state can't leave the user with phantom rows.

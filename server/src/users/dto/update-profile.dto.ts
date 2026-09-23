@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsEmail,
   IsObject,
@@ -11,6 +12,22 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+
+// One of the doctor's own investigation groups: a name and the test names it
+// adds to Advised tests / investigation in one tick.
+export class InvestigationGroupInput {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsString({ each: true })
+  @MaxLength(300, { each: true })
+  tests!: string[];
+}
 
 // One extra certificate the doctor uploaded from their profile page. URL
 // is required; details is a free-form note describing the credential.
@@ -129,4 +146,12 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsObject()
   fieldRecents?: Record<string, string[]>;
+
+  // The doctor's investigation groups. The whole list is sent on every save.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => InvestigationGroupInput)
+  investigationGroups?: InvestigationGroupInput[];
 }

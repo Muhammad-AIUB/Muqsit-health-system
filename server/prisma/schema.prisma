@@ -69,6 +69,10 @@ model User {
   // Recently-typed chip entries per clinical field — { [fieldLabel]: string[] }.
   // Powers the autocomplete "recents" (was browser localStorage, now per-doctor).
   fieldRecents            Json     @default("{}")
+  // The doctor's own investigation groups — [{ name, tests: string[] }] — made
+  // in Advised tests / investigation → "Investigations group" (2026-09-24).
+  // One tick puts every test of a group into Advised tests. Per signed-in user.
+  investigationGroups     Json     @default("[]")
 
   refreshTokens RefreshToken[]
 

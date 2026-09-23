@@ -343,6 +343,9 @@ export interface ProfileMe {
   favouriteInvestigations: string[];
   investigationUnitPrefs: Record<string, string>;
   fieldRecents: Record<string, string[]>;
+  /** The doctor's own investigation groups. A Json column: read it through
+   *  `safeGroups` (lib/investigationGroups), never directly. */
+  investigationGroups?: unknown;
 }
 
 export interface ProfileUpdateInput {
@@ -362,6 +365,7 @@ export interface ProfileUpdateInput {
   favouriteInvestigations?: string[];
   investigationUnitPrefs?: Record<string, string>;
   fieldRecents?: Record<string, string[]>;
+  investigationGroups?: { name: string; tests: string[] }[];
 }
 
 export const usersApi = {

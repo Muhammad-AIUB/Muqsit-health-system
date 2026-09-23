@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { adviceSuggestions, advisedTestSuggestions } from "@/data/suggestions";
+import { adviceSuggestions } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
+import InvestigationDirectory from "@/components/investigation/InvestigationDirectory";
+import InvestigationGroups from "@/components/investigation/InvestigationGroups";
 import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
@@ -118,7 +120,12 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           (physician’s request, 2026-09-21). Doctor-scoped server-side. */}
       <ExpandableField label="Advice" items={advice} setItems={setAdvice} suggestions={adviceSuggestions} allFields={allFieldValues} learnedSource="advice" bangla />
       <Lock locked={!can("rx.adviceTest")}>
-        <ExpandableField label="Advised tests / investigation" items={adviceTest} setItems={setAdviceTest} suggestions={advisedTestSuggestions} allFields={allFieldValues} />
+        {/* No built-in suggestion list (physician's decision, 2026-09-24): the
+            chips are only tests THIS doctor has added before — the recents
+            saved on every Done, whether typed, ticked in a directory or picked. */}
+        <ExpandableField label="Advised tests / investigation" items={adviceTest} setItems={setAdviceTest} allFields={allFieldValues} investigationTabs
+          renderDirectory={(selected, toggle) => <InvestigationDirectory selected={selected} onToggle={toggle} />}
+          renderGroups={(selected, apply) => <InvestigationGroups selected={selected} apply={apply} />} />
       </Lock>
       <Lock locked={!can("rx.followUp")}>
         <div>

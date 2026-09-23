@@ -203,14 +203,15 @@ Legend: **JWT** = access cookie required · **WS** = `X-Workstation` scoped ·
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/users/me` | Full profile: certificates, chambers, NID, favourite investigations, unit prefs, field recents. `/auth/me` returns only the auth fields |
+| GET | `/users/me` | Full profile: certificates, chambers, NID, favourite investigations, unit prefs, field recents, investigation groups. `/auth/me` returns only the auth fields |
 | PATCH | `/users/me` | `UpdateProfileDto` |
 
 `UpdateProfileDto`: `displayName?`, `email?`, `mobile?` (11 digits), `nidNo?`,
 `designation?`, `specialty?`, `profilePictureUrl?`, `nidFrontUrl?`, `nidBackUrl?`,
 `otherCertificates?: [{ id?, url, details? }]`, `chambers?: [{ id?, address, mapLink? }]`,
 `favouriteInvestigations?: string[]`, `investigationUnitPrefs?: { [test]: "u1" | "u2" }`,
-`fieldRecents?: { [fieldLabel]: string[] }`.
+`fieldRecents?: { [fieldLabel]: string[] }`,
+`investigationGroups?: { name: string (1-120); tests: string[] (1-200) }[]` (≤200 groups; the WHOLE list is sent on every save, and only `name`/`tests` are stored — `manual-investigation-groups.sql`).
 
 `registrationNo` and `registrationCertUrl` are **deliberately not editable here** —
 they identify the practitioner to the regulator and are changed only through the

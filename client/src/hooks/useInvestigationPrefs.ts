@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersApi, type ProfileMe } from "@/lib/api";
+import { safeGroups, type InvestigationGroup } from "@/lib/investigationGroups";
 
 // Shared cache of the doctor's investigation preferences (favourite tests +
 // preferred units), read from the profile. Used by the Settings → Favourite &
@@ -17,6 +18,7 @@ export function useInvestigationPrefs() {
   return {
     favourites: q.data?.favouriteInvestigations ?? [],
     unitPrefs: q.data?.investigationUnitPrefs ?? {},
+    groups: safeGroups(q.data?.investigationGroups),
     isLoading: q.isLoading,
   };
 }
@@ -54,6 +56,18 @@ export function useSaveUnitPrefs() {
     onError: (_e, _next, ctx) => {
       if (ctx?.prev) qc.setQueryData(KEY, ctx.prev);
     },
+    onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+// The doctor's investigation groups. NOT optimistic: the "Add new group"
+// window waits for the server and stays open with the doctor's work if the save
+// fails, so a group that was never stored can't look saved.
+export function useSaveInvestigationGroups() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (investigationGroups: InvestigationGroup[]) => usersApi.update({ investigationGroups }),
+    onSuccess: (profile) => qc.setQueryData(KEY, profile),
     onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }

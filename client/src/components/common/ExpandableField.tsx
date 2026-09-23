@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useRef, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
@@ -45,10 +45,22 @@ interface ExpandableFieldProps {
   // Opt-in: in BAN mode this field's boxes type Bangla (lib/banglaInput.ts).
   // Off by default so a new caller never picks it up by accident.
   bangla?: boolean;
+  // Opt-in: the popup gets two tabs, "Investigations" (the usual box and
+  // suggestions) and "Investigations group" (physician's request, 2026-09-24).
+  // Advised tests only. The groups themselves are still to come from the
+  // physician, so that tab holds no content yet, and nothing is made up there.
+  investigationTabs?: boolean;
+  // Opt-in picker rendered under the suggestions (Advised tests' "Select from
+  // Directories"). It stages into the same Added list, so Done/Cancel apply.
+  renderDirectory?: (selected: string[], toggle: (item: string) => void) => ReactNode;
+  // Opt-in content of the "Investigations group" tab. `apply` stages several
+  // items at once (a group's tests) into the same Added list.
+  renderGroups?: (selected: string[], apply: (add: string[], remove: string[]) => void) => ReactNode;
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla, investigationTabs, renderDirectory, renderGroups }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"items" | "groups">("items");
   const [inputVal, setInputVal] = useState("");
   // Inline edit (inlineEdit only): every line is open at once, staged here
   // until Enter. `editFocus` is the box that takes the caret when it opens.
@@ -135,6 +147,9 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     else setDraft([...draft, opt]);
   };
 
+  const applyToDraft = (add: string[], remove: string[]) =>
+    setDraft((prev) => [...prev.filter((d) => !remove.includes(d)), ...add.filter((a, i) => !prev.includes(a) && add.indexOf(a) === i)]);
+
   const addToDraft = (text: string) => {
     const v = text.trim();
     if (v && !draft.includes(v)) setDraft([...draft, v]);
@@ -164,6 +179,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   const handleOpen = () => {
     if (!editable) return; // locked for this assistant — view only
     setDraft([...items]); // stage a copy — the real field is untouched until Done
+    setTab("items");
     setOpen(true);
     setTimeout(() => inputRef.current && inputRef.current.focus(), 100);
   };
@@ -326,13 +342,33 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
               }}>×</button>
             </div>
 
+            {investigationTabs && (
+              <div role="tablist" style={{ display: "flex", gap: 4, padding: "0 20px", borderBottom: `0.5px solid ${C.n[200]}`, flexShrink: 0 }}>
+                {([["items", "Investigations"], ["groups", "Investigations group"]] as const).map(([id, name]) => (
+                  <button
+                    key={id}
+                    role="tab"
+                    aria-selected={tab === id}
+                    onClick={() => setTab(id)}
+                    style={{
+                      padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 13, fontWeight: tab === id ? 600 : 400, color: tab === id ? C.pri[600] : C.n[600],
+                      borderBottom: `2px solid ${tab === id ? C.pri[400] : "transparent"}`, marginBottom: -0.5,
+                    }}
+                  >{name}</button>
+                ))}
+              </div>
+            )}
+
             {/* Modal body — with the P.D panel beside it when there is one */}
             <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
             <div style={{ padding: "16px 20px", flex: 1, minWidth: 0, overflowY: "auto" }}>
               {/* Staged items — live above the input, committed on Done.
                   Checkbox picks stay as (checked) checkboxes; typed/suggestion
                   items show as tags. */}
-              {draft.length > 0 && (
+              {/* Not on the Investigations group tab (physician's request,
+                  2026-09-24) — the picks are kept and shown on Investigations. */}
+              {draft.length > 0 && !(investigationTabs && tab === "groups") && (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Added ({draft.length})</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center" }}>
@@ -358,6 +394,15 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                 </div>
               )}
 
+              {investigationTabs && tab === "groups" ? (
+                // No groups exist yet: the physician will supply them. An empty
+                // state, never a placeholder list — a made-up panel of tests
+                // would be clinical content nobody approved.
+                renderGroups ? renderGroups(draft, applyToDraft) : (
+                <div style={{ padding: "28px 12px", textAlign: "center", color: C.n[500], fontSize: 12.5, lineHeight: 1.5 }}>
+                  No investigation groups yet.
+                </div>)
+              ) : (<>
               {/* Input row */}
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                 <input ref={inputRef} value={inputVal} {...(bangla ? BANGLA_ATTR : {})}
@@ -423,6 +468,8 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   </div>
                 </div>
               )}
+              {renderDirectory?.(draft, toggleOption)}
+              </>)}
             </div>
 
             {/* P.D — this patient's diagnoses from past visits. Read-only text:

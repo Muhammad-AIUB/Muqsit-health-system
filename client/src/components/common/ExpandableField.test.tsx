@@ -402,3 +402,76 @@ describe("ExpandableField — the doctor's own learned phrases", () => {
     expect(setItems).not.toHaveBeenCalled();
   });
 });
+
+// Advised tests / investigation carries two tabs (physician's request,
+// 2026-09-24). The groups are still to come from the physician, so the second
+// tab must be an honest empty state, never a made-up panel of tests.
+describe("ExpandableField — Investigations / Investigations group tabs", () => {
+  const open = (props: Partial<React.ComponentProps<typeof ExpandableField>> = {}, setItems = vi.fn()) => {
+    render(<ExpandableField label="Advised tests / investigation" items={["ESR"]} setItems={setItems} suggestions={["CBC"]} {...props} />);
+    fireEvent.click(screen.getByText("+"));
+    return setItems;
+  };
+
+  it("shows no tabs unless the field opts in", () => {
+    open();
+    expect(screen.queryByRole("tab")).toBeNull();
+  });
+
+  it("opens on Investigations, with the usual box and suggestions", () => {
+    open({ investigationTabs: true });
+    const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
+    expect(tabs).toEqual(["Investigations", "Investigations group"]);
+    expect(screen.getByRole("tab", { name: "Investigations" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByPlaceholderText(/Type advised tests/)).toBeTruthy();
+    expect(screen.getByText("CBC")).toBeTruthy();
+  });
+
+  it("the group tab is an empty state, and switching tabs keeps what was added", () => {
+    const setItems = open({ investigationTabs: true });
+    fireEvent.click(screen.getByText("CBC"));
+    fireEvent.click(screen.getByRole("tab", { name: "Investigations group" }));
+    expect(screen.getByText("No investigation groups yet.")).toBeTruthy();
+    expect(screen.queryByPlaceholderText(/Type advised tests/)).toBeNull();
+    // The Added list is not shown on the group tab…
+    expect(screen.queryByText(/^Added \(/)).toBeNull();
+    // …but nothing was dropped: back on Investigations it is all still there.
+    fireEvent.click(screen.getByRole("tab", { name: "Investigations" }));
+    expect(screen.getByText("Added (2)")).toBeTruthy();
+    fireEvent.click(screen.getByText("Done"));
+    expect(setItems).toHaveBeenCalledWith(["ESR", "CBC"]);
+  });
+});
+
+// Advised tests / investigation has no built-in suggestion list any more
+// (physician's decision, 2026-09-24): the chips are only tests this doctor has
+// added before. RightColumn simply passes no `suggestions`; this pins that the
+// field then shows the doctor's own recents and nothing else, and that typing
+// a test still puts it straight into Added.
+describe("ExpandableField — Advised tests shows only the doctor's own tests", () => {
+  it("with no built-in list, the chips are exactly the doctor's recents", () => {
+    recents = ["Serum ferritin", "CBC"];
+    render(<ExpandableField label="Advised tests / investigation" items={[]} setItems={vi.fn()} investigationTabs />);
+    fireEvent.click(screen.getByText("+"));
+    expect(screen.getByText("Suggestions")).toBeTruthy();
+    expect(screen.getByText(/Serum ferritin/)).toBeTruthy();
+    expect(screen.queryByText("USG abdomen")).toBeNull();
+  });
+
+  it("with no recents yet, there is no Suggestions section at all", () => {
+    render(<ExpandableField label="Advised tests / investigation" items={[]} setItems={vi.fn()} investigationTabs />);
+    fireEvent.click(screen.getByText("+"));
+    expect(screen.queryByText("Suggestions")).toBeNull();
+  });
+
+  it("typing a test and pressing Add puts it in Added", () => {
+    const setItems = vi.fn();
+    render(<ExpandableField label="Advised tests / investigation" items={[]} setItems={setItems} investigationTabs />);
+    fireEvent.click(screen.getByText("+"));
+    fireEvent.change(screen.getByPlaceholderText(/Type advised tests/), { target: { value: "Serum ferritin" } });
+    fireEvent.click(screen.getByText("Add"));
+    expect(screen.getByText("Added (1)")).toBeTruthy();
+    fireEvent.click(screen.getByText("Done"));
+    expect(setItems).toHaveBeenCalledWith(["Serum ferritin"]);
+  });
+});
