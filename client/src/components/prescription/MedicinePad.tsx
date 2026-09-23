@@ -8,6 +8,7 @@ import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
+import { blockOf, canMove, moveBlock, moveBlockTo } from "@/lib/rxRowMove";
 import { rxHabitsApi, type RxHabitGroup, type RxHabitItem } from "@/lib/api";
 import {
   focusIndexAfterInsert,
@@ -243,9 +244,13 @@ interface Props {
   // BAN mode types Bangla into dose / food / duration (physician's decision,
   // 2026-09-23) — OPD pad only. The medicine name never: it is a search.
   bangla?: boolean;
+  // Lines can be moved: drag a line by its serial number, or ▲ / ▼ while
+  // ✎ Edit is on (physician's request, 2026-09-23). A medicine always moves
+  // together with its >>> tapering lines — see lib/rxRowMove.ts. OPD pad only.
+  reorderable?: boolean;
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, reorderable = false }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   // Which drug box the caret is in. Only used to decide whether that line
   // shows its plain <input> text or the read-only overlay that sets the brand
@@ -256,6 +261,11 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // sign in the toolbar is the only way in, so a doctor never has to hunt for
   // which line is hiding one.
   const [alertsOpen, setAlertsOpen] = useState(false);
+  // Drag-to-move: the row being dragged, and where it would land.
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dropAt, setDropAt] = useState<{ idx: number; place: "before" | "after" } | null>(null);
+  const endDrag = () => { setDragFrom(null); setDropAt(null); };
+  const move = (idx: number, dir: -1 | 1) => { setAcRow(null); setRows((prev) => moveBlock(prev, idx, dir)); };
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
   // The row each dropdown hangs off, measured against the viewport.
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -399,6 +409,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   };
 
   const alertLineIndex = alertInput ? rxDrugIndexByRow(rows) : [];
+  const dragBlock = dragFrom != null ? blockOf(rows, dragFrom) : null;
 
   const lineInput: CSSProperties = { border: "none", outline: "none", background: "transparent", fontSize: 13.5, color: C.n[900], fontFamily: font, padding: "0 4px", height: ROW_H - 8 };
 
@@ -444,17 +455,54 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
           const isHead = row.isMedicine && !row.continuation;
           const isCont = row.continuation;
           const lineIndex = alertLineIndex[idx];
+          const grip = reorderable && !isCont && !!blockOf(rows, idx);
           return (
             <Fragment key={idx}>
-            <div ref={(el) => { rowRefs.current[idx] = el; }} style={{ position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H, borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined }}>
+            <div
+              ref={(el) => { rowRefs.current[idx] = el; }}
+              onDragOver={dragFrom != null ? (e) => {
+                if (!blockOf(rows, idx)) return; // the typing row is not a drop target
+                e.preventDefault();
+                const r = e.currentTarget.getBoundingClientRect();
+                const place = e.clientY < r.top + r.height / 2 ? "before" : "after";
+                setDropAt((d) => (d && d.idx === idx && d.place === place ? d : { idx, place }));
+              } : undefined}
+              onDrop={dragFrom != null ? (e) => {
+                e.preventDefault();
+                const from = dragFrom;
+                const place = dropAt?.idx === idx ? dropAt.place : "before";
+                endDrag();
+                setAcRow(null);
+                setRows((prev) => moveBlockTo(prev, from, idx, place));
+              } : undefined}
+              style={{
+                position: "relative", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, rowGap: 4, minHeight: ROW_H,
+                borderBottom: `0.5px solid ${C.n[200]}`, zIndex: acRow === idx ? 5 : undefined,
+                // Where the dragged line will land: a green rule on that edge.
+                boxShadow: dropAt?.idx === idx ? `inset 0 ${dropAt.place === "before" ? 2 : -2}px 0 ${C.pri[400]}` : undefined,
+                // The block being dragged is dimmed, tapers included.
+                opacity: dragBlock && dragBlock[0] <= idx && idx < dragBlock[1] ? 0.45 : 1,
+              }}
+            >
               {/* Checkbox (optional) + serial — only for medicine head rows */}
-              <div style={{ width: showCheck ? 44 : 26, display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                {isHead && (
-                  <>
-                    {showCheck && <input type="checkbox" checked={row.checked} onChange={(e) => updateRow(idx, { checked: e.target.checked })} style={{ width: 14, height: 14, accentColor: C.pri[400], cursor: "pointer" }} />}
-                    <span style={{ fontSize: 12, color: C.n[500], width: 18, textAlign: "right" }}>{medNumbers[idx]}.</span>
-                  </>
-                )}
+              {/* Grab a line by its serial number to move it. A taper row has no
+                  handle of its own: it moves with its medicine. */}
+              <div
+                className={grip ? "rx-grip" : undefined}
+                draggable={grip}
+                onDragStart={grip ? (e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", String(idx)); // Firefox needs data to start a drag
+                  setAcRow(null);
+                  setDragFrom(idx);
+                } : undefined}
+                onDragEnd={grip ? endDrag : undefined}
+                title={grip ? "Drag to move this line up or down" : undefined}
+                style={{ width: showCheck ? 44 : 26, alignSelf: "stretch", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, cursor: grip ? "grab" : undefined }}
+              >
+                {isHead && showCheck && <input type="checkbox" checked={row.checked} onChange={(e) => updateRow(idx, { checked: e.target.checked })} style={{ width: 14, height: 14, accentColor: C.pri[400], cursor: "pointer" }} />}
+                {isHead && <span className="rx-num" style={{ fontSize: 12, color: C.n[500], width: 18, textAlign: "right" }}>{medNumbers[idx]}.</span>}
+                {grip && <span className="rx-handle" aria-hidden style={{ fontSize: 13, color: C.n[400], width: 18, textAlign: "right", lineHeight: 1 }}>⠿</span>}
               </div>
 
               {/* Start From date box — before each medicine (IPD pad only) */}
@@ -702,6 +750,23 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 </div>
               )}
 
+              {editMode && grip && (
+                <span style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                  {([-1, 1] as const).map((dir) => {
+                    const ok = canMove(rows, idx, dir);
+                    return (
+                      <button
+                        key={dir}
+                        onClick={() => move(idx, dir)}
+                        disabled={!ok}
+                        title={dir < 0 ? "Move up" : "Move down"}
+                        aria-label={dir < 0 ? "Move this line up" : "Move this line down"}
+                        style={{ width: 22, height: 22, borderRadius: 5, border: `0.5px solid ${ok ? C.n[300] : C.n[200]}`, background: C.n[0], color: ok ? C.pri[600] : C.n[300], cursor: ok ? "pointer" : "default", fontSize: 10, lineHeight: 1, padding: 0, fontFamily: font }}
+                      >{dir < 0 ? "▲" : "▼"}</button>
+                    );
+                  })}
+                </span>
+              )}
               {editMode && (started || isCont) && (
                 <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.danger[400], cursor: "pointer", fontSize: 15, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
               )}
@@ -758,6 +823,17 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
             <button onClick={() => setHabitUndo(null)} title="Dismiss" aria-label="Dismiss" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 17, lineHeight: 1, padding: "2px 5px", borderRadius: 6 }}>×</button>
           </span>
         </div>
+      )}
+
+      {reorderable && (
+        // The serial number turns into a grip on hover: the handle is where the
+        // doctor already looks, without adding a column to the pad.
+        <style>{`
+          .rx-grip .rx-handle{display:none}
+          .rx-grip:hover .rx-handle{display:inline}
+          .rx-grip:hover .rx-num{display:none}
+          .rx-grip:active{cursor:grabbing}
+        `}</style>
       )}
 
       {showHabits && (
