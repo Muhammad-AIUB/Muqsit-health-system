@@ -56,9 +56,12 @@ interface ExpandableFieldProps {
   // Opt-in content of the "Investigations group" tab. `apply` stages several
   // items at once (a group's tests) into the same Added list.
   renderGroups?: (selected: string[], apply: (add: string[], remove: string[]) => void) => ReactNode;
+  // Opt-in (OPD clinical sidebar, 2026-09-25): a × beside each line removes
+  // that one line, with an Undo bar to put it back where it was.
+  removable?: boolean;
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla, investigationTabs, renderDirectory, renderGroups }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla, investigationTabs, renderDirectory, renderGroups, removable }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"items" | "groups">("items");
   const [inputVal, setInputVal] = useState("");
@@ -232,6 +235,24 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
 
   const cancelInlineEdit = () => setEditOpen(false);
 
+  // --- × on a line ---------------------------------------------------------
+  // Removes that ONE line (by position, so a repeated line only loses the copy
+  // clicked). The Undo bar stays until the doctor undoes or dismisses it, or
+  // removes another line: a mis-click beside a diagnosis must be recoverable.
+  const [removed, setRemoved] = useState<{ item: string; idx: number } | null>(null);
+  const removeLine = (idx: number) => {
+    const item = items[idx];
+    if (item === undefined) return;
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+    setRemoved({ item, idx });
+  };
+  const undoRemove = () => {
+    if (!removed) return;
+    const { item, idx } = removed;
+    setItems((prev) => [...prev.slice(0, idx), item, ...prev.slice(idx)]);
+    setRemoved(null);
+  };
+
   const filteredSugs = getFiltered();
 
   const greenTag: CSSProperties = { fontSize: 11, color: C.pri[600], background: C.pri[50], padding: "4px 10px 4px 12px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 6, border: `0.5px solid ${C.pri[100]}` };
@@ -309,8 +330,26 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   style={{ flex: 1, minWidth: 0, marginLeft: 4, padding: "3px 8px", borderRadius: 5, border: `0.5px solid ${C.n[300]}`, fontSize: 11.5, fontFamily: "inherit", color: C.n[900], outline: "none", background: editable ? C.n[0] : C.n[50] }}
                 />
               )}
+              {removable && editable && !editOpen && (
+                <button
+                  type="button"
+                  aria-label={`Remove "${item}"`}
+                  title="Remove this line"
+                  onClick={() => removeLine(idx)}
+                  style={{ width: 18, height: 18, flexShrink: 0, borderRadius: "50%", border: "none", background: "transparent", color: C.n[400], fontSize: 13, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, fontFamily: "inherit" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = C.danger[50]; e.currentTarget.style.color = C.danger[800]; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.n[400]; }}
+                >×</button>
+              )}
             </div>
           ))}
+        </div>
+      )}
+      {removed && (
+        <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px 14px", padding: "4px 8px", borderRadius: 6, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 11.5, color: C.n[700] }}>
+          <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>Removed “{removed.item}”</span>
+          <button type="button" onClick={undoRemove} style={{ border: "none", background: "none", color: C.pri[600], fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Undo</button>
+          <button type="button" aria-label="Dismiss" onClick={() => setRemoved(null)} style={{ border: "none", background: "none", color: C.n[500], fontSize: 13, cursor: "pointer", padding: 0, lineHeight: 1, fontFamily: "inherit" }}>×</button>
         </div>
       )}
 

@@ -63,6 +63,7 @@ export default function LeftColumn() {
             allFields={allFieldValues}
             checkboxOptions={f.label === "Associated illness" ? ["BA", "COPD", "Hypothyroidism", "CKD", "CLD"] : undefined}
             inlineEdit={isInlineEditField(f.label)}
+            removable
             permKey={f.permKey}
             bangla={BANGLA_FIELDS.includes(f.label)}
             previousItems={f.label === "Final diagnosis" ? previousDiagnoses : undefined}
