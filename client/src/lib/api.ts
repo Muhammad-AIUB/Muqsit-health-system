@@ -452,6 +452,29 @@ export const rxHabitsApi = {
     }),
 };
 
+// ── My personal note for this patient ───────────────────────
+// PRIVATE to the signed-in user: the server keys it by the authenticated user,
+// never the workstation doctor, so nobody else — assistant, owner or supervising
+// doctor — can read it. `patientInfo` is frozen at the first save.
+export interface PatientNoteInfo {
+  name?: string;
+  age?: string;
+  sex?: string;
+  address?: string;
+  mobile?: string;
+}
+export interface PatientNote {
+  patientInfo: PatientNoteInfo;
+  html: string;
+  updatedAt: string;
+}
+export const patientNotesApi = {
+  get: (patientId: string) =>
+    apiFetch<{ note: PatientNote | null }>(`/patient-notes/${encodeURIComponent(patientId)}`).then((r) => r.note),
+  save: (patientId: string, input: { html: string; patientInfo: PatientNoteInfo }) =>
+    apiFetch<PatientNote>(`/patient-notes/${encodeURIComponent(patientId)}`, { method: "PUT", body: JSON.stringify(input) }),
+};
+
 // ── Special advice per medicine / generic (℞ pad •••) ────────
 // The doctor's own standing advice, written in the pad's ••• box. Doctor-scoped
 // server-side (@WorkstationDoctorId); see lib/rxDrugAdvice.ts for how the lines

@@ -7,6 +7,7 @@ import Lock from "@/components/common/Lock";
 import InvestigationFindingsField from "@/components/investigation/InvestigationFindingsField";
 import DrugHistoryField from "@/components/prescription/DrugHistoryField";
 import PreviousComplaintsField from "@/components/prescription/PreviousComplaintsField";
+import { PersonalNoteSection } from "@/components/prescription/PersonalNote";
 import { useActivityLog } from "@/hooks/useActivity";
 import { usePreviousDiagnoses } from "@/hooks/usePreviousDiagnoses";
 import { isInlineEditField } from "@/lib/inlineEditFields";
@@ -69,6 +70,10 @@ export default function LeftColumn() {
           />
         );
       })}
+      {/* ⚕️ Private to the signed-in user — not a clinical field, not printed
+          with the prescription, and not gated by assistant keys: each user
+          only ever reaches their own note (server/src/patient-notes). */}
+      <PersonalNoteSection />
     </div>
   );
 }

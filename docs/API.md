@@ -529,6 +529,22 @@ here touches `Prescription`: the client copies the ticked lines into the
 visit's Advice section, and `Prescription.advice` stays the record of what
 printed. Table: `manual-drug-advice.sql`.
 
+### 5.14d Personal patient notes — `/patient-notes` (JWT + WS)
+
+"My Personal Note for This Patient" (2026-09-24). **Private to the signed-in
+user.**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/patient-notes/:patientId` | `{ note: { patientInfo, html, updatedAt } \| null }` — the CALLER's own note. |
+| PUT | `/patient-notes/:patientId` | `SavePatientNoteDto { html (≤200k), patientInfo { name?, age?, sex?, address?, mobile? } }` — upsert. `patientInfo` is stored only when the note is first created; later saves change `html` only. |
+
+⚠️ The note is keyed by `@CurrentUser().id`, **never** `@WorkstationDoctorId()`:
+an assistant or supervising doctor reads and writes their own note, never the
+owner's, and vice versa. The workstation doctor is used only to prove the
+patient is reachable (`PatientsService.get` → 404 otherwise). No permission key,
+and nothing is written to the activity feed. Table: `manual-doctor-patient-note.sql`.
+
 ### 5.15 Medicines — `/medicines` (JWT)
 
 | Method | Path | Notes |

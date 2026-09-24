@@ -54,8 +54,13 @@ const RichTextEditor = forwardRef<
     onChange: (html: string) => void;
     minHeight?: number;
     placeholder?: string;
+    /** Offer "🖼 Image". Off for a PRIVATE note: an uploaded image lands on the
+     *  public /uploads path, where anyone holding the URL could open it. */
+    allowImages?: boolean;
+    /** Offer a yellow Highlight (marker) button. */
+    highlight?: boolean;
   }
->(function RichTextEditor({ value, onChange, minHeight = 200, placeholder = "Start typing…" }, handleRef) {
+>(function RichTextEditor({ value, onChange, minHeight = 200, placeholder = "Start typing…", allowImages = true, highlight = false }, handleRef) {
   const ref = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [empty, setEmpty] = useState(true);
@@ -224,16 +229,24 @@ const RichTextEditor = forwardRef<
         <Btn label="U" title="Underline" onClick={() => exec("underline")} style={{ textDecoration: "underline" }} />
         <Sep />
         <ColorMenu onColor={applyColor} onGradient={applyGradient} onAutomatic={() => applyColor(C.n[900])} />
-        <Sep />
-        <button
+        {highlight && (
+          <Btn
+            label="Highlight"
+            title="Highlight the selected text"
+            onClick={() => { document.execCommand("styleWithCSS", false, "true"); exec("hiliteColor", "#FFF176"); }}
+            style={{ background: "#FFF176" }}
+          />
+        )}
+        {allowImages && <Sep />}
+        {allowImages && <button
           title="Insert image"
           onMouseDown={(e) => { e.preventDefault(); saveSelection(); imageInputRef.current?.click(); }}
           disabled={imgBusy}
           style={{ ...btnStyle, opacity: imgBusy ? 0.6 : 1 }}
         >
           {imgBusy ? "…" : "🖼 Image"}
-        </button>
-        <input ref={imageInputRef} type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPickImage} />
+        </button>}
+        {allowImages && <input ref={imageInputRef} type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPickImage} />}
       </div>
 
       {/* Editable surface */}

@@ -107,6 +107,8 @@ model User {
   phraseHabits DoctorPhraseHabit[]
   // The doctor's own special advice per medicine / per generic (℞ pad •••).
   drugAdvice DoctorDrugAdvice[]
+  // Private notes this user wrote about patients — theirs alone.
+  personalNotes DoctorPatientNote[]
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -384,6 +386,7 @@ model Patient {
   // patient (they get cross-doctor access to the chat).
   chatMessages PatientChatMessage[]
   supervisors  PatientSupervisor[]
+  personalNotes DoctorPatientNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -745,4 +748,31 @@ model DoctorDrugAdvice {
   updatedAt DateTime @updatedAt
 
   @@unique([doctorId, scope, key])
+}
+
+/// ⚕️ "My Personal Note for This Patient" (2026-09-24). STRICTLY PRIVATE to the
+/// signed-in user who wrote it: keyed by `userId` = the authenticated user,
+/// NEVER the workstation doctor, so an assistant or supervising doctor only ever
+/// reads and writes their OWN note — never the owner's, and the owner never
+/// theirs. One evolving note per (user, patient); a new visit does not reset it.
+/// `patientInfo` is the name/age/sex/address/mobile as they were at the FIRST
+/// save and is never rewritten afterwards (physician's decision). Not logged
+/// to the practice activity feed, which other users can read.
+model DoctorPatientNote {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  /// { name, age, sex, address, mobile } — frozen at first save.
+  patientInfo Json
+  /// The note, as formatted HTML from the editor. Sanitised on the client
+  /// wherever it is rendered or printed.
+  html String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, patientId])
 }

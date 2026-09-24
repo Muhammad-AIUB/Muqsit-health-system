@@ -7,7 +7,7 @@ permission keys each one enforces. Keep it in the same commit as a route change.
 
 ## Module map (src/)
 
-`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search) · `drug-advice` (the doctor's own ••• advice per medicine/generic) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
+`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search) · `patient-notes` (a user's PRIVATE note per patient) · `drug-advice` (the doctor's own ••• advice per medicine/generic) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
 
 ## ⚠️ Rule 1 — every patient-data query is doctor-scoped
 
@@ -166,6 +166,18 @@ write. Keys (`drug-advice/keys.ts`): scope `medicine` reuses
 `rx-habits/normalise.ts#normaliseDrugKey` (strength included), scope `generic`
 folds case and spacing only. The client mirrors both in `lib/rxDrugAdvice.ts`.
 Boot check logs one ERROR naming the SQL file if the table is unreadable.
+
+## ⚠️ `patient-notes` — keyed by the SIGNED-IN USER, on purpose (2026-09-24)
+
+`DoctorPatientNote` (`manual-doctor-patient-note.sql`, applied 2026-09-24) is the
+one patient-scoped table that is NOT keyed by the workstation doctor: the
+physician's rule is that a personal note is visible to the person who wrote it
+and nobody else — not an assistant in the owner's workstation, not the owner
+reading an assistant's. So `@CurrentUser().id` is the ONLY key a note is read or
+written under, and `@WorkstationDoctorId()` is used for one thing: proving the
+patient is reachable through `PatientsService.get` (404 otherwise). Do not
+"fix" this to the workstation doctor, and never log it to `activity`.
+`patientInfo` is written on create only. Pinned in `patient-notes.service.spec.ts`.
 
 ## ⚠️ Rule 2d — the IPD `clinical` column is REPLACED, so new per-admission data gets its own route
 

@@ -23,6 +23,7 @@ import { MedicinesModule } from './medicines/medicines.module';
 import { RxHabitsModule } from './rx-habits/rx-habits.module';
 import { DoctorPhrasesModule } from './doctor-phrases/doctor-phrases.module';
 import { DrugAdviceModule } from './drug-advice/drug-advice.module';
+import { PatientNotesModule } from './patient-notes/patient-notes.module';
 import { WorkstationsModule } from './workstations/workstations.module';
 import { PatientChatModule } from './patient-chat/patient-chat.module';
 import { MirrorModule } from './mirror/mirror.module';
@@ -54,6 +55,7 @@ import { MirrorModule } from './mirror/mirror.module';
     RxHabitsModule,
     DoctorPhrasesModule,
     DrugAdviceModule,
+    PatientNotesModule,
     WorkstationsModule,
     PatientChatModule,
     MirrorModule,
