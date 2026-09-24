@@ -46,6 +46,7 @@ export default function ImageGallery({
   labelPlaceholder = "Label…",
   size = "md",
   fit = "cover",
+  pdf,
 }: {
   title: string;
   addLabel: string;
@@ -72,6 +73,9 @@ export default function ImageGallery({
    *  cropping — fine for a picture, wrong for a document, where the cropped
    *  strip can be the line that carries the dose. */
   fit?: "cover" | "contain";
+  /** Offer "Download PDF" of every image, in the order shown (lib/galleryPdf.ts).
+   *  Reading, not editing — so it is not gated by `canEdit`. */
+  pdf?: { fileName: () => string; footerTitle: string };
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -81,6 +85,26 @@ export default function ImageGallery({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [fileOver, setFileOver] = useState(false);
+  const [pdfState, setPdfState] = useState<{ busy: boolean; done: number; total: number; error: string }>({ busy: false, done: 0, total: 0, error: "" });
+
+  const downloadPdf = async () => {
+    if (!pdf || pdfState.busy || items.length === 0) return;
+    const order = items.map((it) => it.url); // the order on screen, frozen at the click
+    setPdfState({ busy: true, done: 0, total: order.length, error: "" });
+    try {
+      const { downloadGalleryPdf } = await import("@/lib/galleryPdf");
+      await downloadGalleryPdf({
+        urls: order,
+        footerTitle: pdf.footerTitle,
+        fileName: pdf.fileName(),
+        onProgress: (done, total) => setPdfState((p) => ({ ...p, done, total })),
+      });
+      setPdfState({ busy: false, done: 0, total: 0, error: "" });
+    } catch (e) {
+      const msg = e instanceof Error && e.name === "GalleryPdfError" ? e.message : "The PDF could not be made.";
+      setPdfState({ busy: false, done: 0, total: 0, error: `PDF NOT downloaded: ${msg}` });
+    }
+  };
   // The "lg" portrait tile is 270×370 on purpose — as large as it can be and
   // still be drawn from real pixels: the small copy uploaded with each page is
   // 400px on its long side (THUMB_MAX_DIM), so a taller tile than this would
@@ -173,6 +197,16 @@ export default function ImageGallery({
         {title ? <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], minWidth: 0 }}>{title}</div> : <span />}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {busy && <span style={{ fontSize: 11, color: C.n[500] }}>Uploading…</span>}
+          {pdf && items.length > 0 && !editing && (
+            <button
+              onClick={downloadPdf}
+              disabled={pdfState.busy}
+              title={`Download all ${items.length} image${items.length === 1 ? "" : "s"} as one PDF, in the order shown`}
+              style={{ ...ghostBtn, color: C.pri[600], border: `0.5px solid ${C.pri[400]}`, cursor: pdfState.busy ? "default" : "pointer", opacity: pdfState.busy ? 0.7 : 1 }}
+            >
+              {pdfState.busy ? `Preparing PDF… ${pdfState.done}/${pdfState.total}` : "⤓ Download PDF"}
+            </button>
+          )}
           {canEdit && (editing ? (
             <>
               <button onClick={removeSelected} disabled={selected.size === 0} style={{ padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.danger[400]}`, background: selected.size ? C.danger[400] : C.n[100], color: selected.size ? "#fff" : C.n[500], fontSize: 12, fontWeight: 500, cursor: selected.size ? "pointer" : "default", fontFamily: font, whiteSpace: "nowrap" }}>
@@ -205,6 +239,12 @@ export default function ImageGallery({
           )}
         </div>
       </div>
+      {pdfState.error && (
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "7px 11px", marginBottom: 10 }}>
+          <span style={{ flex: 1 }}>{pdfState.error}</span>
+          <button onClick={() => setPdfState((p) => ({ ...p, error: "" }))} aria-label="Dismiss" style={{ background: "none", border: "none", color: C.danger[800], cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
+        </div>
+      )}
 
       <div
         data-testid="image-gallery-drop"

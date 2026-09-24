@@ -22,6 +22,7 @@ import { cellToDate } from "@/lib/hmDates";
 import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
 import InvestigationDownload from "./InvestigationDownload";
 import ImageGallery from "@/components/common/ImageGallery";
+import { pdfFileName } from "@/lib/galleryPdf";
 import ImageLightbox from "@/components/common/ImageLightbox";
 
 // A dd/mm/yyyy group heading, flagged when the date sits implausibly far ahead.
@@ -47,7 +48,7 @@ function DateHeading({ date }: { date: string }) {
 
 export default function PatientRecordsView() {
   const {
-    currentPatientId,
+    currentPatientId, ptName,
     rxImages, saveRxImages, reportImages, saveReportImages, imageThumbs,
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
     onExaminationSummary, saveOnExaminationSummary,
@@ -206,6 +207,7 @@ export default function PatientRecordsView() {
         onReorder={reorderRx}
         onOpen={openViewer}
         orientation="landscape"
+        pdf={{ footerTitle: "All prescriptions", fileName: () => pdfFileName(ptName, "All prescriptions") }}
         emptyText="No prescription images yet. Upload photos of the patient's prescriptions."
       />
 
@@ -219,6 +221,7 @@ export default function PatientRecordsView() {
         onReorder={reorderReports}
         onOpen={openViewer}
         orientation="portrait"
+        pdf={{ footerTitle: "All reports", fileName: () => pdfFileName(ptName, "All reports") }}
         emptyText="No report images yet. Upload photos of the patient's lab/investigation reports."
       />
 

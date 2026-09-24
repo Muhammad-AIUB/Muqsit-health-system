@@ -55,6 +55,18 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, transform: true }),
   );
 
+  // CORS is registered BEFORE the static /uploads handler, deliberately.
+  // express.static answers a file itself and never calls next(), so with CORS
+  // registered after it every real image went out with no
+  // Access-Control-Allow-Origin — only 404s got one. The galleries' "Download
+  // PDF" (client lib/galleryPdf.ts) has to READ the image bytes, which the
+  // browser refuses cross-origin without the header. Only the app's own
+  // origins are allowed, exactly as for the API; <img> tags are unaffected.
+  const origins = (config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim());
+  app.enableCors({ origin: origins, credentials: true });
+
   // Serve uploaded files (NID images, certificates, profile pictures)
   // straight from disk at /uploads/<filename>.
   //
@@ -77,11 +89,6 @@ async function bootstrap() {
     maxAge: '365d',
     immutable: true,
   });
-
-  const origins = (config.get<string>('CORS_ORIGIN') ?? 'http://localhost:3000')
-    .split(',')
-    .map((o) => o.trim());
-  app.enableCors({ origin: origins, credentials: true });
 
   const port = config.get<number>('PORT') ?? 4000;
   await app.listen(port);
