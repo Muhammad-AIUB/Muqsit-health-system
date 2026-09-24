@@ -110,6 +110,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             showHabits
             bangla
             reorderable
+            numberNotes
             alertInput={alertInput}
           />
         </div>

@@ -710,13 +710,17 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   let rxRowNo = -1;
   const rxRows = rxLines
     .map((r) => {
-      // Free-typed instruction line — span the whole width, italic, no number.
-      // A note is not a medicine row and is not in `lay.rowPx` — it must not
-      // advance the counter, or every row after it reads the wrong size.
+      // Free-typed instruction line — span the whole width, italic.
+      // ⚕️ It takes the NEXT SERIAL like a medicine does (physician's decision,
+      // 2026-09-24: "bed rest", "insulin as before" and the medicines are one
+      // numbered list). It is still a note — no dose/food/duration cells — and
+      // it is not in `lay.rowPx`, so it advances `rxNo` but never `rxRowNo`,
+      // or every medicine row after it would read the wrong size.
       if (r.isNote) {
+        rxNo += 1;
         return `
         <tr>
-          <td class="rx-no"></td>
+          <td class="rx-no">${rxNo}.</td>
           <td class="rx-note" colspan="${noteSpan}">${esc(r.drug)}</td>
         </tr>`;
       }

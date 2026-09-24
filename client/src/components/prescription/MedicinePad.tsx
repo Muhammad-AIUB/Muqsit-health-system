@@ -248,9 +248,14 @@ interface Props {
   // ✎ Edit is on (physician's request, 2026-09-23). A medicine always moves
   // together with its >>> tapering lines — see lib/rxRowMove.ts. OPD pad only.
   reorderable?: boolean;
+  // Free-typed NOTE lines take a serial too, in one sequence with the
+  // medicines (physician's decision, 2026-09-24) — the same numbering the
+  // printed OPD prescription carries. OPD pad only: the IPD sheet and the
+  // template editor print their own way and keep medicine-only numbers.
+  numberNotes?: boolean;
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, reorderable = false }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, reorderable = false, numberNotes = false }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   // Which drug box the caret is in. Only used to decide whether that line
   // shows its plain <input> text or the read-only overlay that sets the brand
@@ -434,7 +439,16 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
 
   const filledRows = rows.filter((r) => r.isMedicine && !r.continuation && r.drug.trim());
   const allChecked = filledRows.length > 0 && filledRows.every((r) => r.checked);
-  const medNumbers = (() => { let n = 0; return rows.map((r) => (r.isMedicine && !r.continuation ? ++n : 0)); })();
+  // A written note (not the empty typing line) is numbered only when the pad
+  // opts in; a taper row never is — it continues the medicine above it.
+  const medNumbers = (() => {
+    let n = 0;
+    return rows.map((r) => {
+      if (r.continuation) return 0;
+      if (r.isMedicine) return ++n;
+      return numberNotes && r.drug.trim() ? ++n : 0;
+    });
+  })();
 
   const toggleAll = (val: boolean) =>
     setRows((prev) => prev.map((r) => (r.isMedicine && !r.continuation ? { ...r, checked: val } : r)));
@@ -552,7 +566,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 style={{ width: showCheck ? 44 : 26, alignSelf: "stretch", display: "flex", alignItems: "center", gap: 5, flexShrink: 0, cursor: grip ? (dragAt != null ? "grabbing" : "grab") : undefined, touchAction: grip ? "none" : undefined }}
               >
                 {isHead && showCheck && <input type="checkbox" checked={row.checked} onChange={(e) => updateRow(idx, { checked: e.target.checked })} style={{ width: 14, height: 14, accentColor: C.pri[400], cursor: "pointer" }} />}
-                {isHead && <span className="rx-num" style={{ fontSize: 12, color: C.n[500], width: 18, textAlign: "right" }}>{medNumbers[idx]}.</span>}
+                {medNumbers[idx] > 0 && <span className="rx-num" style={{ fontSize: 12, color: C.n[500], width: 18, textAlign: "right" }}>{medNumbers[idx]}.</span>}
                 {grip && <span className="rx-handle" aria-hidden style={{ fontSize: 13, color: C.n[400], width: 18, textAlign: "right", lineHeight: 1 }}>⠿</span>}
               </div>
 

@@ -146,3 +146,27 @@ describe("MedicinePad — dragging a line (regression, 2026-09-23)", () => {
     expect(names()).toBe("A,B,C,D,F,E,∅");
   });
 });
+
+// ⚕️ One numbered list on the OPD pad (physician's decision, 2026-09-24): a
+// written note takes the next serial like a medicine; a taper row and the
+// empty typing line take none. Pads that do not opt in number medicines only.
+describe("MedicinePad — numbering notes", () => {
+  const note = (drug: string): Row => ({ drug, dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false });
+  const start = () => [note("bed rest"), med("Tablet. Napa 500 mg", "1+1+1"), taper("1+0+0"), note("advice : Hospitalization"), med("Capsule. Denvar 400 mg", "1+0+1"), blank()];
+  const numbers = (c: HTMLElement) => [...c.querySelectorAll(".rx-num")].map((n) => n.textContent);
+
+  function NotesPad({ numberNotes }: { numberNotes?: boolean }) {
+    const [rows, setRows] = useState<Row[]>(start);
+    return <MedicinePad rows={rows} setRows={setRows} showCheck={false} numberNotes={numberNotes} />;
+  }
+
+  it("numbers notes and medicines in one sequence when the pad opts in", () => {
+    const { container } = render(<NotesPad numberNotes />);
+    expect(numbers(container)).toEqual(["1.", "2.", "3.", "4."]);
+  });
+
+  it("keeps medicine-only numbers on a pad that does not opt in", () => {
+    const { container } = render(<NotesPad />);
+    expect(numbers(container)).toEqual(["1.", "2."]);
+  });
+});

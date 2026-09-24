@@ -481,6 +481,23 @@ describe("printed Rx markup", () => {
     ).toContain('colspan="3"');
   });
 
+  // ⚕️ One numbered list (physician's decision, 2026-09-24): a free-typed note
+  // takes the next serial like a medicine, a taper row takes none, and the
+  // note still prints as a note — one spanning cell, no dose.
+  it("numbers notes and medicines in one sequence; a taper row gets no number", () => {
+    const note = (drug: string): RxLine => ({ drug, dose: "", duration: "", instruction: "", isNote: true });
+    const html = buildPrescriptionHtml(doc([
+      note("bed rest"),
+      line("Tablet. Napa 500 mg", "1+1+1", "5 days"),
+      line("", "1+0+0", "3 days"), // taper of Napa
+      note("advice : Hospitalization"),
+      line("Capsule. Denvar 400 mg", "1+0+1", "7 days"),
+    ]));
+    const nos = [...html.matchAll(/<td class="rx-no">([^<]*)<\/td>/g)].map((m) => m[1]);
+    expect(nos).toEqual(["1.", "2.", "", "3.", "4."]);
+    expect(html).toContain('<td class="rx-note" colspan="2">bed rest</td>');
+  });
+
   it("pins every Rx cell against wrapping when the row has the width for it", () => {
     expect(
       buildPrescriptionHtml(doc([line("Tablet. Napa 500 mg", "1+1+1", "5 days")])),
