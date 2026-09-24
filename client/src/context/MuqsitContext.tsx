@@ -217,6 +217,15 @@ function useMuqsitStore() {
   const ignoreAlert = useCallback((id: string) => {
     setIgnoredAlerts((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   }, []);
+  // The pad's sign tucks every warning away / brings every one back (including
+  // one the doctor ignored). Since 2026-09-24 this set means "message
+  // dismissed", never "sign out" — the sign stays while the medicine does.
+  const hideAlerts = useCallback((ids: string[]) => {
+    setIgnoredAlerts((prev) => (ids.every((id) => prev.has(id)) ? prev : new Set([...prev, ...ids])));
+  }, []);
+  const showAlerts = useCallback((ids: string[]) => {
+    setIgnoredAlerts((prev) => (ids.some((id) => prev.has(id)) ? new Set([...prev].filter((x) => !ids.includes(x))) : prev));
+  }, []);
   const [reportImages, setReportImages] = useState<string[]>([]);
   // Small copies for both galleries above, keyed by full image URL. Display-only
   // (lib/imageThumbs.ts), and kept in a ref as well as state because it is
@@ -1188,7 +1197,7 @@ function useMuqsitStore() {
     invImages, setInvImages,
     rxImages, setRxImages, reportImages, setReportImages, saveRxImages,
     claimRxSnapshot, releaseRxSnapshot, saveRxSnapshot, saveReportImages, imageThumbs,
-    ignoredAlerts, ignoreAlert,
+    ignoredAlerts, ignoreAlert, hideAlerts, showAlerts,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,
     onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,

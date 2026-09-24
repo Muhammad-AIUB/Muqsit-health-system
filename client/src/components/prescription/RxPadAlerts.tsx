@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, type ReactNode } from "react";
+import { Component, useEffect, useRef, type ReactNode } from "react";
 import { C, font } from "@/theme";
 import { rxAlertsByLine, type RxAlert, type RxAlertInput } from "@/lib/rxAlerts";
 import { useMuqsit } from "@/context/MuqsitContext";
@@ -12,11 +12,18 @@ import { useMuqsit } from "@/context/MuqsitContext";
 //   2026-08-17  a red bubble under the medicine, shown the moment a rule fired
 //   2026-08-28  the bubble gone; one blinking sign, advice in a floating panel
 //   2026-08-28  the panel dropped — it moved around the screen on a scroll.
-// What stands: the pad is a writing surface, so a single sign lights up in the
-// toolbar the moment ANY warned medicine is written — one sign however many
-// warnings there are — and pressing it reveals each warning **in the flow,
-// directly under its own medicine line**, where it scrolls with that line and
-// can never be read against the wrong drug.
+//   2026-09-24  the flow below (physician's report: Ignore used to take the
+//               sign away with it, leaving no way back to the warning).
+// What stands: a single sign lights up in the toolbar the moment ANY warned
+// medicine is written — one sign however many warnings — and each warning
+// shows **in the flow, directly under its own medicine line**, where it scrolls
+// with that line and can never be read against the wrong drug.
+//   • A warning APPEARS ON ITS OWN when its medicine is written.
+//   • "Ignore Warning" dismisses the MESSAGE only. The sign stays lit for as
+//     long as the medicine is on the pad, and pressing it brings every
+//     dismissed warning back (pressed again, it tucks them all away).
+//   • The sign goes out only when the medicine leaves the pad — and a medicine
+//     written anew is a new warning, shown again even if it was dismissed.
 //
 // Nothing is hidden by the sign. The "MHS is suggesting" banner in
 // Notifications, Chats & Reports still lists every alert in full at all times,
@@ -52,7 +59,7 @@ export function padAlerts(input: RxAlertInput, ignored: ReadonlySet<string>): { 
 
 // ── The sign ────────────────────────────────────────────────
 
-export default function RxAlertSign(props: { input: RxAlertInput; open: boolean; onToggle: () => void }) {
+export default function RxAlertSign(props: { input: RxAlertInput }) {
   return (
     <PadAlertBoundary inline>
       <SignBody {...props} />
@@ -60,11 +67,32 @@ export default function RxAlertSign(props: { input: RxAlertInput; open: boolean;
   );
 }
 
-function SignBody({ input, open, onToggle }: { input: RxAlertInput; open: boolean; onToggle: () => void }) {
-  const { ignoredAlerts } = useMuqsit();
-  const lines = padAlerts(input, ignoredAlerts);
+function SignBody({ input }: { input: RxAlertInput }) {
+  const { ignoredAlerts, hideAlerts, showAlerts } = useMuqsit();
+  // EVERY warning on the pad, dismissed or not: the sign answers "is a warned
+  // medicine on this prescription?", and dismissing a message does not change
+  // that answer (the 2026-09-24 regression).
+  const lines = padAlerts(input, new Set());
   const count = lines.reduce((n, l) => n + l.alerts.length, 0);
+  const ids = [...new Set(lines.flatMap((l) => l.alerts.map((a) => a.id)))];
+  const idsKey = ids.join("");
+
+  // A warning whose medicine LEFT the pad forgets its dismissal, so writing the
+  // medicine again shows the warning again — it is a new decision.
+  const prevIds = useRef<string[]>([]);
+  useEffect(() => {
+    const now = new Set(ids);
+    const gone = prevIds.current.filter((id) => !now.has(id) && ignoredAlerts.has(id));
+    prevIds.current = ids;
+    if (gone.length) showAlerts(gone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
+
   if (count === 0) return null;
+  // Open = every warning is showing. A press shows them all if any is tucked
+  // away (an Ignored one included), otherwise tucks them all away.
+  const open = ids.every((id) => !ignoredAlerts.has(id));
+  const onToggle = () => (open ? hideAlerts(ids) : showAlerts(ids));
 
   const label = `${count} prescribing warning${count === 1 ? "" : "s"} — press to ${open ? "hide" : "read"}`;
   return (

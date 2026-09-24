@@ -266,10 +266,6 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // name in bold — see the medicine column below.
   const [drugFocus, setDrugFocus] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
-  // Whether the warnings are being shown. One switch for the whole pad: the
-  // sign in the toolbar is the only way in, so a doctor never has to hunt for
-  // which line is hiding one.
-  const [alertsOpen, setAlertsOpen] = useState(false);
   const move = (idx: number, dir: -1 | 1) => { setAcRow(null); setRows((prev) => moveBlock(prev, idx, dir)); };
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
   // The row each dropdown hangs off, measured against the viewport.
@@ -501,7 +497,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {/* One sign for the whole pad, however many rules fired. */}
         {alertInput && (
-          <RxAlertSign input={alertInput} open={alertsOpen} onToggle={() => setAlertsOpen((o) => !o)} />
+          <RxAlertSign input={alertInput} />
         )}
         <button
           onClick={() => setEditMode((m) => !m)}
@@ -861,7 +857,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
               )}
             </div>
             {/* The prescribing warning for THIS medicine, pointing up at it,
-                shown once the doctor presses the sign. It sits in the flow, so
+                shown until the doctor dismisses it (the sign brings it back). It sits in the flow, so
                 it travels with its own line when the pad scrolls.
 
                 The text guard is not belt-and-braces. `rows` is this
@@ -870,7 +866,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 so for a frame after a line is deleted the indices disagree, and
                 a contraindication would be drawn against the wrong medicine.
                 A frame is long enough to be seen and photographed. */}
-            {alertsOpen && alertInput && lineIndex != null &&
+            {alertInput && lineIndex != null &&
               (alertInput.rxDrugs[lineIndex]?.text ?? "").trim() === row.drug.trim() && (
               <RxLineWarning input={alertInput} lineIndex={lineIndex} />
             )}
