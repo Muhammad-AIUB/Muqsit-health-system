@@ -5,7 +5,7 @@ import { C } from "@/theme";
 import { ApiError, uploadImage } from "@/lib/api";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { highlightedRun, rangeIsHighlighted } from "@/lib/highlight";
-import { SENSITIVE_ATTR, rangeIsSensitive, sensitiveCss, sensitiveRun } from "@/lib/sensitive";
+import { SENSITIVE_HREF, rangeIsSensitive, sensitiveCss, sensitiveRun } from "@/lib/sensitive";
 
 const HIGHLIGHT = "#FFF176";
 
@@ -169,31 +169,9 @@ const RichTextEditor = forwardRef<
     return () => document.removeEventListener("selectionchange", onSel);
   }, [sensitive]);
 
-  const RUN_OPEN = `<span ${SENSITIVE_ATTR}="1">`;
-  // A range's contents as HTML, with any sensitive marks inside it taken off.
-  const plainHtml = (r: Range) => {
-    const box = document.createElement("div");
-    box.appendChild(r.cloneContents());
-    box.querySelectorAll(`span[${SENSITIVE_ATTR}]`).forEach((s) => s.replaceWith(...s.childNodes));
-    return box.innerHTML;
-  };
-  const sliceHtml = (sc: Node, so: number, ec: Node, eo: number) => {
-    const r = document.createRange();
-    r.setStart(sc, so);
-    r.setEnd(ec, eo);
-    return plainHtml(r);
-  };
-  // A left-over piece of a run stays marked only if it holds visible text;
-  // a bare space is kept, unmarked, so no word runs into the next.
-  const asRun = (h: string) => {
-    const text = h.replace(/<[^>]*>/g, "").replace(/​/g, "").trim();
-    return text ? `${RUN_OPEN}${h}</span>` : h.replace(/​/g, "");
-  };
-
-  // ⚕️ Every change goes through execCommand("insertHTML") so it is on the
-  // browser's undo stack. The first version edited the DOM by hand, and Ctrl+Z
-  // then replayed against a page it no longer matched — in Chrome it deleted
-  // the doctor's own unmarked words and kept the secret (2026-09-25).
+  // ⚕️ Every change is one of Chrome's own editing commands, so it is on the
+  // undo stack and Chrome's later edits keep the mark (see lib/sensitive.ts
+  // for why the mark is a link and what went wrong with a span).
   const toggleSensitive = () => {
     const el = ref.current;
     const sel = window.getSelection();
@@ -202,20 +180,36 @@ const RichTextEditor = forwardRef<
 
     if (sel.isCollapsed) {
       const run = sensitiveRun(range.startContainer, el);
-      // A zero-width space gives the caret a text node to type into; the
-      // sanitiser drops it wherever the note is shown or printed (it can sit in
-      // the stored HTML, where it is invisible and harmless).
       if (run) {
-        // Stop marking: carry on after the run. At a run's edge Chrome types
-        // INTO the run, so the caret gets a plain wrapper of its own.
+        // Stop marking: carry on after the run. Chrome never extends a link
+        // typed at its end, so text typed here is plain.
         const after = document.createRange();
         after.setStartAfter(run);
         after.collapse(true);
         sel.removeAllRanges();
         sel.addRange(after);
-        document.execCommand("insertHTML", false, '<span data-plain="1">​</span>');
       } else {
-        document.execCommand("insertHTML", false, `${RUN_OPEN}​</span>`); // caret lands inside
+        // Start marking: a run holding two zero-width spaces, caret BETWEEN
+        // them — never at the run's edge, where Chrome would type outside it.
+        // The sanitiser drops them wherever the note is shown or printed.
+        document.execCommand("insertHTML", false, `<a href="${SENSITIVE_HREF}">​​</a>`);
+        const fresh = [...el.querySelectorAll<HTMLElement>(`a[href="${SENSITIVE_HREF}"]`)]
+          .filter((a) => a.textContent === "​​" && a.firstChild);
+        const caret = sel.rangeCount ? sel.getRangeAt(0) : null;
+        // The one just inserted is the last such run that ends at or before the caret.
+        const target = fresh.filter((a) => {
+          if (!caret) return true;
+          const end = document.createRange();
+          end.setStartAfter(a);
+          return end.compareBoundaryPoints(Range.START_TO_START, caret) <= 0;
+        }).pop() ?? fresh.pop();
+        if (target) {
+          const inside = document.createRange();
+          inside.setStart(target.firstChild!, 1);
+          inside.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(inside);
+        }
       }
       setInSensitive(!run);
       el.focus();
@@ -223,20 +217,11 @@ const RichTextEditor = forwardRef<
       return;
     }
 
-    // A selection: marked all through → unmark exactly it (splitting the run
-    // around it); otherwise mark it, joining any run it touches into one.
+    // A selection: marked all through → unmark exactly it; otherwise mark it.
+    // Chrome marks line by line itself (one link per line) and unlink splits a
+    // run around the selection.
     const unmark = rangeIsSensitive(range, el);
-    const startHost = sensitiveRun(range.startContainer, el);
-    const endHost = sensitiveRun(range.endContainer, el);
-    const before = startHost ? sliceHtml(startHost, 0, range.startContainer, range.startOffset) : "";
-    const after = endHost ? sliceHtml(range.endContainer, range.endOffset, endHost, endHost.childNodes.length) : "";
-    const mid = plainHtml(range);
-    const outer = document.createRange();
-    if (startHost) outer.setStartBefore(startHost); else outer.setStart(range.startContainer, range.startOffset);
-    if (endHost) outer.setEndAfter(endHost); else outer.setEnd(range.endContainer, range.endOffset);
-    sel.removeAllRanges();
-    sel.addRange(outer);
-    document.execCommand("insertHTML", false, unmark ? asRun(before) + mid + asRun(after) : `${RUN_OPEN}${before}${mid}${after}</span>`);
+    document.execCommand(unmark ? "unlink" : "createLink", false, unmark ? undefined : SENSITIVE_HREF);
     setInSensitive(!unmark);
     el.focus();
     sync();

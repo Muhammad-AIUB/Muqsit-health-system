@@ -349,7 +349,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           ))}
         </div>
       )}
-      {removed && editable && (
+      {removed && editable && !editOpen && (
         <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px 14px", padding: "4px 8px", borderRadius: 6, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 11.5, color: C.n[700] }}>
           <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>Removed “{removed.item}”</span>
           <button type="button" onClick={undoRemove} style={{ border: "none", background: "none", color: C.pri[600], fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Undo</button>

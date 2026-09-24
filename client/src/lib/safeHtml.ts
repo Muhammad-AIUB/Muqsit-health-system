@@ -2,9 +2,13 @@
 // (the personal patient note). Whatever is stored is rendered back into the
 // page and into a print frame, so it is cleaned on the way OUT, every time:
 // only formatting tags survive, every attribute but a filtered `style` is
-// dropped (no on*, no href/src; the one exception is the fixed
-// data-sensitive="1" mark on a span), and a style keeps only plain typographic
+// dropped (no on*, no href/src; the one exception is the personal note's
+// sensitive mark, an <a> whose href is exactly "mhs-sensitive:1"), and a style keeps only plain typographic
 // properties with no url()/expression(). Browser-only (DOMParser).
+
+// Kept literal here (not imported from lib/sensitive.ts, which imports this
+// file) — pinned equal to SENSITIVE_HREF in sensitive.test.ts.
+export const SENSITIVE_MARK_HREF = "mhs-sensitive:1";
 
 const TAGS = new Set([
   "b", "strong", "i", "em", "u", "s", "strike", "sub", "sup", "mark",
@@ -41,6 +45,15 @@ function cleanNode(node: Node, doc: Document): Node | null {
   const tag = el.tagName.toLowerCase();
   if (DROP_WITH_CONTENT.has(tag)) return null;
   const kids = [...el.childNodes].map((c) => cleanNode(c, doc)).filter((c): c is Node => c !== null);
+  // The personal note's "sensitive information" mark (lib/sensitive.ts): a link
+  // whose href is EXACTLY this inert value survives, with no other attribute.
+  // Every other <a> is unwrapped like any unknown tag, as it always was.
+  if (tag === "a" && el.getAttribute("href") === SENSITIVE_MARK_HREF) {
+    const a = doc.createElement("a");
+    a.setAttribute("href", SENSITIVE_MARK_HREF);
+    kids.forEach((k) => a.appendChild(k));
+    return a;
+  }
   if (!TAGS.has(tag)) {
     // Unknown wrapper (e.g. <a>, <table>): keep its text/children, lose the tag.
     const frag = doc.createDocumentFragment();
@@ -53,9 +66,6 @@ function cleanNode(node: Node, doc: Document): Node | null {
     const s = cleanStyle(style);
     if (s) out.setAttribute("style", s);
   }
-  // The personal note's "sensitive information" mark (lib/sensitive.ts) — the one
-  // data attribute kept, on a span only, with its value fixed to "1".
-  if (tag === "span" && el.hasAttribute("data-sensitive")) out.setAttribute("data-sensitive", "1");
   // <font color/size> is what execCommand writes for colour and size.
   if (tag === "font") {
     const color = el.getAttribute("color");

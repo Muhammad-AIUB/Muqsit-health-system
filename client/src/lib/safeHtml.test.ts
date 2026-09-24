@@ -29,7 +29,7 @@ describe("sanitizeHtml", () => {
 
 describe("isBlankHtml — the editor's zero-width caret anchor is not text", () => {
   it("a sensitive run holding only the anchor is blank", () => {
-    expect(isBlankHtml('<span data-sensitive="1">​</span>')).toBe(true);
+    expect(isBlankHtml('<a href="mhs-sensitive:1">​</a>')).toBe(true);
   });
 });
 

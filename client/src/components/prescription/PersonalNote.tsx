@@ -51,7 +51,7 @@ export function personalNoteHtml(info: PatientNoteInfo, noteHtml: string, printe
   td { padding: 3px 0; }
   .label { font-weight: 600; margin-bottom: 6px; }
   .note { line-height: 1.5; overflow-wrap: anywhere; }
-  ${sensitiveCss(".note")}
+  ${sensitiveCss(".note", { inert: true })}
 </style></head><body>
 <h1>My Personal Note for This Patient</h1>
 <div class="sub">Private note · printed ${esc(printedOn)}</div>
@@ -174,7 +174,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
       <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", fontFamily: font }}>
-        <style>{sensitiveCss(".pn-view")}</style>
+        <style>{sensitiveCss(".pn-view", { inert: true })}</style>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>My Personal Note for This Patient</div>

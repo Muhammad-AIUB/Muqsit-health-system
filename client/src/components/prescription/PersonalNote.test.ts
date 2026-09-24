@@ -27,7 +27,7 @@ describe("the printed personal note", () => {
   });
 
   it("prints sensitive information only when asked to", () => {
-    const note = 'Watch K+ <span data-sensitive="1">HIV positive</span>';
+    const note = 'Watch K+ <a href="mhs-sensitive:1">HIV positive</a>';
     const withIt = personalNoteHtml(info, note, "24/09/2026", { sensitive: true });
     const without = personalNoteHtml(info, note, "24/09/2026", { sensitive: false });
     expect(withIt).toContain("HIV positive");
@@ -36,7 +36,7 @@ describe("the printed personal note", () => {
   });
 
   it("defaults to leaving sensitive information OUT", () => {
-    expect(personalNoteHtml(info, '<span data-sensitive="1">secret</span>', "24/09/2026")).not.toContain("secret");
+    expect(personalNoteHtml(info, '<a href="mhs-sensitive:1">secret</a>', "24/09/2026")).not.toContain("secret");
   });
 
   it("shows a dash for a detail that was never recorded", () => {
