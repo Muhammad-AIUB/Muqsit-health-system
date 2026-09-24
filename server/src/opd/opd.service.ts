@@ -52,12 +52,23 @@ export class OpdService {
     // Token: T-<serial of today>, per doctor.
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    return this.prisma.$transaction(async (tx) => {
-      const token = await this.nextToken(tx, doctorId, startOfDay);
-      return tx.opdVisit.create({
-        data: { ...dto, type: dto.type ?? 'New', doctorId, token },
-      });
-    });
+    // Once manual-opd-token-unique.sql is applied, two concurrent inserts that
+    // computed the same serial end in a P2002 for the loser. That is the index
+    // doing its job — re-allocate from the new MAX and try again (twice), so
+    // the assistant never sees a 409 for a race they cannot see.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const token = await this.nextToken(tx, doctorId, startOfDay);
+          return tx.opdVisit.create({
+            data: { ...dto, type: dto.type ?? 'New', doctorId, token },
+          });
+        });
+      } catch (e) {
+        if (attempt < 2 && isUniqueViolation(e)) continue;
+        throw e;
+      }
+    }
   }
 
   async setStatus(doctorId: string, id: string, dto: UpdateOpdStatusDto): Promise<OpdVisit> {
@@ -99,4 +110,8 @@ export class OpdService {
       });
     });
   }
+}
+
+function isUniqueViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
 }

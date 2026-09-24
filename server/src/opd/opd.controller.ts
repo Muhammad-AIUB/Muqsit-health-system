@@ -6,8 +6,10 @@ import {
   Patch,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { OpdService } from './opd.service';
+import { IdempotencyInterceptor } from '../common/idempotency/idempotency.interceptor';
 import {
   CreateOpdVisitDto,
   SetRxStatusDto,
@@ -28,7 +30,10 @@ export class OpdController {
     return this.opd.list(doctorId);
   }
 
+  // `Idempotency-Key` header: a retried "add to queue" must not hand out two
+  // tokens for one patient.
   @Post()
+  @UseInterceptors(IdempotencyInterceptor)
   create(@WorkstationDoctorId() doctorId: string, @Body() dto: CreateOpdVisitDto) {
     return this.opd.create(doctorId, dto);
   }

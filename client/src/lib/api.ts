@@ -165,12 +165,65 @@ export interface LinkPatientInput {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  // Seconds the server asked us to wait (429 / 503), when it said.
+  retryAfterSec: number | null;
+  constructor(status: number, message: string, retryAfterSec: number | null = null) {
     super(message);
     this.status = status;
+    this.retryAfterSec = retryAfterSec;
     this.name = "ApiError";
   }
 }
+
+// ── Build-change listeners ───────────────────────────────────
+// The API stamps every response with X-App-Build. The first value seen is
+// the build this tab was loaded against; when it changes mid-session a deploy
+// has happened and this tab is now an OLD client — the banner offers a reload
+// before a stale payload shape silently drops a field (server/CLAUDE.md,
+// "an old tab still open on a ward PC after a deploy").
+type BuildChangeListener = (newBuild: string, oldBuild: string) => void;
+const buildChangeListeners = new Set<BuildChangeListener>();
+let seenBuild: string | null = null;
+export const onBuildChange = (fn: BuildChangeListener): (() => void) => {
+  buildChangeListeners.add(fn);
+  return () => buildChangeListeners.delete(fn);
+};
+function noteBuild(res: Response): void {
+  const build = res.headers.get("X-App-Build");
+  if (!build) return;
+  if (seenBuild === null) {
+    seenBuild = build;
+    return;
+  }
+  if (build !== seenBuild) {
+    const old = seenBuild;
+    seenBuild = build;
+    buildChangeListeners.forEach((fn) => fn(build, old));
+  }
+}
+
+// One-per-attempt key for POSTs that file a record. The SAME key is sent on
+// every retry of the same logical save; the API replays its stored answer for
+// a key it has already completed, so a dropped connection can never file a
+// prescription (or a patient) twice. `crypto.randomUUID` needs a secure
+// context (https or localhost) — both are true for this app; the fallback
+// covers a plain-http LAN test.
+export function newIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+const idemHeaders = (key?: string): Record<string, string> =>
+  key ? { "Idempotency-Key": key } : {};
+
+const retryAfterSeconds = (res: Response): number | null => {
+  const raw = res.headers.get("Retry-After");
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ── Auth-failure listeners (used by AuthContext to clear state) ──
 type AuthFailureListener = () => void;
@@ -248,6 +301,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
     headers,
     credentials: "include",
   });
+  noteBuild(res);
 
   if (!res.ok) {
     // 401 on an authenticated request → access cookie likely expired. Try one
@@ -261,6 +315,22 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
       if (result === "rejected") authFailureListeners.forEach((fn) => fn());
     }
 
+    // 429 / 503 with a short Retry-After on a READ → wait it out once,
+    // silently. Reads are safe to repeat; a write is never auto-repeated here
+    // (its retry is the doctor's, carrying the same Idempotency-Key).
+    const retryAfter = retryAfterSeconds(res);
+    const method = (options.method ?? "GET").toUpperCase();
+    if (
+      (res.status === 429 || res.status === 503) &&
+      method === "GET" &&
+      !retried &&
+      retryAfter !== null &&
+      retryAfter <= 5
+    ) {
+      await sleep(retryAfter * 1000);
+      return apiFetch<T>(path, options, true);
+    }
+
     let message = `Request failed (${res.status})`;
     try {
       const body = await res.json();
@@ -268,7 +338,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, retryAfter);
   }
 
   if (res.status === 204) return undefined as T;
@@ -586,9 +656,41 @@ export interface LogActivityInput {
   imageUrl?: string;
 }
 
+export interface Page<T> {
+  items: T[];
+  // Pass as `cursor` for the next page; null on the last page.
+  nextCursor: string | null;
+}
+
+// Cursor-paged GET. The API keeps the body a plain array and names the next
+// page in the `X-Next-Cursor` response header (CORS exposes it).
+async function apiFetchPage<T>(path: string): Promise<Page<T>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(activeWorkstationId ? { "X-Workstation": activeWorkstationId } : {}),
+  };
+  const res = await fetch(`${API_URL}${path}`, { headers, credentials: "include" });
+  noteBuild(res);
+  if (!res.ok) {
+    // Delegate error semantics (refresh, 429 wait, message) to apiFetch by
+    // replaying the request through it — one error path, not two.
+    const items = await apiFetch<T[]>(path);
+    return { items, nextCursor: null };
+  }
+  return { items: (await res.json()) as T[], nextCursor: res.headers.get("X-Next-Cursor") };
+}
+
 export const activityApi = {
   list: (limit = 50, patientId?: string) =>
     apiFetch<ActivityRecord[]>(`/activity?limit=${limit}${patientId ? `&patientId=${encodeURIComponent(patientId)}` : ""}`),
+  // One page of the feed, newest first; pass `cursor` from the previous page.
+  page: (opts: { limit?: number; patientId?: string; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set("limit", String(opts.limit ?? 50));
+    if (opts.patientId) q.set("patientId", opts.patientId);
+    if (opts.cursor) q.set("cursor", opts.cursor);
+    return apiFetchPage<ActivityRecord>(`/activity?${q.toString()}`);
+  },
   log: (input: LogActivityInput) =>
     apiFetch<ActivityRecord>("/activity", { method: "POST", body: JSON.stringify(input) }),
 };
@@ -667,9 +769,21 @@ export async function uploadImage(
 }
 
 // ── Patients ────────────────────────────────────────────────
+export type PatientSort = "updatedAt" | "createdAt" | "name";
+
 export const patientsApi = {
   list: (search?: string) =>
     apiFetch<Patient[]>(`/patients${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  // One page of the practice list. Server-side sort is an allowlist.
+  page: (opts: { search?: string; sort?: PatientSort; order?: "asc" | "desc"; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set("limit", String(opts.limit ?? 50));
+    if (opts.search) q.set("search", opts.search);
+    if (opts.sort) q.set("sort", opts.sort);
+    if (opts.order) q.set("order", opts.order);
+    if (opts.cursor) q.set("cursor", opts.cursor);
+    return apiFetchPage<Patient>(`/patients?${q.toString()}`);
+  },
   watched: () => apiFetch<Patient[]>("/patients/watched"),
   // Every patient sharing a phone number (prescription mobile-lookup dropdown).
   byMobile: (mobile: string) =>
@@ -683,8 +797,12 @@ export const patientsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  create: (input: PatientInput) =>
-    apiFetch<Patient>("/patients", { method: "POST", body: JSON.stringify(input) }),
+  create: (input: PatientInput, opts?: { idempotencyKey?: string }) =>
+    apiFetch<Patient>("/patients", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: idemHeaders(opts?.idempotencyKey),
+    }),
   update: (id: string, input: Partial<PatientInput>) =>
     apiFetch<Patient>(`/patients/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
@@ -784,8 +902,12 @@ export interface PrescriptionRecord extends PrescriptionInput {
 }
 
 export const prescriptionsApi = {
-  create: (input: PrescriptionInput) =>
-    apiFetch<PrescriptionRecord>("/prescriptions", { method: "POST", body: JSON.stringify(input) }),
+  create: (input: PrescriptionInput, opts?: { idempotencyKey?: string }) =>
+    apiFetch<PrescriptionRecord>("/prescriptions", {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: idemHeaders(opts?.idempotencyKey),
+    }),
   listByPatient: (patientId: string) =>
     apiFetch<PrescriptionRecord[]>(`/prescriptions?patientId=${encodeURIComponent(patientId)}`),
 };

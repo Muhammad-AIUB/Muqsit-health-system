@@ -94,3 +94,8 @@ export class UpdateAnalogueSheetDto {
   // An empty string clears the label — that is a real edit, not a missing field.
   @IsString() @MaxLength(120) label!: string;
 }
+
+// GET /ipd query. Backed by the (doctorId, status) index in manual-list-indexes.sql.
+export class ListAdmissionsQueryDto {
+  @IsOptional() @IsIn(['Stable', 'Observation', 'Critical', 'Discharge']) status?: string;
+}

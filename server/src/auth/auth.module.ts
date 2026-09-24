@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -7,6 +8,7 @@ import { MailModule } from '../mail/mail.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { AppThrottlerGuard } from '../common/throttler/app-throttler.guard';
 
 @Module({
   imports: [
@@ -35,7 +37,13 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  // The global rate limiter lives here, not in AppModule, because it verifies
+  // the access token with this module's JwtService to count per user.
+  providers: [
+    AuthService,
+    JwtStrategy,
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

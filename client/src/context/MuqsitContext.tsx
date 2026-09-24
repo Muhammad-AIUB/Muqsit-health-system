@@ -15,7 +15,7 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
 import { drugDB, templateRx } from "@/data/drugs";
-import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
+import { ApiError, activityApi, newIdempotencyKey, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { createRxSnapshotGate } from "@/lib/rxSnapshot";
 import { mergeThumbs, safeThumbMap, type ThumbMap } from "@/lib/imageThumbs";
 import { buildRxAlertInput, checkRxAlerts } from "@/lib/rxAlerts";
@@ -303,6 +303,8 @@ function useMuqsitStore() {
   // which is exactly what a double-press on Save & print used to do. Its one
   // caller, `PrescriptionView#handleSave`, holds a synchronous in-flight guard;
   // any new caller owes the same.
+  // Idempotency-Keys of the prescription currently being saved (see savePrescription).
+  const rxSaveKeysRef = useRef<{ patient: string; rx: string } | null>(null);
   const savePrescription = async (): Promise<boolean> => {
     // A prescription is saveable with a medicine OR any clinical detail/advice —
     // not every visit prescribes a drug. Only a completely empty form is blocked.
@@ -318,6 +320,16 @@ function useMuqsitStore() {
       setTimeout(() => setSavedMsg(""), 3000);
       return false;
     }
+    // ⚕️ One pair of Idempotency-Keys per UNSAVED prescription, reused on every
+    // retry and cleared only when the save succeeds (or the editor resets). A
+    // save that timed out on a clinic connection may have been stored: the
+    // retry sends the same key, and the API replays its answer instead of
+    // filing the consultation twice. An edit between the two attempts is a
+    // different body under the same key — the API refuses it (422) and the
+    // message below tells the doctor the earlier attempt was already filed.
+    const keys =
+      rxSaveKeysRef.current ??
+      (rxSaveKeysRef.current = { patient: newIdempotencyKey(), rx: newIdempotencyKey() });
     let ok = false;
     try {
       let pid = currentPatientId;
@@ -332,7 +344,7 @@ function useMuqsitStore() {
           mobile: ptPhone || undefined,
           fullAddress: ptAddress || undefined,
           pictureUrl: ptInfo.picture || undefined,
-        });
+        }, { idempotencyKey: keys.patient });
         pid = patient.id;
         setCurrentPatientId(pid);
         // Synchronously, not via the effect: the rest of this save (and the
@@ -376,7 +388,8 @@ function useMuqsitStore() {
             return { ...r, drug: r.drug.trim() || lastDrug, order: i };
           });
         })(),
-      });
+      }, { idempotencyKey: keys.rx });
+      rxSaveKeysRef.current = null; // filed — the next save is a new record
       setSavedMsg("Prescription saved!");
       ok = true;
 
@@ -474,7 +487,14 @@ function useMuqsitStore() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["opd"] })).catch(() => {});
       }
     } catch (e) {
-      setSavedMsg(e instanceof ApiError ? `Save failed: ${e.message}` : "Save failed. Is the API running?");
+      if (e instanceof ApiError && e.status === 422) {
+        // The API already filed an earlier attempt of THIS save under the same
+        // key, and the form has changed since. Nothing was written now.
+        rxSaveKeysRef.current = null;
+        setSavedMsg("An earlier attempt of this save was already filed. Open the patient's record to check it before saving again.");
+      } else {
+        setSavedMsg(e instanceof ApiError ? `Save failed: ${e.message}` : "Save failed. Is the API running?");
+      }
     }
     // The visit is on the record — the next one asks about its warnings afresh.
     if (ok) setIgnoredAlerts(new Set());
@@ -606,6 +626,7 @@ function useMuqsitStore() {
     setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
     setIgnoredAlerts(new Set());
     drugHistoryHydratedRef.current = null; // blank list — nothing to mirror onto yet
+    rxSaveKeysRef.current = null; // a fresh form is a fresh record
   }, []);
 
   // Apply a saved editor snapshot (header + clinical) — used to restore a

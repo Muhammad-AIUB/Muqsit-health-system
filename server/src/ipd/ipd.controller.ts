@@ -6,9 +6,12 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { IpdService } from './ipd.service';
+import { IdempotencyInterceptor } from '../common/idempotency/idempotency.interceptor';
 import {
   AddAnalogueSheetsDto,
   CreateAdmissionDto,
@@ -16,6 +19,7 @@ import {
   UpdateAdmissionDto,
   UpdateAdmissionStatusDto,
   UpdateAnalogueSheetDto,
+  ListAdmissionsQueryDto,
 } from './dto/ipd.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -37,12 +41,15 @@ import type { Actor } from './ipd.service';
 export class IpdController {
   constructor(private readonly ipd: IpdService) {}
 
+  // ?status=Stable|Observation|Critical|Discharge — optional; absent → all.
   @Get()
-  list(@WorkstationDoctorId() doctorId: string) {
-    return this.ipd.list(doctorId);
+  list(@WorkstationDoctorId() doctorId: string, @Query() query: ListAdmissionsQueryDto) {
+    return this.ipd.list(doctorId, query.status);
   }
 
+  // `Idempotency-Key` header: a retried admission must not book the bed twice.
   @Post()
+  @UseInterceptors(IdempotencyInterceptor)
   create(@WorkstationDoctorId() doctorId: string, @Body() dto: CreateAdmissionDto) {
     return this.ipd.create(doctorId, dto);
   }

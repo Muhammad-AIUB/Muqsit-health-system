@@ -8,14 +8,19 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { PatientsService } from './patients.service';
 import {
   CreatePatientDto,
   LinkPatientDto,
+  ListPatientsQueryDto,
   UpdatePatientDto,
 } from './dto/patient.dto';
+import { IdempotencyInterceptor } from '../common/idempotency/idempotency.interceptor';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkstationGuard } from '../workstations/workstation.guard';
 import { WorkstationDoctorId, ActiveWorkstation } from '../workstations/workstation.decorator';
@@ -28,9 +33,19 @@ import type { Workstation } from '../workstations/workstations.service';
 export class PatientsController {
   constructor(private readonly patients: PatientsService) {}
 
+  // ?search= &sort=updatedAt|createdAt|name &order=asc|desc &limit= &cursor=
+  // Without `limit` the whole practice list comes back, as it always has. With
+  // it, at most `limit` rows come back and `X-Next-Cursor` names the next page
+  // (absent on the last page). The body stays a plain array either way.
   @Get()
-  list(@WorkstationDoctorId() doctorId: string, @Query('search') search?: string) {
-    return this.patients.list(doctorId, search);
+  async list(
+    @WorkstationDoctorId() doctorId: string,
+    @Query() query: ListPatientsQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, nextCursor } = await this.patients.list(doctorId, query);
+    if (nextCursor) res.setHeader('X-Next-Cursor', nextCursor);
+    return items;
   }
 
   @Get('watched')
@@ -62,7 +77,10 @@ export class PatientsController {
     return this.patients.get(doctorId, id);
   }
 
+  // `Idempotency-Key` header: the ℞ save creates the patient and then the
+  // prescription; a retry must not create a second patient record.
   @Post()
+  @UseInterceptors(IdempotencyInterceptor)
   create(@WorkstationDoctorId() doctorId: string, @Body() dto: CreatePatientDto) {
     return this.patients.create(doctorId, dto);
   }

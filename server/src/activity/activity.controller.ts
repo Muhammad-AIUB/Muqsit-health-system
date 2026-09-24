@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ActivityService } from './activity.service';
 import { CreateActivityDto } from './dto/activity.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -16,13 +17,25 @@ import { WorkstationDoctorId } from '../workstations/workstation.decorator';
 export class ActivityController {
   constructor(private readonly activity: ActivityService) {}
 
+  // ?limit= (1–200, default 50) &patientId= &cursor=
+  // The feed is a log: cursor-paged, newest first. The body stays a plain
+  // array; `X-Next-Cursor` carries the id to pass as `cursor` for the next
+  // page and is absent on the last one.
   @Get()
-  list(
+  async list(
     @WorkstationDoctorId() doctorId: string,
+    @Res({ passthrough: true }) res: Response,
     @Query('limit') limit?: string,
     @Query('patientId') patientId?: string,
+    @Query('cursor') cursor?: string,
   ) {
-    return this.activity.list(doctorId, limit ? Number(limit) : undefined, patientId || undefined);
+    const { items, nextCursor } = await this.activity.list(doctorId, {
+      limit: limit ? Number(limit) : undefined,
+      patientId: patientId || undefined,
+      cursor: cursor || undefined,
+    });
+    if (nextCursor) res.setHeader('X-Next-Cursor', nextCursor);
+    return items;
   }
 
   @Post()

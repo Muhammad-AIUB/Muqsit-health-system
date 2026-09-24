@@ -226,6 +226,55 @@ Four more rules there are safety, not style:
 
 `main.ts` uses `ValidationPipe({ whitelist: true })`. **Any new field the client sends must be added to the DTO** (`src/*/dto/*.ts`) or it is silently dropped — a classic "saved but nothing persisted" bug. For JSON columns follow the existing pattern in `patients.service.ts#update`: destructure the field, cast via `Prisma.InputJsonValue`, use `Prisma.DbNull` for explicit nulls.
 
+## Cross-cutting HTTP rules (`src/common/`, 2026-09-24)
+
+Set by the API-design audit (`docs/API-DESIGN-AUDIT.md`); the contract is written
+up in `docs/API.md` §1. What is load-bearing in the code:
+
+- **Idempotency (`common/idempotency/`).** `@UseInterceptors(IdempotencyInterceptor)`
+  on `POST /patients`, `/prescriptions`, `/opd`, `/ipd`. One row per `(userId,
+  Idempotency-Key)` in `IdempotencyKey` (`manual-idempotency-key.sql`): the first
+  request claims the key (unique index = the concurrency guard), its response is
+  stored, a replay with the same key + body gets it back, a different body is
+  `422`, a handler that threw releases the key. **No header → unchanged
+  behaviour**, so old tabs keep working. Keys are scoped to the SIGNED-IN user —
+  the actor who generated the key — not the workstation; that is not a
+  patient-data scope and `WorkstationGuard` stays the only scoping authority.
+  The stored body is round-tripped through JSON so a replay is byte-identical to
+  what the client first saw. Pinned in `idempotency.interceptor.spec.ts`.
+- **Rate limiting (`common/throttler/app-throttler.guard.ts`).** Provided as
+  `APP_GUARD` from **`AuthModule`** (it needs `JwtService`), not `AppModule`. The
+  tracker is the VERIFIED access token's `sub`, falling back to the IP: a clinic's
+  doctor + assistants share one address and must not share one bucket, and a
+  forged cookie must not mint buckets. 300/min per user is a starting ceiling —
+  tune from the 429 logs, never from a guess. The 429 `message` is set in
+  `ThrottlerModule.forRoot` because the client shows it to the doctor verbatim.
+  Storage is in-process: N pm2 instances = N× the limit.
+- **Caching.** `main.ts` sets `Cache-Control: no-store` on every `/api` response
+  before any handler; `@CacheControl('…')` (`common/http/cache-control.interceptor.ts`)
+  is the only way to override it and `GET /medicines/search` is the only user.
+  A route with its own `@Header('Cache-Control')` (the SSE stream) wins.
+- **Prisma errors (`common/http/prisma-exception.filter.ts`).** `P2002` → 409,
+  `P2025` → 404, `P1xxx` → 503 + `Retry-After: 5`. The 503 text says the entry
+  *may not* have been saved — a timeout on a commit is ambiguous and the message
+  must never claim a state the server cannot know. `OpdService.create` retries
+  token allocation twice on `P2002` before letting the filter answer.
+- **Cross-site writes are refused at the door.** A non-GET whose `Origin` is not
+  in `CORS_ORIGIN` gets 403 from the middleware in `main.ts`. Defence in depth
+  behind `SameSite=lax`; it is what holds if `COOKIE_SAMESITE=none` is ever needed.
+- **Pagination is by cursor, and the body stays an array.** `X-Next-Cursor`
+  carries the last row's id; ordering always ends in `id` as a tiebreaker. Every
+  sortable column is an allowlist in a DTO (`ListPatientsQueryDto`) and has an
+  index in `manual-list-indexes.sql` — never take a column name from the URL.
+- **`app.module.spec.ts` compiles the whole module graph.** It is the boot check
+  the "start the server" rule below asks for, runnable without a database: a
+  guard provided from the wrong module fails here, not in pm2.
+- **OpenAPI is generated** by the `@nestjs/swagger` CLI plugin (`nest-cli.json`)
+  from controllers and DTOs — no `@Api*` decorators to keep in step. Served at
+  `/api/docs` in development, in production only with `SWAGGER=true`.
+- **`X-App-Build`** (git short SHA at boot) rides every response so an old tab
+  can notice a deploy and offer a reload (`client/src/components/common/NewBuildBanner.tsx`).
+
 ## Auth architecture (don't regress these)
 
 - Access token `mhs_at` (15 min) + refresh `mhs_rt` (rotated, path `/api/auth`), both httpOnly. `publicUser()` must keep returning `accountTier` — the client's tier gates read it from the login/refresh response.

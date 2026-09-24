@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { CacheControlInterceptor } from './common/http/cache-control.interceptor';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { MailModule } from './mail/mail.module';
@@ -31,9 +32,24 @@ import { MirrorModule } from './mirror/mirror.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Global baseline of 100 req/min/IP. Auth endpoints layer tighter
-    // per-route limits on top of this (see @Throttle in AuthController).
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // Rate limiting on the API itself. The guard (AppThrottlerGuard, provided
+    // as APP_GUARD from AuthModule because it verifies the JWT) counts
+    // signed-in traffic per USER and anonymous traffic per IP — a clinic's
+    // doctor + assistants share one address. Auth endpoints layer tighter
+    // per-route limits on top (see @Throttle in AuthController).
+    //
+    // 300/min is a starting ceiling, not a clinical constant: a bulk upload of
+    // 20 reports is ~80 requests (image + thumbnail + PATCH + activity line
+    // each) plus the 8-second activity poll. Tune it from the 429 logs.
+    //
+    // `errorMessage` is what the doctor reads: the client shows body.message
+    // verbatim, and the library default is "ThrottlerException: Too Many
+    // Requests".
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: 300 }],
+      errorMessage:
+        'Too many requests from this account or connection. Please wait a minute and try again.',
+    }),
     PrismaModule,
     UsersModule,
     MailModule,
@@ -61,6 +77,8 @@ import { MirrorModule } from './mirror/mirror.module';
     MirrorModule,
   ],
   controllers: [],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  // Explicit Cache-Control on routes that opt in (@CacheControl); everything
+  // else is `no-store` from the middleware in main.ts.
+  providers: [{ provide: APP_INTERCEPTOR, useClass: CacheControlInterceptor }],
 })
 export class AppModule {}
