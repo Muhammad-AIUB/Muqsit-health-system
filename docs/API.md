@@ -511,6 +511,24 @@ assisting; **no doctor ever sees another's phrases**.
 `Prescription` / `PrescriptionItem`, and the table is rebuildable with
 `node server/scripts/rebuild-doctor-phrases.js`.
 
+### 5.14c Special drug advice — `/drug-advice` (JWT + WS)
+
+The doctor's OWN standing advice for a medicine, written in the ℞ pad's •••
+box (2026-09-24). Not learned — every line is typed by the doctor.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/drug-advice` | Every advice of the workstation doctor that still has lines: `[{ id, scope, key, label, lines, updatedAt }]`. |
+| PUT | `/drug-advice` | `SaveDrugAdviceDto { scope: "medicine" \| "generic", label, lines[] }` — replaces the lines for that key (upsert). An empty `lines` clears it. Blank `label` → 400. Assistant needs `rx.advice` (403 otherwise). |
+
+`key` is computed on the server: scope `medicine` → `normaliseDrugKey(label)`
+(strength INCLUDED — Napa 500 and Napa 665 are two medicines); scope `generic`
+→ the generic name folded for case and spacing only. Scoped by
+`@WorkstationDoctorId()` — **no doctor ever sees another's advice**. Nothing
+here touches `Prescription`: the client copies the ticked lines into the
+visit's Advice section, and `Prescription.advice` stays the record of what
+printed. Table: `manual-drug-advice.sql`.
+
 ### 5.15 Medicines — `/medicines` (JWT)
 
 | Method | Path | Notes |

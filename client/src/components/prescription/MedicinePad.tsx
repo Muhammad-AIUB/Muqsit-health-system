@@ -253,9 +253,13 @@ interface Props {
   // printed OPD prescription carries. OPD pad only: the IPD sheet and the
   // template editor print their own way and keep medicine-only numbers.
   numberNotes?: boolean;
+  // ••• beside each medicine line opens the doctor's special advice for it
+  // (physician's design, 2026-09-24). OPD pad only — the caller owns the box.
+  // `has` lights the dots when saved advice applies to that line.
+  drugAdvice?: { has: (row: Row) => boolean; open: (row: Row) => void };
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, reorderable = false, numberNotes = false }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, reorderable = false, numberNotes = false, drugAdvice }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   // Which drug box the caret is in. Only used to decide whether that line
   // shows its plain <input> text or the read-only overlay that sets the brand
@@ -540,6 +544,26 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 ...(inDrag ? { background: C.pri[50], boxShadow: "0 2px 10px rgba(0,0,0,0.10)", zIndex: 6 } : null),
               }}
             >
+              {/* ••• special advice — a medicine line with a name only. Every
+                  other row keeps the same gap so the serials stay in one column. */}
+              {drugAdvice && (
+                isHead && row.drug.trim() ? (
+                  <button
+                    type="button"
+                    className="rx-advice-dots"
+                    data-has-advice={drugAdvice.has(row) ? "yes" : undefined}
+                    title={drugAdvice.has(row) ? "Special advice saved for this drug — click to view" : "Add special advice to this drug"}
+                    aria-label={`Special advice for ${row.drug.trim()}`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => { setAcRow(null); drugAdvice.open(row); }}
+                    style={{ width: 22, alignSelf: "stretch", flexShrink: 0, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 13, lineHeight: 1, letterSpacing: -1, fontWeight: 700, color: drugAdvice.has(row) ? C.pri[400] : C.n[800], fontFamily: font }}
+                  >
+                    •••
+                  </button>
+                ) : (
+                  <span aria-hidden style={{ width: 22, flexShrink: 0 }} />
+                )
+              )}
               {/* Checkbox (optional) + serial — only for medicine head rows */}
               {/* Grab a line by its serial number to move it. A taper row has no
                   handle of its own: it moves with its medicine. */}
@@ -900,6 +924,14 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
           .rx-grip:active{cursor:grabbing}
           .rx-dragging .rx-grip .rx-handle{display:none}
           .rx-dragging .rx-grip .rx-num{display:inline}
+        `}</style>
+      )}
+
+      {drugAdvice && (
+        <style>{`
+          .rx-advice-dots{border-radius:5px}
+          .rx-advice-dots:hover{color:${C.pri[600]} !important;background:${C.pri[50]} !important}
+          .rx-advice-dots:focus-visible{outline:2px solid ${C.pri[400]};outline-offset:-2px}
         `}</style>
       )}
 

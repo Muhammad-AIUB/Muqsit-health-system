@@ -7,7 +7,7 @@ permission keys each one enforces. Keep it in the same commit as a route change.
 
 ## Module map (src/)
 
-`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
+`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search) · `drug-advice` (the doctor's own ••• advice per medicine/generic) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
 
 ## ⚠️ Rule 1 — every patient-data query is doctor-scoped
 
@@ -154,6 +154,18 @@ seam — `PrescriptionsService.create` calls `phrases.recordFrom(...)` beside
   orphans, and every deliberately suppressed dose comes back silently. The
   script loads `normalise.ts` from `dist/` (or via ts-node) rather than
   reimplementing it, and must stay `.js` — see the `rootDir` trap below.
+
+## `drug-advice` — the doctor's own standing advice (2026-09-24)
+
+`DoctorDrugAdvice` (`manual-drug-advice.sql`, applied 2026-09-24) holds what a
+doctor writes in the ℞ pad's ••• box. Unlike the two habit tables it is NOT
+derived — every line is typed by the doctor, so there is no rebuild script and
+nothing learns into it. `PUT /drug-advice` replaces a key's lines (empty =
+cleared). Scope is `@WorkstationDoctorId()`; an assistant needs `rx.advice` to
+write. Keys (`drug-advice/keys.ts`): scope `medicine` reuses
+`rx-habits/normalise.ts#normaliseDrugKey` (strength included), scope `generic`
+folds case and spacing only. The client mirrors both in `lib/rxDrugAdvice.ts`.
+Boot check logs one ERROR naming the SQL file if the table is unreadable.
 
 ## ⚠️ Rule 2d — the IPD `clinical` column is REPLACED, so new per-admission data gets its own route
 

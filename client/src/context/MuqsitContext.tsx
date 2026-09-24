@@ -26,6 +26,8 @@ import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries } from "@/lib/rxDrugHistory";
+import { padMedicines, rxAdviceLines, syncRxAdvice } from "@/lib/rxDrugAdvice";
+import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import type {
@@ -172,6 +174,12 @@ function useMuqsitStore() {
   const [rxItems, setRxItems] = useState<RxItem[]>([]);
   const [advice, setAdvice] = useState<StringList>([]);
   const [adviceTest, setAdviceTest] = useState<StringList>([]);
+  // ⚕️ Special advice per medicine (℞ pad •••, lib/rxDrugAdvice.ts). Per VISIT:
+  // `rxAdviceOwned` = Advice lines the mirror itself added (the only lines it may
+  // ever withdraw); `rxAdviceOff` = lines the doctor unticked for a medicine on
+  // this visit. Both ride the draft and the device mirror; resetEditor clears them.
+  const [rxAdviceOwned, setRxAdviceOwned] = useState<StringList>([]);
+  const [rxAdviceOff, setRxAdviceOff] = useState<StringList>([]);
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
   const [showDrugPicker, setShowDrugPicker] = useState(false);
   const [drugSearch, setDrugSearch] = useState("");
@@ -584,7 +592,7 @@ function useMuqsitStore() {
     setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(false);
     setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
-    setRxItems([]); setAdvice([]); setAdviceTest([]);
+    setRxItems([]); setAdvice([]); setAdviceTest([]); setRxAdviceOwned([]); setRxAdviceOff([]);
     setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
     setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
     setIgnoredAlerts(new Set());
@@ -610,6 +618,7 @@ function useMuqsitStore() {
     arr("note", setNote); arr("plan", setPlan); arr("provisionalDiagnosis", setProvisionalDiagnosis);
     arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
+    arr("rxAdviceOwned", setRxAdviceOwned); arr("rxAdviceOff", setRxAdviceOff);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
@@ -798,6 +807,29 @@ function useMuqsitStore() {
     if (!sameEntries(merged, drugHistory)) setDrugHistory(merged);
   }, [rxItems, ptDate, currentPatientId, drugHistory]);
 
+  // ⚕️ Special advice mirror (℞ pad •••, physician's design 2026-09-24). While a
+  // medicine with saved advice is on the pad, its ticked lines sit in Advice;
+  // they leave when the medicine or the tick does. Rules (lib/rxDrugAdvice.ts):
+  //  • only lines THIS mirror added (`rxAdviceOwned`) are ever withdrawn — a line
+  //    the doctor typed into Advice by hand is untouchable, even one that reads
+  //    the same;
+  //  • a mirrored line the doctor deleted from Advice by hand stays deleted
+  //    (it is unticked for this visit, not put straight back);
+  //  • nothing runs until the saved advice has actually LOADED. Before that the
+  //    list is unknown, not empty — treating it as empty would withdraw every
+  //    line this visit already carries the moment the page reloads.
+  const drugAdviceQuery = useDrugAdvice(activeWorkstation?.doctorId ?? null);
+  const savedDrugAdvice = useMemo(() => drugAdviceQuery.data ?? [], [drugAdviceQuery.data]);
+  const savedDrugAdviceReady = drugAdviceQuery.isSuccess;
+  useEffect(() => {
+    if (!savedDrugAdviceReady) return;
+    const derived = rxAdviceLines(padMedicines(rxItems), savedDrugAdvice, rxAdviceOff);
+    const r = syncRxAdvice(advice, rxAdviceOwned, derived);
+    if (!sameEntries(r.advice, advice)) setAdvice(r.advice);
+    if (!sameEntries(r.owned, rxAdviceOwned)) setRxAdviceOwned(r.owned);
+    if (r.newlyOff.length) setRxAdviceOff((prev) => [...prev, ...r.newlyOff.filter((k) => !prev.includes(k))]);
+  }, [savedDrugAdviceReady, savedDrugAdvice, rxItems, rxAdviceOff, advice, rxAdviceOwned]);
+
   // "Add" on the records page opens the investigation popup in SUMMARY mode:
   // whatever is entered goes only to the patient's investigation history, not
   // the current prescription. We snapshot the editor's findings, let the popup
@@ -892,6 +924,7 @@ function useMuqsitStore() {
       chiefComplaints, previousComplaints, history, investigation, drugHistory,
       onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
       rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+      rxAdviceOwned, rxAdviceOff,
       hideDrugHistory,
       invImages, oeData, currentPatientId,
       hiddenInvestigation,
@@ -922,6 +955,7 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    rxAdviceOwned, rxAdviceOff,
     hideDrugHistory,
     invImages, oeData, currentPatientId,
     hiddenInvestigation,
@@ -987,6 +1021,7 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    rxAdviceOwned, rxAdviceOff,
     hideDrugHistory,
     invImages, oeData,
     hiddenInvestigation,
@@ -1001,6 +1036,7 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    rxAdviceOwned, rxAdviceOff,
     hideDrugHistory,
     invImages, oeData,
     hiddenInvestigation,
@@ -1036,6 +1072,7 @@ function useMuqsitStore() {
     arr("note", setNote); arr("plan", setPlan); arr("provisionalDiagnosis", setProvisionalDiagnosis);
     arr("associatedIllness", setAssociatedIllness); arr("finalDiagnosis", setFinalDiagnosis);
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
+    arr("rxAdviceOwned", setRxAdviceOwned); arr("rxAdviceOff", setRxAdviceOff);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
@@ -1142,6 +1179,7 @@ function useMuqsitStore() {
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,
     rxItems, setRxItems, advice, setAdvice, adviceTest, setAdviceTest,
+    rxAdviceOff, setRxAdviceOff, savedDrugAdvice, savedDrugAdviceReady,
     activeTemplate, setActiveTemplate, showDrugPicker, setShowDrugPicker, drugSearch, setDrugSearch,
     savedMsg, setSavedMsg, followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit,
     followUpMandatory, setFollowUpMandatory,

@@ -105,6 +105,8 @@ model User {
   // own saved prescriptions, never shared across doctors.
   rxHabits DoctorRxHabit[]
   phraseHabits DoctorPhraseHabit[]
+  // The doctor's own special advice per medicine / per generic (℞ pad •••).
+  drugAdvice DoctorDrugAdvice[]
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -713,4 +715,34 @@ model DoctorPhraseHabit {
 
   @@unique([doctorId, source, signature])
   @@index([doctorId, source, patientCount])
+}
+
+/// ⚕️ A doctor's OWN special advice for a medicine, written in the ℞ pad's •••
+/// box (physician's design, 2026-09-24). Unlike the habit tables this is NOT
+/// derived: every line is typed by the doctor, and nothing here is learned.
+///   • scope "medicine" — `key` is `normaliseDrugKey(label)`, STRENGTH INCLUDED
+///     (Napa 500 and Napa 665 are two medicines, exactly as in DoctorRxHabit);
+///   • scope "generic"  — `key` is the generic name, case/space-folded only, and
+///     the advice applies to every brand of that generic.
+/// The client adds the lines to the prescription's Advice section while the
+/// medicine is on the pad; `Prescription.advice` stays the only record of what
+/// was printed, and nothing here ever rewrites it.
+model DoctorDrugAdvice {
+  id       String @id @default(cuid())
+  doctorId String
+  doctor   User   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  /// "medicine" | "generic"
+  scope String
+  /// The matching key (see above). Typography-folded only.
+  key   String
+  /// The medicine line or generic name as the doctor last saw it — display only.
+  label String
+  /// The advice lines, verbatim, in the doctor's order. Empty = cleared.
+  lines String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doctorId, scope, key])
 }

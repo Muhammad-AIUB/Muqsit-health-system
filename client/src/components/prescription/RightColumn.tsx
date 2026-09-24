@@ -11,6 +11,8 @@ import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
 import { useTemplates } from "@/hooks/useTemplates";
+import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
+import { savedAdviceFor } from "@/lib/rxDrugAdvice";
 import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import type { RxItem } from "@/types";
 
@@ -22,8 +24,18 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     rxItems, setRxItems,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
-    can,
+    can, savedDrugAdvice,
   } = useMuqsit();
+
+  // ••• special advice (physician's design, 2026-09-24): which medicine's box is open.
+  const [adviceBox, setAdviceBox] = useState<{ drug: string; generic?: string } | null>(null);
+  const drugAdvice = {
+    has: (row: Row) => {
+      const a = savedAdviceFor({ drug: row.drug, generic: row.generic }, savedDrugAdvice);
+      return !!(a.medicine || a.generic);
+    },
+    open: (row: Row) => setAdviceBox({ drug: row.drug.trim(), generic: row.generic }),
+  };
 
   const [rows, setRows] = useState<Row[]>(() => fromRxItems(rxItems));
   const lastSync = useRef<string>(JSON.stringify(toRxItems(fromRxItems(rxItems))));
@@ -112,9 +124,11 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             reorderable
             numberNotes
             alertInput={alertInput}
+            drugAdvice={drugAdvice}
           />
         </div>
       </Lock>
+      {adviceBox && <DrugAdviceBox drug={adviceBox.drug} generic={adviceBox.generic} onClose={() => setAdviceBox(null)} />}
 
       {/* ⚕️ `learnedSource` offers back the Advice lines THIS doctor has
           written before, ranked above the recents and the static list

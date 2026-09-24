@@ -9,6 +9,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { compressImage } from "./compressImage";
+import type { AdviceScope, DrugAdvice } from "./rxDrugAdvice";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
@@ -449,6 +450,17 @@ export const rxHabitsApi = {
       method: "PATCH",
       body: JSON.stringify(flags),
     }),
+};
+
+// ── Special advice per medicine / generic (℞ pad •••) ────────
+// The doctor's own standing advice, written in the pad's ••• box. Doctor-scoped
+// server-side (@WorkstationDoctorId); see lib/rxDrugAdvice.ts for how the lines
+// reach the Advice section.
+export const drugAdviceApi = {
+  list: () => apiFetch<DrugAdvice[]>("/drug-advice"),
+  /** Replace the advice for one medicine / generic (an empty list clears it). */
+  save: (input: { scope: AdviceScope; label: string; lines: string[] }) =>
+    apiFetch<DrugAdvice>("/drug-advice", { method: "PUT", body: JSON.stringify(input) }),
 };
 
 // ── Learned phrases (Advice + ℞ note lines) ─────────────────
