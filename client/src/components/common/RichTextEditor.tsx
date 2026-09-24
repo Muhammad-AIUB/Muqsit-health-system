@@ -4,6 +4,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { C } from "@/theme";
 import { ApiError, uploadImage } from "@/lib/api";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
+import { highlightedRun, rangeIsHighlighted } from "@/lib/highlight";
+
+const HIGHLIGHT = "#FFF176";
 
 // Font list mirroring Microsoft Word's font menu (theme fonts + the standard
 // Windows/Office font set). Label is what shows in the dropdown; value is the
@@ -125,6 +128,28 @@ const RichTextEditor = forwardRef<
     }
   };
 
+  // Highlight is a toggle: marked text is unmarked, anything else is marked.
+  // With only a caret inside a highlight, the whole highlighted run is
+  // unmarked — otherwise the button could never take a highlight back off.
+  const toggleHighlight = () => {
+    const el = ref.current;
+    const sel = window.getSelection();
+    if (!el || !sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return;
+    document.execCommand("styleWithCSS", false, "true");
+    if (sel.isCollapsed) {
+      const run = highlightedRun(sel.anchorNode!, el);
+      if (!run) { exec("hiliteColor", HIGHLIGHT); return; }
+      const r = document.createRange();
+      r.selectNodeContents(run);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      exec("hiliteColor", "transparent");
+      sel.collapseToEnd();
+      return;
+    }
+    exec("hiliteColor", rangeIsHighlighted(sel.getRangeAt(0), el) ? "transparent" : HIGHLIGHT);
+  };
+
   const applyColor = (color: string) => {
     restoreSelection();
     document.execCommand("foreColor", false, color);
@@ -232,9 +257,9 @@ const RichTextEditor = forwardRef<
         {highlight && (
           <Btn
             label="Highlight"
-            title="Highlight the selected text"
-            onClick={() => { document.execCommand("styleWithCSS", false, "true"); exec("hiliteColor", "#FFF176"); }}
-            style={{ background: "#FFF176" }}
+            title="Highlight the selected text (press again to remove)"
+            onClick={toggleHighlight}
+            style={{ background: HIGHLIGHT }}
           />
         )}
         {allowImages && <Sep />}
