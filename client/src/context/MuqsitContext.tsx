@@ -894,9 +894,11 @@ function useMuqsitStore() {
         // Guard: if the draft points at a SUPERVISED patient (another doctor's),
         // never restore its editor content — that would resurrect the owner's
         // prescription. Reload the patient fresh instead (blank Rx, header only).
+        let record: Patient | null = null;
         if (pid) {
           try {
             const p = await patientsApi.get(pid);
+            record = p;
             const me = authIdRef.current;
             if (p.doctorId && me && p.doctorId !== me && !cancelled) {
               loadPatient(p); // sets supervisedRef and gives a fresh Rx
@@ -908,6 +910,14 @@ function useMuqsitStore() {
         supervisedRef.current = false; // own patient (or none) — normal restore
         applyEditorSnapshot(d);
         if (pid) { drugHistoryHydratedRef.current = pid; setCurrentPatientId(pid); }
+        // The draft carries the editor, not the patient's record: the photo, the
+        // Patient Settings form and the watch flag come from the record, exactly
+        // as loadPatient sets them. Without this a reload showed 👤 and a blank
+        // settings form for a patient whose photo was on file (2026-09-25).
+        if (record) {
+          setPtInfo(patientToPtInfo(record));
+          setWatchPatient(record.watched);
+        }
       })
       .catch((e) => console.warn("[draft] load failed — editor will not restore on reload:", e))
       .finally(() => { if (!cancelled) draftReadyRef.current = true; });

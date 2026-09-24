@@ -15,7 +15,13 @@ describe("inlineEditFields", () => {
       // Added 2026-09-07 with the split of the old single "Note / plan" field.
       "Note",
       "Plan",
+      // Added 2026-09-25: "edit like Chief complaints" (OPD ℞ side only).
+      "Advised tests / investigation",
     ]);
+  });
+
+  it("does not reach the IPD sheet's differently-named test list", () => {
+    expect(isInlineEditField("Advice tests")).toBe(false);
   });
 
   it("leaves every other clinical field on the popup flow", () => {

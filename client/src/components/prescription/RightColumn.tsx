@@ -15,6 +15,7 @@ import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
 import { savedAdviceFor } from "@/lib/rxDrugAdvice";
 import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import type { RxItem } from "@/types";
+import { isInlineEditField } from "@/lib/inlineEditFields";
 
 export default function RightColumn({ mobile }: { mobile?: boolean }) {
   // Assembled here, matched inside RxPadAlerts's error boundary. Shared with
@@ -139,6 +140,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             chips are only tests THIS doctor has added before — the recents
             saved on every Done, whether typed, ticked in a directory or picked. */}
         <ExpandableField label="Advised tests / investigation" items={adviceTest} setItems={setAdviceTest} allFields={allFieldValues} investigationTabs
+          inlineEdit={isInlineEditField("Advised tests / investigation")} removable
           renderDirectory={(selected, toggle) => <InvestigationDirectory selected={selected} onToggle={toggle} />}
           renderGroups={(selected, apply) => <InvestigationGroups selected={selected} apply={apply} />} />
       </Lock>
