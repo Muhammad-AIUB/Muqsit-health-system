@@ -1,101 +1,76 @@
 # Muqsit Health System — CLAUDE.md
 
-## ⚕️ PRIME DIRECTIVE — THIS IS MEDICAL SOFTWARE
+## ⚕️ PRIME DIRECTIVE — medical software, patient safety first
+Doctors in Bangladesh prescribe real medication through this. These rules beat every skill and every default:
+1. **Never invent or guess clinical content** (formulas, ranges, units, dosing, score cutoffs, alert text). Verify against the source or ask the user (a physician).
+2. **Never silently lose or transform patient data.** No destructive migration, no dedupe that can drop a finding; deleting needs an explicit action + confirm (+ Undo where built).
+3. **Scoping is a safety boundary.** Every patient-data query is doctor-scoped; cross-practice access only via Assistant (workstation) or Supervised doctor. Patient DELETE is owner-only, always.
+4. **Print/PDF is a legal document.** Fits the page, never truncates, shows exactly what was entered. Check print preview after touching `client/src/lib/prescriptionDoc.ts`.
+5. **Calm clinical UX:** `C` palette, clear empty/loading/error states, forgiving input, silent retry on flaky networks.
+6. **Verify before claiming done:** typecheck + both test suites + the flow exercised at :3000/:4000; report honestly what was not verified.
+7. **Keep the CLAUDE.md files and `docs/DOMAIN.md` current** in the same commit as any major change.
 
-Doctors prescribe real medication to real patients through this system. **Every change is held to a 100%-accuracy, patient-safety-first standard.** Non-negotiable rules:
-
-1. **Never invent or guess clinical content.** Formulas, reference ranges, units, drug dosing conventions, score interpretations — verify against the published/established source before writing them. If a value cannot be verified, ask the user (a physician) instead of approximating. A wrong cutoff in a calculator or a wrong unit on a printout can harm a patient.
-2. **Never silently lose or transform patient data.** No destructive migration without an idempotent, reviewed SQL script. No dedupe/merge logic that can drop a finding. Deleting patient-visible data always needs an explicit user action, a confirm affordance, and (where built) an Undo.
-3. **Scoping is a safety boundary.** A doctor must never see another practice's patients except through the explicit Assistant (workstation) or Supervised-doctor mechanisms. Every new server query touching patient data MUST be doctor-scoped (see server/CLAUDE.md). Patient DELETE stays owner-only, always.
-4. **Print/PDF output is a legal medical document.** Prescriptions and reports must fit the printable page, never overlap or truncate values, and show exactly what the doctor entered. Test the print preview after touching `prescriptionDoc.ts` or any download.
-5. **International professional healthcare UX.** Calm clinical visual language (the `C` palette), no accidental-destruction paths, clear empty/loading/error states, forgiving inputs (flexible date entry, shorthand parsing), and graceful behavior on flaky networks (silent retry, never a false "you have no access" wall).
-6. **Verify before claiming done.** Minimum bar for every change: `npx tsc --noEmit` clean in each touched app, the affected flow exercised (locally at :3000/:4000), and honest reporting if anything was not verified.
-7. **Keep these CLAUDE.md files current.** Every MAJOR change — a new feature, a new domain concept, a new data format/protocol, a changed access rule, a new workflow or gotcha — must update the relevant CLAUDE.md (root and/or the app's) in the same commit. Stale guidance in a medical system is a hazard: the next session will follow it.
-
-## What this is
-
-A prescription & practice-management platform for doctors in Bangladesh:
-
-| App | Stack | Port | Purpose |
-|---|---|---|---|
-| `client/` | Next.js 14 (App Router) + React Query | 3000 | Doctor app — prescription editor, OPD/IPD, patients, records, chat, mirroring |
-| `admin/` | Next.js 14 | 3001 | Admin — registrations, account tiers (primary/secondary/premium) |
-| `server/` | NestJS 10 + Prisma 5.22 + PostgreSQL | 4000 | REST API under `/api`, cookie auth, uploads, SSE mirror |
-
-Each app has its own `package.json`; the root one only orchestrates (`concurrently`). `FUNCTIONAL-AUDIT.md` at the root is the living audit/TODO of what works, what's a stub and what doesn't persist — **read it first when starting a session**; its "Open threads" section lists the decisions currently owed to the product owner (and the test data left on a real patient record).
+## Project Snapshot
+- Monorepo, three apps with their own `package.json`; root only orchestrates (`concurrently`).
+- `client/` Next.js 14 + React Query (:3000, doctor app) · `admin/` Next.js 14 (:3001) · `server/` NestJS 10 + Prisma 5 + PostgreSQL (:4000, REST under `/api`, cookie JWT).
+- Request flow: `client/src/lib/api.ts#apiFetch` (sends `X-Workstation`) → Nest controller (`JwtAuthGuard, WorkstationGuard`) → `@WorkstationDoctorId()` → service → `PrismaService`.
 
 ## Commands
-
 ```bash
-# root
-npm run dev              # api + web + admin together (concurrently)
-npm run install:all      # npm install in all three apps
-
-# server (from server/)
-npm run start:dev        # nodemon dev server on :4000
-npm run build            # nest build
-npx tsc --noEmit -p tsconfig.json   # typecheck (ALWAYS before commit)
-
-# client / admin (from client/ or admin/)
-npm run dev              # :3000 / :3001
-npm run build            # next build (also typechecks)
-npx tsc --noEmit         # fast typecheck (ALWAYS before commit)
+npm run install:all                       # root: install all three apps
+npm run dev                               # root: api + web + admin together
+npm run build                             # root: build server, client, admin
+cd server && npm run start:dev            # nodemon API on :4000
+cd server && npm test                     # jest, *.spec.ts beside the code in src/
+cd server && npx tsc --noEmit -p tsconfig.json
+cd server && npm run lint                 # eslint --fix
+cd server && npm run format               # prettier
+cd client && npm run dev                  # :3000 (admin: same, :3001)
+cd client && npm test                     # vitest run, *.test.ts(x) beside the code
+cd client && npx tsc --noEmit             # same in admin/
+npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.prisma   # from server/
 ```
+- `client`/`admin` `npm run lint` is `next lint` but no ESLint config exists there — TODO: verify before relying on it.
+- New `.ts` outside `server/src/` moves the build output and 502s prod: run `cd server && rm -rf dist && npm run build && ls dist/main.js`.
 
-**There IS a test suite, and it pins clinical logic.** `client/` runs **vitest** (`npm test` → `vitest run`) over the pure clinical functions — `rxAlerts`, `RxAlertBanner`, `rxHabitRows`, `rxHabitKey`, `dateInput`, `hmDates`, `investigationImages`, `prescriptionDoc`, `age`, `sex`, `edd`, `banglaInput`. `server/` runs **jest** (`npm test`) over `src/rx-habits/normalise.spec.ts`, `src/rx-habits/blocks.spec.ts` and the `prescriptions.service.spec.ts` regression spec. There is no e2e suite and no test database, so DB-shaped and UI behaviour is still verified by hand at :3000/:4000.
+## Architecture & Conventions
+- **Server:** one Nest module per domain in `server/src/<domain>/` (`*.controller.ts`, `*.service.ts`, `*.module.ts`, `dto/`). `ValidationPipe({ whitelist: true })` drops any field not declared on the DTO.
+- **Client:** App Router pages are thin shells → `src/components/Muqsit.tsx` → `TabRouter.tsx`; editor state in one store, `src/context/MuqsitContext.tsx`; server state in `src/hooks/use*.ts` (React Query); pure clinical logic in `src/lib/*.ts` with a co-located `*.test.ts`.
+- **Clinical logic gets a unit test** (same-medicine matching, offered doses, which alert fires). A red test is a clinical regression — check the source before changing the expectation.
+- **DB:** one shared PostgreSQL on the VPS, reached through an SSH tunnel the user runs. `P1001` = tunnel down, ask the user; not a code bug. Applying a migration locally migrates production.
+- **Deploy:** push to `main` → `.github/workflows/deploy.yml` builds and `pm2 restart all` (~2–3 min). It does not run migrations. If a VPS `package-lock.json` drift blocks `git pull`: SSH in, `git checkout -- <app>/package-lock.json`, re-run the Action.
+- **Dates:** stored/shown `dd/mm/yyyy`, `ptDate` is ISO; `ddmmyy` shorthand accepted.
+- **Git identity:** every commit and push as `Muhammad-AIUB <mjubayer.aiub@gmail.com>`. The machine's default is wrong — check `git config user.email` and `gh auth status` before committing and before pushing.
+- Commits: conventional (`fix(scope): …`), ending `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
+- Every route change updates `docs/API.md` in the same commit.
+- Reply to the user (a physician) in Bangla; code and comments stay English.
 
-The house convention: **anything that decides a clinical fact gets a unit test** — which two medicines count as the same, which dose is offered, which alert fires. A red test there is a clinical regression, not a formatting nit: check the source sheet or the design before touching the expectation. Run both suites before every commit, alongside `npx tsc --noEmit`, and never claim a suite passed without running it.
+## Patterns We Do Not Use
+- We do not run `npm run prisma:migrate` / Prisma Migrate. Edit `schema.prisma`, write an idempotent `server/prisma/manual-<name>.sql` (`IF NOT EXISTS`), apply with `db execute`, regenerate — the DB is shared with production, so only additive changes.
+- We do not run `prisma generate` with the API up. Kill the :4000 process first — Windows locks the query-engine DLL (EPERM).
+- We do not take the doctor from `req.user.id` or a request body. Use `@WorkstationDoctorId()` — `WorkstationGuard` is the only place that decides whose practice a request acts on.
+- We do not resolve a practice again inside a service. Pass the resolved `doctorId` in — a second resolver leaked another practice's activity feed (fixed 2026-08-27).
+- We do not add a client field without adding it to the DTO — otherwise it is "saved" and silently dropped.
+- We do not assume a `manual-*.sql` file was applied. Check the DB — `manual-opd-token-unique.sql` / `manual-ipd-bed-unique.sql` may still be unapplied.
+- We do not leave a table created as `postgres` with that owner. Run `ALTER TABLE "X" OWNER TO exhort_user;` — otherwise the app gets `42501 permission denied`.
+- We do not parse a stored date with `new Date(str)`. Use `client/src/lib/dateInput.ts` — JS reads `03/06/2026` as 6 March.
+- We do not put `medicines` in `schema.prisma`. It is a raw table queried with parameterised `$queryRaw`.
+- We do not reword, add or "fix" entries in `client/src/data/rxAlerts.ts`. Every message is verbatim from the physician's rule sheets.
+- We do not print or persist prescribing alerts. They are derived live; `prescriptionDoc.ts` has no alert input, pinned by tests (physician's decision).
+- We do not `increment: 1` a habit/phrase `patientCount`. It counts distinct patients, taken from the record.
+- We do not let a derived-feature write fail a prescription save. It runs awaited, in try/catch, after `prescription.create`.
+- We do not hard-delete clinical documents or add DELETE routes for learned suggestions. Use soft removal (`removedAt`) / `hidden`.
+- We do not extend `WorkstationsService.resolve` for IPD ward-team logins. That would hand a ward nurse the whole practice's OPD records.
+- We do not send new per-admission data through the IPD `clinical` PATCH. It replaces the whole column; give it its own route (see `/ipd/:id/analogue`).
+- We do not store upload URLs minted on localhost. The dev DB is production; `upload.service.ts` refuses them.
+- We do not instruct manual deploys or builds on the VPS. Push to `main`; only DB migrations are manual.
+- We do not enable the ECC plugin in this repo. Its hooks have not been checked against these safety rules.
 
-## Database & migrations (READ THIS — unusual setup)
+## Read First
+- `docs/DOMAIN.md` — every domain concept (workstation, assistant, supervised doctor, wards, habits, alerts, drug-history mirror…) with the physician's decisions behind it.
+- `server/CLAUDE.md` — the access table, scoping rules, auth and upload gotchas; required before any server change.
+- `client/CLAUDE.md` — clinical-accuracy rules for alerts, habits, printing, dates; required before any client change. (`admin/CLAUDE.md` for the admin app.)
+- `FUNCTIONAL-AUDIT.md` — what works, what is a stub, and the "Open threads" awaiting product-owner decisions; read at session start.
 
-- **One shared PostgreSQL lives on the VPS** (`194.233.82.156`). Local dev reaches it through an SSH tunnel the **user** runs: `ssh -L 5432:localhost:5432 root@<vps> -N`. `P1001 Can't reach database server` = the tunnel dropped → ask the user to bring it up; it is never a code bug.
-- **Prisma Migrate is NOT used.** Schema changes = ① edit `schema.prisma`, ② write an **idempotent** SQL file `server/prisma/manual-<name>.sql` (`ADD COLUMN IF NOT EXISTS …`), ③ apply with `npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.prisma`, ④ regenerate the client. The full migration history is the `manual-*.sql` files themselves (~20 of them) — a file existing does NOT guarantee it was applied; verify against the DB when in doubt (`manual-opd-token-unique.sql` / `manual-ipd-bed-unique.sql` were written as optional and may be unapplied).
-- Because the DB is shared, applying a migration locally **also migrates production**. Only additive, idempotent changes.
-- **Windows DLL lock:** `prisma generate` fails (EPERM on the query-engine DLL) while the dev server runs. Kill the process on :4000 first (`netstat -ano | grep :4000` → `taskkill //F //PID <pid>`), generate, restart.
-- Tables created as the `postgres` superuser need `ALTER TABLE "X" OWNER TO exhort_user;` or the app gets `42501 permission denied`. `ALTER TABLE` on existing tables is fine.
-
-## Deployment — automatic, never manual
-
-Every push to `main` triggers `.github/workflows/deploy.yml`: SSH to the VPS (`/root/muqsit`), discard any local lockfile drift, `git pull`, install+build client/server (+admin non-fatally), `pm2 restart all`. Takes ~2–3 min; watch the GitHub Actions tab. **Never instruct manual deploys.** The workflow does NOT run DB migrations — those are applied through the tunnel as above. Prod URLs: `muqsithealthsystem.com` (client), `api.muqsithealthsystem.com/api` (API), `admin.muqsithealthsystem.com` (admin).
-
-- **Lockfile-drift gotcha:** the VPS's own `npm install` can regenerate a `package-lock.json` with platform-specific entries, leaving it locally modified and blocking the next deploy's `git pull` (`error: Your local changes ... would be overwritten by merge` — happened 2026-07-20). The workflow now runs `git checkout -- client/package-lock.json server/package-lock.json admin/package-lock.json` before pulling, so this shouldn't recur. If it ever does: SSH in, `git checkout -- <path>/package-lock.json`, `git pull`, then re-run the failed Action (don't build/restart by hand).
-
-## Domain concepts (shared vocabulary)
-
-- **Account tiers:** `primary`/`premium` own a practice ("workstation"); `secondary` can only work as someone's assistant (upgrade gate otherwise). New signups start `secondary`; admin app promotes.
-- **Workstation:** the practice a request acts on. Client sends `X-Workstation: <doctorId>`; server resolves owner/assistant + permissions. See server/CLAUDE.md.
-- **Assistant:** a user another doctor added (`Assistant` table) with granted permission keys; works inside that doctor's workstation.
-- **Ward / IPD team (2026-08-15):** a **Ward** is a named group of admitted patients inside one practice (`Ward`, unique name per doctor), and its **team** (`IpdTeamMember`) is whoever works that ward — every admission on the ward is under the whole team, and membership is expected to change with the rota. Managed at Settings → "Manage your assistants and IPD team", **owner-only** (the routes take the signed-in user's own id, never a workstation doctor). Permissions are ticked **per member** (`ipd.*` keys), because a ward mixes doctors and nurses; a new member starts with nothing ticked. `IpdAdmission.wardId` is the link and `wardNo` stays the displayed name — an admission recorded before wards existed keeps its free-typed text and belongs to no team until someone picks a ward for it on the IPD detail page. **Not yet built: the team member's own login.** Adding people to a ward does not yet let them reach it — see server/CLAUDE.md for why that must not be bolted onto `WorkstationGuard`.
-- **Analogue order sheet (correction 3.docx, 2026-08-26):** the ward's own PAPER order sheet, photographed into the admission. Stored as `IpdClinical.analogueSheets` and written ONLY through the per-page `/ipd/:id/analogue` routes, never the admission's Save — a doctor called away mid-round must not lose the pages they just took. Three rules carry the design: the pages are **saved the moment they upload**, removal is **soft** (`removedAt`/`removedBy`, nothing leaves disk, every operation files an `IpdEvent`), and the list **cannot be reordered** because its order is the chronology of the round. The IPD detail now offers three views the doctor switches between — `F/U & Digital Order`, `Analogue & Digital Order`, `F/U & Analogue order` — with no default: an unchosen state opens the page exactly as it always has. The same document renamed IPD's ℞ heading from "Order sheet" to **Prescription**, reversing the 2026-07-30 decision; "order sheet" on the ward now means the paper one.
-- **Supervised doctor (4.docx):** per-PATIENT link (`PatientSupervisor`). The supervisor logs into **their own** account, finds the patient by mobile ("SUPERVISED" badge), sees patient info (records/summaries/history) but **never** the owner's prescriptions or draft, and prescribes fresh under their own `doctorId`. No workstation involved.
-- **Note and Plan (2026-09-07):** the OPD sidebar's single "Note / plan" list is now **two** lists, "Note" and "Plan", each edited in place like Final diagnosis and each printing as its own section. `Prescription.plan` is a new, additive column (`manual-prescription-plan.sql`); **`note` was not split up** — deciding which stored line was a plan is a clinical judgement, so every prescription written before this reads back unchanged. Both fields keep the ONE permission key the combined field had (`rx.note`) and declare it explicitly, because "Plan" is also the IPD sheet's label and IPD is deliberately outside the assistant keys. See `client/CLAUDE.md`.
-- **Visit-date model:** the prescription header Date (`ptDate`) stamps investigation findings, on-examination entries, and drug history. Drug history splits Current vs Distant-past **by date**, automatically, on the next visit.
-- **℞ → Drug history mirror (2026-09-07):** every medicine on today's ℞ pad is stamped with `ptDate` and merged into `Patient.drugHistory` **live, as it is typed** (physician's decision), so it shows in **Current medications** during the visit and as Distant past on the next one. Until this, the ℞ pad and Drug history were two lists that never spoke: "Current medications" held only what the doctor re-typed into the modal by hand. The mirror **withdraws only entries it added itself** (a hand-typed medication is untouchable), **completes nothing** (no invented dose), **persists through the writers that already existed** rather than a new one, and is **stripped back out of the printed sheet** — today's medicines are the ℞ table, and repeating them under "Drug history" would say the patient was already on them before this visit. `client/src/lib/rxDrugHistory.ts`, pinned in `rxDrugHistory.test.ts`; see `client/CLAUDE.md`.
-- **Incomplete prescription:** editor auto-saves per-doctor drafts; a patient with content but no "Save & print" carries `incompleteRx` and shows an Incomplete badge in OPD; printing completes it. Since 2026-07-30 it is also **doctor-initiated**: the "Save to complete later" button parks an unfinished visit deliberately (`saveDraftNow`, see `client/CLAUDE.md`; labelled "Save draft" until 2026-08-15). Not permission-gated — it persists exactly what the background auto-save already writes for whoever is typing, so gating it would only lose their work.
-- **Duration override (Health trend chart):** the chart's medication and symptom bars are *derived* — a medication spans first→last mention in `drugHistory`, a symptom spans first→last `Prescription.createdAt` carrying that complaint. Neither is the real-world duration (a tapering `(cont)` line carries no drug name, a legacy `Current:` entry has no real date), so the owner doctor can override a bar's start/end. Overrides live in `Patient.hmDrugDates` / `Patient.hmSymptomDates` (`{ [name]: { sf, upto } }`, blank side = keep the derived date) and are **display-only** — `drugHistory` and the prescriptions are never rewritten. Overridden bars render dashed and their tooltip shows the recorded range alongside the shown one; an override that resolves to the recorded range is dropped rather than stored, so "dashed" always means "moved away from the record". Owner-only, enforced server-side. See `client/CLAUDE.md` for the date-parsing traps this sits on.
-- **Prescribing habit ("Your usual", 2026-08-17):** the ℞ pad learns a doctor's own repeated instructions and offers them back in the medicine dropdown. A **habit** is one row of `DoctorRxHabit`: `(doctor, medicine INCLUDING strength, whole instruction block)` — where a *block* is a head medicine plus its `>>>` tapering lines, so clicking one fills every line at once. Five rules carry the whole design:
-  - **It never originates clinical content.** Every character offered is echoed verbatim from a prescription that doctor already saved and printed. Nothing is auto-filled — insertion requires a click — and the feature never writes to `Prescription`/`PrescriptionItem`. "Deleting" a suggestion sets `hidden`; there is no DELETE route.
-  - **The key includes the strength, exactly.** `Tablet. Napa 500mg` and `Tablet. Napa 665mg` are different habits, always. Normalisation (`server/src/rx-habits/normalise.ts`) folds **typography only** — case, whitespace, an abbreviated dosage form (`tab.`→`tablet.`), the `500 mg`→`500mg` gap, and a trailing `n/a`. It must never drop a parenthesised form qualifier (`Tablet (Enteric Coated).` is not `Tablet.`, `SC Injection.` is not `Injection.`) and never converts a unit. Pinned in `normalise.spec.ts`.
-  - **`patientCount` is DISTINCT PATIENTS, not prescriptions.** One patient returning monthly, a re-saved visit or a reprint must not make a one-off dose look routine — the count is the only thing separating routine practice from a special case, so it is established by asking the record, never by `increment: 1`. In production, Napa `1+1+1 · 5 days` appears on 7 prescriptions but only 2 patients.
-  - **Only completed prescriptions teach.** Habits are written from `Prescription` rows, so drafts, `incompleteRx` and "Save to complete later" never count. An **empty block is not a habit** — a drug line saved with all of dose/food/duration blank is an unfinished line.
-  - **Scope is the workstation doctor** (`@WorkstationDoctorId()`): an assistant sees the doctor they are assisting; a supervising doctor sees their own. No doctor ever sees another's. OPD only in v1 — the IPD order sheet, the Drug-history pad and the template editor render the same `MedicinePad` and deliberately do not opt in.
-
-  The table is **derived and rebuildable**: `node server/scripts/rebuild-rx-habits.js [--dry-run]` recomputes it from the record. It re-applies `hidden`/`pinned` **by content, never by signature** — a signature is the output of the normalisation algorithm, so a signature join would resurrect every deliberately suppressed dose the day a rule is edited. See `server/CLAUDE.md` and `client/CLAUDE.md` for the write path and the UI.
-- **Prescribing alert ("MHS is suggesting"):** a live advisory shown at the top of "Notifications, Chats & Reports" while the doctor writes. Two rule kinds: **drug-condition** (a drug in the ℞ pad + a patient condition in a sidebar clinical field, e.g. entecavir + Pregnant) and **drug-drug** (e.g. sofosbuvir/velpatasvir + a PPI — the ℞ pad plus the patient's *current* drug history, with at least one of the pair on today's ℞). Rules live in `client/src/data/rxAlerts.ts` and every message there is **verbatim from a rule sheet supplied by the physician** — never reword one, never add a rule or a dose from clinical memory. Alerts are **derived, never persisted**: they recompute from editor state on every keystroke and vanish when the trigger is removed, so stored advice can never outlive the prescription that caused it. The banner shows **the advice and nothing else**: the `Because: <drug line> + <sidebar entry>` evidence line under it was removed on 2026-08-16 at the physician's request, since the advice already names the drug and the condition.
-
-  **The ℞ pad shows the same advice behind ONE blinking red sign (2026-08-28).** It was a red speech bubble under the medicine from 2026-08-17; the physician's decision now is that the pad stays a writing surface — a single round sign lights up in the pad's toolbar the moment any warned medicine is written, however many rules fired, and pressing it reveals each warning **in the flow, directly under its own medicine line** (`RxPadAlerts`) — a floating panel was tried the same day and dropped, because it moved around the screen whenever the pad or the page scrolled. One matcher still feeds both surfaces (`rxAlertsByLine`), because two versions of a contraindication that could disagree is worse than one behind a click — and nothing is actually hidden: the "MHS is suggesting" banner still lists every alert in full, and every alert is still written to the activity feed on save, ignored or not.
-
-  **The warning is shown while writing and never printed or saved.** It was briefly rendered as a red callout on the printed sheet on 2026-08-17; the physician's decision the same day is that it must not survive onto the document — the printed prescription and the gallery snapshot show exactly what the doctor entered, not what the system inferred. `prescriptionDoc` has no `alerts` input at all now, and `prescriptionDoc.test.ts` pins the absence of the callout markup, its stylesheet and its red, so it cannot come back as a tidy-up. Restoring it is a product decision, not a bug fix. See `client/CLAUDE.md` for the matching rules and the known gaps.
-- **Learned phrases ("Your usual notes", 2026-09-21):** the free-text sibling of the prescribing habit. The ADVICE list and the free-typed ℞ **note** lines (the italic lines between medicines, e.g. `Insulin as before`) are learned per doctor and offered back as they type — `DoctorPhraseHabit`, one row per `(doctor, source, phrase)` where `source` is `advice` or `rxNote`. **It inherits the five habit rules above verbatim**, because the failure modes are the same: it never originates clinical content (every character is echoed from a prescription that doctor saved and printed), `patientCount` is DISTINCT PATIENTS, only completed prescriptions teach, scope is the workstation doctor, and "deleting" sets `hidden` with no DELETE route. Normalisation folds **typography only** — case, whitespace and one trailing full stop — so `Insulin as before` and `Inj. Insulin as before` stay two different instructions, exactly as two strengths of one medicine do. Rebuildable with `node server/scripts/rebuild-doctor-phrases.js`. The per-device `User.fieldRecents` list is kept alongside it: a learned phrase can only come from a printed prescription, so recents are what covers a line typed earlier today.
-- **BAN / EN typing (2026-09-23):** a header switch that turns phonetic (Avro-style) Bangla typing on for the fields the physician named — Chief complaints, Previous complaints, Note, Plan, Advice and the OPD ℞ pad's dose/food/duration — and nowhere else; any other field keeps English and says so. **Numbers are never converted** (a dose stays `1+0+1`, a half stays `0.5`). See `client/CLAUDE.md`.
-- **Investigation groups (2026-09-24):** each doctor's own named sets of tests (`User.investigationGroups`), made and ticked in Advised tests / investigation → "Investigations group". Per signed-in user, never pre-filled by the system. See `client/CLAUDE.md`.
-- **Patient ≠ property of a doctor.** The same person returns to a different doctor and is found again by mobile number, so deleting a doctor's account must never delete their patients (`Patient.doctorId` is `onDelete: SetNull`). Their own prescriptions do cascade — those were never visible to another doctor. **Open gap:** an unowned patient (`doctorId = null`) is retained but not yet findable, because the lookup matches owner-or-supervisor. Closing it needs a deliberate access design, not a quiet widening. See `server/CLAUDE.md`.
-
-## Cross-cutting conventions
-
-- Dates shown/stored in strings are `dd/mm/yyyy`; `ptDate` is ISO internally (`isoToDdmmyyyy` to convert). Flexible input: `ddmmyy` shorthand (e.g. `030626`). **Never parse a stored date with a bare `new Date(str)`** — JS reads slashes as month/day/year, so `25/07/2026` is Invalid Date and `03/06/2026` silently becomes 6 March. See `client/CLAUDE.md`.
-- Commit messages: conventional-commit style (`fix(scope): …`), ending with `Co-Authored-By: Claude Opus <version> <noreply@anthropic.com>` — the model that actually did the work.
-- **Every commit and every push on this repo is authored by `Muhammad-AIUB <mjubayer.aiub@gmail.com>` — always, no exception.** This machine has multiple GitHub accounts and **the default is the WRONG one**: `git config user.email` here has been found set to `unidevgo.qa1@gmail.com`, and `gh auth status` has been found with `unidevgoQA` as the active account. (Commits before 2026-08-15 used `mjubayer.aiub20@gmail.com`; that address is superseded — do not "restore" it.) Check **before the first commit and again before pushing** — both `git config user.name` / `git config user.email`, and `gh auth status` (active account must be `Muhammad-AIUB`; `gh auth switch --user Muhammad-AIUB` if it isn't). Re-authoring already-committed-but-unpushed commits: fix `git config user.name/user.email`, then `git rebase <base> --exec 'git commit --amend --reset-author --no-edit'`, then confirm the tree is unchanged (`git diff <tag-of-old-head> main` must be empty).
-- The user (product owner, a physician) communicates in Bangla — reply in Bangla; keep code/comments in English.
-- Per-app details live in `client/CLAUDE.md`, `server/CLAUDE.md`, `admin/CLAUDE.md` — read the one for the area you touch.
-- The REST API is catalogued in `docs/API.md` (every route, its DTO, its scoping and the permission keys it enforces) — update it in the same commit as any route change.
+---
+This file is a living document. Whenever an implementation gets rejected or corrected during a task, add the lesson to 'Patterns We Do Not Use' — a rule plus its reason, not just a prohibition.
