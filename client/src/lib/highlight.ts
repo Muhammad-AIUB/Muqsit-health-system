@@ -2,13 +2,16 @@
 // ("hiliteColor") returns "" in Chrome, so the button cannot ask the browser
 // whether text is already marked — it reads the inline backgrounds instead.
 
-/** Nearest element (up to, not including, `root`) carrying a visible inline
- *  background colour — i.e. the highlight a caret or character sits in. */
+/** The highlight a caret or character sits in: the NEAREST element (up to, not
+ *  including, `root`) that declares an inline background colour, or null when
+ *  that nearest declaration is transparent — text un-highlighted inside a
+ *  highlight is not highlighted. */
 export function highlightedRun(node: Node, root: Node): HTMLElement | null {
   for (let n: Node | null = node; n && n !== root; n = n.parentNode) {
     if (n.nodeType === 1) {
       const bg = (n as HTMLElement).style?.backgroundColor;
-      if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") return n as HTMLElement;
+      if (!bg) continue;
+      return bg === "transparent" || bg === "rgba(0, 0, 0, 0)" ? null : (n as HTMLElement);
     }
   }
   return null;

@@ -14,7 +14,9 @@ const SELECTOR = `span[${SENSITIVE_ATTR}]`;
  *  given selector so it never styles anything outside the note. */
 export function sensitiveCss(scope: string): string {
   return `${scope} ${SELECTOR} { background: #EDE7F6; border-bottom: 2px dashed #7E57C2; border-radius: 3px; padding: 0 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-${scope} ${SELECTOR}::before { content: "🔒"; font-size: 0.75em; margin-right: 2px; }`;
+${scope} ${SELECTOR}::before { content: "🔒"; font-size: 0.75em; margin-right: 2px; }
+${scope} ${SELECTOR} ${SELECTOR} { border-bottom: none; padding: 0; }
+${scope} ${SELECTOR} ${SELECTOR}::before { content: none; }`;
 }
 
 /** The sensitive span (up to, not including, `root`) that `node` sits in. */

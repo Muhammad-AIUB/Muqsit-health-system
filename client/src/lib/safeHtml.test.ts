@@ -27,6 +27,12 @@ describe("sanitizeHtml", () => {
   });
 });
 
+describe("isBlankHtml — the editor's zero-width caret anchor is not text", () => {
+  it("a sensitive run holding only the anchor is blank", () => {
+    expect(isBlankHtml('<span data-sensitive="1">​</span>')).toBe(true);
+  });
+});
+
 describe("isBlankHtml", () => {
   it("treats an emptied editor as blank", () => {
     expect(isBlankHtml("<div><br></div>")).toBe(true);

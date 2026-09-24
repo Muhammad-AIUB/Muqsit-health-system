@@ -48,6 +48,17 @@ describe("rangeIsHighlighted", () => {
   });
 });
 
+describe("the nearest declared background wins", () => {
+  it("text un-highlighted inside a highlight is NOT highlighted", () => {
+    const el = editor(`${YELLOW}aa<span style="background-color: transparent;">bb</span>cc</span>`);
+    const inner = el.querySelector("span span")!;
+    expect(highlightedRun(inner.firstChild!, el)).toBeNull();
+    const r = document.createRange();
+    r.selectNodeContents(inner);
+    expect(rangeIsHighlighted(r, el)).toBe(false);
+  });
+});
+
 describe("highlightedRun", () => {
   it("returns the highlighted element around a caret", () => {
     const el = editor(`hello ${YELLOW}world</span>`);

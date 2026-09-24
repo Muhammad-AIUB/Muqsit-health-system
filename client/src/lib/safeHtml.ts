@@ -82,5 +82,6 @@ export function sanitizeHtml(html: string): string {
 export function isBlankHtml(html: string): boolean {
   if (!html) return true;
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
-  return !(doc.body.textContent ?? "").trim();
+  // U+200B (the editor's caret anchor) is not whitespace to trim().
+  return !(doc.body.textContent ?? "").replace(/​/g, "").trim();
 }

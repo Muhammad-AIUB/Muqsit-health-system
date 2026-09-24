@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
@@ -88,7 +88,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   // like "still inside this one", and the correction just typed was dropped.
   const groupId = useId();
   // When an assistant lacks this section's permission, it's visible but locked.
-  const { canEditLabel, can } = useMuqsit();
+  const { canEditLabel, can, currentPatientId } = useMuqsit();
   const editable = permKey ? can(permKey) : canEditLabel(label);
   // This patient's past final diagnoses, offered as ticks in the popup.
   const pd = previousItems ?? [];
@@ -240,6 +240,10 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   // clicked). The Undo bar stays until the doctor undoes or dismisses it, or
   // removes another line: a mis-click beside a diagnosis must be recoverable.
   const [removed, setRemoved] = useState<{ item: string; idx: number } | null>(null);
+  // ⚕️ This field stays mounted when the doctor switches patient (it is keyed
+  // by label), so an Undo left showing would put one patient's line into the
+  // next patient's list. A new patient drops it.
+  useEffect(() => setRemoved(null), [currentPatientId]);
   const removeLine = (idx: number) => {
     const item = items[idx];
     if (item === undefined) return;
@@ -345,7 +349,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           ))}
         </div>
       )}
-      {removed && (
+      {removed && editable && (
         <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px 14px", padding: "4px 8px", borderRadius: 6, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 11.5, color: C.n[700] }}>
           <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>Removed “{removed.item}”</span>
           <button type="button" onClick={undoRemove} style={{ border: "none", background: "none", color: C.pri[600], fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Undo</button>

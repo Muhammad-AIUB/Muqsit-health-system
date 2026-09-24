@@ -34,6 +34,8 @@ export function useDoctorPhrases(
 
   useEffect(() => {
     if (!enabled) {
+      // Invalidate a reply still in flight, or it refills the list afterwards.
+      reqId.current++;
       setPhrases([]);
       return;
     }

@@ -31,6 +31,9 @@ export function useRxHabits(query: string): {
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
+      // Invalidate a reply still in flight for the longer query, or it lands
+      // after this and fills the list back in under the shorter text.
+      reqId.current++;
       setGroups([]);
       return;
     }

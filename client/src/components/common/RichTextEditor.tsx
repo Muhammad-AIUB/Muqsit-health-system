@@ -169,23 +169,31 @@ const RichTextEditor = forwardRef<
     return () => document.removeEventListener("selectionchange", onSel);
   }, [sensitive]);
 
-  const newRun = () => {
-    const span = document.createElement("span");
-    span.setAttribute(SENSITIVE_ATTR, "1");
-    return span;
+  const RUN_OPEN = `<span ${SENSITIVE_ATTR}="1">`;
+  // A range's contents as HTML, with any sensitive marks inside it taken off.
+  const plainHtml = (r: Range) => {
+    const box = document.createElement("div");
+    box.appendChild(r.cloneContents());
+    box.querySelectorAll(`span[${SENSITIVE_ATTR}]`).forEach((s) => s.replaceWith(...s.childNodes));
+    return box.innerHTML;
   };
-  const unwrapRuns = (root: ParentNode) => {
-    root.querySelectorAll(`span[${SENSITIVE_ATTR}]`).forEach((s) => s.replaceWith(...s.childNodes));
-  };
-  const caretAt = (node: Node, offset: number) => {
-    const sel = window.getSelection();
+  const sliceHtml = (sc: Node, so: number, ec: Node, eo: number) => {
     const r = document.createRange();
-    r.setStart(node, offset);
-    r.collapse(true);
-    sel?.removeAllRanges();
-    sel?.addRange(r);
+    r.setStart(sc, so);
+    r.setEnd(ec, eo);
+    return plainHtml(r);
+  };
+  // A left-over piece of a run stays marked only if it holds visible text;
+  // a bare space is kept, unmarked, so no word runs into the next.
+  const asRun = (h: string) => {
+    const text = h.replace(/<[^>]*>/g, "").replace(/​/g, "").trim();
+    return text ? `${RUN_OPEN}${h}</span>` : h.replace(/​/g, "");
   };
 
+  // ⚕️ Every change goes through execCommand("insertHTML") so it is on the
+  // browser's undo stack. The first version edited the DOM by hand, and Ctrl+Z
+  // then replayed against a page it no longer matched — in Chrome it deleted
+  // the doctor's own unmarked words and kept the secret (2026-09-25).
   const toggleSensitive = () => {
     const el = ref.current;
     const sel = window.getSelection();
@@ -195,62 +203,40 @@ const RichTextEditor = forwardRef<
     if (sel.isCollapsed) {
       const run = sensitiveRun(range.startContainer, el);
       // A zero-width space gives the caret a text node to type into; the
-      // sanitiser drops it again, so it never reaches the saved note.
-      const anchor = document.createTextNode("​");
+      // sanitiser drops it wherever the note is shown or printed (it can sit in
+      // the stored HTML, where it is invisible and harmless).
       if (run) {
-        run.after(anchor); // stop marking: carry on typing after the run
+        // Stop marking: carry on after the run. At a run's edge Chrome types
+        // INTO the run, so the caret gets a plain wrapper of its own.
+        const after = document.createRange();
+        after.setStartAfter(run);
+        after.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(after);
+        document.execCommand("insertHTML", false, '<span data-plain="1">​</span>');
       } else {
-        const span = newRun();
-        span.appendChild(anchor);
-        range.insertNode(span); // start marking: type inside a new run
+        document.execCommand("insertHTML", false, `${RUN_OPEN}​</span>`); // caret lands inside
       }
-      caretAt(anchor, 1);
       setInSensitive(!run);
       el.focus();
       sync();
       return;
     }
 
-    // A selection: marked all through → unmark exactly it; otherwise mark it.
+    // A selection: marked all through → unmark exactly it (splitting the run
+    // around it); otherwise mark it, joining any run it touches into one.
     const unmark = rangeIsSensitive(range, el);
-    const frag = range.extractContents();
-    unwrapRuns(frag);
-    const first = frag.firstChild, last = frag.lastChild;
-    const host = sensitiveRun(range.startContainer, el);
-    if (unmark && host) {
-      // Split the run around the selection: [host][plain selection][tail].
-      const tailR = document.createRange();
-      tailR.setStart(range.startContainer, range.startOffset);
-      tailR.setEnd(host, host.childNodes.length);
-      const tail = newRun();
-      tail.appendChild(tailR.extractContents());
-      host.after(tail);
-      tail.before(frag);
-      if (!(tail.textContent ?? "").replace(/​/g, "")) tail.remove();
-      if (!(host.textContent ?? "").replace(/​/g, "")) host.remove();
-    } else if (unmark) {
-      range.insertNode(frag);
-    } else {
-      const span = newRun();
-      span.appendChild(frag);
-      range.insertNode(span);
-      if (host) span.replaceWith(...span.childNodes); // already inside a run
-    }
-    if (first && last && first.isConnected && last.isConnected) {
-      const r = document.createRange();
-      r.setStartBefore(first);
-      r.setEndAfter(last);
-      sel.removeAllRanges();
-      sel.addRange(r);
-    }
-    // Two runs side by side are one run (one 🔒, not two).
-    el.querySelectorAll(`span[${SENSITIVE_ATTR}]`).forEach((s) => {
-      const prev = s.previousSibling;
-      if (prev instanceof HTMLElement && prev.matches(`span[${SENSITIVE_ATTR}]`)) {
-        prev.append(...s.childNodes);
-        s.remove();
-      }
-    });
+    const startHost = sensitiveRun(range.startContainer, el);
+    const endHost = sensitiveRun(range.endContainer, el);
+    const before = startHost ? sliceHtml(startHost, 0, range.startContainer, range.startOffset) : "";
+    const after = endHost ? sliceHtml(range.endContainer, range.endOffset, endHost, endHost.childNodes.length) : "";
+    const mid = plainHtml(range);
+    const outer = document.createRange();
+    if (startHost) outer.setStartBefore(startHost); else outer.setStart(range.startContainer, range.startOffset);
+    if (endHost) outer.setEndAfter(endHost); else outer.setEnd(range.endContainer, range.endOffset);
+    sel.removeAllRanges();
+    sel.addRange(outer);
+    document.execCommand("insertHTML", false, unmark ? asRun(before) + mid + asRun(after) : `${RUN_OPEN}${before}${mid}${after}</span>`);
     setInSensitive(!unmark);
     el.focus();
     sync();
