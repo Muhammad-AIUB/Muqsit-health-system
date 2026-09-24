@@ -61,7 +61,7 @@ describe('ActivityService — the practice is already resolved', () => {
   it('never consults the Assistant table — resolving the practice is WorkstationGuard’s job', async () => {
     const { prisma, assistantFindFirst } = prismaWith();
     const svc = new ActivityService(prisma);
-    await svc.list(OWN, 10, 'patient-1');
+    await svc.list(OWN, { limit: 10, patientId: 'patient-1' });
     await svc.create(OWN, 'Dr Someone', { section: 'IPD', detail: 'Added a note' });
 
     expect(assistantFindFirst).not.toHaveBeenCalled();
@@ -69,20 +69,38 @@ describe('ActivityService — the practice is already resolved', () => {
 
   it('still scopes to a patient when one is given, without widening the doctor scope', async () => {
     const { prisma, findMany } = prismaWith();
-    await new ActivityService(prisma).list(OWN, 25, 'patient-1');
+    await new ActivityService(prisma).list(OWN, { limit: 25, patientId: 'patient-1' });
 
     const { where, take } = findMany.mock.calls[0][0];
     expect(where).toEqual({ doctorId: OWN, patientId: 'patient-1' });
-    expect(take).toBe(25);
+    // One extra row is fetched to learn whether a next page exists.
+    expect(take).toBe(26);
   });
 
   it('clamps the row cap to 1..200 so a caller cannot pull the whole feed', async () => {
     const { prisma, findMany } = prismaWith();
     const svc = new ActivityService(prisma);
-    await svc.list(OWN, 100000);
-    await svc.list(OWN, 0);
+    await svc.list(OWN, { limit: 100000 });
+    await svc.list(OWN, { limit: 0 });
 
-    expect(findMany.mock.calls[0][0].take).toBe(200);
-    expect(findMany.mock.calls[1][0].take).toBe(1);
+    expect(findMany.mock.calls[0][0].take).toBe(201);
+    expect(findMany.mock.calls[1][0].take).toBe(2);
+  });
+
+  it('pages by cursor: returns `limit` rows and the last id as nextCursor only when more exist', async () => {
+    const { prisma, findMany } = prismaWith();
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `a${i}`, doctorId: OWN }));
+    findMany.mockResolvedValueOnce(rows(3)).mockResolvedValueOnce(rows(2));
+    const svc = new ActivityService(prisma);
+
+    const full = await svc.list(OWN, { limit: 2 });
+    expect(full.items.map((r) => r.id)).toEqual(['a0', 'a1']);
+    expect(full.nextCursor).toBe('a1');
+
+    const last = await svc.list(OWN, { limit: 2, cursor: 'a1' });
+    expect(last.items).toHaveLength(2);
+    expect(last.nextCursor).toBeNull();
+    // The cursor row itself is skipped, and the scope is still exactly the doctor.
+    expect(findMany.mock.calls[1][0]).toMatchObject({ cursor: { id: 'a1' }, skip: 1, where: { doctorId: OWN } });
   });
 });

@@ -39,14 +39,24 @@ export class ActivityService {
     });
   }
 
-  // Most recent first, capped — the feed shows a rolling window, shared across
-  // the whole practice (doctor + assistants). When `patientId` is given, it's
-  // scoped to that one patient's entries.
-  async list(doctorId: string, limit = 50, patientId?: string): Promise<ActivityLog[]> {
-    return this.prisma.activityLog.findMany({
-      where: { doctorId, ...(patientId ? { patientId } : {}) },
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(Math.max(limit, 1), 200),
+  // Most recent first, cursor-paged — the feed shows a rolling window, shared
+  // across the whole practice (doctor + assistants). When `patientId` is given,
+  // it's scoped to that one patient's entries. `cursor` is the id of the last
+  // row of the previous page; `id` is the ordering tiebreaker so two entries
+  // logged in the same millisecond never straddle a page boundary twice.
+  async list(
+    doctorId: string,
+    opts: { limit?: number; patientId?: string; cursor?: string } = {},
+  ): Promise<{ items: ActivityLog[]; nextCursor: string | null }> {
+    const take = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+    const rows = await this.prisma.activityLog.findMany({
+      where: { doctorId, ...(opts.patientId ? { patientId: opts.patientId } : {}) },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: take + 1,
+      ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
     });
+    const items = rows.slice(0, take);
+    const nextCursor = rows.length > take ? items[items.length - 1].id : null;
+    return { items, nextCursor };
   }
 }

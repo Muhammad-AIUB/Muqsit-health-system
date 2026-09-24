@@ -43,9 +43,9 @@ export interface Actor {
 export class IpdService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(doctorId: string): Promise<IpdAdmission[]> {
+  list(doctorId: string, status?: string): Promise<IpdAdmission[]> {
     return this.prisma.ipdAdmission.findMany({
-      where: { doctorId },
+      where: { doctorId, ...(status ? { status } : {}) },
       orderBy: { admittedAt: 'asc' },
     });
   }

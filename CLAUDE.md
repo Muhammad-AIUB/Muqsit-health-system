@@ -42,7 +42,8 @@ npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.pri
 - **Dates:** stored/shown `dd/mm/yyyy`, `ptDate` is ISO; `ddmmyy` shorthand accepted.
 - **Git identity:** every commit and push as `Muhammad-AIUB <mjubayer.aiub@gmail.com>`. The machine's default is wrong — check `git config user.email` and `gh auth status` before committing and before pushing.
 - Commits: conventional (`fix(scope): …`), ending `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.
-- Every route change updates `docs/API.md` in the same commit.
+- Every route change updates `docs/API.md` in the same commit. `GET /api/docs` (Swagger, dev only) is generated, not hand-written.
+- API design rules (idempotency, rate limits, caching, pagination, status codes) are in `docs/API.md` §1; the audit that set them is `docs/API-DESIGN-AUDIT.md`.
 - Reply to the user (a physician) in Bangla; code and comments stay English.
 
 ## Patterns We Do Not Use
@@ -65,6 +66,9 @@ npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.pri
 - We do not store upload URLs minted on localhost. The dev DB is production; `upload.service.ts` refuses them.
 - We do not instruct manual deploys or builds on the VPS. Push to `main`; only DB migrations are manual.
 - We do not enable the ECC plugin in this repo. Its hooks have not been checked against these safety rules.
+- We do not run `cd server && npm run lint` on a branch we mean to commit. It is `eslint --fix` with prettier, the tree has never been prettier-clean, and one run rewrote 70 files (2026-09-24) — a review-drowning diff, plus three pre-existing errors that are not yours. Typecheck and jest are the gates; format only the files you touched, by hand.
+- We do not `@CacheControl` a route that returns patient or per-user data. Every `/api` answer is `no-store` by default (`server/src/main.ts`) because clinic and ward PCs are shared; the medicine formulary is the one opt-in.
+- We do not auto-retry a write on 429/503 in the client. A read may wait out a short `Retry-After` once; a write is retried by the doctor, carrying the same `Idempotency-Key`, and the API replays its stored answer (`server/src/common/idempotency/`).
 
 ## Read First
 - `docs/DOMAIN.md` — every domain concept (workstation, assistant, supervised doctor, wards, habits, alerts, drug-history mirror…) with the physician's decisions behind it.

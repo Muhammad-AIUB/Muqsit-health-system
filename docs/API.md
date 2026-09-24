@@ -24,8 +24,17 @@ REST API served by `server/` (NestJS 10 + Prisma + PostgreSQL) and consumed by
 | Static files | `GET /uploads/<filename>` — uploaded images, served from the server's disk, **not** under `/api` |
 | CORS | `CORS_ORIGIN` env, comma-separated. Must list every frontend origin or requests look like random auth failures |
 
-There is **no OpenAPI/Swagger document and no health-check route.** This file is
-the reference; the source of truth is `server/src/**/*.controller.ts`.
+**OpenAPI:** `GET /api/docs` (Swagger UI) and `GET /api/docs-json`, generated from
+the controllers and DTOs by the `@nestjs/swagger` CLI plugin (`nest-cli.json`).
+Served in development, and in production only when `SWAGGER=true`. This file
+stays the human reference; the source of truth is `server/src/**/*.controller.ts`.
+There is no health-check route.
+
+**Versioning:** routes are version-neutral (`/api/...`). `enableVersioning` is on
+with `VERSION_NEUTRAL` as the default, so a breaking change to ONE route gets
+`@Version('2')` on that handler (→ `/api/v2/...`) while everything else stays put.
+Every response carries `X-App-Build` (git short SHA); the client shows a
+"new version — reload" banner when it changes mid-session.
 
 ### Error shape
 
@@ -44,13 +53,66 @@ doctor-facing banner, so validation messages are written for a clinician.
 | `401` | No/expired access cookie, or a refused refresh. The client silently refreshes once, then logs out |
 | `403` | Workstation not permitted, or a missing permission key |
 | `404` | Not found **or not yours** — a foreign id is deliberately indistinguishable from a missing one |
-| `429` | Throttled (see below) |
+| `409` | Conflict — a unique constraint (an OPD token or IPD bed taken concurrently, `P2002`), or an `Idempotency-Key` whose first request is still running |
+| `422` | An `Idempotency-Key` reused with a DIFFERENT body — the earlier request was already filed; nothing was written now |
+| `429` | Throttled (see below). `Retry-After` (seconds) is set |
+| `503` | Database unreachable (`P1xxx`). `Retry-After: 5`. The message says the entry *may not* have been saved — check the record before re-entering |
+
+Prisma errors are mapped by `src/common/http/prisma-exception.filter.ts`; the body
+carries the Prisma `code` too. A bare `500` is a bug.
 
 ### Rate limits
 
-Global `ThrottlerGuard`: **100 requests / minute / IP**. Auth routes layer
-tighter limits on top — `register` 5/min, `verify-email` 10/min, `resend-otp`
-3/min, `login` 5/min, `refresh` 30/min.
+`AppThrottlerGuard` (`src/common/throttler/`): **300 requests / minute**, counted
+**per signed-in user** (the access cookie is verified, then `sub` names the bucket)
+and per IP for anonymous traffic — a clinic's doctor and assistants share one
+address and must not share one bucket. Auth routes layer tighter per-IP limits on
+top — `register` 5/min, `verify-email` 10/min, `resend-otp` 3/min, `login` 5/min,
+`refresh` 30/min.
+
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`,
+`X-RateLimit-Reset` (seconds). Exceeding → `429` with `Retry-After` and a
+clinician-readable `message`. The client waits out a `Retry-After ≤ 5 s` once on a
+GET; writes are never auto-repeated. The counter is in-process memory: with more
+than one pm2 instance the effective limit is N× (verify with `pm2 describe`).
+
+### Idempotency
+
+`POST /patients`, `POST /prescriptions`, `POST /opd`, `POST /ipd` accept an
+**`Idempotency-Key`** header (≤128 chars, unique per logical save — the client
+uses `crypto.randomUUID()`). The first request claims the key and its response is
+stored (`IdempotencyKey` table, `manual-idempotency-key.sql`, 24 h retention);
+a replay with the same key **and the same body** returns that response with
+`Idempotency-Replayed: true` and writes nothing. Same key, different body → `422`.
+Same key while the first is still running → `409`. A handler that threw releases
+the key so the retry runs it again. Without the header the route behaves as before.
+Keys are scoped to the signed-in user (the actor who generated it), not the
+workstation. Implementation: `src/common/idempotency/`.
+
+### Caching
+
+Every `/api` response is **`Cache-Control: no-store`** (set in `main.ts` before
+any handler) — clinic and ward PCs are shared machines, and no patient data may
+be served from a disk cache or a proxy. The one opt-in is the medicine formulary:
+`GET /medicines/search` answers `private, max-age=86400` and is revalidated by
+the weak `ETag` Express emits. Opt a route in with `@CacheControl('…')`
+(`src/common/http/cache-control.interceptor.ts`) only if it carries no patient or
+per-user data. `/uploads` is static and keeps `immutable, max-age=365d`.
+
+### Pagination
+
+List routes that grow without bound (`GET /patients`, `GET /activity`) page by
+**cursor**: pass `limit` (1–200) and the `X-Next-Cursor` value of the previous
+page as `cursor`. The body stays a plain array; `X-Next-Cursor` is absent on the
+last page. Without `limit`, `/patients` returns the whole practice list (what the
+UI does today) and `/activity` returns 50. Today's OPD queue and one patient's
+prescriptions are bounded by nature and are not paged.
+
+### Cross-site requests
+
+A `POST`/`PATCH`/`PUT`/`DELETE` whose `Origin` header is not in `CORS_ORIGIN` is
+refused with `403 Cross-site request refused` before any route runs. Requests
+with no `Origin` (curl, server-to-server) pass.
 
 ### Validation
 
@@ -273,12 +335,12 @@ the ward; that door must be built inside `ipd.service`, never by extending
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/patients?search=` | the practice's patients |
+| GET | `/patients?search=&sort=&order=&limit=&cursor=` | the practice's patients. `sort` ∈ `updatedAt` (default) · `createdAt` · `name`; `order` ∈ `desc` (default) · `asc`; `limit`/`cursor` page (see §1 Pagination). Indexes: `manual-list-indexes.sql` |
 | GET | `/patients/watched` | the "keep an eye on this patient" list |
 | GET | `/patients/by-mobile?mobile=` | every patient on that number, newest first — powers the prescription mobile lookup. Includes supervised patients |
 | GET | `/patients/relatives-by-mobile?mobile=` | family-tree entries matching a number → `{ patientId, patientName, name, relation, sex, mobile }[]` (info only) |
 | GET | `/patients/:id` | `404` if not accessible |
-| POST | `/patients` | `CreatePatientDto` |
+| POST | `/patients` | `CreatePatientDto`. Accepts `Idempotency-Key` (§1) |
 | POST | `/patients/link` | `LinkPatientDto` — creates a NEW patient related to an existing one and writes reciprocal family links to both |
 | PATCH | `/patients/:id` | `UpdatePatientDto` — the **only** route that accepts it |
 | DELETE | `/patients/:id` | **owner only** |
@@ -332,7 +394,7 @@ resolved per request inside the service.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint` |
+| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint`. Accepts `Idempotency-Key` (§1) — a retried save replays the stored answer instead of filing twice |
 | GET | `/prescriptions?patientId=` | this doctor's prescriptions for that patient only |
 | GET | `/prescriptions/:id` | |
 
@@ -403,7 +465,7 @@ touching anything here.
 | Method | Path | Body / Notes |
 |---|---|---|
 | GET | `/opd` | **today's** queue only (`createdAt >= start of day`), oldest first |
-| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type? }`; `type` is `New` / `Follow-up` / `Urgent`. The server allocates the token |
+| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type? }`; `type` is `New` / `Follow-up` / `Urgent`. The server allocates the token (re-allocates once on a `P2002` from `manual-opd-token-unique.sql`). Accepts `Idempotency-Key` (§1) |
 | POST | `/opd/rx-status` | `{ patientId, rxStatus: "incomplete" \| "complete", name?, phone?, age?, gender? }` — upserts today's entry for that patient |
 | PATCH | `/opd/:id/status` | `{ status: "waiting" \| "done" }` |
 
@@ -415,8 +477,8 @@ number.
 
 | Method | Path | Body / Notes |
 |---|---|---|
-| GET | `/ipd` | the practice's admissions |
-| POST | `/ipd` | `CreateAdmissionDto` |
+| GET | `/ipd?status=` | the practice's admissions; `status` ∈ `Stable` · `Observation` · `Critical` · `Discharge` (optional) |
+| POST | `/ipd` | `CreateAdmissionDto`. Accepts `Idempotency-Key` (§1) |
 | PATCH | `/ipd/:id` | `UpdateAdmissionDto` |
 | PATCH | `/ipd/:id/status` | `{ status: "Stable" \| "Observation" \| "Critical" \| "Discharge" }` |
 | GET | `/ipd/:id/events` | admission feed, oldest first |
@@ -549,7 +611,7 @@ and nothing is written to the activity feed. Table: `manual-doctor-patient-note.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/medicines/search?q=` | ≥2 chars, max 10 hits |
+| GET | `/medicines/search?q=` | ≥2 chars, max 10 hits. `Cache-Control: private, max-age=86400` — the ONE cacheable API route. Memoised in-process for 5 min per query |
 
 → `{ id, brandName, genericName, dosageForm, strength, company, priceRaw }[]`,
 ranked brand-prefix → brand-contains → generic-prefix → generic-contains, then by
@@ -563,7 +625,7 @@ new query bound.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/activity?limit=&patientId=` | shared per practice, newest first |
+| GET | `/activity?limit=&patientId=&cursor=` | shared per practice, newest first; cursor-paged via `X-Next-Cursor` (§1 Pagination) |
 | POST | `/activity` | `{ section, detail, patientName?, patientId?, action?, imageUrl? }` |
 
 `section` ≤60 chars, **`detail` ≤400 chars** — trim doctor-typed free text before
@@ -657,3 +719,8 @@ Pinned in `src/uploads/upload.service.spec.ts`; repair tool:
 6. Schema change? An idempotent `server/prisma/manual-<name>.sql`, applied through
    the tunnel. Prisma Migrate is not used, and the DB is shared with production.
 7. Update this file and the relevant `CLAUDE.md` in the same commit.
+8. A `POST` that files a record the doctor might retry? `@UseInterceptors(IdempotencyInterceptor)`
+   and send `Idempotency-Key` from the client (§1 Idempotency).
+9. A list that grows without bound? Cursor-page it (`limit` + `X-Next-Cursor`),
+   keep the body an array, and add the `(doctorId, <sort column>)` index.
+10. Never `@CacheControl` a route that returns patient or per-user data.

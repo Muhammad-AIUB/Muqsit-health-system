@@ -3,6 +3,7 @@ import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePatientDto,
+  ListPatientsQueryDto,
   LinkPatientDto,
   UpdatePatientDto,
 } from './dto/patient.dto';
@@ -77,17 +78,42 @@ function inferSex(relation: string, tIsMale: boolean): string {
 export class PatientsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(doctorId: string, search?: string): Promise<Patient[]> {
+  // Practice list with optional search, allowlisted sort and cursor paging.
+  // The cursor is the last row's id; ordering carries `id` as a tiebreaker so a
+  // page boundary between two rows with the same updatedAt is stable.
+  async list(
+    doctorId: string,
+    query: ListPatientsQueryDto = {},
+  ): Promise<{ items: Patient[]; nextCursor: string | null }> {
     const where: Prisma.PatientWhereInput = { doctorId };
-    if (search?.trim()) {
-      const q = search.trim();
+    const q = query.search?.trim();
+    if (q) {
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { mobile: { contains: q } },
         { nid: { contains: q } },
       ];
     }
-    return this.prisma.patient.findMany({ where, orderBy: { updatedAt: 'desc' } });
+    const sort = query.sort ?? 'updatedAt';
+    const order = query.order ?? 'desc';
+    const orderBy: Prisma.PatientOrderByWithRelationInput[] = [
+      { [sort]: order },
+      { id: order },
+    ];
+
+    if (!query.limit) {
+      const items = await this.prisma.patient.findMany({ where, orderBy });
+      return { items, nextCursor: null };
+    }
+    const rows = await this.prisma.patient.findMany({
+      where,
+      orderBy,
+      take: query.limit + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    });
+    const items = rows.slice(0, query.limit);
+    const nextCursor = rows.length > query.limit ? items[items.length - 1].id : null;
+    return { items, nextCursor };
   }
 
   listWatched(doctorId: string): Promise<Patient[]> {

@@ -12,8 +12,8 @@ datasource db {
 }
 
 model User {
-  id           String @id @default(cuid())
-  email        String @unique
+  id           String  @id @default(cuid())
+  email        String  @unique
   passwordHash String
   name         String
   displayName  String? // editable signature/display name (falls back to name)
@@ -22,12 +22,12 @@ model User {
   role String @default("professional")
 
   // ── Healthcare professional registration ──────────────────
-  mobile       String? // exactly 11 digits
-  profession   String? // doctor | intern_doctor | nurse | medical_technologist | computer_operator
-  registrationNo String? // BMDC / temporary / professional reg no (null for computer_operator)
-  nidNo        String?
-  designation  String?
-  specialty    String?
+  mobile          String? // exactly 11 digits
+  profession      String? // doctor | intern_doctor | nurse | medical_technologist | computer_operator
+  registrationNo  String? // BMDC / temporary / professional reg no (null for computer_operator)
+  nidNo           String?
+  designation     String?
+  specialty       String?
   institutionCode String? // hospital / institution code (optional)
 
   // Uploaded document URLs (Cloudinary)
@@ -38,13 +38,13 @@ model User {
   // Free-form extra certificates the user uploads from their profile page.
   // Each certificate is an image URL with an optional details note —
   // stored as a relation so the pair stays linked even when reordered.
-  otherCertificates OtherCertificate[]
+  otherCertificates   OtherCertificate[]
 
   // ── Verification & approval lifecycle ─────────────────────
-  emailVerified   Boolean @default(false)
-  approvalStatus  String  @default("pending") // pending | approved | suspended | rejected
+  emailVerified   Boolean   @default(false)
+  approvalStatus  String    @default("pending") // pending | approved | suspended | rejected
   rejectionReason String?
-  accountTier     String  @default("secondary") // secondary (new sign-ups) | primary (admin-promoted)
+  accountTier     String    @default("secondary") // secondary (new sign-ups) | primary (admin-promoted)
   // Soft-delete: non-null → the account lives in Trash (recoverable). A
   // restorative admin action (approve / move tier) clears it back to null.
   deletedAt       DateTime?
@@ -98,20 +98,20 @@ model User {
   supervisedPatients PatientSupervisor[]  @relation("SupervisingDoctor")
 
   // IPD wards this user (as a doctor) owns, and the ward teams they are on.
-  wards           Ward[]          @relation("DoctorWards")
+  wards              Ward[]          @relation("DoctorWards")
   ipdTeamMemberships IpdTeamMember[] @relation("IpdTeamMemberships")
 
   // Learned prescribing habits ("my usual dose") — derived from this doctor's
   // own saved prescriptions, never shared across doctors.
-  rxHabits DoctorRxHabit[]
-  phraseHabits DoctorPhraseHabit[]
+  rxHabits      DoctorRxHabit[]
+  phraseHabits  DoctorPhraseHabit[]
   // The doctor's own special advice per medicine / per generic (℞ pad •••).
-  drugAdvice DoctorDrugAdvice[]
+  drugAdvice    DoctorDrugAdvice[]
   // Private notes this user wrote about patients — theirs alone.
   personalNotes DoctorPatientNote[]
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([approvalStatus])
   @@index([deletedAt])
@@ -120,15 +120,15 @@ model User {
 // Real-time activity feed: every add/save a doctor (or their assistant) does is
 // recorded here so the team sees who did what, when. Scoped per doctor account.
 model ActivityLog {
-  id          String  @id @default(cuid())
-  doctorId    String
-  doctor      User    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  doctorId String
+  doctor   User   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 
-  actorName   String  // who performed it (doctor or assistant display name)
+  actorName   String // who performed it (doctor or assistant display name)
   patientId   String?
   patientName String?
-  section     String  // "Drug history", "Chief complaints", "Prescription", …
-  detail      String  // the value added, e.g. "Napa" or "Cough for 7 days"
+  section     String // "Drug history", "Chief complaints", "Prescription", …
+  detail      String // the value added, e.g. "Napa" or "Cough for 7 days"
   action      String  @default("added") // added | saved
   imageUrl    String? // optional attached report image (hosted URL)
 
@@ -205,7 +205,7 @@ model PrescriptionLayout {
   footerHeight String @default("0.8")
 
   // Active prescription type + OPD print layout (chosen in Prescription settings).
-  rxType    String @default("ipd")    // opd | ipd
+  rxType    String @default("ipd") // opd | ipd
   opdLayout String @default("single") // single | extra (extra privacy page)
 
   // Header (single block aligned, or split into two sections)
@@ -304,34 +304,34 @@ model EmailOtp {
 }
 
 model Patient {
-  id               String    @id @default(cuid())
-  name             String
-  hospitalId       String?
-  bloodGroup       String?
-  dob              DateTime?
-  age              Int?
+  id                   String    @id @default(cuid())
+  name                 String
+  hospitalId           String?
+  bloodGroup           String?
+  dob                  DateTime?
+  age                  Int?
   // The calendar year the manual `age` was recorded. With no DOB, displayed age
   // is `age + (currentYear - ageAsOfYear)` so it ticks up by 1 every new year
   // (53 recorded in 2024 → 54 in 2025 → 55 in 2026). Null/0 ⇒ no auto-increment.
-  ageAsOfYear      Int?
-  sex              String?
-  ethnicity        String?
-  religion         String?
-  mobile           String?
-  nid              String? // patient's national ID (searchable)
-  spouseMobile     String?
-  relativeMobile   String?
-  relativeRelation String?
-  district         String?
-  fullAddress      String?
-  monthlyIncome    String?
-  pictureUrl       String?
-  tags             String[]  @default([])
-  watched          Boolean   @default(false) // "Keep eye on this patient"
+  ageAsOfYear          Int?
+  sex                  String?
+  ethnicity            String?
+  religion             String?
+  mobile               String?
+  nid                  String? // patient's national ID (searchable)
+  spouseMobile         String?
+  relativeMobile       String?
+  relativeRelation     String?
+  district             String?
+  fullAddress          String?
+  monthlyIncome        String?
+  pictureUrl           String?
+  tags                 String[]  @default([])
+  watched              Boolean   @default(false) // "Keep eye on this patient"
   // Uploaded document galleries (self-hosted /uploads URLs) shown in the
   // patient's "Prescriptions & reports" view.
-  prescriptionImages String[] @default([])
-  reportImages       String[] @default([])
+  prescriptionImages   String[]  @default([])
+  reportImages         String[]  @default([])
   // Small (400px) copies of the two galleries above, as a SIDE MAP keyed by the
   // full image URL — { [fullUrl]: thumbUrl }. Deliberately not folded into the
   // arrays: those arrays ARE the record (their order is the doctor's chosen
@@ -340,7 +340,7 @@ model Patient {
   // gain a display optimisation. A URL with no entry here simply falls back to
   // the full image, which is how every image stored before this reads. Orphaned
   // keys (an image the doctor removed) are ignored, never purged.
-  imageThumbs        Json?
+  imageThumbs          Json?
   // Fingerprint of the printed sheet behind the most recent AUTO snapshot in
   // `prescriptionImages` (SHA-256 of the HTML "Save & print" rendered). Re-saving
   // a visit the doctor did not change would otherwise file the same sheet into
@@ -348,32 +348,32 @@ model Patient {
   // yet" and always takes a fresh one — including for every patient that
   // existed before this column, and for images the doctor added by hand, which
   // never touch it.
-  lastRxImageKey     String?
+  lastRxImageKey       String?
   // Health-monitoring "Start from / Upto" dates per drug — { [drug]: { sf, upto } }.
   // Display override for the trend chart's medication bars: a blank/absent side
   // falls back to the date derived from drugHistory. Never rewrites drugHistory.
-  hmDrugDates      Json?
+  hmDrugDates          Json?
   // Same shape keyed by the exact chief-complaint text — { [complaint]: { sf, upto } }.
   // Display override for the trend chart's symptom bars. Never rewrites any Prescription.
-  hmSymptomDates   Json?
+  hmSymptomDates       Json?
   // Health-monitoring ticked drug names — persisted so checkbox state survives reload.
-  hmSelectedDrugs  String[]  @default([])
+  hmSelectedDrugs      String[]  @default([])
   // Patient family tree — array of { name, mobile, nid, sex, relation }.
-  familyMembers    Json      @default("[]")
+  familyMembers        Json      @default("[]")
   // Persistent investigation history — array of { date, category, test, value }.
   // Merged from saved prescriptions and the records-page "Add" button.
-  investigationSummary Json  @default("[]")
+  investigationSummary Json      @default("[]")
   // Persistent on-examination history — array of { date, text }. Merged from
   // saved prescriptions; shown on the records page grouped by date.
-  onExaminationSummary Json  @default("[]")
+  onExaminationSummary Json      @default("[]")
   // Persistent drug history — date-stamped entry strings ("dd/mm/yyyy: Drug — …").
   // Current vs distant-past is derived from the date vs the current visit date.
-  drugHistory Json  @default("[]")
+  drugHistory          Json      @default("[]")
   // Saved-but-not-printed prescription editor snapshot. Set while the doctor is
   // mid-prescription (before "Save & print"); restored when the patient is
   // looked up again; cleared once a prescription is completed. Null ⇒ nothing
   // pending (the visit is complete or never started).
-  incompleteRx     Json?
+  incompleteRx         Json?
 
   doctorId String?
   doctor   User?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
@@ -384,8 +384,8 @@ model Patient {
 
   // Per-patient team chat thread, and the doctors assigned to supervise this
   // patient (they get cross-doctor access to the chat).
-  chatMessages PatientChatMessage[]
-  supervisors  PatientSupervisor[]
+  chatMessages  PatientChatMessage[]
+  supervisors   PatientSupervisor[]
   personalNotes DoctorPatientNote[]
 
   createdAt DateTime @default(now())
@@ -393,6 +393,10 @@ model Patient {
 
   @@index([doctorId])
   @@index([name])
+  // List/lookup indexes (manual-list-indexes.sql): the practice list is ordered
+  // by updatedAt, and the ℞ header looks patients up by exact mobile.
+  @@index([doctorId, updatedAt])
+  @@index([doctorId, mobile])
 }
 
 // One message in a patient's team chat. Visible to the patient's owner doctor,
@@ -403,9 +407,9 @@ model PatientChatMessage {
   patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
   authorId      String
   author        User     @relation("ChatAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  authorName    String   // snapshot of the author's display name at send time
+  authorName    String // snapshot of the author's display name at send time
   body          String   @default("")
-  attachmentUrl String?  // optional image/file (hosted URL)
+  attachmentUrl String? // optional image/file (hosted URL)
   createdAt     DateTime @default(now())
 
   @@index([patientId])
@@ -489,9 +493,9 @@ model OpdVisit {
   age    Int?
   gender String?
 
-  type   String @default("New") // New | Follow-up | Urgent
-  token  String
-  status String @default("waiting") // waiting | done
+  type     String  @default("New") // New | Follow-up | Urgent
+  token    String
+  status   String  @default("waiting") // waiting | done
   // Prescription completion for this visit: incomplete (started, not printed) |
   // complete (Save & print done). Null for manually-queued visits.
   rxStatus String? // incomplete | complete
@@ -536,6 +540,7 @@ model IpdAdmission {
   createdAt  DateTime @default(now())
 
   @@index([doctorId])
+  @@index([doctorId, status])
 }
 
 model IpdEvent {
@@ -769,10 +774,29 @@ model DoctorPatientNote {
   patientInfo Json
   /// The note, as formatted HTML from the editor. Sanitised on the client
   /// wherever it is rendered or printed.
-  html String @default("")
+  html        String @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, patientId])
+}
+
+// ── Idempotency ledger (manual-idempotency-key.sql) ──────────
+// One row per (userId, Idempotency-Key). The first request claims the key, its
+// response is stored, and a replay with the same key + same body is answered
+// from here instead of writing a second clinical record. Not patient data:
+// rows are pruned after 24 h. See src/common/idempotency/.
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  userId       String
+  key          String
+  route        String
+  requestHash  String
+  statusCode   Int?
+  responseBody Json?
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([createdAt])
 }

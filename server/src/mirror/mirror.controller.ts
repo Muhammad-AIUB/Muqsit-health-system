@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Header,
+  HttpCode,
   MessageEvent,
   Post,
   Sse,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Observable, finalize, map, startWith } from 'rxjs';
 import { MirrorService } from './mirror.service';
+import { MirrorPublishDto } from './dto/mirror-publish.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -43,11 +45,11 @@ export class MirrorController {
     );
   }
 
+  // Fire-and-forget fan-out to the user's other devices: nothing is created,
+  // so 200 rather than the POST default 201.
   @Post('publish')
-  publish(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { connId: string; type: string; payload: unknown },
-  ) {
+  @HttpCode(200)
+  publish(@CurrentUser() user: AuthenticatedUser, @Body() body: MirrorPublishDto) {
     this.mirror.publish(user.id, body.connId, body.type, body.payload);
     return { ok: true };
   }

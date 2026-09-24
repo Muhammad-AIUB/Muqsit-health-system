@@ -7,9 +7,11 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { PrescriptionsService } from './prescriptions.service';
 import { CreatePrescriptionDto } from './dto/prescription.dto';
+import { IdempotencyInterceptor } from '../common/idempotency/idempotency.interceptor';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkstationGuard } from '../workstations/workstation.guard';
 import { WorkstationDoctorId, ActiveWorkstation } from '../workstations/workstation.decorator';
@@ -21,7 +23,11 @@ import type { Workstation } from '../workstations/workstations.service';
 export class PrescriptionsController {
   constructor(private readonly prescriptions: PrescriptionsService) {}
 
+  // ⚕️ `Idempotency-Key` header: a retry after a dropped connection replays the
+  // stored answer instead of filing the prescription twice (and counting the
+  // habit twice). Without the header the route behaves exactly as before.
   @Post()
+  @UseInterceptors(IdempotencyInterceptor)
   create(
     @WorkstationDoctorId() doctorId: string,
     @ActiveWorkstation() ws: Workstation,

@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsISO8601,
   IsObject,
@@ -131,4 +132,19 @@ export class LinkPatientDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(150) age?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1900) @Max(2200) ageAsOfYear?: number;
   @IsOptional() @IsString() fullAddress?: string;
+}
+
+// GET /patients query. Sort columns are an allowlist (never a raw column name
+// from the URL) and each one is backed by an index — see manual-list-indexes.sql.
+export const PATIENT_SORT_FIELDS = ['updatedAt', 'createdAt', 'name'] as const;
+export type PatientSortField = (typeof PATIENT_SORT_FIELDS)[number];
+
+export class ListPatientsQueryDto {
+  @IsOptional() @IsString() @MaxLength(100) search?: string;
+  @IsOptional() @IsIn(PATIENT_SORT_FIELDS) sort?: PatientSortField;
+  @IsOptional() @IsIn(['asc', 'desc']) order?: 'asc' | 'desc';
+  // Page size. Absent → the whole list (legacy behaviour, what the UI uses).
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit?: number;
+  // The `X-Next-Cursor` header of the previous page.
+  @IsOptional() @IsString() @MaxLength(64) cursor?: string;
 }
