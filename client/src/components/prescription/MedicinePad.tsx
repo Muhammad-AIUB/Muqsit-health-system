@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { useRxHabits } from "@/hooks/useRxHabits";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
+import { rxSuggestReady } from "@/lib/rxSuggest";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
@@ -372,7 +373,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     };
   }, [acRow, rows]);
   const { results: acItems } = useMedicineSearch(acQuery);
-  const { groups: habitGroups, refresh: refreshHabits } = useRxHabits(showHabits ? acQuery : "");
+  // Learned lines wait for 3 letters (lib/rxSuggest.ts); the medicine list above does not.
+  const { groups: habitGroups, refresh: refreshHabits } = useRxHabits(showHabits && rxSuggestReady(acQuery) ? acQuery : "");
   // ⚕️ Free-typed NOTE lines this doctor has written before ("Insulin as
   // before"). The medicine dropdown above learns doses; this learns the plain
   // lines between medicines, which until now learned nothing at all. Same
@@ -383,7 +385,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   const { phrases: notePhrases } = useDoctorPhrases(
     "rxNote",
     acRow !== null ? (rows[acRow]?.drug ?? "") : "",
-    showHabits && noteRowActive,
+    showHabits && noteRowActive && rxSuggestReady(acQuery),
   );
 
   // Which medicine's hidden suggestions the doctor has chosen to reveal.
