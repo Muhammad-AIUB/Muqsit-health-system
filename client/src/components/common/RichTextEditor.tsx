@@ -5,6 +5,7 @@ import { C } from "@/theme";
 import { ApiError, uploadImage } from "@/lib/api";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { highlightedRun, rangeIsHighlighted } from "@/lib/highlight";
+import { SENSITIVE_ATTR, rangeIsSensitive, sensitiveCss, sensitiveRun } from "@/lib/sensitive";
 
 const HIGHLIGHT = "#FFF176";
 
@@ -62,8 +63,11 @@ const RichTextEditor = forwardRef<
     allowImages?: boolean;
     /** Offer a yellow Highlight (marker) button. */
     highlight?: boolean;
+    /** Offer "Sensitive information": text typed while it is on (or a
+     *  selection it is pressed on) is marked, so it can be left off a print. */
+    sensitive?: boolean;
   }
->(function RichTextEditor({ value, onChange, minHeight = 200, placeholder = "Start typing…", allowImages = true, highlight = false }, handleRef) {
+>(function RichTextEditor({ value, onChange, minHeight = 200, placeholder = "Start typing…", allowImages = true, highlight = false, sensitive = false }, handleRef) {
   const ref = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [empty, setEmpty] = useState(true);
@@ -148,6 +152,119 @@ const RichTextEditor = forwardRef<
       return;
     }
     exec("hiliteColor", rangeIsHighlighted(sel.getRangeAt(0), el) ? "transparent" : HIGHLIGHT);
+  };
+
+  // ── Sensitive information ────────────────────────────────
+  // The button reads "on" whenever the caret sits in a sensitive run.
+  const [inSensitive, setInSensitive] = useState(false);
+  useEffect(() => {
+    if (!sensitive) return;
+    const onSel = () => {
+      const el = ref.current;
+      const sel = window.getSelection();
+      if (!el || !sel || !sel.anchorNode || !el.contains(sel.anchorNode)) return;
+      setInSensitive(sensitiveRun(sel.anchorNode, el) !== null);
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, [sensitive]);
+
+  const newRun = () => {
+    const span = document.createElement("span");
+    span.setAttribute(SENSITIVE_ATTR, "1");
+    return span;
+  };
+  const unwrapRuns = (root: ParentNode) => {
+    root.querySelectorAll(`span[${SENSITIVE_ATTR}]`).forEach((s) => s.replaceWith(...s.childNodes));
+  };
+  const caretAt = (node: Node, offset: number) => {
+    const sel = window.getSelection();
+    const r = document.createRange();
+    r.setStart(node, offset);
+    r.collapse(true);
+    sel?.removeAllRanges();
+    sel?.addRange(r);
+  };
+
+  const toggleSensitive = () => {
+    const el = ref.current;
+    const sel = window.getSelection();
+    if (!el || !sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return;
+    const range = sel.getRangeAt(0);
+
+    if (sel.isCollapsed) {
+      const run = sensitiveRun(range.startContainer, el);
+      // A zero-width space gives the caret a text node to type into; the
+      // sanitiser drops it again, so it never reaches the saved note.
+      const anchor = document.createTextNode("​");
+      if (run) {
+        run.after(anchor); // stop marking: carry on typing after the run
+      } else {
+        const span = newRun();
+        span.appendChild(anchor);
+        range.insertNode(span); // start marking: type inside a new run
+      }
+      caretAt(anchor, 1);
+      setInSensitive(!run);
+      el.focus();
+      sync();
+      return;
+    }
+
+    // A selection: marked all through → unmark exactly it; otherwise mark it.
+    const unmark = rangeIsSensitive(range, el);
+    const frag = range.extractContents();
+    unwrapRuns(frag);
+    const first = frag.firstChild, last = frag.lastChild;
+    const host = sensitiveRun(range.startContainer, el);
+    if (unmark && host) {
+      // Split the run around the selection: [host][plain selection][tail].
+      const tailR = document.createRange();
+      tailR.setStart(range.startContainer, range.startOffset);
+      tailR.setEnd(host, host.childNodes.length);
+      const tail = newRun();
+      tail.appendChild(tailR.extractContents());
+      host.after(tail);
+      tail.before(frag);
+      if (!(tail.textContent ?? "").replace(/​/g, "")) tail.remove();
+      if (!(host.textContent ?? "").replace(/​/g, "")) host.remove();
+    } else if (unmark) {
+      range.insertNode(frag);
+    } else {
+      const span = newRun();
+      span.appendChild(frag);
+      range.insertNode(span);
+      if (host) span.replaceWith(...span.childNodes); // already inside a run
+    }
+    if (first && last && first.isConnected && last.isConnected) {
+      const r = document.createRange();
+      r.setStartBefore(first);
+      r.setEndAfter(last);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    // Two runs side by side are one run (one 🔒, not two).
+    el.querySelectorAll(`span[${SENSITIVE_ATTR}]`).forEach((s) => {
+      const prev = s.previousSibling;
+      if (prev instanceof HTMLElement && prev.matches(`span[${SENSITIVE_ATTR}]`)) {
+        prev.append(...s.childNodes);
+        s.remove();
+      }
+    });
+    setInSensitive(!unmark);
+    el.focus();
+    sync();
+  };
+
+  // Enter inside a sensitive run stays inside it — "those lines" are marked
+  // until the doctor turns the button off.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!sensitive || e.key !== "Enter" || e.shiftKey) return;
+    const sel = window.getSelection();
+    if (!ref.current || !sel?.anchorNode || !sensitiveRun(sel.anchorNode, ref.current)) return;
+    e.preventDefault();
+    document.execCommand("insertLineBreak");
+    sync();
   };
 
   const applyColor = (color: string) => {
@@ -262,6 +379,16 @@ const RichTextEditor = forwardRef<
             style={{ background: HIGHLIGHT }}
           />
         )}
+        {sensitive && (
+          <button
+            title={inSensitive ? "Stop marking — what you type next is normal" : "Mark as sensitive information — select text, or press and start typing"}
+            aria-pressed={inSensitive}
+            onMouseDown={(e) => { e.preventDefault(); toggleSensitive(); }}
+            style={{ ...btnStyle, border: `1px dashed #7E57C2`, color: "#4527A0", background: inSensitive ? "#D1C4E9" : "#EDE7F6", fontWeight: inSensitive ? 600 : 400 }}
+          >
+            🔒 Sensitive information
+          </button>
+        )}
         {allowImages && <Sep />}
         {allowImages && <button
           title="Insert image"
@@ -281,10 +408,13 @@ const RichTextEditor = forwardRef<
             {placeholder}
           </div>
         )}
+        {sensitive && <style>{sensitiveCss(".rte-surface")}</style>}
         <div
           ref={ref}
+          className="rte-surface"
           contentEditable
           suppressContentEditableWarning
+          onKeyDown={onKeyDown}
           onInput={sync}
           onBlur={sync}
           onMouseUp={saveSelection}
@@ -307,7 +437,7 @@ const RichTextEditor = forwardRef<
 export default RichTextEditor;
 
 function isBlank(html: string): boolean {
-  return !html || html === "<br>" || html.replace(/<[^>]*>/g, "").replace(/ |&nbsp;/g, "").trim() === "";
+  return !html || html === "<br>" || html.replace(/<[^>]*>/g, "").replace(/ |&nbsp;|​/g, "").trim() === "";
 }
 
 const btnStyle: React.CSSProperties = {

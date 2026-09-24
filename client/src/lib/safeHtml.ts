@@ -2,7 +2,8 @@
 // (the personal patient note). Whatever is stored is rendered back into the
 // page and into a print frame, so it is cleaned on the way OUT, every time:
 // only formatting tags survive, every attribute but a filtered `style` is
-// dropped (no on*, no href/src), and a style keeps only plain typographic
+// dropped (no on*, no href/src; the one exception is the fixed
+// data-sensitive="1" mark on a span), and a style keeps only plain typographic
 // properties with no url()/expression(). Browser-only (DOMParser).
 
 const TAGS = new Set([
@@ -33,7 +34,8 @@ function cleanStyle(style: string): string {
 }
 
 function cleanNode(node: Node, doc: Document): Node | null {
-  if (node.nodeType === Node.TEXT_NODE) return doc.createTextNode(node.textContent ?? "");
+  // Zero-width spaces are the editor's caret anchors (sensitive typing), not text.
+  if (node.nodeType === Node.TEXT_NODE) return doc.createTextNode((node.textContent ?? "").replace(/​/g, ""));
   if (node.nodeType !== Node.ELEMENT_NODE) return null; // comments, etc.
   const el = node as Element;
   const tag = el.tagName.toLowerCase();
@@ -51,6 +53,9 @@ function cleanNode(node: Node, doc: Document): Node | null {
     const s = cleanStyle(style);
     if (s) out.setAttribute("style", s);
   }
+  // The personal note's "sensitive information" mark (lib/sensitive.ts) — the one
+  // data attribute kept, on a span only, with its value fixed to "1".
+  if (tag === "span" && el.hasAttribute("data-sensitive")) out.setAttribute("data-sensitive", "1");
   // <font color/size> is what execCommand writes for colour and size.
   if (tag === "font") {
     const color = el.getAttribute("color");

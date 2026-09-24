@@ -20,6 +20,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, patientNotesApi, type PatientNoteInfo } from "@/lib/api";
 import { isBlankHtml, sanitizeHtml } from "@/lib/safeHtml";
+import { hasSensitive, sensitiveCss, stripSensitive } from "@/lib/sensitive";
 import RichTextEditor from "@/components/common/RichTextEditor";
 
 const INFO_ROWS: { key: keyof PatientNoteInfo; label: string }[] = [
@@ -32,8 +33,12 @@ const INFO_ROWS: { key: keyof PatientNoteInfo; label: string }[] = [
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/** The printable page: this note alone, nothing else from the editor. */
-export function personalNoteHtml(info: PatientNoteInfo, noteHtml: string, printedOn: string): string {
+/** The printable page: this note alone, nothing else from the editor.
+ *  Sensitive runs print only when `sensitive` is true — the doctor's choice at
+ *  Print. Leaving them out is the default, so a caller that forgets to ask
+ *  never puts them on paper. */
+export function personalNoteHtml(info: PatientNoteInfo, noteHtml: string, printedOn: string, opts: { sensitive?: boolean } = {}): string {
+  const body = opts.sensitive ? sanitizeHtml(noteHtml) : stripSensitive(noteHtml);
   const rows = INFO_ROWS.map((r) => `<tr><th>${esc(r.label)}</th><td>${esc(info[r.key] ?? "") || "—"}</td></tr>`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><title>Personal note</title>
 <style>
@@ -46,12 +51,13 @@ export function personalNoteHtml(info: PatientNoteInfo, noteHtml: string, printe
   td { padding: 3px 0; }
   .label { font-weight: 600; margin-bottom: 6px; }
   .note { line-height: 1.5; overflow-wrap: anywhere; }
+  ${sensitiveCss(".note")}
 </style></head><body>
 <h1>My Personal Note for This Patient</h1>
 <div class="sub">Private note · printed ${esc(printedOn)}</div>
 <table>${rows}</table>
 <div class="label">Note</div>
-<div class="note">${sanitizeHtml(noteHtml)}</div>
+<div class="note">${body}</div>
 </body></html>`;
 }
 
@@ -111,6 +117,17 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
   const [confirmClose, setConfirmClose] = useState(false);
+  const [askPrint, setAskPrint] = useState(false);
+
+  // A note with sensitive text asks how to print it; any other prints at once.
+  const onPrint = () => {
+    if (hasSensitive(draft)) { setAskPrint(true); return; }
+    printHtml(personalNoteHtml(info, draft, today));
+  };
+  const printAs = (sensitive: boolean) => {
+    setAskPrint(false);
+    printHtml(personalNoteHtml(info, draft, today, { sensitive }));
+  };
 
   // Once loaded: a note that does not exist yet opens straight into writing.
   useEffect(() => {
@@ -136,7 +153,10 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
     onClose();
   };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (askPrint) setAskPrint(false); else requestClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
@@ -153,7 +173,8 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
-      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", fontFamily: font }}>
+      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", fontFamily: font }}>
+        <style>{sensitiveCss(".pn-view")}</style>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>My Personal Note for This Patient</div>
@@ -189,11 +210,13 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
                     placeholder="Write your personal note…"
                     allowImages={false}
                     highlight
+                    sensitive
                   />
                 ) : isBlankHtml(draft) ? (
                   <div style={{ fontSize: 13, color: C.n[500], padding: "10px 0" }}>No note yet. Press Edit to write one.</div>
                 ) : (
                   <div
+                    className="pn-view"
                     style={{ fontSize: 13.5, color: C.n[900], lineHeight: 1.5, border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "10px 12px", overflowWrap: "anywhere" }}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(draft) }}
                   />
@@ -216,7 +239,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
           </button>
           <button
             type="button"
-            onClick={() => printHtml(personalNoteHtml(info, draft, today))}
+            onClick={onPrint}
             disabled={!q.isSuccess}
             title="Print this personal note only"
             style={btn(false, !q.isSuccess)}
@@ -224,6 +247,21 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
             🖨 Print
           </button>
         </div>
+
+        {askPrint && (
+          <div
+            onMouseDown={(e) => { if (e.target === e.currentTarget) setAskPrint(false); }}
+            style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.75)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          >
+            <div role="dialog" aria-label="Print the note" style={{ width: "min(380px, 100%)", background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.16)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>This note has sensitive information</div>
+              <div style={{ fontSize: 12.5, color: C.n[600] }}>How should it be printed?</div>
+              <button type="button" onClick={() => printAs(true)} style={{ ...btn(false), textAlign: "left" }}>🔒 Print with sensitive information</button>
+              <button type="button" onClick={() => printAs(false)} style={{ ...btn(true), textAlign: "left" }}>Print without sensitive information</button>
+              <button type="button" onClick={() => setAskPrint(false)} style={{ border: "none", background: "none", color: C.n[600], fontSize: 12.5, cursor: "pointer", fontFamily: font, alignSelf: "flex-end" }}>Cancel</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
