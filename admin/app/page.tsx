@@ -143,12 +143,26 @@ function EyeIcon({ off }: { off: boolean }) {
 
 // ── Dashboard (sidebar layout) ───────────────────────────────
 const NAV = [
-  { id: "premium", label: "Premium accounts", icon: "💎" },
-  { id: "primary", label: "Primary accounts", icon: "⭐" },
-  { id: "secondary", label: "Secondary accounts", icon: "👥" },
-  { id: "trash", label: "Trash", icon: "🗑️" },
+  { id: "premium", label: "Premium accounts" },
+  { id: "primary", label: "Primary accounts" },
+  { id: "secondary", label: "Secondary accounts" },
+  { id: "trash", label: "Trash" },
 ] as const;
 type NavId = (typeof NAV)[number]["id"];
+
+// Line icons (24-unit grid, currentColor) so the nav follows its text colour.
+const NAV_ICON: Record<NavId, React.ReactNode> = {
+  premium: <path d="M6 3h12l4 6-10 12L2 9z M2 9h20" />,
+  primary: <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" />,
+  secondary: <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8" />,
+  trash: <path d="M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />,
+};
+
+// Stored dates are shown dd/mm/yyyy across the product.
+const ddmmyyyy = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+};
 
 function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
   const [nav, setNav] = useState<NavId>("primary");
@@ -182,7 +196,9 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
                 cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 15 }}>{item.icon}</span>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+                {NAV_ICON[item.id]}
+              </svg>
               {item.label}
             </button>
           ))}
@@ -250,7 +266,14 @@ function AccountsPage({ mode }: { mode: NavId }) {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>{trash ? "Trash" : mode === "premium" ? "Premium accounts" : mode === "primary" ? "Primary accounts" : "Secondary accounts"}</h1>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 18 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.n900 }}>{NAV.find((n) => n.id === mode)?.label}</h1>
+        {!loading && (
+          <span style={{ fontSize: 13, color: C.n600, fontVariantNumeric: "tabular-nums" }}>
+            {q ? `${filtered.length} of ${visible.length}` : visible.length} {visible.length === 1 ? "account" : "accounts"}
+          </span>
+        )}
+      </div>
 
       <input
         value={search}
@@ -320,7 +343,7 @@ function AccountsPage({ mode }: { mode: NavId }) {
                       })()}
                     </td>
                   )}
-                  <td style={td}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                  <td style={{ ...td, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{ddmmyyyy(r.createdAt)}</td>
                   <td style={td}>
                     <RowActions reg={r} mode={mode} onChanged={load} />
                   </td>
