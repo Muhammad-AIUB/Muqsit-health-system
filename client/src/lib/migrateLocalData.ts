@@ -39,8 +39,8 @@ export async function migrateLocalDataToServer(userId?: string): Promise<boolean
   // so a transient error retries next session instead of permanently losing data.
   let hadError = false;
 
-  // 1 · Prescription templates → server (drop the local copy only once every
-  // template in the key persisted).
+  // 1 · Prescription templates → server (a template leaves the local copy only
+  // once it persisted; the key goes when none are left).
   for (const [cat, key] of Object.entries(TPL_KEYS) as [TemplateCategory, string][]) {
     const raw = ls.getItem(key);
     if (!raw) continue;
@@ -51,18 +51,21 @@ export async function migrateLocalDataToServer(userId?: string): Promise<boolean
       ls.removeItem(key); // unparseable — nothing to migrate, safe to drop
       continue;
     }
-    let allOk = true;
-    for (const t of Array.isArray(list) ? list : []) {
-      if (!t?.name) continue;
+    // Each template that persisted leaves the stored list at once, so a retry
+    // re-sends only the failures (keeping the whole key re-posted the successes
+    // as duplicates next session).
+    const pending = (Array.isArray(list) ? list : []).filter((t) => t?.name);
+    for (const t of [...pending]) {
       try {
-        await templatesApi.create({ category: cat, name: t.name, items: t.items ?? [] });
+        await templatesApi.create({ category: cat, name: t.name!, items: t.items ?? [] });
         movedSomething = true;
+        pending.splice(pending.indexOf(t), 1);
+        if (pending.length) ls.setItem(key, JSON.stringify(pending));
       } catch {
-        allOk = false;
         hadError = true;
       }
     }
-    if (allOk) ls.removeItem(key);
+    if (!pending.length) ls.removeItem(key);
   }
 
   // 2 · Prescription type + OPD layout preference → server.

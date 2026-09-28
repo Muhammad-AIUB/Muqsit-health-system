@@ -45,10 +45,12 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
 
   // State: radio/select store the selected option index (string); number stores
   // the raw numeric string; toggle stores "true"/""; units store the unit string.
+  // ⚕️ Radios/selects start UNSELECTED ("" → placeholder). Seeding option 0 made
+  // every `required` choice silently answered (NEWS opened at 15 "High risk",
+  // eGFR/CHA₂DS₂-VASc picked a sex) — the doctor must pick each one.
   const initial = useMemo(() => {
     const o: Record<string, string> = {};
     fields.forEach((f) => {
-      if ((f.type === "radio" || f.type === "select") && f.options && f.options.length) o[f.id] = "0";
       if (f.units && f.units.length) o[f.id + "Unit"] = f.defaultUnit || f.units[0];
     });
     return o;
@@ -65,8 +67,9 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
     if (f.dependsOn) {
       const dep = fields.find((x) => x.id === f.dependsOn!.field);
       if (dep && (dep.type === "radio" || dep.type === "select") && dep.options) {
-        const idx = Number(vals[dep.id] ?? "0");
-        const depVal = dep.options[idx]?.value;
+        const raw = vals[dep.id];
+        // Unselected parent → its dependants stay hidden.
+        const depVal = raw === undefined || raw === "" ? undefined : dep.options[Number(raw)]?.value;
         if (depVal !== f.dependsOn.value) return false;
       }
     }
@@ -74,8 +77,8 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
     if (calcId === "bmi" && f.id === "height") {
       const hu = fields.find((x) => x.id === "heightUnit");
       if (hu && hu.options) {
-        const idx = Number(vals.heightUnit ?? "0");
-        if (hu.options[idx]?.value === "ft+in") return false;
+        const raw = vals.heightUnit;
+        if (raw !== undefined && raw !== "" && hu.options[Number(raw)]?.value === "ft+in") return false;
       }
     }
     return true;
@@ -169,7 +172,8 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
     let control;
     if (f.type === "radio" || f.type === "select" || (f.type === "toggle" && f.options)) {
       control = (
-        <select value={vals[f.id] ?? "0"} onChange={(e) => set(f.id, e.target.value)} style={{ ...inp, padding: "6px 4px" }}>
+        <select value={vals[f.id] ?? ""} onChange={(e) => set(f.id, e.target.value)} style={{ ...inp, padding: "6px 4px" }}>
+          <option value="" disabled={f.required}>{f.required ? "Select…" : "Not specified"}</option>
           {(f.options || []).map((o, i) => <option key={i} value={String(i)}>{o.label}</option>)}
         </select>
       );

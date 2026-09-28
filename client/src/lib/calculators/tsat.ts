@@ -15,21 +15,26 @@ function toIronUgDL(value: number, unit: string): number {
   if (unit === 'µg/dL') return value
   if (unit === 'µmol/L') return value * 5.585 // 1 µmol/L Fe = 5.585 µg/dL
   if (unit === 'mmol/L') return value * 5585
-  return value
+  return NaN // unsupported unit
 }
 
+// Unsupported (method, unit) pairs return NaN — never pass the number through
+// as if it were µg/dL (TIBC 2.5 g/L read as 2.5 µg/dL gave TSAT 3200%).
+// Transferrin in µmol/L / µg/dL is not converted: it needs a molecular weight
+// this module does not carry.
 function toTIBCUgDL(value: number, unit: string, method: 'tibc' | 'transferrin'): number {
   if (method === 'tibc') {
     if (unit === 'µg/dL') return value
     if (unit === 'µmol/L') return value * 5.585
-    return value
-  } else {
+    return NaN
+  } else if (method === 'transferrin') {
     // Transferrin → TIBC: TIBC (µg/dL) ≈ Transferrin (mg/dL) × 1.389
     if (unit === 'mg/dL') return value * 1.389
     if (unit === 'g/L') return (value * 100) * 1.389
     if (unit === 'g/dL') return (value * 1000) * 1.389
-    return value * 1.389
+    return NaN
   }
+  return NaN
 }
 
 function getIronStatus(tsat: number, ferritin?: number): {
@@ -86,6 +91,18 @@ function getIronStatus(tsat: number, ferritin?: number): {
 export function calculateTSAT(input: TSATInput): CalculationResult {
   const ironUgDL = toIronUgDL(input.serumIron, input.serumIronUnit)
   const tibcUgDL = toTIBCUgDL(input.tibcValue, input.tibcUnit, input.tibcMethod)
+
+  if (Number.isNaN(ironUgDL) || Number.isNaN(tibcUgDL)) {
+    return {
+      calculatorId: 'tsat',
+      severity: 'neutral',
+      label: 'Invalid',
+      interpretation: Number.isNaN(ironUgDL)
+        ? `Unsupported serum iron unit: ${input.serumIronUnit}`
+        : `Unsupported unit for ${input.tibcMethod === 'transferrin' ? 'transferrin' : 'TIBC'}: ${input.tibcUnit}`,
+      timestamp: new Date().toISOString(),
+    }
+  }
 
   if (tibcUgDL <= 0) {
     return {

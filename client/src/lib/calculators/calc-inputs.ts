@@ -79,7 +79,7 @@ export const INPUT_OVERRIDES: Record<string, CalculatorInput[]> = {
     { id: 'biliaryChanges', label: 'Histology: biliary changes', type: 'radio', required: true, options: [ { value: -3, label: 'Yes (-3)' }, { value: 0, label: 'No (0)' } ] },
     { id: 'otherChanges', label: 'Histology: other changes', type: 'radio', required: true, options: [ { value: -3, label: 'Yes (-3)' }, { value: 0, label: 'No (0)' } ] },
     { id: 'autoimmuneDisease', label: 'Other autoimmune disease(s)', type: 'radio', required: true, options: [ { value: 2, label: 'Yes (+2)' }, { value: 0, label: 'No (0)' } ] },
-    { id: 'responseTherapy', label: 'Response to therapy', type: 'radio', required: true, options: [ { value: 2, label: 'Complete (+2)' }, { value: 3, label: 'Relapse (+3)' } ] },
+    { id: 'responseTherapy', label: 'Response to therapy', type: 'radio', required: true, options: [ { value: 0, label: 'Not treated / not assessed (0)' }, { value: 2, label: 'Complete (+2)' }, { value: 3, label: 'Relapse (+3)' } ] },
   ],
   'cdai': [
     { id: 'tenderJointCount', label: 'Tender joint count', type: 'number', required: true, min: 0 },
@@ -333,7 +333,7 @@ export const INPUT_OVERRIDES: Record<string, CalculatorInput[]> = {
   ],
   'blood-volume': [
     { id: 'patientType', label: 'Patient', type: 'select', required: true, options: [ { value: 'preterm', label: 'Preterm neonate' }, { value: 'term', label: 'Term neonate' }, { value: 'infant', label: 'Infant 1-4 months' }, { value: 'child', label: 'Child <25 kg' }, { value: 'adult', label: 'Child ≥25 kg or adult' } ] },
-    { id: 'sex', label: 'Sex', type: 'select', required: true, options: [ { value: '', label: 'Select sex…' }, { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' } ], dependsOn: { field: 'patientType', value: 'adult' } },
+    { id: 'sex', label: 'Sex', type: 'select', required: true, options: [ { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' } ], dependsOn: { field: 'patientType', value: 'adult' } },
     { id: 'heightCm', label: 'Height (cm)', type: 'number', required: false, min: 0, max: 250, dependsOn: { field: 'patientType', value: 'adult' } },
     { id: 'weightKg', label: 'Weight (kg)', type: 'number', required: true, min: 0, max: 300 },
     { id: 'hematocrit', label: 'Hematocrit (%)', type: 'number', required: false, min: 0, max: 70 },

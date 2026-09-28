@@ -831,7 +831,7 @@ export const CALCULATORS: Calculator[] = [
     bgColor: 'bg-blue-50',
     tags: ['creatinine clearance', 'CrCl', 'Cockcroft-Gault', 'renal function', 'IBW', 'ABW'],
     inputs: [
-      { id: 'sex',        label: 'Sex',         type: 'radio',  required: true  },
+      { id: 'sex',        label: 'Sex',         type: 'radio',  required: true, options: [{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }] },
       { id: 'age',        label: 'Age',         type: 'number', required: true,  min: 1, max: 120 },
       { id: 'weight',     label: 'Weight (kg)', type: 'number', required: true,  min: 1, max: 300 },
       { id: 'creatinine', label: 'Creatinine',  type: 'number', required: true,  min: 0.1, max: 30 },

@@ -53,6 +53,10 @@ async function shrink(file: File, maxDim: number, quality: number): Promise<File
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
+    // JPEG has no alpha: a transparent PNG encoded as-is turns black, and a
+    // scanned report with black text on a transparent page became black-on-black.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
     ctx.drawImage(bitmap, 0, 0, w, h);
 
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));

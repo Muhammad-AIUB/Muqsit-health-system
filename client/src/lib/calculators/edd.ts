@@ -89,7 +89,9 @@ export function calculateEDD(input: EDDInput): CalculationResult {
     // Naegele's rule: LMP + 280 days + cycle correction
     edd = addDays(lmp, 280 + cycleDiff)
 
-    const totalDaysPregnant = differenceInDays(today, lmp)
+    // Count GA from the same cycle-corrected LMP the EDD and milestones use —
+    // counting from the raw LMP put the header a week off its own EDD (35-day cycle).
+    const totalDaysPregnant = differenceInDays(today, addDays(lmp, cycleDiff))
     gaWeeksToday = Math.floor(totalDaysPregnant / 7)
     gaDaysToday = totalDaysPregnant % 7
   } else if (input.method === 'ultrasound' && input.scanDate && input.gestationalWeeks !== undefined) {

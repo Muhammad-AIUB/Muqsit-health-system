@@ -80,11 +80,30 @@ async function tiffToJpeg(file: File, quality: number): Promise<Blob> {
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('no 2d context');
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer), w, h), 0, 0);
+  // putImageData replaces pixels (no compositing), so a background fill would be
+  // ignored — flatten the alpha onto white in the pixel data before encoding.
+  ctx.putImageData(new ImageData(flattenOntoWhite(rgba), w, h), 0, 0);
 
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', quality));
   if (!blob) throw new Error('canvas produced nothing');
   return blob;
+}
+
+/**
+ * RGBA pixels composited onto an opaque white background. JPEG has no alpha, so
+ * a transparent pixel encodes as black — black text on a transparent page came
+ * out black-on-black.
+ */
+export function flattenOntoWhite(rgba: ArrayLike<number>): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(rgba.length);
+  for (let i = 0; i + 3 < rgba.length; i += 4) {
+    const a = rgba[i + 3] / 255;
+    out[i] = rgba[i] * a + 255 * (1 - a);
+    out[i + 1] = rgba[i + 1] * a + 255 * (1 - a);
+    out[i + 2] = rgba[i + 2] * a + 255 * (1 - a);
+    out[i + 3] = 255;
+  }
+  return out;
 }
 
 /**

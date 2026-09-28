@@ -52,7 +52,15 @@ function toMcgKgMin(dose: number, unit: string, weightKg: number): number {
     return (dose / 60) / weightKg
   }
 
-  return dose
+  if (unit === 'mcg/hr') {
+    // mcg/hr → mcg/min → mcg/kg/min
+    return (dose / 60) / weightKg
+  }
+
+  if (unit === 'ng/kg/min') return dose / 1000
+
+  // Unknown unit: never read it as mcg/kg/min (50 ng/kg/min became VIS 5000).
+  return NaN
 }
 
 function getVIS(drugs: VasopressorDrug[], weightKg: number): number {
@@ -68,6 +76,8 @@ function getVIS(drugs: VasopressorDrug[], weightKg: number): number {
     vis += mcgKgMin * multiplier
   }
 
+  // round() turns NaN into 0 — an unsupported unit must stay invalid, not read as VIS 0.
+  if (!Number.isFinite(vis)) return NaN
   return MedicalUnitConverter.round(vis, 1)
 }
 
@@ -78,6 +88,19 @@ export function calculateVasopressor(input: VasopressorInput): CalculationResult
   }
 
   const vis = getVIS(input.drugs, weightKg)
+
+  if (!Number.isFinite(vis)) {
+    const bad = input.drugs.filter((d) => d.enabled && d.dose > 0 && !Number.isFinite(toMcgKgMin(d.dose, d.unit, weightKg)))
+    return {
+      calculatorId: 'vasopressor',
+      severity: 'neutral',
+      label: 'Invalid',
+      interpretation: bad.length
+        ? `Unsupported dose unit: ${bad.map((d) => `${d.name} (${d.unit})`).join(', ')}`
+        : 'Enter a valid patient weight and doses',
+      timestamp: new Date().toISOString(),
+    }
+  }
 
   let severity: 'success' | 'warning' | 'danger'
   let interpretation: string

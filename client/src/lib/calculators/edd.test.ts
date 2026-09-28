@@ -46,3 +46,20 @@ describe("typed date -> EDD", () => {
       .toEqual({ ok: false, reason: "future" });
   });
 });
+
+describe("LMP dating with a long cycle", () => {
+  it("counts gestational age from the same cycle-corrected LMP as the EDD", () => {
+    // A 35-day cycle moves the effective LMP 7 days later. GA today must be
+    // exactly 280 days before the EDD, not a week ahead of it.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lmp = new Date(today);
+    lmp.setDate(lmp.getDate() - (30 * 7 + 2)); // raw LMP 30w2d ago
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const lmpIso = `${lmp.getFullYear()}-${pad(lmp.getMonth() + 1)}-${pad(lmp.getDate())}`;
+
+    const r = calculateEDD({ method: "lmp", lmpDate: lmpIso, cycleLength: 35 });
+    expect(r.details?.find((d) => d.label === "Gestational Age")?.value).toBe("29w 2d");
+    expect(r.details?.find((d) => d.label === "Days Until EDD")?.value).toBe(280 - (29 * 7 + 2));
+  });
+});
