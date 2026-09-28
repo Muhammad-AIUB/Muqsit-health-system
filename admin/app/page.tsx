@@ -61,6 +61,7 @@ export default function AdminApp() {
 function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -94,7 +95,18 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
           <label style={lblStyle}>Email</label>
           <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="Enter your email" autoComplete="off" />
           <label style={{ ...lblStyle, marginTop: 14 }}>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="••••••••" />
+          <div style={{ position: "relative" }}>
+            <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={{ ...inpStyle, paddingRight: 42 }} />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? "Hide password" : "Show password"}
+              title={showPw ? "Hide password" : "Show password"}
+              style={eyeBtn}
+            >
+              <EyeIcon off={showPw} />
+            </button>
+          </div>
           {error && <div style={errBox}>{error}</div>}
           <button onClick={submit} disabled={loading} style={{ ...btnPri, width: "100%", marginTop: 18, opacity: loading ? 0.7 : 1 }}>
             {loading ? "Please wait…" : "Sign in"}
@@ -102,6 +114,17 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// Eye / eye-with-slash, drawn inline so the admin app needs no icon library.
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+      {off && <line x1="3" y1="3" x2="21" y2="21" />}
+    </svg>
   );
 }
 
@@ -370,6 +393,7 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
 // ── Shared styles ────────────────────────────────────────────
 const lblStyle: React.CSSProperties = { fontSize: 12, color: C.n600, display: "block", marginBottom: 5 };
 const inpStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+const eyeBtn: React.CSSProperties = { position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 6, background: "transparent", color: C.n600, cursor: "pointer" };
 const errBox: React.CSSProperties = { fontSize: 12, color: C.dangerDark, background: C.dangerLight, borderRadius: 8, padding: "8px 12px", marginTop: 12 };
 const btnPri: React.CSSProperties = { padding: "10px 20px", borderRadius: 8, border: "none", background: C.pri, color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer" };
 const btnDanger: React.CSSProperties = { padding: "10px 20px", borderRadius: 8, border: "none", background: C.danger, color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer" };
