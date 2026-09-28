@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
@@ -15,7 +15,7 @@ import InvestigationFindingsField from "@/components/investigation/Investigation
 import { suggestionDB, advisedTestSuggestions } from "@/data/suggestions";
 import { useIpdEvents, useAddIpdEvent, useUpdateIpd, type IpdAdmission } from "@/hooks/useIpd";
 import { useWards } from "@/hooks/useWards";
-import type { IpdClinical, IpdFollowUp, IpdFollowUpEntry } from "@/lib/api";
+import { ApiError, type IpdClinical, type IpdFollowUp, type IpdFollowUpEntry } from "@/lib/api";
 
 const fmtAdmit = (iso: string) =>
   new Date(iso).toLocaleDateString("default", { day: "numeric", month: "short", year: "numeric" });
@@ -90,7 +90,12 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // We borrow them for this admission while the detail is open (loading the
   // admission's findings on enter, restoring the prescription draft on leave),
   // so the IPD investigation field is the *same* popup as the prescription page.
-  const { investigation, setInvestigation, invImages, setInvImages, setShowInvPopup } = useMuqsit();
+  //
+  // ⚕️ The loan goes through the context (`beginInvBorrow`/`endInvBorrow`), not a
+  // local copy: while these fields hold the admission's findings, the editor's
+  // auto-save must not file them in the loaded OPD patient's draft/incompleteRx,
+  // and only the context can stand it down.
+  const { investigation, setInvestigation, invImages, setInvImages, setShowInvPopup, beginInvBorrow, endInvBorrow } = useMuqsit();
 
   const c = admission.clinical ?? {};
   const [age, setAge] = useState(admission.age != null ? String(admission.age) : "");
@@ -98,14 +103,16 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   const { data: wards = [] } = useWards();
   const [wardId, setWardId] = useState(admission.wardId ?? "");
 
-  const snapRef = useRef<{ inv: string[]; img: Record<string, string> } | null>(null);
+  // Held for the whole mount — switching admissions keeps the loan, so the OPD
+  // patient's values are never mistaken for the previous admission's.
   useEffect(() => {
-    snapRef.current = { inv: investigation, img: invImages };
+    beginInvBorrow();
+    return () => endInvBorrow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
     setInvestigation(admission.clinical?.investigation ?? []);
     setInvImages(admission.clinical?.invImages ?? {});
-    return () => {
-      if (snapRef.current) { setInvestigation(snapRef.current.inv); setInvImages(snapRef.current.img); }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admission.id]);
 
@@ -187,14 +194,25 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // fields alone: the server replaces the whole object, so any key this build
   // does not list here would be deleted from the patient's record on save.
   // `mergeIpdClinical` is where that rule and its reasoning live.
-  const buildClinical = (followUpsOverride?: IpdFollowUpEntry[]): IpdClinical =>
-    mergeIpdClinical(admission.clinical, {
+  //
+  // `analogueSheets` is then taken back OUT. Those pages are written through
+  // their own `/ipd/:id/analogue` routes the moment they change, and the copy in
+  // `admission.clinical` can be older than the server's — a page photographed on
+  // another device since this admission was fetched. The server treats a present
+  // key as authoritative (`ipd.service.ts#preserveAnalogueSheets`), so sending it
+  // would erase that page; an ABSENT key makes the server carry the stored pages
+  // forward.
+  const buildClinical = (followUpsOverride?: IpdFollowUpEntry[]): IpdClinical => {
+    const clinical = mergeIpdClinical(admission.clinical, {
       diagnosis, chiefComplaints, chiefComplaintsNotes: chiefNotes, symptoms, symptomsNotes: symptomNotes,
       investigation, procedure, procedureNotes: procNotes, plan, adviceTests,
       followUps: followUpsOverride ?? followUps,
       rxItems: rxItemsFromRows(rows),
       invImages,
     });
+    delete clinical.analogueSheets;
+    return clinical;
+  };
 
   const persist = async (clinical: IpdClinical) => {
     try {
@@ -232,11 +250,19 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   };
 
 
+  // A note that did not reach the server says so beside Send and keeps the
+  // typed text — failing silently would read as "recorded" on a ward feed.
+  const [sendErr, setSendErr] = useState("");
   const sendEvent = async () => {
     const msg = eventMsg.trim();
     if (!msg) return;
-    await addEvent.mutateAsync({ id: admission.id, note: msg });
-    setEventMsg("");
+    setSendErr("");
+    try {
+      await addEvent.mutateAsync({ id: admission.id, note: msg });
+      setEventMsg("");
+    } catch (e) {
+      setSendErr(e instanceof ApiError ? `Not sent: ${e.message}` : "Not sent. Check the connection and try again.");
+    }
   };
 
   // The three panes are defined here, not inlined, so the view switcher above
@@ -429,6 +455,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
               style={{ flex: 1, resize: "none", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, padding: "8px 10px", fontSize: 12, fontFamily: font, color: C.n[800], outline: "none", lineHeight: 1.5, background: C.n[50] }} />
             <button onClick={() => void sendEvent()} disabled={addEvent.isPending} style={{ ...btnSave, alignSelf: "flex-end" }}>{addEvent.isPending ? "…" : "Send"}</button>
           </div>
+          {sendErr && <div role="alert" style={{ padding: "0 14px 10px", fontSize: 11.5, color: C.danger[800] }}>{sendErr}</div>}
         </div>
       </div>
     </div>

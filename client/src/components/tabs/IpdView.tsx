@@ -7,6 +7,7 @@ import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 import { useWards } from "@/hooks/useWards";
+import { ApiError } from "@/lib/api";
 import { useMuqsit } from "@/context/MuqsitContext";
 
 // Sentinel for "not one of my wards — let me type it". Not a ward id, so it can
@@ -47,6 +48,9 @@ export default function IpdView() {
   const [diagnosis, setDiagnosis] = useState("");
   // Set when a patient is chosen from the mobile lookup — ties the admission to them.
   const [patientId, setPatientId] = useState<string | undefined>(undefined);
+  // Why the last Admit was refused (e.g. 409 "Bed B-3 is already occupied").
+  // The form stays filled so the doctor only has to change the bed.
+  const [admitError, setAdmitError] = useState("");
 
   // Search the ward list by mobile number (like the Rx page).
   const [search, setSearch] = useState("");
@@ -77,20 +81,26 @@ export default function IpdView() {
 
   const submitAdmit = async () => {
     if (!bed.trim() || !name.trim() || mobileInvalid) return;
-    await admit.mutateAsync({
-      bed: bed.trim(),
-      name: name.trim(),
-      patientId,
-      hospitalId: hospitalId.trim() || undefined,
-      roomNo: roomNo.trim() || undefined,
-      wardNo: wardNo.trim() || undefined,
-      // Only send the key when a listed ward was chosen — the server refuses a
-      // ward that is not this doctor's, and rewrites wardNo to its real name.
-      ...(wardId ? { wardId } : {}),
-      floorBuilding: floorBuilding.trim() || undefined,
-      mobile: mobile.trim() || undefined,
-      diagnosis: diagnosis.trim() || undefined,
-    });
+    setAdmitError("");
+    try {
+      await admit.mutateAsync({
+        bed: bed.trim(),
+        name: name.trim(),
+        patientId,
+        hospitalId: hospitalId.trim() || undefined,
+        roomNo: roomNo.trim() || undefined,
+        wardNo: wardNo.trim() || undefined,
+        // Only send the key when a listed ward was chosen — the server refuses a
+        // ward that is not this doctor's, and rewrites wardNo to its real name.
+        ...(wardId ? { wardId } : {}),
+        floorBuilding: floorBuilding.trim() || undefined,
+        mobile: mobile.trim() || undefined,
+        diagnosis: diagnosis.trim() || undefined,
+      });
+    } catch (e) {
+      setAdmitError(e instanceof ApiError ? e.message : "Could not admit — check the connection and try again.");
+      return;
+    }
     setBed(""); setName(""); setHospitalId(""); setRoomNo(""); setWardNo(""); setWardId(""); setFloorBuilding(""); setMobile(""); setDiagnosis(""); setPatientId(undefined);
     setShowAdd(false);
   };
@@ -113,7 +123,7 @@ export default function IpdView() {
             🧞 Nursing Genie <span style={{ fontSize: 9, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
           </button>
         </div>
-        <button onClick={() => setShowAdd((s) => !s)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font }}>
+        <button onClick={() => { setShowAdd((s) => !s); setAdmitError(""); }} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font }}>
           {showAdd ? "Close" : "+ Admit patient"}
         </button>
       </div>
@@ -168,6 +178,9 @@ export default function IpdView() {
           <button onClick={submitAdmit} disabled={admit.isPending || !bed.trim() || !name.trim() || mobileInvalid} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font, opacity: admit.isPending || !bed.trim() || !name.trim() || mobileInvalid ? 0.6 : 1 }}>
             {admit.isPending ? "Admitting…" : "Admit"}
           </button>
+          {admitError && (
+            <div role="alert" style={{ flex: "1 1 100%", fontSize: 11, color: C.danger[800] }}>{admitError}</div>
+          )}
         </div>
       )}
 

@@ -58,7 +58,9 @@ export default function MessageView() {
                 <div style={{ fontSize: 11, color: C.n[500] }}>
                   {[meta(selected), selected.hospitalId ? `ID ${selected.hospitalId}` : "", `Owner: ${selected.ownerName || "—"}`].filter(Boolean).join(" · ")}
                 </div>
-                <PatientChat patientId={selected.id} patientName={selected.name} />
+                {/* Keyed by patient: nothing typed or attached for one patient may
+                    survive into another patient's thread. */}
+                <PatientChat key={selected.id} patientId={selected.id} patientName={selected.name} />
               </div>
             ) : (
               <div style={{ padding: 50, textAlign: "center", color: C.n[500], fontSize: 13, border: `0.5px dashed ${C.n[200]}`, borderRadius: 10 }}>

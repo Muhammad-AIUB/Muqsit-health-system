@@ -15,7 +15,7 @@ export default function InvestigationGroups({ selected, apply }: {
   selected: string[];
   apply: (add: string[], remove: string[]) => void;
 }) {
-  const { groups, isLoading } = useInvestigationPrefs();
+  const { groups, isLoading, loaded } = useInvestigationPrefs();
   const [adding, setAdding] = useState(false);
 
   return (
@@ -27,7 +27,10 @@ export default function InvestigationGroups({ selected, apply }: {
       >+ Add new group</button>
 
       <div style={{ marginTop: 14 }}>
-        {!isLoading && groups.length === 0 && (
+        {!isLoading && !loaded && (
+          <div style={{ padding: "22px 12px", textAlign: "center", color: C.n[500], fontSize: 12.5 }}>Could not load your investigation groups.</div>
+        )}
+        {loaded && groups.length === 0 && (
           <div style={{ padding: "22px 12px", textAlign: "center", color: C.n[500], fontSize: 12.5 }}>No investigation groups yet.</div>
         )}
         {groups.map((g) => {
@@ -56,7 +59,7 @@ export default function InvestigationGroups({ selected, apply }: {
 }
 
 function NewGroupModal({ onClose }: { onClose: () => void }) {
-  const { groups } = useInvestigationPrefs();
+  const { groups, loaded } = useInvestigationPrefs();
   const save = useSaveInvestigationGroups();
   const [name, setName] = useState("");
   const [tests, setTests] = useState<string[]>([]);
@@ -73,6 +76,9 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
   };
   const toggle = (t: string) => setTests((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]));
   const submit = async () => {
+    // Saving sends the whole list; built on a not-yet-loaded (empty) list it
+    // would wipe the doctor's saved groups.
+    if (!loaded) { setProblem("Group NOT saved: your saved groups have not loaded yet. Please wait a moment and try again."); return; }
     const why = newGroupProblem(name, tests, groups);
     if (why) { setProblem(why); return; }
     setProblem(null);

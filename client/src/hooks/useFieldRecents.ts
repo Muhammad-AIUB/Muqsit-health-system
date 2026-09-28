@@ -17,6 +17,10 @@ export function useFieldRecents() {
     staleTime: 60_000,
   });
   const map = (data?.fieldRecents ?? {}) as Record<string, string[]>;
+  // The server REPLACES the whole fieldRecents map, and addRecents sends the
+  // whole map — so until the profile has loaded (or if it failed) `map` is an
+  // empty stand-in and saving would wipe every other field's recents.
+  const loaded = data !== undefined;
 
   const save = useMutation({
     mutationFn: (next: Record<string, string[]>) => usersApi.update({ fieldRecents: next }),
@@ -36,12 +40,12 @@ export function useFieldRecents() {
 
   // Merge new entries newest-first, de-duplicated and capped, then persist.
   const addRecents = (label: string, newOnes: string[]) => {
-    if (!newOnes.length) return;
+    if (!loaded || !newOnes.length) return;
     const prev = map[label] ?? [];
     const merged = [...newOnes, ...prev.filter((p) => !newOnes.includes(p))].slice(0, RECENT_LIMIT);
     if (merged.length === prev.length && merged.every((v, i) => v === prev[i])) return; // no change
     save.mutate({ ...map, [label]: merged });
   };
 
-  return { getRecents, addRecents };
+  return { getRecents, addRecents, loaded };
 }

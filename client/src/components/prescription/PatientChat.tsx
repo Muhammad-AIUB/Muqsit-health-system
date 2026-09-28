@@ -39,6 +39,19 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // ⚕️ A half-typed note or attached file belongs to the patient it was
+  // written for. When the patient changes under a mounted chat (the editor
+  // loads another patient, or a caller reuses this instance), drop both — Send
+  // would otherwise post patient A's note/photo into patient B's team thread.
+  const patientRef = useRef(currentPatient);
+  patientRef.current = currentPatient;
+  const [draftFor, setDraftFor] = useState(currentPatient);
+  if (draftFor !== currentPatient) {
+    setDraftFor(currentPatient);
+    setText("");
+    setPendingFile(null);
+  }
+
   // Keep the latest message in view.
   useEffect(() => {
     const el = scrollRef.current;
@@ -49,9 +62,12 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
 
   const onAttach = async (file?: File) => {
     if (!file) return;
+    const forPatient = currentPatient;
     setUploading(true);
     try {
       const url = await uploadImage(file);
+      // Resolved after a patient switch: it was meant for the previous patient.
+      if (patientRef.current !== forPatient) return;
       setPendingFile({ url, name: file.name });
     } catch {
       window.alert("Could not upload the file.");
@@ -63,9 +79,11 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
   const submit = async () => {
     const body = text.trim();
     if (!body && !pendingFile) return;
+    const forPatient = currentPatient;
     try {
       await send.mutateAsync({ body: body || undefined, attachmentUrl: pendingFile?.url });
-      setText(""); setPendingFile(null);
+      // Don't wipe a draft already started for the next patient.
+      if (patientRef.current === forPatient) { setText(""); setPendingFile(null); }
     } catch {
       window.alert("Could not send the message.");
     }

@@ -20,6 +20,9 @@ export function useInvestigationPrefs() {
     unitPrefs: q.data?.investigationUnitPrefs ?? {},
     groups: safeGroups(q.data?.investigationGroups),
     isLoading: q.isLoading,
+    // True only once the profile actually arrived. While loading or after a
+    // failed load `groups` is an empty stand-in, not the doctor's real list.
+    loaded: q.data !== undefined,
   };
 }
 
@@ -63,10 +66,18 @@ export function useSaveUnitPrefs() {
 // The doctor's investigation groups. NOT optimistic: the "Add new group"
 // window waits for the server and stays open with the doctor's work if the save
 // fails, so a group that was never stored can't look saved.
+// The server REPLACES the stored list, and callers send the whole list built
+// from `groups` — so a save before the profile has loaded would be built on the
+// empty stand-in and wipe every saved group. Refused until it has loaded.
 export function useSaveInvestigationGroups() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (investigationGroups: InvestigationGroup[]) => usersApi.update({ investigationGroups }),
+    mutationFn: async (investigationGroups: InvestigationGroup[]) => {
+      if (qc.getQueryData<ProfileMe>(KEY) === undefined) {
+        throw new Error("your saved groups have not loaded yet. Please wait a moment and try again.");
+      }
+      return usersApi.update({ investigationGroups });
+    },
     onSuccess: (profile) => qc.setQueryData(KEY, profile),
     onSettled: () => qc.invalidateQueries({ queryKey: KEY }),
   });

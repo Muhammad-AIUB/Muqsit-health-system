@@ -14,13 +14,14 @@ import { INV_CATS } from "@/data/investigations";
 import type { InvestigationGroup } from "@/lib/investigationGroups";
 
 let groups: InvestigationGroup[] = [];
+let loaded = true;
 const mutateAsync = vi.fn();
 vi.mock("@/hooks/useInvestigationPrefs", () => ({
-  useInvestigationPrefs: () => ({ favourites: [], unitPrefs: {}, groups, isLoading: false }),
+  useInvestigationPrefs: () => ({ favourites: [], unitPrefs: {}, groups, isLoading: false, loaded }),
   useSaveInvestigationGroups: () => ({ mutateAsync, isPending: false }),
 }));
 
-afterEach(() => { cleanup(); groups = []; mutateAsync.mockReset(); });
+afterEach(() => { cleanup(); groups = []; loaded = true; mutateAsync.mockReset(); });
 
 const hema = INV_CATS.find((c) => c.cat === "Hematology")!;
 
@@ -115,5 +116,19 @@ describe("InvestigationGroups", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toMatch(/NOT saved/);
     expect((screen.getByPlaceholderText(/DM follow-up/) as HTMLInputElement).value).toBe("Anaemia work-up");
+  });
+
+  it("refuses to save, and says why, while the saved groups have not loaded (the save would replace them with just this one)", async () => {
+    loaded = false;
+    render(<Harness />);
+    expect(screen.queryByText("No investigation groups yet.")).toBeNull();
+    fireEvent.click(screen.getByText("+ Add new group"));
+    fireEvent.change(screen.getByPlaceholderText(/DM follow-up/), { target: { value: "Anaemia work-up" } });
+    fireEvent.click(screen.getByRole("button", { name: /Hematology/ }));
+    fireEvent.click(screen.getByLabelText(hema.tests[0].name));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toMatch(/NOT saved.*not loaded/);
   });
 });

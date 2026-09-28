@@ -46,10 +46,13 @@ function DateHeading({ date }: { date: string }) {
   );
 }
 
+// The exact identity `removeFinding` deletes by.
+const savedKey = (f: InvFinding) => JSON.stringify([f.date, f.test, f.value]);
+
 export default function PatientRecordsView() {
   const {
     currentPatientId, ptName,
-    rxImages, saveRxImages, reportImages, saveReportImages, imageThumbs,
+    rxImages, saveRxImages, reportImages, saveReportImages, appendGalleryImages, imageThumbs,
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
     onExaminationSummary, saveOnExaminationSummary,
   } = useMuqsit();
@@ -117,11 +120,19 @@ export default function PatientRecordsView() {
   // block at the top. Nothing re-sorts the images already stored — the URLs
   // carry no date, so the array IS the order, and a gallery dragged into a
   // deliberate order must stay in it.
+  //
+  // ⚕️ The batch is appended by the context against the gallery as it is when
+  // the upload FINISHES, and only if this patient is still the one loaded — see
+  // `appendGalleryImages`. Building the list here, before the await, is what
+  // resurrected removed images and put one patient's images in another's record.
   const rxItems = rxImages.map((url, i) => ({ id: String(i), url, thumbUrl: thumbFor(imageThumbs, url) }));
+  const notFiledForSwitch = (n: number) =>
+    window.alert(`${n} image${n === 1 ? " was" : "s were"} NOT added: a different patient was opened while uploading. Open the patient again and re-add ${n === 1 ? "it" : "them"}.`);
   const addRx = async (files: File[]) => {
+    const forPid = currentPatientId;
     setBusyRx(true);
     const { urls, thumbs } = await uploadAll(files);
-    if (urls.length) saveRxImages([...urls, ...rxImages], thumbs);
+    if (urls.length && !appendGalleryImages("rx", forPid, urls, thumbs)) notFiledForSwitch(urls.length);
     setBusyRx(false);
   };
   const removeRx = (ids: string[]) => {
@@ -136,9 +147,10 @@ export default function PatientRecordsView() {
   // ── Report gallery ──
   const reportItems = reportImages.map((url, i) => ({ id: String(i), url, thumbUrl: thumbFor(imageThumbs, url) }));
   const addReports = async (files: File[]) => {
+    const forPid = currentPatientId;
     setBusyReport(true);
     const { urls, thumbs } = await uploadAll(files);
-    if (urls.length) saveReportImages([...reportImages, ...urls], thumbs);
+    if (urls.length && !appendGalleryImages("report", forPid, urls, thumbs)) notFiledForSwitch(urls.length);
     setBusyReport(false);
   };
   const removeReports = (ids: string[]) => {
@@ -157,15 +169,25 @@ export default function PatientRecordsView() {
     [investigationSummary, investigation],
   );
   const summary = useMemo(() => groupByDate(allFindings), [allFindings]);
+  // Only a row that is IN the saved history can be deleted from it. The rows
+  // merged in from the live editor belong to today's prescription (changed
+  // there, not here), so they get no × — one that removed nothing while the bar
+  // said "Removed …" told the doctor a finding was gone when it was not.
+  const savedFindings = useMemo(
+    () => new Set((investigationSummary ?? []).map(savedKey)),
+    [investigationSummary],
+  );
 
   // Delete a finding from the patient's saved history (edit mode only), keeping
   // a one-step undo. The offer stays until the user acts on it (undo / dismiss /
   // leave Edit mode) — it never disappears on its own.
   const removeFinding = (f: InvFinding) => {
     const prev = investigationSummary ?? [];
-    saveInvestigationSummary(prev.filter(
+    const next = prev.filter(
       (x) => !(x.date === f.date && x.test === f.test && x.value === f.value),
-    ));
+    );
+    if (next.length === prev.length) return; // nothing of the saved history matched
+    saveInvestigationSummary(next);
     setUndo({ prev, label: `${f.test}: ${f.value}` });
   };
   const undoRemove = () => {
@@ -312,7 +334,7 @@ export default function PatientRecordsView() {
                   {g.items.map((f, idx) => (
                     <div key={idx} className={`inv-row${editingSummary ? " editing" : ""}`} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
                       <span style={{ flex: 1 }}>{f.test}: <b style={{ fontWeight: 600 }}>{f.value}</b></span>
-                      {editingSummary && (
+                      {editingSummary && savedFindings.has(savedKey(f)) && (
                         <button className="inv-del" onClick={() => removeFinding(f)} title="Delete from history" aria-label="Delete finding">×</button>
                       )}
                     </div>

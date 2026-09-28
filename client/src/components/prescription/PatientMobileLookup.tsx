@@ -223,6 +223,12 @@ function AddNewModal({
   const [relation, setRelation] = useState(""); // owner is patient's <relation>
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  // The patient already created by a Save whose link step then failed. A retry
+  // must not create them a second time — it only redoes the link. Forgotten
+  // when anything that defines that patient changes (and when the modal
+  // closes, which unmounts it).
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  useEffect(() => { setCreatedId(null); }, [name, dob, age, sex, notOwner, relation]);
 
   const identity = identityInput(dob, age, sex);
 
@@ -238,14 +244,19 @@ function AddNewModal({
       if (!ownerName.trim()) { setErr("Enter the number owner's name."); setSaving(false); return; }
       if (!relation) { setErr("Select the owner's relationship to the patient."); setSaving(false); return; }
       // The treated patient — the number is a relative's, so store it as such.
-      const patient = await patientsApi.create({
-        name: name.trim(), relativeMobile: number, relativeRelation: relation, ...identity,
-      });
+      let patientId = createdId;
+      if (!patientId) {
+        const patient = await patientsApi.create({
+          name: name.trim(), relativeMobile: number, relativeRelation: relation, ...identity,
+        });
+        patientId = patient.id;
+        setCreatedId(patientId);
+      }
       // The number owner becomes a full patient on this number, linked both ways.
       await patientsApi.link({
-        existingId: patient.id, name: ownerName.trim(), relation, mobile: number, sex: ownerSex || undefined,
+        existingId: patientId, name: ownerName.trim(), relation, mobile: number, sex: ownerSex || undefined,
       });
-      const fresh = await patientsApi.get(patient.id);
+      const fresh = await patientsApi.get(patientId);
       onDone(fresh);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not save.");

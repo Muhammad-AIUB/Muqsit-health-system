@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
@@ -89,13 +89,30 @@ export default function HealthMonitoringView() {
   // map on another patient's record. Cheap to carry; impossible to get wrong.
   interface SavePayload { patientId: string; map: DrugDateMap; prev: DrugDateMap; note: string }
 
+  // The same holds for the ROLLBACK: a save that fails slowly, after the doctor
+  // has moved on, must not put patient A's map into patient B's chart (B's next
+  // edit would then save A's overrides onto B's record). So the rollback only
+  // runs while the failed write's patient is still on screen; otherwise that
+  // patient's cached record is simply refetched. A ref, not the closure value —
+  // onError runs from the render the mutation was created in.
+  const currentPatientIdRef = useRef(currentPatientId);
+  currentPatientIdRef.current = currentPatientId;
+  const onSaveFailed = (vars: SavePayload, rollback: (prev: DrugDateMap) => void) => {
+    if (vars.patientId === currentPatientIdRef.current) {
+      rollback(vars.prev);
+      setSaveError(SAVE_FAILED);
+    } else {
+      void qc.invalidateQueries({ queryKey: ["patient", vars.patientId] });
+    }
+  };
+
   const saveDrugDates = useMutation({
     mutationFn: ({ patientId, map }: SavePayload) => patientsApi.update(patientId, { hmDrugDates: map }),
     onSuccess: (updated, vars) => {
       qc.setQueryData(["patient", vars.patientId], updated);
       logActivity("Health monitoring", vars.note, "saved");
     },
-    onError: (_err, vars) => { setDrugDates(vars.prev); setSaveError(SAVE_FAILED); },
+    onError: (_err, vars) => onSaveFailed(vars, setDrugDates),
   });
   const saveSymptomDates = useMutation({
     mutationFn: ({ patientId, map }: SavePayload) => patientsApi.update(patientId, { hmSymptomDates: map }),
@@ -103,7 +120,7 @@ export default function HealthMonitoringView() {
       qc.setQueryData(["patient", vars.patientId], updated);
       logActivity("Health monitoring", vars.note, "saved");
     },
-    onError: (_err, vars) => { setSymptomDates(vars.prev); setSaveError(SAVE_FAILED); },
+    onError: (_err, vars) => onSaveFailed(vars, setSymptomDates),
   });
 
   const onSaveDrugDates = (next: DrugDateMap, note: string) => {

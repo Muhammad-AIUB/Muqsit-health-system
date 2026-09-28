@@ -133,7 +133,24 @@ export default function InvestigationPopup() {
   // Bulk-add report images into the pool, tagged to the selected date. Each file
   // is uploaded to the server and stored as a hosted URL (not base64) so it
   // persists in the draft cheaply and can be shown in the notification feed.
+  // One batch at a time: each batch numbers its "Report N" keys and extends the
+  // gallery from the state it started with, so an overlapping second batch
+  // would reuse the same numbers (overwriting the first batch's images) and
+  // drop the first batch from the gallery. The picker is disabled meanwhile.
+  const [reportsUploading, setReportsUploading] = useState(false);
+  const reportsUploadingRef = useRef(false);
   const addReportImages = async (files: FileList) => {
+    if (reportsUploadingRef.current) return;
+    reportsUploadingRef.current = true;
+    setReportsUploading(true);
+    try {
+      await uploadReportBatch(files);
+    } finally {
+      reportsUploadingRef.current = false;
+      setReportsUploading(false);
+    }
+  };
+  const uploadReportBatch = async (files: FileList) => {
     const dateStr = formatCalDate(calDate);
     const maxIdx = investigation.reduce((mx, it) => {
       const m = it.match(/:Report (\d+):\[image attached\]$/);
@@ -482,13 +499,13 @@ export default function InvestigationPopup() {
                 background: showReports ? C.pri[50] : C.n[0], color: showReports ? C.pri[600] : C.n[700],
               }}>{showReports ? "🙈 Hide reports" : "👁 Show reports"} ({reportImages.length})</button>
             )}
-            <label style={{
-              padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+            <label aria-disabled={reportsUploading} style={{
+              padding: "7px 14px", borderRadius: 8, cursor: reportsUploading ? "default" : "pointer", fontFamily: "inherit",
               fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
-              border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[700],
+              border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[700], opacity: reportsUploading ? 0.6 : 1,
             }}>
-              🖼 Add all reports image
-              <input type="file" accept={IMAGE_ACCEPT} multiple style={{ display: "none" }}
+              {reportsUploading ? "Uploading reports…" : "🖼 Add all reports image"}
+              <input type="file" accept={IMAGE_ACCEPT} multiple disabled={reportsUploading} style={{ display: "none" }}
                 onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
             </label>
             <button onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>

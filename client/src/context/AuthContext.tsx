@@ -1,9 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   authApi,
   onAuthFailure,
+  setActiveWorkstationId,
   ApiError,
   type AuthUser,
   type RegisterInput,
@@ -28,6 +30,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Forget everything the previous account loaded: the React Query cache
+  // (patients, OPD queue, IPD list, workstations, profile) and the
+  // X-Workstation header. Otherwise the next doctor signing in on this tab
+  // sees the last doctor's cached records, auto-selects their workstation
+  // (403 on every request), and PATCHes their recents/groups into this
+  // profile. Run on logout, on session loss, and before a login takes effect.
+  const clearAccountState = useCallback(() => {
+    setActiveWorkstationId(null);
+    queryClient.clear();
+  }, [queryClient]);
 
   // Restore session on first load: ask the server who we are. The access
   // cookie is httpOnly so we cannot read it ourselves; /auth/me will return
@@ -66,13 +80,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // When the API layer detects an unrecoverable 401 (refresh also failed),
   // drop the user from state. The RequireAuth guard then sends them to
   // /login on the next render.
-  useEffect(() => onAuthFailure(() => setUser(null)), []);
+  useEffect(() => onAuthFailure(() => { clearAccountState(); setUser(null); }), [clearAccountState]);
 
   const login = async (identifier: string, password: string, remember: boolean) => {
     const res = await authApi.login(identifier, password, remember);
     // Mark a FRESH login so the prescription editor starts blank & gated. A plain
     // page reload (no login) does NOT set this, so the loaded patient is restored.
     try { window.sessionStorage.setItem("mhs_fresh_login", "1"); } catch { /* ignore */ }
+    clearAccountState();
     setUser(res.user);
   };
 
@@ -87,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Even if the server call fails (offline, etc) we still drop local
       // state so the UI reflects "logged out".
     }
+    clearAccountState();
     setUser(null);
   };
 

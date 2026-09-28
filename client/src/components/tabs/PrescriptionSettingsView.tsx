@@ -47,6 +47,10 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
   const [activeType, setActiveType] = useState<RxType>("ipd");
   const [opdLayout, setOpdLayoutState] = useState<OpdLayout>("single");
   const layoutMut = useUpdatePrescriptionLayout();
+  // Save goes through the same hook so the ["prescription-layout"] cache the
+  // printed sheet reads is updated with what was stored — a direct API call
+  // left PrescriptionView printing the old header for up to its staleTime.
+  const saveMut = useUpdatePrescriptionLayout();
   const [step, setStep] = useState<StepId>("page");
   const [form, setForm] = useState<PageForm>(INITIAL);
   const [unit, setUnit] = useState<"in" | "cm">("in");
@@ -65,10 +69,16 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
   const [saved, setSaved] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const headerEditorRef = useRef<RichTextEditorHandle>(null);
 
   // Load the saved layout (or server defaults) for this doctor.
-  useEffect(() => {
+  // ⚕️ A failed load leaves the form on built-in defaults with EMPTY header and
+  // footer — pressing Save then would overwrite the doctor's real print layout
+  // with blanks. So a failed load locks Save and offers Retry instead.
+  const load = () => {
+    setLoading(true);
+    setLoadFailed(false);
     prescriptionLayoutApi
       .get()
       .then((l) => {
@@ -94,9 +104,11 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
         setBodyRightTop(l.bodyRightTopMargin);
         setBodyBottomLine(l.bodyBottomLine);
       })
-      .catch(() => setSaved("Could not load saved settings. Is the API running?"))
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
-  }, []);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, []);
 
   const unitWord = unit === "in" ? "inches" : "cm";
   const unitShort = unit === "in" ? "inch" : "cm";
@@ -134,10 +146,11 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
   const goNext = () => stepIndex < STEPS.length - 1 && setStep(STEPS[stepIndex + 1].id);
   const goPrev = () => stepIndex > 0 && setStep(STEPS[stepIndex - 1].id);
   const save = async () => {
+    if (loadFailed) return;
     setSaving(true);
     setSaved("");
     try {
-      await prescriptionLayoutApi.update({
+      await saveMut.mutateAsync({
         unit,
         ...form,
         headerSplit,
@@ -378,7 +391,17 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
             button does nothing" (reported 2026-09-12). Feedback belongs beside
             the control that produced it. Centred on the row, so it cannot
             collide with Previous (left: 0) or Next (right: 0). */}
-        {saved && (
+        {loadFailed && !loading && (
+          <span role="alert" style={{
+            position: "absolute", top: "100%", marginTop: 6, left: "50%", transform: "translateX(-50%)",
+            width: "max-content", maxWidth: "min(560px, 92vw)", textAlign: "center",
+            fontSize: 12, color: C.danger[800], display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 8,
+          }}>
+            Could not load your saved settings — Save is locked so they are not overwritten.
+            <button onClick={load} style={{ ...btnBack, padding: "3px 10px" }}>Retry</button>
+          </span>
+        )}
+        {saved && !loadFailed && (
           <span style={{
             position: "absolute", top: "100%", marginTop: 6, left: "50%", transform: "translateX(-50%)",
             whiteSpace: "nowrap", fontSize: 12, color: saved === "Saved." ? C.pri[600] : C.danger[800],
@@ -389,7 +412,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
             <span style={{ marginRight: 4 }}>‹</span> Previous
           </button>
         )}
-        <button onClick={save} disabled={saving || loading} style={{ ...btnSave, opacity: saving || loading ? 0.6 : 1 }}>
+        <button onClick={save} disabled={saving || loading || loadFailed} style={{ ...btnSave, opacity: saving || loading || loadFailed ? 0.6 : 1 }}>
           <span style={{ marginRight: 6 }}>💾</span> {saving ? "Saving…" : "Save"}
         </button>
         {stepIndex < STEPS.length - 1 && (

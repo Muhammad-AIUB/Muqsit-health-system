@@ -28,8 +28,18 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
+// Save goes through the hook so the print cache is updated; the mock forwards
+// to `update` and records what the hook would write into that cache.
+const cacheWrites: unknown[] = [];
 vi.mock("@/hooks/usePrescriptionLayout", () => ({
-  useUpdatePrescriptionLayout: () => ({ mutate: vi.fn() }),
+  useUpdatePrescriptionLayout: () => ({
+    mutate: vi.fn(),
+    mutateAsync: async (input: unknown) => {
+      const data = await update(input);
+      cacheWrites.push(data);
+      return data;
+    },
+  }),
 }));
 
 import PrescriptionSettingsView from "./PrescriptionSettingsView";
@@ -47,6 +57,7 @@ afterEach(cleanup);
 beforeEach(() => {
   update.mockReset();
   get.mockReset();
+  cacheWrites.length = 0;
   get.mockResolvedValue({ ...SAVED });
   update.mockResolvedValue({ ...SAVED });
 });
@@ -110,5 +121,45 @@ describe("Prescription settings — the Save button", () => {
     await openOpdWizard();
     fireEvent.click(saveButton());
     await waitFor(() => expect(screen.getByText(/Save failed/i)).toBeTruthy());
+  });
+});
+
+describe("Prescription settings — a failed load", () => {
+  // ⚕️ If the GET fails the form holds built-in defaults and EMPTY header/footer
+  // HTML. Saving that would overwrite the doctor's real print layout with blanks.
+  it("locks Save and says why when the saved settings could not be loaded", async () => {
+    get.mockRejectedValue(new Error("network down"));
+    render(<PrescriptionSettingsView onBack={() => {}} />);
+    fireEvent.click(screen.getByText("OPD prescription"));
+    await waitFor(() => expect(screen.getByText(/Could not load your saved settings/i)).toBeTruthy());
+
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(saveButton());
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("Retry re-runs the load and unlocks Save once it succeeds", async () => {
+    get.mockRejectedValueOnce(new Error("network down"));
+    render(<PrescriptionSettingsView onBack={() => {}} />);
+    fireEvent.click(screen.getByText("OPD prescription"));
+    await waitFor(() => expect(screen.getByText("Retry")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("Retry"));
+
+    await waitFor(() => expect(screen.getByDisplayValue("18.5")).toBeTruthy());
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/Could not load your saved settings/i)).toBeNull();
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe("Prescription settings — the print cache", () => {
+  // The printed sheet reads ["prescription-layout"] from React Query; a save
+  // that bypassed it printed the old header until the cache went stale.
+  it("writes the saved layout through the layout hook (which updates the cache)", async () => {
+    await openOpdWizard();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(cacheWrites).toHaveLength(1));
+    expect(cacheWrites[0]).toMatchObject({ totalWidth: "18.5" });
   });
 });
