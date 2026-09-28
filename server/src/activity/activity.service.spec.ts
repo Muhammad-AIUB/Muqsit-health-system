@@ -86,3 +86,13 @@ describe('ActivityService — the practice is already resolved', () => {
     expect(findMany.mock.calls[1][0].take).toBe(1);
   });
 });
+
+describe('ActivityService.list — a bad ?limit= is not a 500', () => {
+  it('falls back to the default page for a non-numeric limit', async () => {
+    const { prisma, findMany } = prismaWith();
+    await new ActivityService(prisma).list(OWN, Number('abc'));
+    await new ActivityService(prisma).list(OWN, 1.5);
+    expect(findMany.mock.calls[0][0].take).toBe(50);
+    expect(findMany.mock.calls[1][0].take).toBe(1);
+  });
+});

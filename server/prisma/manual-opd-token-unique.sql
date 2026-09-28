@@ -6,10 +6,11 @@
 --   npx prisma db execute --schema prisma/schema.prisma --file prisma/manual-opd-token-unique.sql
 --
 -- Tokens are scoped to a doctor and a calendar day. There is no explicit "day"
--- column, so this is a functional unique index over (doctorId, day-of-createdAt,
--- token). Adjust the time zone below to match how the API computes "start of
--- day" (server local time). If any legacy duplicate (doctorId, day, token) rows
+-- column, so this is a functional unique index over (doctorId, Dhaka day of
+-- createdAt, token). The API resets the serial at Bangladesh midnight
+-- (src/opd/dhaka-day.ts); createdAt is stored as UTC and Bangladesh is a fixed
+-- UTC+6 with no DST, so "+ 6 hours" gives the same calendar day. If any legacy duplicate (doctorId, day, token) rows
 -- already exist this index creation will fail — de-duplicate them first.
 
 CREATE UNIQUE INDEX IF NOT EXISTS "OpdVisit_doctor_day_token_key"
-  ON "OpdVisit" ("doctorId", (("createdAt")::date), "token");
+  ON "OpdVisit" ("doctorId", (("createdAt" + interval '6 hours')::date), "token");

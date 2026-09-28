@@ -89,7 +89,7 @@ share one cookie. Removing that window brings back "everyone logs out on reload"
 
 | Method | Path | Auth | Body → Response |
 |---|---|---|---|
-| POST | `/auth/register` | public | `RegisterDto` → creates a pending account and emails a 6-digit OTP |
+| POST | `/auth/register` | public | `RegisterDto` → creates a pending account and emails a 6-digit OTP. 409 if a verified account already owns the email (matched case-insensitively) or the mobile number |
 | POST | `/auth/verify-email` | public | `{ email, otp }` |
 | POST | `/auth/resend-otp` | public | `{ email }` |
 | POST | `/auth/login` | public | `{ identifier, password, remember? }` → `200 { user }` + sets both cookies |
@@ -174,7 +174,7 @@ Server-side enforcement today (the UI gate is never the boundary):
 | `POST /prescriptions` | an assistant needs `rx.savePrint` |
 | `PATCH /patients/:id` | per-field: demographic fields need `pt.info`, `familyMembers` needs `pt.family`, and the prescription-lifecycle fields (`incompleteRx`, `drugHistory`, `investigationSummary`, `onExaminationSummary`, `hmSelectedDrugs`) need any `rx.*` grant |
 | `PATCH /patients/:id` with `hmDrugDates` / `hmSymptomDates` | **owner only** — an assistant is refused by the controller, a supervising doctor by the `patient.doctorId` check in the service |
-| `DELETE /patients/:id` | **owner only, always** |
+| `DELETE /patients/:id` | **owner only, always**; 409 while another doctor (a supervisor) holds prescriptions for the patient — those would cascade away unseen |
 | `/ipd/:id/analogue*` | the doctor and their assistants pass without a key; any other actor needs `ipd.analogue` |
 
 ---
@@ -279,7 +279,7 @@ the ward; that door must be built inside `ipd.service`, never by extending
 | GET | `/patients/relatives-by-mobile?mobile=` | family-tree entries matching a number → `{ patientId, patientName, name, relation, sex, mobile }[]` (info only) |
 | GET | `/patients/:id` | `404` if not accessible |
 | POST | `/patients` | `CreatePatientDto` |
-| POST | `/patients/link` | `LinkPatientDto` — creates a NEW patient related to an existing one and writes reciprocal family links to both |
+| POST | `/patients/link` | `LinkPatientDto` — creates a NEW patient related to an existing one and writes reciprocal family links to both. Owner only: a supervising doctor gets 403, since it rewrites the owner's family tree |
 | PATCH | `/patients/:id` | `UpdatePatientDto` — the **only** route that accepts it |
 | DELETE | `/patients/:id` | **owner only** |
 
@@ -321,7 +321,7 @@ resolved per request inside the service.
 
 | Method | Path | Body |
 |---|---|---|
-| GET | `/patients/:id/chat` | — |
+| GET | `/patients/:id/chat` | — returns the newest 500 messages, oldest first |
 | POST | `/patients/:id/chat` | `{ body?, attachmentUrl? }` — at least one required; `attachmentUrl` must be `http(s)` (a `javascript:` / `data:` URL is a stored-XSS vector) |
 | GET | `/patients/:id/supervisors` | — |
 | POST | `/patients/:id/supervisors` | `{ identifier }` — the supervising doctor's registered email or 11-digit mobile |
@@ -577,7 +577,7 @@ you add a feature that records clinical input, log it here.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/research/patients?q=` | cohort search across the signed-in user's own patients |
+| GET | `/research/patients?q=` | cohort search across the signed-in user's own patients; diagnoses come from their own prescriptions only |
 
 ### 5.18 Device mirroring — `/mirror` (JWT, own)
 

@@ -53,10 +53,12 @@ export class PatientChatService {
     await this.assertAccess(patientId, userId, effectiveDoctorId);
     const rows = await this.prisma.patientChatMessage.findMany({
       where: { patientId },
-      orderBy: { createdAt: 'asc' },
+      // Newest 500, shown oldest-first. Sorting ascending with take would
+      // return the OLDEST 500 and hide every new message once a thread grows.
+      orderBy: { createdAt: 'desc' },
       take: 500,
     });
-    return rows.map((m) => ({ ...m, mine: m.authorId === userId }));
+    return rows.reverse().map((m) => ({ ...m, mine: m.authorId === userId }));
   }
 
   async sendMessage(

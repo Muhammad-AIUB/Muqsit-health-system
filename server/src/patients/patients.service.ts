@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -169,7 +169,12 @@ export class PatientsService {
     doctorId: string,
     dto: LinkPatientDto,
   ): Promise<{ newPatient: Patient; existing: Patient }> {
-    const existing = await this.get(doctorId, dto.existingId); // ownership check
+    const existing = await this.get(doctorId, dto.existingId); // access check
+    // get() also admits a supervising doctor, but linking rewrites the OWNER's
+    // family tree — the same mutation update() refuses a supervisor.
+    if (existing.doctorId !== doctorId) {
+      throw new ForbiddenException('Supervising doctors cannot modify the patient record');
+    }
     const tIsMale = isMale(existing.sex);
 
     const relInExistingTree = canonRelation(dto.relation); // what X is to T
@@ -275,6 +280,17 @@ export class PatientsService {
     // delete another practice's patient.
     const owned = await this.prisma.patient.findFirst({ where: { id, doctorId }, select: { id: true } });
     if (!owned) throw new NotFoundException('Patient not found');
+    // Prescription cascades with the patient. A supervising doctor's Rx is
+    // stored under THEIR doctorId and is invisible to the owner, so deleting
+    // here would destroy another doctor's legal records unseen. Refuse.
+    const foreignRx = await this.prisma.prescription.count({
+      where: { patientId: id, doctorId: { not: doctorId } },
+    });
+    if (foreignRx > 0) {
+      throw new ConflictException(
+        'Another doctor has prescriptions for this patient, so the record cannot be deleted.',
+      );
+    }
     await this.prisma.patient.delete({ where: { id } });
     return { id };
   }

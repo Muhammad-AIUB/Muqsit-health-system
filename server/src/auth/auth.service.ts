@@ -72,6 +72,11 @@ export class AuthService {
     if (existing && (existing.emailVerified || existing.role === 'admin')) {
       throw new ConflictException('An account with this email already exists');
     }
+    // Sign-in accepts the mobile number too, so two accounts sharing one would
+    // make phone sign-in pick either row and reject a correct password.
+    if (dto.mobile && (await this.users.mobileTakenByOther(dto.mobile, existing?.id))) {
+      throw new ConflictException('An account with this mobile number already exists');
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 

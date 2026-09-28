@@ -418,7 +418,9 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
       {view}
 
-      {((mode === "secondary" && reg.approvalStatus !== "approved") || mode === "trash") && (
+      {/* Any not-yet-approved live account (pending, or suspended — setTier
+          deliberately keeps a suspension) needs Approve to be reinstated. */}
+      {((isLive && reg.approvalStatus !== "approved") || mode === "trash") && (
         <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
       )}
       {moveSelect}

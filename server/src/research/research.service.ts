@@ -31,6 +31,9 @@ export class ResearchService {
         mobile: true,
         tags: true,
         prescriptions: {
+          // Own Rx only: a supervising doctor's prescriptions on this patient
+          // are never visible to the owner (server/CLAUDE.md, Rule 2).
+          where: { doctorId },
           select: { finalDiagnosis: true, provisionalDiagnosis: true },
           orderBy: { createdAt: 'desc' },
         },

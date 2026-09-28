@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OpdVisit, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { startOfDhakaDay } from './dhaka-day';
 import {
   CreateOpdVisitDto,
   SetRxStatusDto,
@@ -13,8 +14,7 @@ export class OpdService {
 
   // Today's queue for this doctor.
   list(doctorId: string): Promise<OpdVisit[]> {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = startOfDhakaDay();
     return this.prisma.opdVisit.findMany({
       where: { doctorId, createdAt: { gte: startOfDay } },
       orderBy: { createdAt: 'asc' },
@@ -50,8 +50,7 @@ export class OpdService {
 
   async create(doctorId: string, dto: CreateOpdVisitDto): Promise<OpdVisit> {
     // Token: T-<serial of today>, per doctor.
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = startOfDhakaDay();
     return this.prisma.$transaction(async (tx) => {
       const token = await this.nextToken(tx, doctorId, startOfDay);
       return tx.opdVisit.create({
@@ -70,8 +69,7 @@ export class OpdService {
   // (incomplete | complete). Reuses an existing same-day visit for the patient
   // so a queued or already-flagged patient isn't duplicated.
   async setRxStatusByPatient(doctorId: string, dto: SetRxStatusDto): Promise<OpdVisit> {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDay = startOfDhakaDay();
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.opdVisit.findFirst({
         where: { doctorId, patientId: dto.patientId, createdAt: { gte: startOfDay } },

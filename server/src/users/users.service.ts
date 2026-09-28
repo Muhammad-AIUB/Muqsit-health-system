@@ -7,15 +7,42 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+  // Email is matched case-insensitively: a mailbox is the same account whether
+  // it was typed "Dr.Rahim@…" at sign-up or "dr.rahim@…" at sign-in. An exact
+  // match is preferred so a legacy pair differing only in case still resolves
+  // each spelling to its own row.
+  async findByEmail(email: string): Promise<User | null> {
+    const exact = await this.prisma.user.findUnique({ where: { email } });
+    if (exact) return exact;
+    return this.prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   // Look up by email address OR mobile number (for sign-in).
-  findByEmailOrMobile(identifier: string): Promise<User | null> {
+  async findByEmailOrMobile(identifier: string): Promise<User | null> {
+    const byEmail = await this.findByEmail(identifier);
+    if (byEmail) return byEmail;
     return this.prisma.user.findFirst({
-      where: { OR: [{ email: identifier }, { mobile: identifier }] },
+      where: { mobile: identifier },
+      orderBy: { createdAt: 'asc' },
     });
+  }
+
+  // Another VERIFIED account already signs in with this mobile number.
+  // Unverified sign-ups are ignored so an abandoned attempt cannot block a
+  // retry under a corrected email.
+  async mobileTakenByOther(mobile: string, excludeId?: string): Promise<boolean> {
+    const other = await this.prisma.user.findFirst({
+      where: {
+        mobile,
+        emailVerified: true,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    return !!other;
   }
 
   findById(id: string): Promise<User | null> {

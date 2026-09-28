@@ -147,7 +147,7 @@ export class WardsService {
   async rename(doctorId: string, id: string, dto: UpdateWardDto): Promise<WardView> {
     const ward = await this.ensureOwned(doctorId, id);
     if (ward.name === dto.name) return this.get(doctorId, id);
-    await this.ensureNameFree(doctorId, dto.name);
+    await this.ensureNameFree(doctorId, dto.name, id);
 
     await this.prisma.$transaction([
       this.prisma.ward.update({ where: { id }, data: { name: dto.name } }),
@@ -287,9 +287,14 @@ export class WardsService {
   // Two wards called "Ward 3" in one practice would silently split a team, so
   // the clash is reported to the doctor instead of relying on the unique index
   // to surface as a 500.
-  private async ensureNameFree(doctorId: string, name: string): Promise<void> {
+  private async ensureNameFree(doctorId: string, name: string, excludeId?: string): Promise<void> {
+    // excludeId: a rename that only changes capitalisation must not clash with itself.
     const clash = await this.prisma.ward.findFirst({
-      where: { doctorId, name: { equals: name, mode: 'insensitive' } },
+      where: {
+        doctorId,
+        name: { equals: name, mode: 'insensitive' },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
       select: { id: true },
     });
     if (clash) throw new ConflictException(`You already have a ward called "${name}".`);

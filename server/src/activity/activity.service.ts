@@ -46,7 +46,9 @@ export class ActivityService {
     return this.prisma.activityLog.findMany({
       where: { doctorId, ...(patientId ? { patientId } : {}) },
       orderBy: { createdAt: 'desc' },
-      take: Math.min(Math.max(limit, 1), 200),
+      // A non-numeric ?limit= arrives as NaN, which slips past min/max and
+      // makes Prisma throw a 500 — fall back to the default instead.
+      take: Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 50, 1), 200),
     });
   }
 }
