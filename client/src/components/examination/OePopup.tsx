@@ -55,7 +55,9 @@ export default function OePopup() {
     if (effWKg > 0) results.push("Weight: " + effWKg + " kg");
     if (bmi > 0) results.push("BMI: " + bmi);
     if (ibwLow > 0) results.push("Ideal BW: " + ibwLow + "-" + ibwHigh + " kg");
-    if (sbp > 0) results.push("BP: " + sbp + "/" + dbp + " mmHg");
+    // BP is written exactly as typed, like Pulse/RR/SpO2 below. A blank
+    // diastolic stays blank — never an invented "/0" on the prescription.
+    if (sbp > 0) results.push("BP: " + oeD.sbp.trim() + (oeD.dbp.trim() ? "/" + oeD.dbp.trim() : "") + " mmHg");
     if (mapVal > 0) results.push("MAP: " + mapVal + " mmHg");
     if (oeD.pulse) results.push("Pulse: " + oeD.pulse + " b/m" + (oeD.pulseNote ? " (" + oeD.pulseNote + ")" : ""));
     if (oeD.rr) results.push("RR: " + oeD.rr + "/min");

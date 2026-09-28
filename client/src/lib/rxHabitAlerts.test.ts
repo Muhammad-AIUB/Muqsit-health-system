@@ -161,6 +161,7 @@ describe("rxAlertsByLine — which medicine each warning belongs to", () => {
       sidebar: PREGNANT_SIDEBAR,
     });
     expect(messagesOn(byLine, 0)).toEqual([CONTRAINDICATION]);
+    expect(messagesOn(byLine, 1)).toEqual([CONTRAINDICATION]);
   });
 
   it("is empty when nothing fires", () => {

@@ -147,7 +147,11 @@ function normalise(raw: RxAlertInput): Normalised {
   const rawRx: unknown = raw?.rxDrugs;
   if (Array.isArray(rawRx)) {
     for (const d of rawRx as unknown[]) {
-      if (!d || typeof d !== "object") { unreadable += 1; continue; }
+      // ⚕️ An unreadable line keeps its PLACE as an empty placeholder. Dropping
+      // it would shift every later line's `rxIndex` down by one, and the pad
+      // would draw a warning under the medicine next to the one that raised it.
+      // The placeholder carries no text or generic, so nothing ever matches it.
+      if (!d || typeof d !== "object") { unreadable += 1; rxDrugs.push({ text: "" }); continue; }
       const { text, generic } = d as { text?: unknown; generic?: unknown };
       // A line keeps whichever half is readable: a broken brand string still
       // matches a rule through its generic, and vice versa.
@@ -157,7 +161,7 @@ function normalise(raw: RxAlertInput): Normalised {
       if (generic != null) {
         if (isStr(generic)) { entry.generic = generic; ok = true; } else unreadable += 1;
       }
-      if (ok) rxDrugs.push(entry);
+      rxDrugs.push(ok ? entry : { text: "" });
     }
   } else if (rawRx != null) unreadable += 1;
 
@@ -268,9 +272,13 @@ function drugPool(input: Normalised): DrugSource[] {
   return pool;
 }
 
+/** True when `d` matches any of `terms`, by its text or its generic. */
+const drugMatches = (d: DrugSource, terms: string[]): boolean =>
+  terms.some((t) => mentions(`${d.text} ${d.generic ?? ""}`, t));
+
 /** Index in `pool` of the first drug matching any of `terms`, else -1. */
 function findDrugIn(pool: DrugSource[], terms: string[]): number {
-  return pool.findIndex((d) => terms.some((t) => mentions(`${d.text} ${d.generic ?? ""}`, t)));
+  return pool.findIndex((d) => drugMatches(d, terms));
 }
 
 const evidenceOf = (d: DrugSource): AlertEvidence => ({
@@ -296,11 +304,14 @@ function matchRule(rule: RxAlertRule, pool: DrugSource[], input: Normalised): Al
   if (rule.kind === "drug-condition") {
     // Condition rules read the prescription only. The trigger is the act of
     // prescribing the drug to a patient who has the condition.
-    const rx = pool.filter((d) => d.fromRx);
-    const i = findDrugIn(rx, rule.drugMatch);
-    if (i < 0) return null;
+    //
+    // ⚕️ EVERY matching ℞ line is blamed, not just the first: two strengths of
+    // one generic (Barcavir 0.5 mg and 1 mg, both entecavir) are both
+    // contraindicated, and each must carry the warning on its own line.
+    const rx = pool.filter((d) => d.fromRx && drugMatches(d, rule.drugMatch));
+    if (rx.length === 0) return null;
     const cond = findCondition(input.sidebar, rule.conditionMatch);
-    return cond ? [evidenceOf(rx[i]), cond] : null;
+    return cond ? [...rx.map(evidenceOf), cond] : null;
   }
 
   // drug-drug: either drug may come from current drug history, but at least one
@@ -311,7 +322,21 @@ function matchRule(rule: RxAlertRule, pool: DrugSource[], input: Normalised): Al
   const b = pool.findIndex((d, i) => i !== a && rule.withMatch.some((t) => mentions(`${d.text} ${d.generic ?? ""}`, t)));
   if (b < 0) return null;
   if (!pool[a].fromRx && !pool[b].fromRx) return null;
-  return [evidenceOf(pool[a]), evidenceOf(pool[b])];
+  // Whether the rule fires is decided above, by the first pair — unchanged.
+  // Once it has fired, every OTHER ℞ line on either side is blamed too, so a
+  // second line of the same generic carries the bubble as well as the first.
+  const sides: [number, string[]][] = [[a, rule.drugMatch], [b, rule.withMatch]];
+  const blamed = new Set<number>();
+  const evidence: AlertEvidence[] = [];
+  for (const [first, terms] of sides) {
+    for (let i = 0; i < pool.length; i++) {
+      if (blamed.has(i)) continue;
+      if (i !== first && !(pool[i].fromRx && drugMatches(pool[i], terms))) continue;
+      blamed.add(i);
+      evidence.push(evidenceOf(pool[i]));
+    }
+  }
+  return evidence;
 }
 
 /**
@@ -336,7 +361,7 @@ export function checkRxAlerts(raw: RxAlertInput): RxAlertCheck {
     const existing = out.find((a) => a.message === key);
     if (existing) {
       for (const e of evidence) {
-        if (!existing.evidence.some((x) => x.field === e.field && x.text === e.text)) existing.evidence.push(e);
+        if (!existing.evidence.some((x) => x.field === e.field && x.text === e.text && x.rxIndex === e.rxIndex)) existing.evidence.push(e);
       }
       continue;
     }

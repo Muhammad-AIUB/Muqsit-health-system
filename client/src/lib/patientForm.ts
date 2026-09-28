@@ -18,7 +18,9 @@ export function patientToPtInfo(p: Patient): PtInfo {
     // the record. Sex drives reference ranges and dosing; leave it blank.
     sex: p.sex ?? "",
     ethnicity: p.ethnicity ?? "",
-    religion: p.religion ?? "Islam",
+    // Same rule as sex: a religion nobody recorded is not "Islam". A default
+    // here was written back onto the record by the next Patient Settings save.
+    religion: p.religion ?? "",
     mobile: p.mobile ?? "",
     nid: p.nid ?? "",
     spouseMobile: p.spouseMobile ?? "",

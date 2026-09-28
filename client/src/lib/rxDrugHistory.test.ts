@@ -117,6 +117,78 @@ describe("syncRxDrugHistory", () => {
   it("survives null inputs", () => {
     expect(syncRxDrugHistory(null as unknown as string[], null as unknown as string[], [NAPA])).toEqual([NAPA]);
   });
+
+  // ⚕️ A (cont) taper names no drug: it belongs to the entry directly above it.
+  // Appending a changed taper at the END handed it to whichever medicine was
+  // last — a dose for the wrong drug in the patient's record.
+  describe("a taper stays under its own medicine", () => {
+    const pad = (items: RxItem[]) => rxDrugHistoryEntries(items, TODAY);
+    const napa = med({ drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days" });
+    const omep = med({ drug: "Capsule. Omeprazole 20 mg", dose: "1+0+1", duration: "14 days" });
+    const taper = (dose: string) => med({ dose, duration: "7 days", isCont: true });
+    const N = "07/09/2026: Tablet. Napa 500 mg — 1+1+1 —  — 5 days";
+    const O = "07/09/2026: Capsule. Omeprazole 20 mg — 1+0+1 —  — 14 days";
+    const cont = (dose: string) => `07/09/2026(cont): ${dose} —  — 7 days`;
+
+    // Drive the sync the way MuqsitContext does: remember the last derived list.
+    const run = (stored: string[], pads: RxItem[][]) => {
+      let prev: string[] = [];
+      for (const p of pads) {
+        const next = pad(p);
+        stored = syncRxDrugHistory(stored, prev, next);
+        prev = next;
+      }
+      return stored;
+    };
+
+    it("keeps an edited taper under its medicine, not under the one after it", () => {
+      const out = run(OLD, [[napa, taper("0+0+2"), omep], [napa, taper("0+0+1"), omep]]);
+      expect(out).toEqual([...OLD, N, cont("0+0+1"), O]);
+    });
+
+    it("puts a taper added later directly under its medicine", () => {
+      const out = run(OLD, [[napa, omep], [napa, taper("0+0+2"), omep]]);
+      expect(out).toEqual([...OLD, N, cont("0+0+2"), O]);
+    });
+
+    it("withdraws a deleted taper without moving its medicine", () => {
+      const out = run(OLD, [[napa, taper("0+0+2"), omep], [napa, omep]]);
+      expect(out).toEqual([...OLD, N, O]);
+    });
+
+    it("moves an edited medicine together with its taper", () => {
+      const napa2 = { ...napa, dose: "1+0+1" };
+      const out = run(OLD, [[napa, taper("0+0+2"), omep], [napa2, taper("0+0+2"), omep]]);
+      const N2 = "07/09/2026: Tablet. Napa 500 mg — 1+0+1 —  — 5 days";
+      expect(out).toEqual([...OLD, O, N2, cont("0+0+2")]);
+    });
+
+    it("never touches or reorders older history while doing it", () => {
+      const out = run(OLD, [[napa, taper("0+0+2"), omep], [napa, taper("0+0+1"), omep], [omep]]);
+      expect(out.slice(0, OLD.length)).toEqual(OLD);
+      expect(out).toEqual([...OLD, O]);
+    });
+
+    it("is idempotent once the blocks are in place", () => {
+      const once = run(OLD, [[napa, taper("0+0+2"), omep]]);
+      const next = pad([napa, taper("0+0+2"), omep]);
+      expect(syncRxDrugHistory(once, next, next)).toEqual(once);
+      // A reload (no memory of the pad) changes nothing either.
+      expect(syncRxDrugHistory(once, [], next)).toEqual(once);
+    });
+
+    it("writes an identical taper under each of two different medicines", () => {
+      const entries = pad([napa, taper("0+0+2"), omep, taper("0+0+2")]);
+      expect(entries).toEqual([N, cont("0+0+2"), O, cont("0+0+2")]);
+      expect(syncRxDrugHistory(OLD, [], entries)).toEqual([...OLD, N, cont("0+0+2"), O, cont("0+0+2")]);
+    });
+
+    it("does not count another medicine's identical taper as already present", () => {
+      const stored = run(OLD, [[napa, taper("0+0+2"), omep]]);
+      const out = syncRxDrugHistory(stored, pad([napa, taper("0+0+2"), omep]), pad([napa, taper("0+0+2"), omep, taper("0+0+2")]));
+      expect(out).toEqual([...OLD, N, cont("0+0+2"), O, cont("0+0+2")]);
+    });
+  });
 });
 
 describe("sameEntries", () => {

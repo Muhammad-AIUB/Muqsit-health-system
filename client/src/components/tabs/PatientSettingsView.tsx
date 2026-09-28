@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
@@ -36,16 +36,23 @@ function PatientPhotoCorner() {
   const { ptInfo, setPtInfo, currentPatientId } = useMuqsit();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // The patient on screen NOW, for an upload that finishes after a switch.
+  const currentPatientIdRef = useRef(currentPatientId);
+  currentPatientIdRef.current = currentPatientId;
 
   const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // The photo belongs to the patient it was picked for. If the doctor switches
+    // patients mid-upload, it must still land on THAT record — and must not
+    // appear on the next patient's form, where the next Save would store it.
+    const patientId = currentPatientId;
     setBusy(true);
     setErr("");
     try {
       const url = await uploadImage(file);
-      setPtInfo((prev) => ({ ...prev, picture: url }));
-      if (currentPatientId) await patientsApi.update(currentPatientId, { pictureUrl: url });
+      if (currentPatientIdRef.current === patientId) setPtInfo((prev) => ({ ...prev, picture: url }));
+      if (patientId) await patientsApi.update(patientId, { pictureUrl: url });
     } catch {
       setErr("Upload failed");
     } finally {
@@ -253,7 +260,7 @@ export default function PatientSettingsView() {
                 </div>
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Ethnicity</div><select style={piSel} value={pI.ethnicity} onChange={(e) => setPi("ethnicity", e.target.value)}><option value="">Select ethnicity…</option>{ethnicities.map((e) => <option key={e}>{e}</option>)}</select></div>
-                  <div style={{ flex: "1 1 150px" }}><div style={piLbl}>Religion</div><select style={piSel} value={pI.religion} onChange={(e) => setPi("religion", e.target.value)}>{religions.map((r) => <option key={r}>{r}</option>)}</select></div>
+                  <div style={{ flex: "1 1 150px" }}><div style={piLbl}>Religion</div><select style={piSel} value={pI.religion} onChange={(e) => setPi("religion", e.target.value)}><option value="">—</option>{religions.map((r) => <option key={r}>{r}</option>)}</select></div>
                   <div style={{ flex: "0 0 130px" }}><div style={piLbl}>Blood group &amp; Rh</div><select style={piSel} value={pI.bloodGroup} onChange={(e) => setPi("bloodGroup", e.target.value)}><option value="">—</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Other</option></select></div>
                 </div>
               </div>

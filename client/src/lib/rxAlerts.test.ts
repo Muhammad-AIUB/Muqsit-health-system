@@ -196,6 +196,29 @@ describe("sofosbuvir/velpatasvir co-prescribing", () => {
     ]);
   });
 
+  // ⚕️ Every ℞ line on either side of the pair carries the bubble — not only
+  // the first one found. Which rules fire is unchanged.
+  it("draws the warning on every matching line on both sides", () => {
+    const i = input(["Tab. Omeprazole 20mg", "Velpatasvir/Sofosbuvir", "Tab. Omeprazole 40mg", "Tab. Napa 500mg", "Velpatasvir + Sofosbuvir 400mg"]);
+    expect(messages(i)).toEqual([PPI_MSG]);
+    const byLine = rxAlertsByLine(i);
+    for (const line of [0, 1, 2, 4]) expect(byLine.get(line)?.map((a) => a.message)).toEqual([PPI_MSG]);
+    expect(byLine.get(3)).toBeUndefined();
+  });
+
+  it("blames both of two identical ℞ lines, each by its own position", () => {
+    const byLine = rxAlertsByLine(input(["Velpatasvir", "Tab. Omeprazole 20mg", "Tab. Omeprazole 20mg"]));
+    expect(byLine.get(1)?.map((a) => a.message)).toEqual([PPI_MSG]);
+    expect(byLine.get(2)?.map((a) => a.message)).toEqual([PPI_MSG]);
+  });
+
+  it("puts a condition warning on both of two same-generic lines", () => {
+    const byLine = rxAlertsByLine(input(["Tab. Entecavir 0.5mg", "Tab. Napa 500mg", "Tab. Entecavir 1mg"], { History: ["Pregnant"] }));
+    expect(byLine.get(0)?.map((a) => a.message)).toEqual([PREGNANCY_MSG]);
+    expect(byLine.get(2)?.map((a) => a.message)).toEqual([PREGNANCY_MSG]);
+    expect(byLine.get(1)).toBeUndefined();
+  });
+
   it("raises both sentences when a PPI and an H2 blocker are on the same sheet", () => {
     expect(messages(input(["Velpatasvir", "Omeprazole", "Famotidine"])).sort()).toEqual([PPI_MSG, H2_MSG].sort());
   });
@@ -333,6 +356,27 @@ describe("malformed stored data", () => {
     });
     expect(out.alerts.map((a) => a.message)).toEqual([PREGNANCY_MSG]);
     expect(out.unreadable).toBe(2);
+  });
+
+  // ⚕️ An unreadable line must keep its place: dropped, every later line's
+  // index shifts down and the bubble lands under the wrong medicine.
+  it("keeps an unreadable line's place so later warnings stay on their own line", () => {
+    const raw = {
+      rxDrugs: [{ drug: 5 }, { text: "Tablet. Barcavir 0.5 mg", generic: "Entecavir" }],
+      sidebar: [{ label: "History", items: ["Pregnant"] }],
+    };
+    expect(check(raw).unreadable).toBe(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const byLine = rxAlertsByLine(raw as any);
+    expect(byLine.get(1)?.map((a) => a.message)).toEqual([PREGNANCY_MSG]);
+    expect(byLine.get(0)).toBeUndefined();
+  });
+
+  it("keeps the place of a line that is not an object at all", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const byLine = rxAlertsByLine({ rxDrugs: [null, { text: "Tab. Entecavir 0.5mg" }], sidebar: [{ label: "History", items: ["Pregnant"] }] } as any);
+    expect(byLine.get(1)?.map((a) => a.message)).toEqual([PREGNANCY_MSG]);
+    expect(byLine.get(0)).toBeUndefined();
   });
 
   it("matches through the generic when the brand text is unreadable", () => {

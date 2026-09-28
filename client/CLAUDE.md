@@ -65,6 +65,7 @@ These formats are persisted in drafts, prescriptions and patient JSON columns �
 - **Drug history (per-patient `Patient.drugHistory`):** `dd/mm/yyyy: Drug — dose — food — duration`, notes `dd/mm/yyyy(note): …`, tapering `dd/mm/yyyy(cont): dose — food — duration`. Legacy `Current:`/`Past:` prefixes must keep parsing. Current-vs-Distant-past is **derived from the entry date vs `ptDate`** — never store the bucket.
   - **The ℞ pad mirrors into it live (`lib/rxDrugHistory.ts`, physician's decision 2026-09-07).** Every medicine written on today's ℞ is stamped with `ptDate` and merged into `drugHistory` by an effect in `MuqsitContext`, so it appears in **Current medications** as it is typed and reads as Distant past on the next visit. Before this the two lists never spoke and a patient prescribed Napa today showed "0 current" — the earlier `ptDate` fix corrected the split *boundary*, which could never put a medicine into a list nothing was feeding. Five rules hold it, each pinned in `rxDrugHistory.test.ts`:
     - **It withdraws only what it added.** `syncRxDrugHistory(stored, prevDerived, nextDerived)` removes an entry only if the mirror contributed it AND it has left the pad; `rxDerivedRef` (keyed by patient id, so another patient's pad is never consulted) is that memory. A medication the doctor typed into the modal by hand can never be deleted by editing the ℞. An empty `prevDerived` — a reload, a patient switch — is always safe: it withdraws nothing.
+    - **⚕️ A taper never leaves its medicine (2026-09-29).** A `(cont)` entry names no drug; it belongs to the entry directly above it, by position alone. The sync therefore works in BLOCKS (a medicine + its tapers): a changed block is withdrawn whole and its replacement returns to the same place when it is the same medicine (taper edited/added/removed), else to the end as one piece. Appending a lone new taper used to hand it to whichever medicine was last — a dose for the wrong drug. Likewise a taper is deduped only under an identical head: two medicines tapering `0+0+2 — — 7 days` are two instructions. Pinned in `rxDrugHistory.test.ts`.
     - **It echoes and completes nothing.** A medicine with no dose yet is recorded with no dose. `MedicinePad`'s `1+0+1`/`After meal`/`Continue` defaults belong to "↻ Rx" (an explicit click), never here.
     - **`rowsFromRxItems` owns the head/taper/note classification**, including the pre-2026-08-17 blank-drug fallback for `isCont`. Re-deriving that test here is how a taper turns into a second unrelated medicine. ℞ **notes are skipped** — a note is not a medication, and the printed block renders every entry as a drug name.
     - **It never persists by itself.** `Patient.drugHistory` keeps the writers it already had (`savePrescription`, `saveDrugHistory`); the debounced editor auto-save carries it in `incompleteRx` so a parked or reloaded visit keeps it. It also waits for `drugHistoryHydratedRef` to match the loaded patient, so it never mirrors onto a not-yet-fetched (blank) list.
@@ -308,6 +309,18 @@ A ward holds admitted patients; its team is who works it. Notes that matter:
 - `IpdDetailView`'s header ward select is how an admission recorded **before**
   the ward list existed joins a team. It sends `wardId` only when it changed, so
   an untouched admission never has its free-typed ward text rewritten.
+- **⚕️ `IpdDetailView` BORROWS the editor's `investigation`/`invImages` (2026-09-29).**
+  It reuses the OPD Investigation popup, so while it is mounted it holds
+  `beginInvBorrow`/`endInvBorrow` from `MuqsitContext`: the OPD patient's values
+  are set aside, and the editor auto-save (draft, `incompleteRx`, OPD rx-status)
+  is paused. Without this the admission's findings were auto-saved into
+  whichever OPD patient happened to be loaded. `buildClinical` also never sends
+  `analogueSheets` — absent means "keep what is stored" on the server, while a
+  stale copy would erase pages photographed since the last fetch.
+- **Merely opening a patient is not prescription work.** `hasRxContent` counts
+  drug history only when it differs from the stored baseline
+  (`drugHistoryBaselineRef`); otherwise opening any patient with medications
+  auto-saved a draft and put them in today's OPD queue as "Incomplete".
 
 **Adding someone to a ward does not yet let them in** — the team member's own
 login is not built. See "Rule 2b" in `server/CLAUDE.md` for why that must not go

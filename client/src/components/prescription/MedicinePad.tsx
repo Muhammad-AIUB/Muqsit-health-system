@@ -464,19 +464,31 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     });
   };
 
+  // ⚕️ × on a medicine takes its ">>>" tapering lines with it — the same block
+  // `moveBlock` moves. Left behind, a taper (no drug name of its own) would
+  // silently become a taper of the medicine above it. × on a taper line
+  // removes only that line.
   const removeRow = (idx: number) =>
     setRows((prev) => {
-      const filled = prev.filter((_, i) => i !== idx).filter((r) => r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim());
+      const [from, to] = (!prev[idx]?.continuation && blockOf(prev, idx)) || [idx, idx + 1];
+      const filled = prev.filter((_, i) => i < from || i >= to).filter((r) => r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim());
       return [...filled, emptyRow()];
     });
 
+  // The new taper goes after any tapers already under this medicine, and the
+  // caret must land on THAT row, not on an existing taper's dose.
+  const taperInsertAt = (list: Row[], idx: number) => {
+    let at = idx + 1;
+    while (at < list.length && list[at].continuation) at++;
+    return at;
+  };
   const addContinuation = (idx: number) => {
+    const focusAt = taperInsertAt(rows, idx);
     setRows((prev) => {
-      let at = idx + 1;
-      while (at < prev.length && prev[at].continuation) at++;
+      const at = taperInsertAt(prev, idx);
       return [...prev.slice(0, at), contRow(), ...prev.slice(at)];
     });
-    setTimeout(() => doseRefs.current[idx + 1]?.focus(), 30);
+    setTimeout(() => doseRefs.current[focusAt]?.focus(), 30);
   };
 
   const alertLineIndex = alertInput ? rxDrugIndexByRow(rows) : [];

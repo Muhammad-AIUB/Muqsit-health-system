@@ -555,11 +555,15 @@ const drugCell = (label: string): string => {
   return name ? `${esc(before)}<b>${esc(name)}</b>${esc(after)}` : `<b>${esc(label)}</b>`;
 };
 
-// Drug-history items carry storage prefixes — strip them for display. Plain
-// text, not HTML: the fitting bound below has to MEASURE what is printed, and
-// an escaped "&amp;" is not the width of the "&" the doctor sees.
-const cleanItem = (s: string) =>
-  s.replace(/^(Current|Past)(\(note\)|\(cont\))?:\s*/, "").replace(/\s+—\s+/g, "  ·  ");
+// A clinical line, as printed. Plain text, not HTML: the fitting bound below
+// has to MEASURE what is printed, and an escaped "&amp;" is not the width of
+// the "&" the doctor sees.
+//
+// ⚕️ A leading "Current:" / "Past:" is the doctor's own words here and prints
+// verbatim — "Past: smoker, quit 2019" stripped to "smoker, quit 2019" reads as
+// a current habit. That strip existed for legacy drug-history entries, which
+// never come through here: Drug history prints through `drugNameOnly` below.
+const cleanItem = (s: string) => s.replace(/\s+—\s+/g, "  ·  ");
 
 // Drug history on the printout: show only the medicine name (no date/dose/food/
 // duration). Entries are date-stamped ("dd/mm/yyyy: Drug — …") — legacy

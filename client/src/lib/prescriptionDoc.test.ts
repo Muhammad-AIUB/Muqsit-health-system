@@ -903,3 +903,30 @@ describe("body section — the separator actually reaches the paper", () => {
     expect(buildPrescriptionHtml(sheet({ bottomLine: false }))).not.toMatch(/\.body \{[^}]*border-bottom/);
   });
 });
+
+// ⚕️ A clinical line prints exactly as the doctor wrote it. A leading "Past:"
+// used to be stripped from EVERY field (a leftover from legacy drug-history
+// entries), so "Past: TB, treated" printed as "TB, treated" — a past illness
+// read as a current one on the legal document.
+describe("clinical lines print verbatim", () => {
+  const withClinical = (clinical: PrescriptionDoc["clinical"]): PrescriptionDoc => ({
+    doctorName: "Dr Test",
+    patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "29/09/2026", phone: "01700000000" },
+    clinical, rx: [], advice: [], adviceTest: [], followUp: "",
+  });
+
+  it("keeps a leading Past: / Current: on a History line", () => {
+    const html = buildPrescriptionHtml(withClinical([{ label: "History", items: ["Past: TB, treated", "Current: smoker"] }]));
+    expect(html).toContain("<li>Past: TB, treated</li>");
+    expect(html).toContain("<li>Current: smoker</li>");
+  });
+
+  it("still prints legacy Current:/Past: drug-history entries as the drug name only", () => {
+    const html = buildPrescriptionHtml(withClinical([
+      { label: "Drug history", items: ["Past: Losartan 50mg — 1+0+1 — after food — continuing", "Current(cont): 0+0+1 —  — 7 days"] },
+    ]));
+    expect(html).toContain("<li>Losartan 50mg</li>");
+    expect(html).not.toContain("Past: Losartan");
+    expect(html).not.toContain("0+0+1");
+  });
+});

@@ -46,30 +46,70 @@ export function rxDrugHistoryEntries(rxItems: RxItem[], visitDate: string): stri
   if (!VISIT_DATE_RE.test(visitDate)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
+  // The head entry the next taper belongs to. A taper's text does not name its
+  // medicine, so two different medicines can carry byte-identical tapers.
+  let head = "";
   // `rowsFromRxItems` owns the head/continuation/note classification (including
   // the pre-2026-08-17 blank-drug fallback for `isCont`); duplicating that test
   // here is how a taper silently turns into a second unrelated medicine.
   for (const r of rowsFromRxItems(rxItems ?? [])) {
     if (!r.isMedicine) continue; // note, or the trailing blank row
     let entry: string;
+    let key: string;
     if (r.continuation) {
       if (!r.dose.trim() && !r.food.trim() && !r.duration.trim()) continue;
       entry = `${visitDate}(cont): ${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`;
+      // ⚕️ A taper is the same fact only under the same medicine: Drug A and
+      // Drug B each tapering "0+0+2 — — 7 days" are two instructions.
+      key = `${head}\n${entry}`;
     } else {
       if (!r.drug.trim()) continue;
       entry = `${visitDate}: ${r.drug.trim()}${SEP}${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`;
+      key = entry;
+      head = entry;
     }
-    if (seen.has(entry)) continue; // two identical lines carry one fact
-    seen.add(entry);
+    if (seen.has(key)) continue; // two identical lines carry one fact
+    seen.add(key);
     out.push(entry);
   }
   return out;
 }
 
+/** A `(cont)` taper entry — bound to the medicine above it by position alone. */
+const CONT_RE = /^\d{2}\/\d{2}\/\d{4}\(cont\):/;
+
+/**
+ * A list cut into blocks: each non-taper entry opens a block and the `(cont)`
+ * entries under it join it. A taper with nothing above it is a block of its own.
+ */
+function toBlocks(list: string[]): string[][] {
+  const out: string[][] = [];
+  for (const e of list) {
+    if (CONT_RE.test(e) && out.length > 0) out[out.length - 1].push(e);
+    else out.push([e]);
+  }
+  return out;
+}
+
+/** A placeholder left where a withdrawn ℞ block stood, keyed by its head. */
+interface Slot { slot: string }
+type Cell = string | Slot;
+
+/**
+ * Where `block` sits in `list` as a contiguous run starting at its head, the
+ * LAST such run (the ℞'s own entries are the most recently added), else -1.
+ */
+function findBlock(list: Cell[], block: string[]): number {
+  for (let i = list.length - block.length; i >= 0; i--) {
+    if (block.every((e, j) => list[i + j] === e)) return i;
+  }
+  return -1;
+}
+
 /**
  * Fold the ℞'s contribution into the stored drug history.
  *
- * Three rules, and each exists to protect something:
+ * Four rules, and each exists to protect something:
  *  1. **Only ever withdraw what the ℞ itself put there.** An entry is removed
  *     only if it was in `prevDerived` AND is no longer on the ℞. Anything the
  *     doctor typed into the Drug-history modal by hand is untouchable — this
@@ -77,7 +117,14 @@ export function rxDrugHistoryEntries(rxItems: RxItem[], visitDate: string): stri
  *  2. **Additive and order-stable.** New entries are appended; entries already
  *     present are left where they are, so an existing list is not reshuffled
  *     under the doctor mid-visit.
- *  3. **Idempotent.** Re-running with the same inputs returns an equal array,
+ *  3. **A taper never leaves its medicine.** A `(cont)` entry names no drug —
+ *     it belongs to the entry directly above it, by position alone. So the ℞ is
+ *     reconciled in BLOCKS (a medicine and its tapers): a block that changed is
+ *     withdrawn whole, and its replacement goes back in the same place when it
+ *     is the same medicine (a taper edited, added or removed), else at the end
+ *     as one piece. Appending a lone new taper at the end would hand it to
+ *     whichever medicine happened to be last — a dose for the wrong drug.
+ *  4. **Idempotent.** Re-running with the same inputs returns an equal array,
  *     which is what lets the caller skip the write (and the re-render) when
  *     nothing actually changed.
  *
@@ -87,17 +134,35 @@ export function rxDrugHistoryEntries(rxItems: RxItem[], visitDate: string): stri
  * pad) harmless rather than destructive.
  */
 export function syncRxDrugHistory(stored: string[], prevDerived: string[], nextDerived: string[]): string[] {
-  const next = new Set(nextDerived);
-  const withdrawn = new Set((prevDerived ?? []).filter((e) => !next.has(e)));
-  const kept = (stored ?? []).filter((e) => !withdrawn.has(e));
-  const present = new Set(kept);
-  const merged = [...kept];
-  for (const e of nextDerived) {
-    if (present.has(e)) continue;
-    present.add(e);
-    merged.push(e);
+  const nextBlocks = toBlocks(nextDerived ?? []);
+  const nextKeys = new Set(nextBlocks.map((b) => b.join("\n")));
+  const cells: Cell[] = [...(stored ?? [])];
+
+  // Withdraw each block the ℞ contributed last time and no longer does.
+  for (const b of toBlocks(prevDerived ?? [])) {
+    if (nextKeys.has(b.join("\n"))) continue;
+    const at = findBlock(cells, b);
+    if (at >= 0) {
+      cells.splice(at, b.length, { slot: b[0] });
+      continue;
+    }
+    // Not found as one run (a list written before blocks were kept together):
+    // withdraw its entries one by one, the latest copy of each.
+    for (const e of b) {
+      const i = cells.lastIndexOf(e);
+      if (i >= 0) cells.splice(i, 1);
+    }
   }
-  return merged;
+
+  // Add each block that is not already there, whole.
+  for (const b of nextBlocks) {
+    if (findBlock(cells, b) >= 0) continue;
+    const s = cells.findIndex((c) => typeof c !== "string" && c.slot === b[0]);
+    if (s >= 0) cells.splice(s, 1, ...b);
+    else cells.push(...b);
+  }
+
+  return cells.filter((c): c is string => typeof c === "string");
 }
 
 /** True when both arrays hold the same entries in the same order. */
