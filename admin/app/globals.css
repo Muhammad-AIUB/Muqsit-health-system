@@ -9,6 +9,28 @@ body {
   background: #f8f8f6;
 }
 
+/* Inputs set outline:none inline; this is their visible focus state. */
+input:focus,
+select:focus {
+  border-color: #1d9e75 !important;
+  box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.15);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #1d9e75;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: not-allowed !important;
+}
+
+::selection {
+  background: #e1f5ee;
+  color: #0f6e56;
+}
+
 .app-root {
   max-width: 1440px;
   margin: 0 auto;

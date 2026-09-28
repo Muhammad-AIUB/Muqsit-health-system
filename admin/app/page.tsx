@@ -86,17 +86,21 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 360 }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 30, marginBottom: 8 }}>🛡️</div>
-          <h1 style={{ fontSize: 24, color: C.n900 }}>Muqsit Health System Admin</h1>
+      <div style={{ width: "100%", maxWidth: 380, padding: "0 16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 22 }}>
+          <BrandMark size={40} />
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: C.n900, marginTop: 12 }}>Muqsit Health System</h1>
+          <div style={{ fontSize: 13, color: C.n600, marginTop: 2 }}>Admin console</div>
         </div>
-        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: 26 }}>
-          <label style={lblStyle}>Email</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inpStyle} placeholder="Enter your email" autoComplete="off" />
-          <label style={{ ...lblStyle, marginTop: 14 }}>Password</label>
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (!loading) void submit(); }}
+          style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)" }}
+        >
+          <label htmlFor="admin-email" style={lblStyle}>Email</label>
+          <input id="admin-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inpStyle} autoComplete="username" autoFocus required />
+          <label htmlFor="admin-password" style={{ ...lblStyle, marginTop: 14 }}>Password</label>
           <div style={{ position: "relative" }}>
-            <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={{ ...inpStyle, paddingRight: 42 }} />
+            <input id="admin-password" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} style={{ ...inpStyle, paddingRight: 42 }} autoComplete="current-password" required />
             <button
               type="button"
               onClick={() => setShowPw((v) => !v)}
@@ -107,12 +111,21 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
               <EyeIcon off={showPw} />
             </button>
           </div>
-          {error && <div style={errBox}>{error}</div>}
-          <button onClick={submit} disabled={loading} style={{ ...btnPri, width: "100%", marginTop: 18, opacity: loading ? 0.7 : 1 }}>
-            {loading ? "Please wait…" : "Sign in"}
+          {error && <div role="alert" style={errBox}>{error}</div>}
+          <button type="submit" disabled={loading} style={{ ...btnPri, width: "100%", marginTop: 18, padding: "11px 20px", fontSize: 14, opacity: loading ? 0.7 : 1, cursor: loading ? "wait" : "pointer" }}>
+            {loading ? "Signing in…" : "Sign in"}
           </button>
-        </div>
+        </form>
       </div>
+    </div>
+  );
+}
+
+// The "MHS+" tile — one brand mark for the login screen and the sidebar.
+function BrandMark({ size }: { size: number }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: Math.round(size / 4.5), background: C.pri, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.round(size * 0.3), fontWeight: 700, letterSpacing: "-0.02em", flexShrink: 0 }}>
+      MHS+
     </div>
   );
 }
@@ -145,7 +158,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
       {/* ── Sidebar ── */}
       <aside style={{ width: 220, flexShrink: 0, background: C.white, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", padding: "20px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 10px", marginBottom: 28 }}>
-          <div style={{ width: 30, height: 26, borderRadius: 6, background: C.pri, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>MHS+</div>
+          <BrandMark size={30} />
           <span style={{ fontSize: 14, fontWeight: 600, color: C.n900 }}>Admin</span>
         </div>
 
