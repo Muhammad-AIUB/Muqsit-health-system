@@ -366,42 +366,61 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
   // the "Move to …" targets differ (you can't move a row into the tier it's
   // already in). Trash has its own set below.
   const isLive = mode === "premium" || mode === "primary" || mode === "secondary";
+  const targets = TIERS.filter((t) => mode === "trash" || t !== mode);
+
+  // Every tier change revokes the account's sessions (server setTier), and
+  // secondary locks the doctor out of their own practice — confirm both.
+  const moveTo = (tier: Tier) => {
+    const lockout = tier === "secondary" ? " Secondary accounts cannot open their own practice until they are upgraded again." : "";
+    void run(
+      () => adminApi.setTier(reg.id, tier),
+      `Move ${reg.name} to ${TIER_LABEL[tier]}? They will be signed out on every device.${lockout}`,
+    );
+  };
+
+  const moveSelect = (
+    <select
+      value=""
+      disabled={busy}
+      aria-label={`Move ${reg.name} to another tier`}
+      onChange={(e) => { if (e.target.value) moveTo(e.target.value as Tier); }}
+      style={actSelect}
+    >
+      <option value="">{mode === "trash" ? "Restore to…" : "Move to…"}</option>
+      {targets.map((t) => <option key={t} value={t}>{TIER_LABEL[t]}</option>)}
+    </select>
+  );
 
   return (
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
       {view}
 
-      {mode === "secondary" && reg.approvalStatus !== "approved" && (
+      {((mode === "secondary" && reg.approvalStatus !== "approved") || mode === "trash") && (
         <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
       )}
+      {moveSelect}
       {isLive && reg.approvalStatus !== "suspended" && (
-        <button onClick={() => void run(() => adminApi.suspend(reg.id))} style={actBtn(C.warn, "#fff")} disabled={busy}>Suspend</button>
-      )}
-      {isLive && mode !== "premium" && (
-        <button onClick={() => void run(() => adminApi.setTier(reg.id, "premium"))} style={actBtn(C.white)} disabled={busy}>Move to premium</button>
-      )}
-      {isLive && mode !== "primary" && (
-        <button onClick={() => void run(() => adminApi.setTier(reg.id, "primary"))} style={actBtn(C.white)} disabled={busy}>Move to primary</button>
-      )}
-      {isLive && mode !== "secondary" && (
-        <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
+        <button
+          onClick={() => void run(() => adminApi.suspend(reg.id), `Suspend ${reg.name}? They will be signed out on every device right away.`)}
+          style={actOutline("#854F0B")}
+          disabled={busy}
+        >
+          Suspend
+        </button>
       )}
       {isLive && (
-        <button onClick={() => void run(() => adminApi.softDelete(reg.id), `Move ${reg.name} to Trash? They'll be signed out and can be restored later.`)} style={actBtn(C.danger, "#fff")} disabled={busy}>Delete</button>
+        <button onClick={() => void run(() => adminApi.softDelete(reg.id), `Move ${reg.name} to Trash? They'll be signed out and can be restored later.`)} style={actOutline(C.dangerDark)} disabled={busy}>Delete</button>
       )}
-
       {mode === "trash" && (
-        <>
-          <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
-          <button onClick={() => void run(() => adminApi.setTier(reg.id, "premium"))} style={actBtn(C.white)} disabled={busy}>Move to premium</button>
-          <button onClick={() => void run(() => adminApi.setTier(reg.id, "primary"))} style={actBtn(C.white)} disabled={busy}>Move to primary</button>
-          <button onClick={() => void run(() => adminApi.setTier(reg.id, "secondary"))} style={actBtn(C.white)} disabled={busy}>Move to secondary</button>
-          <button onClick={() => void run(() => adminApi.hardDelete(reg.id), `Permanently delete ${reg.name}? This cannot be undone.`)} style={actBtn(C.danger, "#fff")} disabled={busy}>Delete permanently</button>
-        </>
+        <button onClick={() => void run(() => adminApi.hardDelete(reg.id), `Permanently delete ${reg.name}? This cannot be undone.`)} style={actOutline(C.dangerDark)} disabled={busy}>Delete permanently</button>
       )}
     </div>
   );
 }
+
+const TIERS = ["premium", "primary", "secondary"] as const;
+type Tier = (typeof TIERS)[number];
+const TIER_LABEL: Record<Tier, string> = { premium: "Premium", primary: "Primary", secondary: "Secondary" };
 
 // ── Shared styles ────────────────────────────────────────────
 const lblStyle: React.CSSProperties = { fontSize: 12, color: C.n600, display: "block", marginBottom: 5 };
@@ -424,7 +443,11 @@ const actBtn = (bg: string, fg?: string): React.CSSProperties => ({
   cursor: "pointer",
   whiteSpace: "nowrap",
 });
-const tab: React.CSSProperties = { padding: "7px 16px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.white, color: C.n600, fontSize: 13, cursor: "pointer" };
+// Outlined action (text + border in one colour) for actions that should not
+// shout on every row: Suspend, Delete.
+const actOutline = (color: string): React.CSSProperties => ({ ...actBtn(C.white), color, borderColor: color + "55" });
+const actSelect: React.CSSProperties = { ...actBtn(C.white), padding: "5px 8px", fontFamily: "inherit", outline: "none" };
+const tab: React.CSSProperties ={ padding: "7px 16px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.white, color: C.n600, fontSize: 13, cursor: "pointer" };
 const tabActive: React.CSSProperties = { background: C.priLight, borderColor: C.pri, color: C.priDark, fontWeight: 600 };
 const th: React.CSSProperties = { padding: "11px 14px", fontWeight: 600, fontSize: 12 };
 const td: React.CSSProperties = { padding: "11px 14px", color: C.n900 };
