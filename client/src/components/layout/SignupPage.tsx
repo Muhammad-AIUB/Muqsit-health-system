@@ -54,6 +54,50 @@ const labelStyle = { fontSize: 12, color: C.n[600], display: "block", marginBott
 const fieldStyle = { ...inputSm, padding: "10px 14px", fontSize: 13 } as const;
 const groupStyle = { marginBottom: 14 } as const;
 
+// ── Signup draft storage ───────────────────────────────────
+// An abandoned signup must not leave identity data on the device. Only fields
+// that identify nobody on their own go to localStorage (survives restarts);
+// contact details, the NID number and every uploaded document/photo URL go to
+// sessionStorage, which dies with the tab. The password is never stored.
+export const SIGNUP_DRAFT_KEY = "muqsit_signup_draft";
+export const SIGNUP_SESSION_KEY = "muqsit_signup_session";
+/** Pre-2026-09-29 key that held the password in plain text — cleared on load. */
+export const LEGACY_SIGNUP_PASS_KEY = "muqsit_signup_pass";
+
+export const SIGNUP_LOCAL_FIELDS = ["name", "profession", "registrationNo", "designation", "specialty"] as const;
+export const SIGNUP_SESSION_FIELDS = [
+  "email", "mobile", "nidNo",
+  "registrationCertUrl", "nidFrontUrl", "nidBackUrl", "profilePictureUrl",
+] as const;
+
+export function splitSignupDraft(d: Record<string, string>): {
+  local: Record<string, string>;
+  session: Record<string, string>;
+} {
+  const local: Record<string, string> = {};
+  const session: Record<string, string> = {};
+  for (const k of SIGNUP_LOCAL_FIELDS) local[k] = d[k] ?? "";
+  for (const k of SIGNUP_SESSION_FIELDS) session[k] = d[k] ?? "";
+  return { local, session };
+}
+
+/** Reads a stored draft, taking each field only from the store it belongs in. */
+export function readSignupDraft(localRaw: string | null, sessionRaw: string | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  const pick = (raw: string | null, keys: readonly string[]) => {
+    if (!raw) return;
+    try {
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      for (const k of keys) if (typeof d[k] === "string" && d[k]) out[k] = d[k] as string;
+    } catch {
+      /* corrupt draft — ignore */
+    }
+  };
+  pick(localRaw, SIGNUP_LOCAL_FIELDS);
+  pick(sessionRaw, SIGNUP_SESSION_FIELDS);
+  return out;
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const onBack = () => router.push("/login");
@@ -101,27 +145,20 @@ export default function SignupPage() {
   const otpTimeLabel = `${String(Math.floor(otpRemaining / 60000)).padStart(2, "0")}:${String(Math.floor((otpRemaining % 60000) / 1000)).padStart(2, "0")}`;
 
   // ── Draft autosave ────────────────────────────────────────
-  // Form fields survive a page refresh (localStorage). Passwords are kept
-  // in sessionStorage only — they survive a refresh but are wiped when the
-  // tab closes, so they never persist on disk long-term.
-  const DRAFT_KEY = "muqsit_signup_draft";
-  const PASS_KEY = "muqsit_signup_pass";
-
+  // See `splitSignupDraft`: harmless fields in localStorage, identity data in
+  // sessionStorage, the password nowhere (it is retyped after a refresh).
   useEffect(() => {
     try {
-      const rawPass = window.sessionStorage.getItem(PASS_KEY);
-      if (rawPass) {
-        const p = JSON.parse(rawPass) as Record<string, string>;
-        if (p.password) setPassword(p.password);
-        if (p.retype) setRetype(p.retype);
-      }
+      window.sessionStorage.removeItem(LEGACY_SIGNUP_PASS_KEY);
     } catch {
-      /* corrupt/unavailable — ignore */
+      /* unavailable — ignore */
     }
     try {
-      const raw = window.localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw) as Record<string, string>;
+      let localRaw: string | null = null;
+      let sessionRaw: string | null = null;
+      try { localRaw = window.localStorage.getItem(SIGNUP_DRAFT_KEY); } catch { /* unavailable */ }
+      try { sessionRaw = window.sessionStorage.getItem(SIGNUP_SESSION_KEY); } catch { /* unavailable */ }
+      const d = readSignupDraft(localRaw, sessionRaw);
       if (d.name) setName(d.name);
       if (d.email) setEmail(d.email);
       if (d.mobile) setMobile(d.mobile);
@@ -134,6 +171,12 @@ export default function SignupPage() {
       if (d.nidFrontUrl) setNidFrontUrl(d.nidFrontUrl);
       if (d.nidBackUrl) setNidBackUrl(d.nidBackUrl);
       if (d.profilePictureUrl) setProfilePictureUrl(d.profilePictureUrl);
+      // Rewrite an older draft that still holds identity data in localStorage.
+      if (localRaw) {
+        try {
+          window.localStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify(splitSignupDraft(d).local));
+        } catch { /* ignore */ }
+      }
     } catch {
       /* corrupt draft — ignore */
     }
@@ -142,32 +185,24 @@ export default function SignupPage() {
 
   useEffect(() => {
     const t = setTimeout(() => {
+      const { local, session } = splitSignupDraft({
+        name, email, mobile, profession, registrationNo, nidNo,
+        designation, specialty,
+        registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl,
+      });
       try {
-        window.localStorage.setItem(
-          DRAFT_KEY,
-          JSON.stringify({
-            name, email, mobile, profession, registrationNo, nidNo,
-            designation, specialty,
-            registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl,
-          }),
-        );
+        window.localStorage.setItem(SIGNUP_DRAFT_KEY, JSON.stringify(local));
+      } catch {
+        /* storage full/unavailable — ignore */
+      }
+      try {
+        window.sessionStorage.setItem(SIGNUP_SESSION_KEY, JSON.stringify(session));
       } catch {
         /* storage full/unavailable — ignore */
       }
     }, 400);
     return () => clearTimeout(t);
   }, [name, email, mobile, profession, registrationNo, nidNo, designation, specialty, registrationCertUrl, nidFrontUrl, nidBackUrl, profilePictureUrl]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        window.sessionStorage.setItem(PASS_KEY, JSON.stringify({ password, retype }));
-      } catch {
-        /* storage full/unavailable — ignore */
-      }
-    }, 400);
-    return () => clearTimeout(t);
-  }, [password, retype]);
 
   // NID OCR verification (advisory — compares typed number with the image)
   const [nidFrontFile, setNidFrontFile] = useState<File | null>(null);
@@ -244,8 +279,8 @@ export default function SignupPage() {
       };
       await register(input);
       try {
-        window.localStorage.removeItem(DRAFT_KEY);
-        window.sessionStorage.removeItem(PASS_KEY);
+        window.localStorage.removeItem(SIGNUP_DRAFT_KEY);
+        window.sessionStorage.removeItem(SIGNUP_SESSION_KEY);
       } catch { /* ignore */ }
       setOtpDeadline(Date.now() + OTP_TTL_MS);
       setStep("otp");

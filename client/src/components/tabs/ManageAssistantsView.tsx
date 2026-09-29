@@ -78,11 +78,13 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
     });
   };
 
-  // Open the per-assistant editor. If the assistant has no custom grants yet,
-  // pre-fill with the doctor's default access so the defaults show ticked.
+  // Open the per-assistant editor seeded with exactly what is stored. An
+  // assistant with no grants has no access; pre-ticking the defaults here meant
+  // an open + Save re-granted access the doctor had revoked. "Reset to default"
+  // is the explicit way to pre-tick them.
   const openEditor = (a: AssistantRecord) => {
     setEditingId((cur) => (cur === a.id ? null : a.id));
-    setDraft(new Set(a.permissions.length ? a.permissions : defaultPerms));
+    setDraft(new Set(a.permissions));
   };
 
   const saveAccess = (a: AssistantRecord) => {
@@ -183,6 +185,8 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
         ) : (
           assistants.map((a) => {
             const isEditing = editingId === a.id;
+            // Save only when the draft differs from what is stored.
+            const dirty = !sameSet(draft, new Set(a.permissions));
             return (
               <div key={a.id} style={{ ...card, border: isEditing ? `1px solid ${C.info[400]}` : card.border }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -206,11 +210,11 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
                 {isEditing && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: `0.5px solid ${C.n[200]}` }}>
                     <div style={{ fontSize: 11, color: C.n[600], marginBottom: 12 }}>
-                      Your default access is pre-ticked. Add or remove to give {a.name.split(" ")[0]} different permissions, then Save.
+                      Ticked boxes are what {a.name.split(" ")[0]} can edit now. Add or remove, or use Reset to default, then Save.
                     </div>
                     <PermissionGrid selected={draft} onToggle={toggleInSet(setDraft)} />
                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, rowGap: 8, marginTop: 4 }}>
-                      <button onClick={() => saveAccess(a)} disabled={updateAssistant.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: updateAssistant.isPending ? 0.6 : 1 }}>
+                      <button onClick={() => saveAccess(a)} disabled={!dirty || updateAssistant.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: !dirty || updateAssistant.isPending ? 0.6 : 1, cursor: !dirty || updateAssistant.isPending ? "default" : "pointer" }}>
                         {updateAssistant.isPending ? "Saving…" : "Save"}
                       </button>
                       <button onClick={() => setEditingId(null)} style={btn(C.n[100], C.n[800])}>Cancel</button>

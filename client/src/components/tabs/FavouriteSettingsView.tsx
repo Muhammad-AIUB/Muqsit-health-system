@@ -10,7 +10,7 @@ import { useInvestigationPrefs, useSaveFavourites, useSaveUnitPrefs } from "@/ho
 // "Favourite" category in the Investigation popup. Preferred-unit settings are
 // the next part (placeholder below).
 export default function FavouriteSettingsView({ onBack }: { onBack: () => void }) {
-  const { favourites, unitPrefs, isLoading } = useInvestigationPrefs();
+  const { favourites, unitPrefs, isLoading, loaded } = useInvestigationPrefs();
   const save = useSaveFavourites();
   const saveUnits = useSaveUnitPrefs();
 
@@ -29,8 +29,12 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
     return out;
   }, [favourites]);
 
-  const setUnit = (key: string, choice: "u1" | "u2") =>
+  // Every save sends the WHOLE list/map, so nothing is toggleable until the
+  // doctor's real one has loaded — a toggle on the empty stand-in would wipe it.
+  const setUnit = (key: string, choice: "u1" | "u2") => {
+    if (!loaded) return;
     saveUnits.mutate({ ...unitPrefs, [key]: choice });
+  };
 
   // Categories to browse from (everything except the dynamic "Favourite" tab).
   const browseCats = useMemo(() => INV_CATS.filter((c) => c.cat !== "Favourite" && c.tests.length > 0), []);
@@ -39,10 +43,11 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
 
   const isFav = (name: string) => favourites.includes(name);
   const toggle = (name: string) => {
+    if (!loaded) return;
     const next = isFav(name) ? favourites.filter((n) => n !== name) : [...favourites, name];
     save.mutate(next);
   };
-  const removeFav = (name: string) => save.mutate(favourites.filter((n) => n !== name));
+  const removeFav = (name: string) => { if (loaded) save.mutate(favourites.filter((n) => n !== name)); };
 
   return (
     <div style={{ fontFamily: font }}>
@@ -51,7 +56,13 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
         <div style={{ fontSize: 16, fontWeight: 600 }}>Favourite &amp; unit settings</div>
       </div>
 
-      {save.isError && (
+      {!loaded && !isLoading && (
+        <div style={{ fontSize: 12.5, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 8, padding: "9px 13px", marginBottom: 14 }}>
+          Your saved favourites could not be loaded, so they can’t be changed right now. Please try again in a moment.
+        </div>
+      )}
+
+      {(save.isError || saveUnits.isError) && (
         <div style={{ fontSize: 12.5, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "9px 13px", marginBottom: 14 }}>
           Couldn’t save — the change was undone. If this just started, the API needs a <b>Prisma client regenerate + restart</b>.
         </div>
@@ -99,8 +110,8 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
 
         {/* Test list with star toggles */}
         <div style={{ flex: 1, border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: 10, maxHeight: 460, overflowY: "auto" }}>
-          {isLoading ? (
-            <div style={{ fontSize: 12.5, color: C.n[500], padding: 8 }}>Loading…</div>
+          {!loaded ? (
+            <div style={{ fontSize: 12.5, color: C.n[500], padding: 8 }}>{isLoading ? "Loading…" : "Not available until your favourites load."}</div>
           ) : (
             tests.map((t) => {
               const fav = isFav(t.name);

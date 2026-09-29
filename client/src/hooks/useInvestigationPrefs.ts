@@ -26,11 +26,23 @@ export function useInvestigationPrefs() {
   };
 }
 
+// Favourites and unit prefs are sent WHOLE and the server replaces the stored
+// value, so — like the groups below — a save built on the `[]`/`{}` stand-in of
+// a profile that never loaded would wipe the doctor's real list. Refused until
+// the profile is in the cache.
+function assertLoaded(qc: ReturnType<typeof useQueryClient>, what: string) {
+  if (qc.getQueryData<ProfileMe>(KEY) === undefined) {
+    throw new Error(`your saved ${what} have not loaded yet. Please wait a moment and try again.`);
+  }
+}
+
 export function useSaveFavourites() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (favouriteInvestigations: string[]) =>
-      usersApi.update({ favouriteInvestigations }),
+    mutationFn: async (favouriteInvestigations: string[]) => {
+      assertLoaded(qc, "favourites");
+      return usersApi.update({ favouriteInvestigations });
+    },
     // Optimistically update the cache so the UI (and the popup) react instantly.
     onMutate: async (next) => {
       await qc.cancelQueries({ queryKey: KEY });
@@ -48,8 +60,10 @@ export function useSaveFavourites() {
 export function useSaveUnitPrefs() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (investigationUnitPrefs: Record<string, string>) =>
-      usersApi.update({ investigationUnitPrefs }),
+    mutationFn: async (investigationUnitPrefs: Record<string, string>) => {
+      assertLoaded(qc, "unit settings");
+      return usersApi.update({ investigationUnitPrefs });
+    },
     onMutate: async (next) => {
       await qc.cancelQueries({ queryKey: KEY });
       const prev = qc.getQueryData<ProfileMe>(KEY);

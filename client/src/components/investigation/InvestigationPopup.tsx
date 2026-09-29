@@ -19,7 +19,7 @@ export default function InvestigationPopup() {
   const {
     showInvPopup, setShowInvPopup, calDate, setCalDate, showMonthPicker, setShowMonthPicker,
     invSearch, setInvSearch, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
-    investigation, setInvestigation, invImages, setInvImages,
+    investigation, setInvestigation, invImages, setInvImages, setHiddenInvestigation,
     reportImages: galleryReportImages, saveReportImages,
   } = useMuqsit();
 
@@ -857,6 +857,10 @@ export default function InvestigationPopup() {
                     if (v) {
                       const next = test ? `${date}:${test}:${v}` : `${date}:${v}`;
                       setInvestigation(investigation.map((x) => (x === item ? next : x)));
+                      // ⚕️ "Hide in Printed Prescription" is keyed by the exact
+                      // string, so a corrected finding would lose its mark (the
+                      // prune drops it) and print. The mark follows the edit.
+                      if (next !== item) setHiddenInvestigation((h) => (h.includes(item) ? h.map((x) => (x === item ? next : x)) : h));
                     }
                     setEditItem(null);
                   };

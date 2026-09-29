@@ -153,7 +153,7 @@ export default function OpdView() {
                         setCurrentPatientId(p.patientId);
                         setPtInfo({
                           name: p.name, hospitalId: "", bloodGroup: "", dob: "", age, sex,
-                          ethnicity: "", religion: "Islam", mobile: p.phone ?? "", nid: "",
+                          ethnicity: "", religion: "", mobile: p.phone ?? "", nid: "",
                           spouseMobile: "", relativeMobile: "", relativeRelation: "",
                           district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
                         });

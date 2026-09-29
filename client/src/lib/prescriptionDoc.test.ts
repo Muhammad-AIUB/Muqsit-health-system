@@ -929,4 +929,15 @@ describe("clinical lines print verbatim", () => {
     expect(html).not.toContain("Past: Losartan");
     expect(html).not.toContain("0+0+1");
   });
+
+  // ⚕️ A drug-history NOTE is free text, not a medicine: printing it through the
+  // name-only cut dropped everything after the first " — ".
+  it("prints a drug-history (note) entry whole, never cut at ' — '", () => {
+    const html = buildPrescriptionHtml(withClinical([
+      { label: "Drug history", items: ["05/03/2026(note): Stopped warfarin — GI bleed", "Past(note): allergic to penicillin — rash"] },
+    ]));
+    expect(html).toContain("<li>Stopped warfarin — GI bleed</li>");
+    expect(html).toContain("<li>allergic to penicillin — rash</li>");
+    expect(html).not.toContain("<li>Stopped warfarin</li>");
+  });
 });

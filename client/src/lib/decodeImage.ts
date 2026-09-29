@@ -44,7 +44,9 @@ export async function decodeToJpeg(file: File, kind: ImageKind, quality = 0.9): 
   try {
     if (kind === 'heic') return await heicToJpeg(file, quality);
     if (kind === 'tiff') return await tiffToJpeg(file, quality);
-  } catch {
+  } catch (e) {
+    // A refusal that already names its reason (a multi-page TIFF) keeps it.
+    if (e instanceof ImageDecodeError) throw e;
     throw new ImageDecodeError(kind, file.name, failure(kind, file.name));
   }
   throw new ImageDecodeError(kind, file.name, failure(kind, file.name));
@@ -65,10 +67,18 @@ async function tiffToJpeg(file: File, quality: number): Promise<Blob> {
   const buf = await file.arrayBuffer();
   const ifds = UTIF.decode(buf);
   if (!ifds.length) throw new Error('no image in TIFF');
-  // A scanned report is routinely a MULTI-PAGE TIFF. Only the first page is
-  // converted, and the caller says so — silently dropping pages 2..n of a
-  // report would be a clinical data loss, so `decodeTiffPageCount` lets the
-  // caller warn by name instead.
+  // A scanned report is routinely a MULTI-PAGE TIFF, and one upload stores one
+  // image. Converting page 1 and dropping pages 2..n of a report would be a
+  // silent clinical data loss, so a multi-page file is refused by name.
+  const pages = countPages(ifds);
+  if (pages > 1) {
+    throw new ImageDecodeError(
+      'tiff',
+      file.name,
+      `"${file.name}" is a ${pages}-page TIFF scan. Only one page can be added per image, so nothing was uploaded. ` +
+        `Export each page as JPEG or PNG (or scan the pages separately) and add them all.`,
+    );
+  }
   UTIF.decodeImage(buf, ifds[0]);
   const rgba = UTIF.toRGBA8(ifds[0]);
   const w = ifds[0].width;
@@ -113,8 +123,19 @@ export function flattenOntoWhite(rgba: ArrayLike<number>): Uint8ClampedArray {
 export async function tiffPageCount(file: File): Promise<number> {
   try {
     const UTIF = (await import('utif')).default as typeof import('utif');
-    return UTIF.decode(await file.arrayBuffer()).length || 1;
+    return countPages(UTIF.decode(await file.arrayBuffer())) || 1;
   } catch {
     return 1;
   }
+}
+
+/**
+ * Real pages in a decoded TIFF. A reduced-resolution thumbnail directory
+ * (NewSubfileType, tag 254, bit 0 set) is a preview of a page, not a page.
+ */
+function countPages(ifds: ReadonlyArray<object>): number {
+  return ifds.filter((ifd) => {
+    const t = (ifd as { t254?: number[] }).t254;
+    return !(t && t[0] & 1);
+  }).length;
 }

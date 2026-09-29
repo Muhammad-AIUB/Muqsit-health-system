@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitDrugLabel } from "./rxShorthand";
+import { parseDose, splitDrugLabel } from "./rxShorthand";
 
 // ⚕️ This decides which part of a medicine on the PRINTED prescription is set
 // in bold. It must never change the text itself — only where the emphasis
@@ -73,5 +73,34 @@ describe("splitDrugLabel", () => {
   it("preserves odd spacing exactly", () => {
     expect(parts("Tablet.   Napa    500 mg")).toEqual(["Tablet.   ", "Napa", "    500 mg"]);
     expect(parts("  Tablet. Napa 500 mg  ")).toEqual(["  Tablet. ", "Napa", " 500 mg  "]);
+  });
+});
+
+// ⚕️ parseDose runs on blur/Enter in the ℞ pad's dose cell and its output is
+// PRINTED. A free-typed dose must come back byte-identical; only the pure
+// shorthand alphabet (digits and dots, as documented on parseDose) expands.
+describe("parseDose", () => {
+  it("leaves a typed dose with words or units exactly as entered", () => {
+    for (const s of ["2.5 ml", "7.5 ml", "1 tsf. 3 times daily", "Apply 0.5% cream", "0.5 ml", "1.5 tab"]) {
+      expect(parseDose(s)).toBe(s);
+    }
+  });
+
+  it("still expands every documented shorthand", () => {
+    expect(parseDose("101")).toBe("1+0+1");
+    expect(parseDose("220")).toBe("2+2+0");
+    expect(parseDose("203")).toBe("2+0+3");
+    expect(parseDose("320018")).toBe("32+00+18");
+    expect(parseDose(".50.5")).toBe("1/2+0+1/2");
+    expect(parseDose(".5.5.5")).toBe("1/2+1/2+1/2");
+    expect(parseDose("10.5")).toBe("1+0+1/2");
+    expect(parseDose("  101 ")).toBe("1+0+1");
+  });
+
+  it("keeps a plain decimal and an already-written schedule unchanged", () => {
+    expect(parseDose("2.5")).toBe("2.5");
+    expect(parseDose("0.25")).toBe("0.25");
+    expect(parseDose("1+0+1")).toBe("1+0+1");
+    expect(parseDose("")).toBe("");
   });
 });

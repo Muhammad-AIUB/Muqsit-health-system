@@ -723,7 +723,8 @@ export const CALCULATORS: Calculator[] = [
         serumIronUnit: String(inputs.serumIronUnit ?? 'µg/dL'),
         tibcMethod: inputs.tibcMethod as 'tibc' | 'transferrin',
         tibcValue: Number(inputs.tibcValue),
-        tibcUnit: String(inputs.tibcUnit ?? 'µg/dL'),
+        // CalcRenderer stores a field's unit under `<fieldId>Unit`; the field is `tibcValue`.
+        tibcUnit: String(inputs.tibcValueUnit ?? 'µg/dL'),
         ferritin: inputs.ferritin ? Number(inputs.ferritin) : undefined,
       }),
   },

@@ -82,6 +82,10 @@ export function parseDose(raw: string): string {
   if (!s || s.includes("+")) return s;
 
   if (s.includes(".")) {
+    // The half shorthand is ONLY digits and dots. Anything else is words the
+    // doctor typed — "2.5 ml", "1 tsf. 3 times daily", "Apply 0.5% cream" —
+    // and must print exactly as entered, never be rebuilt into a schedule.
+    if (!/^[\d.]+$/.test(s)) return s;
     // A plain SINGLE-DIGIT decimal ("1.5", "2.5", "0.25") is a literal dose, not
     // the multi-slot half shorthand — leave it unchanged. The integer part must
     // be a single digit so multi-digit compact schedules still tokenize: "10.5"

@@ -147,6 +147,30 @@ describe("ImageGallery", () => {
     expect(onAddFiles).not.toHaveBeenCalled();
   });
 
+  it("drops the selection and leaves Edit mode when the images change under it", () => {
+    // ⚕️ With index ids, an upload prepending one image made "a" point at a
+    // different picture — Remove selected then removed the wrong one.
+    const onRemoveMany = vi.fn();
+    const { rerender } = render(<ImageGallery {...base} onRemoveMany={onRemoveMany} />);
+    fireEvent.click(screen.getByText("✎ Edit"));
+    fireEvent.click(tile("a"));
+    rerender(<ImageGallery {...base} onRemoveMany={onRemoveMany} items={[{ id: "n", url: "/u/new.jpg" }, ...items]} />);
+    expect(screen.queryByRole("button", { name: /Remove selected/ })).toBeNull();
+    expect(screen.getByText("✎ Edit")).toBeTruthy();
+    fireEvent.click(screen.getByText("✎ Edit"));
+    expect((screen.getByRole("button", { name: /Remove selected/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onRemoveMany).not.toHaveBeenCalled();
+  });
+
+  it("stays in Edit mode after its own Remove selected lands", () => {
+    const { rerender } = render(<ImageGallery {...base} />);
+    fireEvent.click(screen.getByText("✎ Edit"));
+    fireEvent.click(tile("b"));
+    fireEvent.click(screen.getByRole("button", { name: /Remove selected/ }));
+    rerender(<ImageGallery {...base} items={items.filter((it) => it.id !== "b")} />);
+    expect(screen.getByText("Done")).toBeTruthy();
+  });
+
   it("shows the caller's empty text when there is nothing yet", () => {
     render(<ImageGallery {...base} items={[]} />);
     expect(screen.getByText("Nothing yet")).toBeTruthy();

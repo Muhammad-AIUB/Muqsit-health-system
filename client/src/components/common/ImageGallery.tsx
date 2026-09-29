@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useRef, useState, type CSSProperties, type DragEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { C, font } from "@/theme";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 
@@ -79,7 +79,7 @@ export default function ImageGallery({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
-  // Keyed by src URL not item.id: id is array-index in patient galleries and a reorder reassigns it.
+  // Keyed by src URL not item.id: an id need not be the URL, and an index id is reassigned by a reorder.
   const [imgState, setImgState] = useState<Record<string, { tries: number; failed: boolean; loaded: boolean; useFull?: boolean }>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dragId, setDragId] = useState<string | null>(null);
@@ -124,6 +124,23 @@ export default function ImageGallery({
 
   const exitEdit = () => { setEditing(false); setSelected(new Set()); };
 
+  // ⚕️ A selection means "these images", and only for the list it was made on.
+  // When the set of images changes under it — an upload lands, another patient
+  // is opened — "Remove selected" could otherwise remove a different image, or
+  // another patient's. So the selection is dropped and Edit mode left, except
+  // for the change this gallery itself asked for (its own "Remove selected").
+  const urlSetKey = JSON.stringify([...urls].sort());
+  const lastUrlSet = useRef(urlSetKey);
+  const expectedUrlSet = useRef<string | null>(null);
+  useEffect(() => {
+    if (urlSetKey === lastUrlSet.current) return;
+    lastUrlSet.current = urlSetKey;
+    if (urlSetKey === expectedUrlSet.current) { expectedUrlSet.current = null; return; }
+    expectedUrlSet.current = null;
+    setSelected(new Set());
+    setEditing(false);
+  }, [urlSetKey]);
+
   const onImgLoad = (src: string) => {
     setImgState((prev) => ({ ...prev, [src]: { ...prev[src] ?? { tries: 0, failed: false, loaded: false }, failed: false, loaded: true } }));
   };
@@ -151,6 +168,7 @@ export default function ImageGallery({
   const removeSelected = () => {
     if (selected.size === 0) return;
     const removedSrcs = items.filter((it) => selected.has(it.id)).map((it) => it.thumbUrl || it.url);
+    expectedUrlSet.current = JSON.stringify(items.filter((it) => !selected.has(it.id)).map((it) => it.url).sort());
     onRemoveMany([...selected]);
     setImgState((prev) => { const next = { ...prev }; removedSrcs.forEach((s) => delete next[s]); return next; });
     setSelected(new Set());

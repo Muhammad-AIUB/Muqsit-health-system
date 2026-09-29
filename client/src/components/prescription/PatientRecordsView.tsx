@@ -11,7 +11,7 @@
 // Galleries support: Edit mode (select → remove), drag-to-reorder, and a
 // lightbox with ←/→ keyboard navigation.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
@@ -49,18 +49,37 @@ function DateHeading({ date }: { date: string }) {
 // The exact identity `removeFinding` deletes by.
 const savedKey = (f: InvFinding) => JSON.stringify([f.date, f.test, f.value]);
 
+// A one-step Undo for a history delete. ⚕️ It carries the patient it was taken
+// on: `prev` is that patient's WHOLE history, and writing it back while another
+// patient is loaded would put one patient's findings into another's record.
+// `status` follows the write — the bar stays until the server has the change,
+// and says so when it did not land.
+type UndoEntry<T> = {
+  token: number; pid: string | null; prev: T[]; next: T[]; label: string;
+  status: "saving" | "saved" | "restoring" | "error"; error?: string;
+};
+const errText = (e: unknown) => (e instanceof Error && e.message ? e.message : "the connection failed");
+
 export default function PatientRecordsView() {
   const {
     currentPatientId, ptName,
     rxImages, saveRxImages, reportImages, saveReportImages, appendGalleryImages, imageThumbs,
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
-    onExaminationSummary, saveOnExaminationSummary,
+    setInvestigationSummary, onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,
   } = useMuqsit();
   const [showDownload, setShowDownload] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
-  const [undo, setUndo] = useState<{ prev: InvFinding[]; label: string } | null>(null);
+  const [undo, setUndo] = useState<UndoEntry<InvFinding> | null>(null);
   const [oeEditing, setOeEditing] = useState(false);
-  const [oeUndo, setOeUndo] = useState<{ prev: OeFinding[]; label: string } | null>(null);
+  const [oeUndo, setOeUndo] = useState<UndoEntry<OeFinding> | null>(null);
+  const undoSeq = useRef(0);
+
+  // ⚕️ This view stays mounted while the header lookup opens another patient,
+  // so nothing taken on the previous patient may survive the switch — least of
+  // all an Undo holding their whole history.
+  useEffect(() => {
+    setUndo(null); setOeUndo(null); setEditingSummary(false); setOeEditing(false);
+  }, [currentPatientId]);
 
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
   const [busyRx, setBusyRx] = useState(false);
@@ -125,7 +144,9 @@ export default function PatientRecordsView() {
   // the upload FINISHES, and only if this patient is still the one loaded — see
   // `appendGalleryImages`. Building the list here, before the await, is what
   // resurrected removed images and put one patient's images in another's record.
-  const rxItems = rxImages.map((url, i) => ({ id: String(i), url, thumbUrl: thumbFor(imageThumbs, url) }));
+  // The URL is the item id, never the array index: a selection made by index
+  // points at a different image once an upload prepends to the list.
+  const rxItems = rxImages.map((url) => ({ id: url, url, thumbUrl: thumbFor(imageThumbs, url) }));
   const notFiledForSwitch = (n: number) =>
     window.alert(`${n} image${n === 1 ? " was" : "s were"} NOT added: a different patient was opened while uploading. Open the patient again and re-add ${n === 1 ? "it" : "them"}.`);
   const addRx = async (files: File[]) => {
@@ -137,7 +158,7 @@ export default function PatientRecordsView() {
   };
   const removeRx = (ids: string[]) => {
     const idset = new Set(ids);
-    saveRxImages(rxImages.filter((_, i) => !idset.has(String(i))));
+    void saveRxImages(rxImages.filter((url) => !idset.has(url)));
   };
   const reorderRx = (orderedIds: string[]) => {
     const byId = new Map(rxItems.map((it) => [it.id, it.url]));
@@ -145,7 +166,7 @@ export default function PatientRecordsView() {
   };
 
   // ── Report gallery ──
-  const reportItems = reportImages.map((url, i) => ({ id: String(i), url, thumbUrl: thumbFor(imageThumbs, url) }));
+  const reportItems = reportImages.map((url) => ({ id: url, url, thumbUrl: thumbFor(imageThumbs, url) }));
   const addReports = async (files: File[]) => {
     const forPid = currentPatientId;
     setBusyReport(true);
@@ -155,7 +176,7 @@ export default function PatientRecordsView() {
   };
   const removeReports = (ids: string[]) => {
     const idset = new Set(ids);
-    saveReportImages(reportImages.filter((_, i) => !idset.has(String(i))));
+    void saveReportImages(reportImages.filter((url) => !idset.has(url)));
   };
   const reorderReports = (orderedIds: string[]) => {
     const byId = new Map(reportItems.map((it) => [it.id, it.url]));
@@ -180,33 +201,61 @@ export default function PatientRecordsView() {
 
   // Delete a finding from the patient's saved history (edit mode only), keeping
   // a one-step undo. The offer stays until the user acts on it (undo / dismiss /
-  // leave Edit mode) — it never disappears on its own.
+  // leave Edit mode / open another patient) — it never disappears on its own.
+  // Neither the delete nor the Undo is fire-and-forget: the bar follows the
+  // write, and a delete the server refused is put back on screen with the reason.
   const removeFinding = (f: InvFinding) => {
     const prev = investigationSummary ?? [];
     const next = prev.filter(
       (x) => !(x.date === f.date && x.test === f.test && x.value === f.value),
     );
     if (next.length === prev.length) return; // nothing of the saved history matched
-    saveInvestigationSummary(next);
-    setUndo({ prev, label: `${f.test}: ${f.value}` });
+    const token = ++undoSeq.current;
+    setUndo({ token, pid: currentPatientId, prev, next, label: `${f.test}: ${f.value}`, status: "saving" });
+    Promise.resolve(saveInvestigationSummary(next)).then(
+      () => setUndo((u) => (u && u.token === token ? { ...u, status: "saved" } : u)),
+      (e) => {
+        // Put the finding back only if nothing has changed the list since.
+        setInvestigationSummary((cur) => (cur === next ? prev : cur));
+        setUndo((u) => (u && u.token === token ? { ...u, status: "error", error: `Not removed — ${errText(e)}. The finding is still in the history.` } : u));
+      },
+    );
   };
   const undoRemove = () => {
-    if (!undo) return;
-    saveInvestigationSummary(undo.prev);
-    setUndo(null);
+    if (!undo || undo.status !== "saved") return;
+    if (undo.pid !== currentPatientId) { setUndo(null); return; } // another patient is open
+    const { token, prev } = undo;
+    setUndo({ ...undo, status: "restoring" });
+    Promise.resolve(saveInvestigationSummary(prev)).then(
+      () => setUndo((u) => (u && u.token === token ? null : u)),
+      (e) => setUndo((u) => (u && u.token === token ? { ...u, status: "saved", error: `Undo did not save — ${errText(e)}. Try again.` } : u)),
+    );
   };
 
   // ── On-examination history: dated findings recorded from saved visits. ──
   const oeGroups = useMemo(() => groupOeByDate(onExaminationSummary ?? []), [onExaminationSummary]);
   const removeOe = (f: OeFinding) => {
     const prev = onExaminationSummary ?? [];
-    saveOnExaminationSummary(prev.filter((x) => !(x.date === f.date && x.text === f.text)));
-    setOeUndo({ prev, label: f.text });
+    const next = prev.filter((x) => !(x.date === f.date && x.text === f.text));
+    const token = ++undoSeq.current;
+    setOeUndo({ token, pid: currentPatientId, prev, next, label: f.text, status: "saving" });
+    Promise.resolve(saveOnExaminationSummary(next)).then(
+      () => setOeUndo((u) => (u && u.token === token ? { ...u, status: "saved" } : u)),
+      (e) => {
+        setOnExaminationSummary((cur) => (cur === next ? prev : cur));
+        setOeUndo((u) => (u && u.token === token ? { ...u, status: "error", error: `Not removed — ${errText(e)}. The finding is still in the history.` } : u));
+      },
+    );
   };
   const undoOe = () => {
-    if (!oeUndo) return;
-    saveOnExaminationSummary(oeUndo.prev);
-    setOeUndo(null);
+    if (!oeUndo || oeUndo.status !== "saved") return;
+    if (oeUndo.pid !== currentPatientId) { setOeUndo(null); return; }
+    const { token, prev } = oeUndo;
+    setOeUndo({ ...oeUndo, status: "restoring" });
+    Promise.resolve(saveOnExaminationSummary(prev)).then(
+      () => setOeUndo((u) => (u && u.token === token ? null : u)),
+      (e) => setOeUndo((u) => (u && u.token === token ? { ...u, status: "saved", error: `Undo did not save — ${errText(e)}. Try again.` } : u)),
+    );
   };
 
   const openViewer = (urls: string[], index: number) => setViewer({ urls, index });
@@ -278,18 +327,7 @@ export default function PatientRecordsView() {
             ))}
           </div>
         )}
-        {oeUndo && (
-          <div className="inv-undo" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: "0 2px 8px rgba(15,23,32,0.06)" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
-              <span>Removed <b style={{ fontWeight: 600, color: C.n[900] }}>{oeUndo.label}</b></span>
-            </span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <button className="inv-undo-btn" onClick={undoOe}>↺ Undo</button>
-              <button onClick={() => setOeUndo(null)} title="Dismiss" aria-label="Dismiss" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 17, lineHeight: 1, padding: "2px 5px", borderRadius: 6 }}>×</button>
-            </span>
-          </div>
-        )}
+        {oeUndo && <UndoBar entry={oeUndo} onUndo={undoOe} onDismiss={() => setOeUndo(null)} />}
       </div>
 
       {/* Investigation reports summary */}
@@ -344,18 +382,7 @@ export default function PatientRecordsView() {
             ))}
           </div>
         )}
-        {undo && (
-          <div className="inv-undo" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: "0 2px 8px rgba(15,23,32,0.06)" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
-              <span>Removed <b style={{ fontWeight: 600, color: C.n[900] }}>{undo.label}</b></span>
-            </span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <button className="inv-undo-btn" onClick={undoRemove}>↺ Undo</button>
-              <button onClick={() => setUndo(null)} title="Dismiss" aria-label="Dismiss" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 17, lineHeight: 1, padding: "2px 5px", borderRadius: 6 }}>×</button>
-            </span>
-          </div>
-        )}
+        {undo && <UndoBar entry={undo} onUndo={undoRemove} onDismiss={() => setUndo(null)} />}
       </div>
 
       {showDownload && (
@@ -370,6 +397,31 @@ export default function PatientRecordsView() {
           onClose={() => setViewer(null)}
         />
       )}
+    </div>
+  );
+}
+
+// The Undo bar under a history. It reports the write it stands for: "Removing…"
+// until the server confirms, then Undo; a refused write turns it red and says
+// so, and Undo is offered only once there is something saved to undo.
+function UndoBar<T>({ entry, onUndo, onDismiss }: { entry: UndoEntry<T>; onUndo: () => void; onDismiss: () => void }) {
+  const failed = entry.status === "error";
+  const verb = entry.status === "saving" ? "Removing" : entry.status === "restoring" ? "Restoring" : failed ? "Could not remove" : "Removed";
+  return (
+    <div className="inv-undo" role={failed || entry.error ? "alert" : undefined} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${failed || entry.error ? C.danger[100] : C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: "0 2px 8px rgba(15,23,32,0.06)" }}>
+      <span style={{ display: "inline-flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
+          <span>{verb} <b style={{ fontWeight: 600, color: C.n[900] }}>{entry.label}</b>{entry.status === "saving" || entry.status === "restoring" ? "…" : ""}</span>
+        </span>
+        {entry.error && <span style={{ color: C.danger[800], paddingLeft: 16 }}>{entry.error}</span>}
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {!failed && (
+          <button className="inv-undo-btn" onClick={onUndo} disabled={entry.status !== "saved"} style={entry.status !== "saved" ? { opacity: 0.5, cursor: "wait" } : undefined}>↺ Undo</button>
+        )}
+        <button onClick={onDismiss} title="Dismiss" aria-label="Dismiss" style={{ background: "none", border: "none", color: C.n[400], cursor: "pointer", fontSize: 17, lineHeight: 1, padding: "2px 5px", borderRadius: 6 }}>×</button>
+      </span>
     </div>
   );
 }

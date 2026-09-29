@@ -219,7 +219,10 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
       await update.mutateAsync({
         id: admission.id,
         input: {
-          age: age ? Number(age) : undefined, sex: sex || undefined,
+          // A cleared field sends null so the stored value is actually removed
+          // (undefined is dropped from the PATCH, and "Saved!" would be a lie).
+          age: age ? Number(age) : admission.age != null ? null : undefined,
+          sex: sex || (admission.sex ? null : undefined),
           // Only sent when it changed: an untouched admission must not have its
           // free-typed ward text overwritten by the server's ward-name sync.
           ...(wardId !== (admission.wardId ?? "") ? { wardId: wardId || null } : {}),

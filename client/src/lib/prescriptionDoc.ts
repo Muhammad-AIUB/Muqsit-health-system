@@ -569,8 +569,15 @@ const cleanItem = (s: string) => s.replace(/\s+—\s+/g, "  ·  ");
 // duration). Entries are date-stamped ("dd/mm/yyyy: Drug — …") — legacy
 // "Current:/Past:" entries are handled too. Tapering continuation lines carry no
 // name and are dropped.
+//
+// ⚕️ A "(note)" entry is free text, not a medicine: it prints its whole body
+// verbatim, as the Drug-history modal shows it. Cutting it at the first " — "
+// printed "Stopped warfarin — GI bleed" as "Stopped warfarin" — typed text lost
+// from the legal document.
 const drugNameOnly = (s: string): string => {
   if (/^(\d{2}\/\d{2}\/\d{4}|Current|Past)\(cont\):/.test(s)) return "";
+  const note = /^(\d{2}\/\d{2}\/\d{4}|Current|Past)\(note\):\s*([\s\S]*)$/.exec(s);
+  if (note) return note[2].trim();
   const body = s.replace(/^(\d{2}\/\d{2}\/\d{4}|Current|Past)(\(note\)|\(cont\))?:\s*/, "");
   return body.split(" — ")[0].trim();
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
@@ -35,10 +35,16 @@ export default function PreviousComplaintsField({
     return latest.chiefComplaints ?? [];
   })();
 
-  // Seed / refresh the field from the previous visit, keeping any notes the
-  // doctor already wrote against the same complaint.
+  // Seed the field from the previous visit ONCE per loaded patient, keeping any
+  // notes the doctor already wrote against the same complaint. Saving this visit
+  // refetches the list, which makes TODAY's prescription the "latest"; seeding
+  // again then would replace the previous complaints with today's and wipe the
+  // doctor's notes. `undefined` = nothing seeded yet (null is "no patient").
+  const seededFor = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (currentPatientId && isLoading) return; // wait for the fetch
+    if (seededFor.current === currentPatientId) return;
+    seededFor.current = currentPatientId;
     const noteOf = new Map(items.map((it) => { const { complaint, note } = decodePc(it); return [complaint, note]; }));
     const next = prevChief.map((c) => encodePc(c, noteOf.get(c) ?? ""));
     if (JSON.stringify(next) !== JSON.stringify(items)) setItems(next);

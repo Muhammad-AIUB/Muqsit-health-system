@@ -89,6 +89,21 @@ function todayISO(): string {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
 }
 
+// Identity of a family-tree entry: the linked patient when there is one (the
+// server's linkNew sets it), else every field the entry carries.
+function familyKey(m: FamilyMember): string {
+  const linked = (m as FamilyMember & { patientId?: unknown }).patientId;
+  if (typeof linked === "string" && linked) return `id:${linked}`;
+  return JSON.stringify([m.name ?? "", m.relation ?? "", m.mobile ?? "", m.nid ?? "", m.sex ?? ""]);
+}
+
+// Keep the returned promise usable by a caller that awaits it (Undo bar, error
+// line) while one that ignores it never raises an unhandled rejection.
+function surfaced<T>(p: Promise<T>, what: string): Promise<T> {
+  p.catch((e) => console.error(`[patient] ${what} was NOT saved:`, e));
+  return p;
+}
+
 // ── The store hook (single source of truth) ─────────────────
 function useMuqsitStore() {
   const queryClient = useQueryClient();
@@ -265,6 +280,21 @@ function useMuqsitStore() {
   // Persistent per-patient investigation history (records-page summary).
   const [investigationSummary, setInvestigationSummary] = useState<InvFinding[]>([]);
   const [onExaminationSummary, setOnExaminationSummary] = useState<OeFinding[]>([]);
+  // ⚕️ Id of the patient whose RECORD collections above (galleries, thumbs,
+  // family tree, investigation / on-examination history, HM ticks) are in state
+  // right now, straight from the server (null = none / not loaded yet). Every
+  // writer that PATCHes one of those collections WHOLE refuses unless this
+  // matches its target: until the fetch lands, the lists are a blank stand-in —
+  // or, without this, the PREVIOUS patient's — and a whole-value PATCH built on
+  // them overwrites the stored record.
+  const recordHydratedRef = useRef<string | null>(null);
+  // Bumped whenever the editor is reset (patient opened / new / workstation
+  // switch), so the mount-time draft hydration can tell it is no longer wanted.
+  const editorEpochRef = useRef(0);
+  // Family members the doctor deliberately removed from this patient's tree, by
+  // identity (`familyKey`), so the merge in `saveFamilyMembers` does not bring
+  // them back from the stored copy. Per patient.
+  const familyRemovedRef = useRef<{ pid: string | null; keys: Set<string> }>({ pid: null, keys: new Set() });
   const [showFamilyForm, setShowFamilyForm] = useState(false);
   const [familyRelation, setFamilyRelation] = useState("");
   const [familyForm, setFamilyForm] = useState<FamilyForm>({ name: "", mobile: "", nid: "", sex: "" });
@@ -362,6 +392,9 @@ function useMuqsitStore() {
         // it through.
         drugHistoryHydratedRef.current = pid;
         drugHistoryBaselineRef.current = [];
+        // Same for the record collections: a new patient has none stored, so
+        // what the editor holds (carried over just below) IS the record.
+        recordHydratedRef.current = pid;
         // Flush everything that was entered BEFORE this patient existed — the
         // per-change PATCHes (family tree, health-monitoring ticks/dates, watch,
         // image galleries) all no-op without a patient id, so carry them over
@@ -461,18 +494,28 @@ function useMuqsitStore() {
         // show the history without it until the cache went stale.
         void queryClient.invalidateQueries({ queryKey: ["prescriptions", pid] });
         const patientWrites: Promise<unknown>[] = [];
+        // ⚕️ Both histories are merged in memory and PATCHed WHOLE, so only once
+        // this patient's stored history is actually in hand (`recordHydratedRef`).
+        // Merging into the blank stand-in — a reload whose patient fetch is slow
+        // or failed — would replace years of history with this one visit. When
+        // it is not in hand the history is left as stored: this visit's findings
+        // are not lost, they are on the Prescription row just created.
+        const historyInHand = recordHydratedRef.current === pid;
         const parsed = parseInvestigationEntries(investigation);
-        if (parsed.length) {
+        if (parsed.length && historyInHand) {
           const merged = mergeFindings(investigationSummary, parsed);
           setInvestigationSummary(merged);
-          patientWrites.push(patientsApi.update(pid, { investigationSummary: merged }).catch(() => {}));
+          patientWrites.push(patientsApi.update(pid, { investigationSummary: merged }));
         }
         // Same for on-examination: keep a dated record of this visit's findings.
         const oeAdds = oeEntriesForDate(onExamination, isoToDdmmyyyy(ptDate));
-        if (oeAdds.length) {
+        if (oeAdds.length && historyInHand) {
           const mergedOe = mergeOe(onExaminationSummary, oeAdds);
           setOnExaminationSummary(mergedOe);
-          patientWrites.push(patientsApi.update(pid, { onExaminationSummary: mergedOe }).catch(() => {}));
+          patientWrites.push(patientsApi.update(pid, { onExaminationSummary: mergedOe }));
+        }
+        if ((parsed.length || oeAdds.length) && !historyInHand) {
+          console.warn("[patient] record not loaded — this visit's findings were saved on the prescription, the history summary was left as stored");
         }
         // Persist the (date-stamped) drug history so it carries across visits;
         // the Current/Distant-past split is derived from the date on load.
@@ -484,20 +527,30 @@ function useMuqsitStore() {
         // medicines, which is exactly what makes the loss look like real data.
         if (drugHistoryHydratedRef.current === pid) {
           drugHistoryBaselineRef.current = drugHistory;
-          patientWrites.push(patientsApi.update(pid, { drugHistory }).catch(() => {}));
+          patientWrites.push(patientsApi.update(pid, { drugHistory }));
         }
         // The patient record (drug history for Health monitoring) is re-read once
         // the writes above have landed, not before — a refetch racing them would
-        // bring back the old record.
+        // bring back the old record. A write that failed is SAID: the prescription
+        // itself is saved, but the doctor must not believe the history is too.
         const donePid = pid;
         void Promise.allSettled(patientWrites)
-          .then(() => queryClient.invalidateQueries({ queryKey: ["patient", donePid] }))
+          .then((results) => {
+            const failed = results.filter((r) => r.status === "rejected");
+            if (failed.length) {
+              console.error("[patient] history update failed after save:", failed);
+              setSavedMsg("Prescription saved, but the patient's history (investigations / examination / drug history) could not be updated.");
+              setTimeout(() => setSavedMsg(""), 8000);
+            }
+            return queryClient.invalidateQueries({ queryKey: ["patient", donePid] });
+          })
           .catch(() => {});
       }
       // "Save & print" = complete: clear the patient's incomplete draft and flag
       // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
       if (pid) {
         rxCompletedRef.current = pid;
+        setRxCompletedPid(pid); // carried to mirror devices — see mirrorSnapshot
         rxFlaggedRef.current = null;
         void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
         void opdApi.setRxStatus({
@@ -528,17 +581,36 @@ function useMuqsitStore() {
   // Load the patient's saved image galleries whenever a patient is opened — also
   // the one already loaded, via the nonce (and clear them for a fresh, unsaved one).
   useEffect(() => {
-    if (!currentPatientId) {
-      drugHistoryHydratedRef.current = null;
-      drugHistoryBaselineRef.current = null;
+    const clearRecord = () => {
       setRxImages([]); rxGateRef.current.reset(null); setReportImages([]);
       imageThumbsRef.current = {}; setImageThumbs({});
       setHmDrugs(new Set()); setFamilyMembers([]); setInvestigationSummary([]); setOnExaminationSummary([]);
+      familyRemovedRef.current = { pid: currentPatientId, keys: new Set() };
+    };
+    if (!currentPatientId) {
+      drugHistoryHydratedRef.current = null;
+      drugHistoryBaselineRef.current = null;
+      recordHydratedRef.current = null;
+      clearRecord();
       return;
     }
+    // ⚕️ A DIFFERENT patient (or a re-open, which un-hydrates in loadPatient):
+    // drop the previous record's collections NOW, not when the fetch lands — or
+    // if it never lands. Until then they would show, and be written back as,
+    // this patient's. (A patient `savePrescription` just created is already
+    // hydrated with what the editor carried over, and is left alone.)
+    if (recordHydratedRef.current !== currentPatientId) {
+      recordHydratedRef.current = null;
+      clearRecord();
+    }
+    const pid = currentPatientId;
     let cancelled = false;
-    patientsApi
-      .get(currentPatientId)
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    // A flaky network gets two quiet retries before giving up (calm UX) — and
+    // giving up leaves the writers above refusing, never guessing.
+    const RETRY_MS = [1000, 3000];
+    const attempt = (n: number) => patientsApi
+      .get(pid)
       .then((p) => {
         if (!cancelled) {
           setRxImages(p.prescriptionImages ?? []);
@@ -553,12 +625,36 @@ function useMuqsitStore() {
           setOnExaminationSummary((p.onExaminationSummary as OeFinding[]) ?? []);
           setDrugHistory((p.drugHistory as string[]) ?? []);
           drugHistoryBaselineRef.current = (p.drugHistory as string[]) ?? [];
-          drugHistoryHydratedRef.current = currentPatientId;
+          drugHistoryHydratedRef.current = pid;
+          recordHydratedRef.current = pid;
         }
       })
-      .catch(() => {});
-    return () => { cancelled = true; };
+      .catch((e) => {
+        if (cancelled) return;
+        if (n < RETRY_MS.length) retry = setTimeout(() => attempt(n + 1), RETRY_MS[n]);
+        else console.error("[patient] record did not load — its history and galleries stay read-only:", e);
+      });
+    void attempt(0);
+    return () => { cancelled = true; if (retry) clearTimeout(retry); };
   }, [currentPatientId, patientLoadNonce]);
+
+  // ⚕️ A gallery ADDITION for a patient whose record is not hydrated here. The
+  // local list is then a blank stand-in, so the new images are laid onto the
+  // STORED list, re-read now: an image gets filed, a gallery never overwritten.
+  const addToStoredGallery = useCallback(async (
+    pid: string, gallery: "rx" | "report", urls: string[], addedThumbs: ThumbMap | null, lastRxImageKey?: string | null,
+  ): Promise<void> => {
+    const p = await patientsApi.get(pid);
+    const stored = (gallery === "rx" ? p.prescriptionImages : p.reportImages) ?? [];
+    const kept = stored.filter((u) => !urls.includes(u));
+    const next = gallery === "rx" ? [...urls, ...kept] : [...kept, ...urls];
+    const thumbs = addedThumbs ? mergeThumbs(p.imageThumbs, addedThumbs) : null;
+    await patientsApi.update(pid, {
+      ...(gallery === "rx" ? { prescriptionImages: next } : { reportImages: next }),
+      ...(lastRxImageKey ? { lastRxImageKey } : {}),
+      ...(thumbs ? { imageThumbs: thumbs } : {}),
+    });
+  }, []);
 
   // Update a gallery and persist it to the loaded patient. If no patient is
   // saved yet it's a no-op on the server — the array is included when the
@@ -569,16 +665,28 @@ function useMuqsitStore() {
   // gallery and its thumbnails cannot end up describing different sets. Omit it
   // for a remove or a reorder: those change the order, not the images, and the
   // map is keyed by URL rather than by position.
-  const saveRxImages = useCallback((next: string[], addedThumbs?: ThumbMap) => {
-    setRxImages(next);
-    const thumbs = addedThumbs ? putThumbs(addedThumbs) : null;
-    if (currentPatientId) {
-      void patientsApi.update(currentPatientId, {
-        prescriptionImages: next,
-        ...(thumbs ? { imageThumbs: thumbs } : {}),
-      }).catch(() => {});
+  //
+  // Returns the write, so a caller can hold its Undo bar until it lands and say
+  // so when it fails. Ignoring it is safe (no unhandled rejection).
+  const saveGallery = useCallback((gallery: "rx" | "report", next: string[], addedThumbs?: ThumbMap): Promise<void> => {
+    const pid = currentPatientId;
+    const set = gallery === "rx" ? setRxImages : setReportImages;
+    const what = gallery === "rx" ? "prescription gallery" : "report gallery";
+    if (pid && recordHydratedRef.current !== pid) {
+      // Not hydrated: the list on screen was empty, so everything in `next` is
+      // an addition — file it onto the stored gallery, never replace that.
+      set(next);
+      return surfaced(addToStoredGallery(pid, gallery, next, addedThumbs ?? null), what);
     }
-  }, [currentPatientId, putThumbs]);
+    set(next);
+    const thumbs = addedThumbs ? putThumbs(addedThumbs) : null;
+    if (!pid) return Promise.resolve();
+    return surfaced(patientsApi.update(pid, {
+      ...(gallery === "rx" ? { prescriptionImages: next } : { reportImages: next }),
+      ...(thumbs ? { imageThumbs: thumbs } : {}),
+    }).then(() => undefined), what);
+  }, [currentPatientId, putThumbs, addToStoredGallery]);
+  const saveRxImages = useCallback((next: string[], addedThumbs?: ThumbMap) => saveGallery("rx", next, addedThumbs), [saveGallery]);
   // ── "Save & print" gallery snapshot ────────────────────────────────────
   // Claim this sheet for the patient's gallery. False means the gallery already
   // holds it, so there is nothing to capture: the doctor re-saved a visit they
@@ -605,19 +713,29 @@ function useMuqsitStore() {
   const saveRxSnapshot = useCallback((url: string, key: string | null, thumbUrl?: string) => {
     const pid = patientIdRef.current;
     rxGateRef.current.file(key);
+    // The paper never reached the gallery: forget the fingerprint, so the next
+    // identical Save & print files it rather than being suppressed.
+    const unfile = () => { if (patientIdRef.current === pid) rxGateRef.current.reset(null); };
+    if (pid && recordHydratedRef.current !== pid) {
+      // Record not hydrated (see addToStoredGallery): add to the stored gallery.
+      setRxImages((prev) => [url, ...prev]);
+      void surfaced(addToStoredGallery(pid, "rx", [url], thumbUrl ? { [url]: thumbUrl } : null, key), "prescription snapshot")
+        .catch(unfile);
+      return;
+    }
     const thumbs = thumbUrl ? putThumbs({ [url]: thumbUrl }) : null;
     setRxImages((prev) => {
       const next = [url, ...prev];
       if (pid) {
-        void patientsApi.update(pid, {
+        void surfaced(patientsApi.update(pid, {
           prescriptionImages: next,
           ...(key ? { lastRxImageKey: key } : {}),
           ...(thumbs ? { imageThumbs: thumbs } : {}),
-        }).catch(() => {});
+        }), "prescription snapshot").catch(unfile);
       }
       return next;
     });
-  }, [putThumbs]);
+  }, [putThumbs, addToStoredGallery]);
   // ⚕️ A finished upload batch joins its gallery HERE, not through
   // `saveRxImages`/`saveReportImages` with a list the caller read before the
   // upload began. An upload is slow: by the time it lands the doctor may have
@@ -634,36 +752,35 @@ function useMuqsitStore() {
   ): boolean => {
     if (patientIdRef.current !== forPid) return false;
     if (urls.length === 0) return true;
+    const what = gallery === "rx" ? "prescription gallery" : "report gallery";
+    if (forPid && recordHydratedRef.current !== forPid) {
+      // Record not hydrated (see addToStoredGallery): add to the stored gallery.
+      (gallery === "rx" ? setRxImages : setReportImages)((prev) => (gallery === "rx" ? [...urls, ...prev] : [...prev, ...urls]));
+      void surfaced(addToStoredGallery(forPid, gallery, urls, addedThumbs ?? null), what);
+      return true;
+    }
     const thumbs = addedThumbs ? putThumbs(addedThumbs) : null;
     const set = gallery === "rx" ? setRxImages : setReportImages;
     set((prev) => {
       const next = gallery === "rx" ? [...urls, ...prev] : [...prev, ...urls];
       if (forPid) {
-        void patientsApi.update(forPid, {
+        void surfaced(patientsApi.update(forPid, {
           ...(gallery === "rx" ? { prescriptionImages: next } : { reportImages: next }),
           ...(thumbs ? { imageThumbs: thumbs } : {}),
-        }).catch(() => {});
+        }), what);
       }
       return next;
     });
     return true;
-  }, [putThumbs]);
-  const saveReportImages = useCallback((next: string[], addedThumbs?: ThumbMap) => {
-    setReportImages(next);
-    const thumbs = addedThumbs ? putThumbs(addedThumbs) : null;
-    if (currentPatientId) {
-      void patientsApi.update(currentPatientId, {
-        reportImages: next,
-        ...(thumbs ? { imageThumbs: thumbs } : {}),
-      }).catch(() => {});
-    }
-  }, [currentPatientId, putThumbs]);
+  }, [putThumbs, addToStoredGallery]);
+  const saveReportImages = useCallback((next: string[], addedThumbs?: ThumbMap) => saveGallery("report", next, addedThumbs), [saveGallery]);
 
   // Clear the whole prescription editor — every patient is different, so this is
   // called whenever a patient is switched/opened/created so one patient's
   // clinical assessment can never bleed into the next. Identity (currentPatientId,
   // ptInfo) is set by the caller right after.
   const resetEditor = useCallback(() => {
+    editorEpochRef.current += 1; // see the mount-time draft hydration
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
     setPtDate(todayISO()); setPtPhone(""); setPtHospitalId("");
     setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(false);
@@ -711,6 +828,9 @@ function useMuqsitStore() {
   // doesn't re-flag a just-completed visit as incomplete.
   const rxFlaggedRef = useRef<string | null>(null);   // patient already flagged incomplete in OPD
   const rxCompletedRef = useRef<string | null>(null); // patient whose Rx was just completed
+  // The same, as state: it rides the device mirror so a RECEIVING device knows
+  // the visit was completed on the publishing one (its own ref never saw it).
+  const [rxCompletedPid, setRxCompletedPid] = useState<string | null>(null);
   // True while the loaded patient belongs to ANOTHER practice (opened as their
   // supervising doctor). A supervisor's edits must NEVER be written into the
   // owner's shared Patient.incompleteRx / OPD flag — only into the supervisor's
@@ -767,6 +887,10 @@ function useMuqsitStore() {
     setWatchPatient(p.watched);
     setCurrentPatientId(p.id);
     rxCompletedRef.current = null;
+    setRxCompletedPid(null);
+    // Their record collections are fetched afresh (also on a re-open), and
+    // nothing may be written over them as a whole until that lands.
+    recordHydratedRef.current = null;
     // A patient from ANOTHER practice (opened as their supervising doctor) gets
     // a FRESH prescription — never the owner's in-progress draft. The owner's
     // saved prescriptions stay hidden too (those queries scope to the owner).
@@ -837,6 +961,10 @@ function useMuqsitStore() {
       resetEditor();
       setCurrentPatientId(null);
     }
+    // A reloaded draft written in THIS practice, held until it was picked.
+    const parked = parkedDraftRef.current;
+    parkedDraftRef.current = null;
+    if (isFirstSelect && parked && parked.ws === ws.doctorId) parked.resume();
     void queryClient.invalidateQueries();    // (re)fetch all data under this doctor
   }, [resetEditor, queryClient, flushEditorDraft]);
   const activeWorkstationId = activeWorkstation?.doctorId ?? null;
@@ -857,21 +985,73 @@ function useMuqsitStore() {
   const isAssistantMode = !!activeWorkstation && activeWorkstation.role === "assistant";
 
   // Persist family members whenever the list changes (add or remove).
-  const saveFamilyMembers = useCallback((next: FamilyMember[]) => {
+  //
+  // ⚕️ The server also writes this list: linking a new relative (patients
+  // service `linkNew`) appends to the stored tree. So the tree is never PATCHed
+  // from the local copy alone — the stored one is re-read and merged: every
+  // stored entry is kept unless the doctor deliberately removed it here
+  // (tracked by identity, `familyKey`), so a relative linked meanwhile survives.
+  // Returns the write (see saveGallery).
+  const saveFamilyMembers = useCallback((next: FamilyMember[]): Promise<void> => {
+    const pid = currentPatientId;
+    if (familyRemovedRef.current.pid !== pid) familyRemovedRef.current = { pid, keys: new Set() };
+    const removed = familyRemovedRef.current.keys;
+    const count = (list: FamilyMember[]) => {
+      const c = new Map<string, number>();
+      for (const m of list) { const k = familyKey(m); c.set(k, (c.get(k) ?? 0) + 1); }
+      return c;
+    };
+    const have = count(next);
+    // Copies taken off in THIS change (a duplicate counts once per copy).
+    const takenOff = count(familyMembers);
+    for (const [k, n] of takenOff) {
+      const left = n - (have.get(k) ?? 0);
+      if (left > 0) { takenOff.set(k, left); removed.add(k); } else takenOff.delete(k);
+    }
+    for (const k of have.keys()) removed.delete(k); // re-added
     setFamilyMembers(next);
-    if (currentPatientId) void patientsApi.update(currentPatientId, { familyMembers: next }).catch(() => {});
-  }, [currentPatientId]);
+    if (!pid) return Promise.resolve();
+    const write = patientsApi.get(pid).then(async (p) => {
+      const stored = Array.isArray(p.familyMembers) ? (p.familyMembers as FamilyMember[]) : [];
+      const merged = [...next];
+      for (const m of stored) {
+        const k = familyKey(m);
+        const n = have.get(k) ?? 0;
+        if (n > 0) { have.set(k, n - 1); continue; }   // already in the local list
+        const off = takenOff.get(k) ?? 0;
+        if (off > 0) { takenOff.set(k, off - 1); continue; } // taken off just now
+        if (removed.has(k) && !takenOff.has(k)) continue;    // taken off earlier
+        merged.push(m);                                  // linked elsewhere — keep
+      }
+      await patientsApi.update(pid, { familyMembers: merged });
+      if (patientIdRef.current === pid && merged.length !== next.length) setFamilyMembers(merged);
+    });
+    return surfaced(write, "family tree");
+  }, [currentPatientId, familyMembers]);
 
   // Persist the patient's investigation history (records-page summary + Add).
-  const saveInvestigationSummary = useCallback((next: InvFinding[]) => {
+  // The list is written WHOLE, so only over this patient's hydrated record
+  // (`recordHydratedRef`); refused otherwise. Returns the write (see saveGallery).
+  const saveInvestigationSummary = useCallback((next: InvFinding[]): Promise<void> => {
+    const pid = currentPatientId;
+    if (pid && recordHydratedRef.current !== pid) {
+      return surfaced(Promise.reject(new Error("this patient's record has not loaded yet")), "investigation history");
+    }
     setInvestigationSummary(next);
-    if (currentPatientId) void patientsApi.update(currentPatientId, { investigationSummary: next }).catch(() => {});
+    if (!pid) return Promise.resolve();
+    return surfaced(patientsApi.update(pid, { investigationSummary: next }).then(() => undefined), "investigation history");
   }, [currentPatientId]);
 
-  // Persist the patient's on-examination history (records-page summary).
-  const saveOnExaminationSummary = useCallback((next: OeFinding[]) => {
+  // Persist the patient's on-examination history (records-page summary). Same
+  // rule and return as saveInvestigationSummary.
+  const saveOnExaminationSummary = useCallback((next: OeFinding[]): Promise<void> => {
+    const pid = currentPatientId;
+    if (pid && recordHydratedRef.current !== pid) {
+      return surfaced(Promise.reject(new Error("this patient's record has not loaded yet")), "on-examination history");
+    }
     setOnExaminationSummary(next);
-    if (currentPatientId) void patientsApi.update(currentPatientId, { onExaminationSummary: next }).catch(() => {});
+    if (!pid) return Promise.resolve();
+    return surfaced(patientsApi.update(pid, { onExaminationSummary: next }).then(() => undefined), "on-examination history");
   }, [currentPatientId]);
 
   // Persist the patient's date-stamped drug history (carries across visits).
@@ -879,7 +1059,7 @@ function useMuqsitStore() {
     setDrugHistory(next);
     if (currentPatientId) {
       drugHistoryBaselineRef.current = next;
-      void patientsApi.update(currentPatientId, { drugHistory: next }).catch(() => {});
+      void surfaced(patientsApi.update(currentPatientId, { drugHistory: next }), "drug history");
     }
   }, [currentPatientId]);
 
@@ -973,6 +1153,12 @@ function useMuqsitStore() {
   // page reload restores exactly where they left off. One active draft per
   // doctor; the saved draft always mirrors the live editor.
   const draftReadyRef = useRef(false);
+  // A stored draft that was NOT applied (its patient could not be loaded, or it
+  // belongs to another practice). While set, the auto-save does not overwrite
+  // it with the blank editor — only real new work (a patient or content) does.
+  const draftHeldRef = useRef(false);
+  // A draft from another practice, waiting for the practice picked on load.
+  const parkedDraftRef = useRef<{ ws: string; resume: () => void } | null>(null);
 
   // Hydrate the editor from the server draft once, on mount (the provider only
   // renders for a signed-in doctor). `draftReadyRef` then unlocks auto-save so
@@ -992,40 +1178,70 @@ function useMuqsitStore() {
     }
 
     let cancelled = false;
+    // ⚕️ The draft arrives asynchronously. If the doctor opened a patient (or
+    // the editor was reset) meanwhile, what they opened wins: the late draft is
+    // dropped rather than written over that patient's editor.
+    const epoch = editorEpochRef.current;
+    const stale = () => cancelled || editorEpochRef.current !== epoch;
+    const restore = async (d: Record<string, unknown>) => {
+      const pid = typeof d.currentPatientId === "string" ? d.currentPatientId : null;
+      // Guard: if the draft points at a SUPERVISED patient (another doctor's),
+      // never restore its editor content — that would resurrect the owner's
+      // prescription. Reload the patient fresh instead (blank Rx, header only).
+      let record: Patient | null = null;
+      if (pid) {
+        try {
+          const p = await patientsApi.get(pid);
+          record = p;
+          if (stale()) return;
+          const me = activeWsRef.current ?? authIdRef.current;
+          if (p.doctorId && me && p.doctorId !== me) {
+            loadPatient(p); // sets supervisedRef and gives a fresh Rx
+            return;
+          }
+        } catch (e) {
+          // ⚕️ Unreachable patient: whose practice it belongs to is unknown, so
+          // it must not be restored as our own — the auto-save would write it
+          // into this practice's OPD queue. The stored draft is kept untouched
+          // (`draftHeldRef`) so nothing is lost; the editor simply starts blank.
+          draftHeldRef.current = true;
+          console.warn("[draft] its patient could not be loaded — draft kept, not restored:", e);
+          return;
+        }
+      }
+      if (stale()) return;
+      draftHeldRef.current = false;
+      supervisedRef.current = false; // own patient (or none) — normal restore
+      applyEditorSnapshot(d);
+      if (pid) { drugHistoryHydratedRef.current = pid; setCurrentPatientId(pid); }
+      // The draft carries the editor, not the patient's record: the photo, the
+      // Patient Settings form and the watch flag come from the record, exactly
+      // as loadPatient sets them. Without this a reload showed 👤 and a blank
+      // settings form for a patient whose photo was on file (2026-09-25).
+      if (record) {
+        drugHistoryBaselineRef.current = (record.drugHistory as string[]) ?? [];
+        setPtInfo(patientToPtInfo(record));
+        setWatchPatient(record.watched);
+      }
+    };
     prescriptionDraftApi
       .get()
       .then(async (res) => {
-        if (cancelled) return;
+        if (stale()) return;
         const d = (res.data ?? {}) as Record<string, unknown>;
-        const pid = typeof d.currentPatientId === "string" ? d.currentPatientId : null;
-        // Guard: if the draft points at a SUPERVISED patient (another doctor's),
-        // never restore its editor content — that would resurrect the owner's
-        // prescription. Reload the patient fresh instead (blank Rx, header only).
-        let record: Patient | null = null;
-        if (pid) {
-          try {
-            const p = await patientsApi.get(pid);
-            record = p;
-            const me = authIdRef.current;
-            if (p.doctorId && me && p.doctorId !== me && !cancelled) {
-              loadPatient(p); // sets supervisedRef and gives a fresh Rx
-              return;
-            }
-          } catch { /* patient unreachable in own context — restore as before */ }
+        // ⚕️ A draft belongs to the practice it was written in. Drafts from
+        // before this field existed carry none and restore as they always did.
+        const ws = typeof d.workstationId === "string" ? d.workstationId : null;
+        if (ws && ws !== (activeWsRef.current ?? authIdRef.current)) {
+          draftHeldRef.current = true; // keep it stored, don't apply it
+          // No practice chosen yet (it is picked on load): restore it if the one
+          // picked turns out to be the draft's own — see selectWorkstation.
+          if (activeWsRef.current === null) {
+            parkedDraftRef.current = { ws, resume: () => { if (!stale()) void restore(d); } };
+          }
+          return;
         }
-        if (cancelled) return;
-        supervisedRef.current = false; // own patient (or none) — normal restore
-        applyEditorSnapshot(d);
-        if (pid) { drugHistoryHydratedRef.current = pid; setCurrentPatientId(pid); }
-        // The draft carries the editor, not the patient's record: the photo, the
-        // Patient Settings form and the watch flag come from the record, exactly
-        // as loadPatient sets them. Without this a reload showed 👤 and a blank
-        // settings form for a patient whose photo was on file (2026-09-25).
-        if (record) {
-          drugHistoryBaselineRef.current = (record.drugHistory as string[]) ?? [];
-          setPtInfo(patientToPtInfo(record));
-          setWatchPatient(record.watched);
-        }
+        await restore(d);
       })
       .catch((e) => console.warn("[draft] load failed — editor will not restore on reload:", e))
       .finally(() => { if (!cancelled) draftReadyRef.current = true; });
@@ -1053,6 +1269,11 @@ function useMuqsitStore() {
     // saving would file them in this patient's draft and incompleteRx. The
     // pending snapshot from before the loan stays in place for a flush.
     if (invBorrowRef.current) return;
+    // A held draft (see draftHeldRef) is not overwritten by a blank editor.
+    if (draftHeldRef.current) {
+      if (!currentPatientId && !hasRxContent) return;
+      draftHeldRef.current = false;
+    }
     const snapshot: Record<string, unknown> = {
       ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
       chiefComplaints, previousComplaints, history, investigation, drugHistory,
@@ -1062,9 +1283,18 @@ function useMuqsitStore() {
       hideDrugHistory,
       invImages, oeData, currentPatientId,
       hiddenInvestigation,
+      // The practice this draft was written in (checked on reload).
+      workstationId: activeWsRef.current ?? authIdRef.current,
     };
     // Keep the latest snapshot available for a synchronous flush on switch.
     pendingDraftRef.current = { snapshot, pid: currentPatientId, supervised: supervisedRef.current, hasRx: hasRxContent };
+    // ⚕️ State that ARRIVED from another device is that device's to persist —
+    // it knows whether the visit was completed; this one may not. No background
+    // write until a local edit here (see the listener beside the mirror). An
+    // explicit act (switch / Save to complete later) still sees the snapshot,
+    // gated by the completion marker the mirror carries.
+    if (mirrorApplyingRef.current) mirrorAppliedRef.current = true;
+    if (mirrorAppliedRef.current) return;
     const t = setTimeout(() => {
       void prescriptionDraftApi.save(snapshot).catch((e) => console.warn("[draft] save failed:", e));
       // A supervising doctor's edits go only to their own per-user draft above —
@@ -1145,12 +1375,31 @@ function useMuqsitStore() {
   const [mirrorOn, setMirrorOn] = useState(false);
   const [mirrorConnId, setMirrorConnId] = useState<string | null>(null);
   const mirrorApplyingRef = useRef(false);
+  // True while the editor holds state that ARRIVED from another device and has
+  // not been touched here since. The auto-save stands down meanwhile — the
+  // publishing device persists it (and knows if the visit was completed).
+  const mirrorAppliedRef = useRef(false);
+  // Any keystroke / pointer press on THIS device makes what follows local work.
+  useEffect(() => {
+    const onLocal = () => { if (!mirrorApplyingRef.current) mirrorAppliedRef.current = false; };
+    document.addEventListener("keydown", onLocal, true);
+    document.addEventListener("pointerdown", onLocal, true);
+    return () => {
+      document.removeEventListener("keydown", onLocal, true);
+      document.removeEventListener("pointerdown", onLocal, true);
+    };
+  }, []);
 
   const mirrorSnapshot = useMemo(() => ({
     activeTab, view, ptSettingsTab, currentPatientId,
     // Carry the supervised flag so the receiving device gates the incompleteRx/
     // OPD auto-save the same way (recomputed alongside currentPatientId).
     supervised: supervisedRef.current,
+    // ⚕️ The practice this state belongs to — a device working in another one
+    // ignores it (applyMirrorSnapshot). And whether this visit was completed
+    // (Save & print), so a receiving device never re-parks it as a draft.
+    workstationId: activeWorkstationId ?? authUser?.id ?? null,
+    rxCompletedPid,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history,
     // Never an admission's findings on loan to an IPD detail (invBorrowRef).
@@ -1168,6 +1417,7 @@ function useMuqsitStore() {
     showDrugPicker, drugSearch,
   }), [
     activeTab, view, ptSettingsTab, currentPatientId,
+    activeWorkstationId, authUser?.id, rxCompletedPid,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
@@ -1184,6 +1434,11 @@ function useMuqsitStore() {
   // Apply a snapshot received from another device. Guarded so applying it
   // doesn't immediately re-publish (echo).
   const applyMirrorSnapshot = useCallback((d: Record<string, unknown>) => {
+    // ⚕️ Another practice's state is not applied here: its patient would be
+    // written into THIS practice's OPD queue. (A snapshot from a build without
+    // the field is refused too — the safe side.)
+    const localWs = activeWsRef.current ?? authIdRef.current;
+    if ((typeof d.workstationId === "string" ? d.workstationId : null) !== localWs) return;
     mirrorApplyingRef.current = true;
     const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
     const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
@@ -1195,6 +1450,11 @@ function useMuqsitStore() {
     // auto-save doesn't write the owner's incompleteRx / flag OPD for a
     // mirror-applied supervised patient (finding: stale supervised flag).
     supervisedRef.current = d.supervised === true;
+    // The publishing device's completion marker, so this device never treats a
+    // printed visit as unfinished.
+    const completed = typeof d.rxCompletedPid === "string" ? d.rxCompletedPid : null;
+    rxCompletedRef.current = completed;
+    setRxCompletedPid(completed);
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
     str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
     // Same stale-date guard as applyEditorSnapshot: a secondary device joining
@@ -1202,7 +1462,19 @@ function useMuqsitStore() {
     str("ptDate", (v) => { const today = todayISO(); setPtDate(v < today ? today : v); });
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
-    arr("history", setHistory); arr("investigation", setInvestigation);
+    arr("history", setHistory);
+    // ⚕️ While an IPD detail here has BORROWED `investigation`/`invImages`, the
+    // live fields hold the admission's findings; the peer's values belong to
+    // the OPD editor, i.e. the held copy that comes back when the loan ends.
+    const held = invBorrowRef.current;
+    if (held) {
+      invBorrowRef.current = {
+        inv: Array.isArray(d.investigation) ? (d.investigation as string[]) : held.inv,
+        img: d.invImages && typeof d.invImages === "object" ? (d.invImages as Record<string, string>) : held.img,
+      };
+    } else {
+      arr("investigation", setInvestigation);
+    }
     arr("hiddenInvestigation", setHiddenInvestigation);
     arr("drugHistory", setDrugHistory); arr("onExamination", setOnExamination);
     arr("note", setNote); arr("plan", setPlan); arr("provisionalDiagnosis", setProvisionalDiagnosis);
@@ -1213,7 +1485,7 @@ function useMuqsitStore() {
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
     if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);
-    if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
+    if (!held && d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
     if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
     // Patient settings form + family tree
     if (d.ptInfo && typeof d.ptInfo === "object") setPtInfo(d.ptInfo as PtInfo);

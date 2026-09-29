@@ -115,11 +115,29 @@ export default function AnalogueSheetPanel({
     const what = n === 1 ? "this page" : `these ${n} pages`;
     if (!window.confirm(`Remove ${what} from the order sheet?\n\nYou can undo this.`)) return;
     setMsg("");
-    try {
-      for (const sheetId of ids) await remove.mutateAsync({ id: admissionId, sheetId });
-      setUndo({ ids, note: n === 1 ? "Removed 1 page" : `Removed ${n} pages` });
-    } catch (e) {
-      setMsg(`Could not remove: ${e instanceof Error ? e.message : "unknown error"}`);
+    // Pages already removed must stay undoable when a later one fails, and the
+    // message must say how many actually went — not imply none did.
+    const done: string[] = [];
+    let reason = "";
+    for (const sheetId of ids) {
+      try {
+        await remove.mutateAsync({ id: admissionId, sheetId });
+        done.push(sheetId);
+      } catch (e) {
+        if (!reason) reason = e instanceof Error ? e.message : "unknown error";
+      }
+    }
+    const failed = n - done.length;
+    if (done.length) {
+      const note = failed
+        ? `Removed ${done.length} of ${n}`
+        : done.length === 1 ? "Removed 1 page" : `Removed ${done.length} pages`;
+      setUndo({ ids: done, note });
+    }
+    if (failed) {
+      setMsg(done.length
+        ? `Removed ${done.length} of ${n}; ${failed} could not be removed: ${reason}`
+        : `Could not remove: ${reason}`);
     }
   };
 

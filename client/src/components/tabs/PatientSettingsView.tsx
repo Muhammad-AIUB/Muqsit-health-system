@@ -434,7 +434,10 @@ export default function PatientSettingsView() {
                     <div style={{ fontSize: 10, color: C.n[600] }}>{fm.sex}{fm.mobile ? " · " + fm.mobile : ""}{fm.nid ? " · NID: " + fm.nid : ""}</div>
                   </div>
                   <Pill bg={rc.bg} fg={rc.fg}>{fm.relation}</Pill>
-                  <button onClick={() => saveFamilyMembers(familyMembers.filter((_, idx) => idx !== i))}
+                  <button title="Remove from family tree" onClick={() => {
+                      if (!window.confirm("Remove " + (fm.name || "this member") + " (" + fm.relation + ") from the family tree?")) return;
+                      saveFamilyMembers(familyMembers.filter((_, idx) => idx !== i));
+                    }}
                     style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14, padding: "2px 6px" }}>×</button>
                 </div>
               );

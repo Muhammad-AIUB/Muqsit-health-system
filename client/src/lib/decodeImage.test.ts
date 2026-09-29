@@ -5,11 +5,13 @@
 // does nothing and transparent pixels encoded as black.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { decodeToJpeg, flattenOntoWhite } from "./decodeImage";
+import { decodeToJpeg, flattenOntoWhite, ImageDecodeError, tiffPageCount } from "./decodeImage";
+
+const decodeIfds = vi.hoisted(() => ({ ifds: [{ width: 2, height: 1 }] as object[] }));
 
 vi.mock("utif", () => ({
   default: {
-    decode: () => [{ width: 2, height: 1 }],
+    decode: () => decodeIfds.ifds,
     decodeImage: () => {},
     // pixel 1: fully transparent black; pixel 2: half-transparent black
     toRGBA8: () => new Uint8Array([0, 0, 0, 0, 0, 0, 0, 128]),
@@ -47,5 +49,25 @@ describe("decodeToJpeg — TIFF", () => {
     const file = new File([new Uint8Array([0x49, 0x49, 0x2a, 0x00])], "scan.tif");
     await decodeToJpeg(file, "tiff");
     expect(Array.from(put!)).toEqual([255, 255, 255, 255, 127, 127, 127, 255]);
+  });
+});
+
+// A multi-page scanned report must never be stored as page 1 alone.
+describe("decodeToJpeg — multi-page TIFF", () => {
+  afterEach(() => { decodeIfds.ifds = [{ width: 2, height: 1 }]; });
+
+  it("refuses a 3-page TIFF by name instead of keeping page 1", async () => {
+    decodeIfds.ifds = [{ width: 2, height: 1 }, { width: 2, height: 1 }, { width: 2, height: 1 }];
+    const file = new File([new Uint8Array([0x49, 0x49, 0x2a, 0x00])], "report.tif");
+    const err = await decodeToJpeg(file, "tiff").catch((e) => e);
+    expect(err).toBeInstanceOf(ImageDecodeError);
+    expect(err.message).toMatch(/report.tif.*3-page/);
+    expect(await tiffPageCount(file)).toBe(3);
+  });
+
+  it("does not count a reduced-resolution thumbnail directory as a page", async () => {
+    decodeIfds.ifds = [{ width: 2, height: 1 }, { width: 1, height: 1, t254: [1] }];
+    const file = new File([new Uint8Array([0x49, 0x49, 0x2a, 0x00])], "scan.tif");
+    expect(await tiffPageCount(file)).toBe(1);
   });
 });

@@ -45,6 +45,14 @@ describe("entecavir + pregnancy", () => {
     expect(messages(input(["entecavir"], { History: ["prepregnant weight 60kg"] }))).toEqual([]);
   });
 
+  // ⚕️ A negated mention used to silence the WHOLE line, so a plain mention
+  // beside it never fired the contraindication.
+  it("fires on a plain mention even when another mention on the line is negated", () => {
+    expect(messages(input(["entecavir"], { History: ["Pregnancy 28 wks, no pregnancy-induced HTN"] }))).toEqual([PREGNANCY_MSG]);
+    expect(messages(input(["entecavir"], { History: ["no pregnancy-induced HTN, pregnant 28 wks"] }))).toEqual([PREGNANCY_MSG]);
+    expect(messages(input(["entecavir"], { History: ["Not pregnant, no pregnancy"] }))).toEqual([]);
+  });
+
   it("reads the IPD order sheet's field labels too", () => {
     // IPD spells them "Diagnosis" / "Sign" / "Symptoms"; OPD uses
     // "Provisional diagnosis" / "Chief complaints". Both must work.
@@ -130,6 +138,15 @@ describe("entecavir + CKD", () => {
   it("does not fire on a negation, or without the drug", () => {
     expect(messages(input(["entecavir"], { "Final diagnosis": ["No CKD"] }))).toEqual([]);
     expect(messages(input(["Tab. Napa 500mg"], { "Final diagnosis": ["CKD"] }))).toEqual([]);
+  });
+
+  // ⚕️ " / " separates two findings: the "neg" is the hepatitis result, not a
+  // negation of the CKD after it.
+  it("fires when a negator belongs to the previous finding in a ' / ' list", () => {
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["Anti-HCV neg / CKD stage 4"] }))).toEqual([ckd().message]);
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["HBsAg positive, anti-HCV negative / CKD"] }))).toEqual([ckd().message]);
+    // A hyphen written straight onto the negator still negates.
+    expect(messages(input(["entecavir"], { "Final diagnosis": ["non-CKD"] }))).toEqual([]);
   });
 });
 

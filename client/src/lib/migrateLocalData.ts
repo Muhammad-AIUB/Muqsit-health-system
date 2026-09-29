@@ -106,7 +106,13 @@ export async function migrateLocalDataToServer(userId?: string): Promise<boolean
       continue;
     }
     try {
-      await patientsApi.update(patientId, { hmDrugDates: parsed });
+      // The server map is a WHOLE-VALUE write, and it may have been edited on
+      // another device since this local copy was made (the key can wait weeks
+      // on a shared PC for its owner to sign in). Server entries win; the old
+      // local copy only fills drugs the server has no dates for.
+      const current = await patientsApi.get(patientId);
+      const serverDates = current.hmDrugDates ?? {};
+      await patientsApi.update(patientId, { hmDrugDates: { ...parsed, ...serverDates } });
       movedSomething = true;
       ls.removeItem(k); // only after the owning doctor's update succeeded
     } catch {

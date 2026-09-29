@@ -552,6 +552,9 @@ export interface TemplateItem {
   duration: string;
   instruction: string;
   isNote?: boolean;
+  /** Carried so prescribing alerts (written against generics) fire for template lines. */
+  generic?: string;
+  isCont?: boolean;
 }
 
 export interface RxTemplateRecord {
@@ -923,8 +926,8 @@ export interface IpdAdmissionUpdateInput {
   floorBuilding?: string;
   mobile?: string;
   diagnosis?: string;
-  age?: number;
-  sex?: string;
+  age?: number | null;
+  sex?: string | null;
   clinical?: IpdClinical;
 }
 

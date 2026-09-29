@@ -217,8 +217,6 @@ interface DrugSource {
 // "prepregnant" and "ranitidine" does not fire inside a longer word.
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const termRe = (term: string) => new RegExp(`(^|[^a-z0-9])${escapeRe(term)}([^a-z0-9]|$)`, "i");
-
 // Words that flip the meaning of a condition when they sit immediately before
 // it ("not pregnant", "no pregnancy"). Deliberately short and literal — this
 // is a guard against the obvious negation, not a claim to understand clinical
@@ -226,13 +224,30 @@ const termRe = (term: string) => new RegExp(`(^|[^a-z0-9])${escapeRe(term)}([^a-
 // doctor see the sentence and judge.
 const NEGATORS = ["no", "not", "non", "never", "nil", "denies", "denied", "without", "negative", "neg"];
 
-const negatedRe = (term: string) =>
-  new RegExp(`(^|[^a-z0-9])(${NEGATORS.join("|")})[\\s\\-/]+${escapeRe(term)}([^a-z0-9]|$)`, "i");
+// A negator immediately before the text that follows it: joined by whitespace,
+// or by a hyphen written straight onto it ("non-pregnant"). A spaced " / " or
+// " - " is NOT a join — in a record it separates two findings, so the negator
+// belongs to the finding before it: in "Anti-HCV neg / CKD stage 4" the "neg"
+// is the hepatitis result, and the CKD must still fire.
+const NEGATED_PREFIX_RE = new RegExp(`(^|[^a-z0-9])(${NEGATORS.join("|")})(\\s+|-)$`, "i");
 
-/** True when `haystack` mentions `term` and that mention is not negated. */
+/**
+ * True when `haystack` mentions `term` at least once WITHOUT a negator directly
+ * before it. Every occurrence is judged on its own: one negated mention must not
+ * silence a plain one on the same line — "Pregnancy 28 wks, no pregnancy-induced
+ * HTN" is a pregnancy.
+ */
 function mentions(haystack: string, term: string): boolean {
-  if (!termRe(term).test(haystack)) return false;
-  return !negatedRe(term).test(haystack);
+  if (!term) return false;
+  const re = new RegExp(`(^|[^a-z0-9])${escapeRe(term)}(?=[^a-z0-9]|$)`, "gi");
+  for (let m = re.exec(haystack); m; m = re.exec(haystack)) {
+    const start = m.index + m[1].length;
+    if (!NEGATED_PREFIX_RE.test(haystack.slice(0, start))) return true;
+    // Resume right after the term, so a neighbouring occurrence keeps the
+    // boundary character it needs.
+    re.lastIndex = start + term.length;
+  }
+  return false;
 }
 
 /** How far back in drug history counts as "current" for drug-drug alert checks.
