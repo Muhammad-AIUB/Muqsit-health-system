@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -137,6 +138,15 @@ export class AdminService {
     if (!user.deletedAt) {
       throw new BadRequestException(
         'Account must be moved to Trash before it can be permanently deleted.',
+      );
+    }
+    // PatientChatMessage.author cascades. Messages this account wrote in
+    // OTHER practices' patient chats (as an assistant or supervisor) are part
+    // of those practices' clinical conversation and would vanish unseen.
+    const foreignMessages = await this.users.countChatMessagesInOtherPractices(id);
+    if (foreignMessages > 0) {
+      throw new ConflictException(
+        `This account wrote ${foreignMessages} message(s) in other doctors' patient chats; deleting it permanently would erase them. Keep it in Trash instead.`,
       );
     }
     await this.auth.revokeAllForUser(id);

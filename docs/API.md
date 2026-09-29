@@ -90,7 +90,7 @@ share one cookie. Removing that window brings back "everyone logs out on reload"
 | Method | Path | Auth | Body → Response |
 |---|---|---|---|
 | POST | `/auth/register` | public | `RegisterDto` → creates a pending account and emails a 6-digit OTP. 409 if a verified account already owns the email (matched case-insensitively) or the mobile number |
-| POST | `/auth/verify-email` | public | `{ email, otp }` |
+| POST | `/auth/verify-email` | public | `{ email, otp }` — email matched case-insensitively to the stored account; an attempt is claimed atomically (max 5 per code) |
 | POST | `/auth/resend-otp` | public | `{ email }` |
 | POST | `/auth/login` | public | `{ identifier, password, remember? }` → `200 { user }` + sets both cookies |
 | POST | `/auth/refresh` | refresh cookie | — → `200 { user }` + rotated cookies |
@@ -228,7 +228,7 @@ admin app.
 | PATCH | `/admin/registrations/:id/suspend` | — | |
 | PATCH | `/admin/registrations/:id/tier` | `{ tier: "primary" \| "secondary" \| "premium" }` | tier drives the workstation gate |
 | DELETE | `/admin/registrations/:id` | — | **soft** delete → Trash, recoverable |
-| DELETE | `/admin/registrations/:id/permanent` | — | permanent. Patients survive (`Patient.doctorId` → `SetNull`); that doctor's own prescriptions cascade |
+| DELETE | `/admin/registrations/:id/permanent` | — | permanent. Patients survive (`Patient.doctorId` → `SetNull`); that doctor's own prescriptions cascade. 409 while the account wrote messages in other doctors' patient chats (they would cascade away) |
 | POST | `/admin/users/:id/revoke-sessions` | — | force-logout; returns the number of refresh tokens revoked |
 
 ### 5.3 Workstations — `/workstations` (JWT, own)
@@ -277,7 +277,7 @@ the ward; that door must be built inside `ipd.service`, never by extending
 | GET | `/patients/watched` | the "keep an eye on this patient" list |
 | GET | `/patients/by-mobile?mobile=` | every patient on that number, newest first — powers the prescription mobile lookup. Includes supervised patients |
 | GET | `/patients/relatives-by-mobile?mobile=` | family-tree entries matching a number → `{ patientId, patientName, name, relation, sex, mobile }[]` (info only) |
-| GET | `/patients/:id` | `404` if not accessible |
+| GET | `/patients/:id` | `404` if not accessible. For a supervising doctor `incompleteRx` (the owner's draft) is returned as `null` — same on `by-mobile` and a prescription's included `patient` |
 | POST | `/patients` | `CreatePatientDto` |
 | POST | `/patients/link` | `LinkPatientDto` — creates a NEW patient related to an existing one and writes reciprocal family links to both. Owner only: a supervising doctor gets 403, since it rewrites the owner's family tree |
 | PATCH | `/patients/:id` | `UpdatePatientDto` — the **only** route that accepts it |
@@ -294,7 +294,7 @@ the ward; that door must be built inside `ipd.service`, never by extending
 
 | Field | Shape | Note |
 |---|---|---|
-| `investigationSummary` | `[{ date, category, test, value }]` | whole-value write |
+| `investigationSummary` | `[{ date, category, test, value }]` | whole-value write (lifetime history arrays and both galleries accept up to 20 000 entries; the old 200 cap rejected a long-term patient's save) |
 | `onExaminationSummary` | `[{ date, text }]` | whole-value write |
 | `drugHistory` | `string[]` (`"dd/mm/yyyy: Drug — …"`) | Current vs distant-past is derived from the date |
 | `familyMembers` | `[{ name, mobile, nid, sex, relation }]` | needs `pt.family` |
@@ -394,7 +394,7 @@ touching anything here.
 | Method | Path | Body |
 |---|---|---|
 | GET | `/prescription-templates?category=` | `opd` / `ipd` / `custom` |
-| POST | `/prescription-templates` | `{ category, name, items: [{ drug, dose, duration, instruction, isNote? }] }` |
+| POST | `/prescription-templates` | `{ category, name, items: [{ drug, dose, duration, instruction, isNote?, generic?, isCont? }] }` — `generic` keeps prescribing alerts working for template lines |
 | PATCH | `/prescription-templates/:id` | `{ name?, items? }` |
 | DELETE | `/prescription-templates/:id` | — |
 
@@ -420,7 +420,7 @@ number.
 | PATCH | `/ipd/:id` | `UpdateAdmissionDto` |
 | PATCH | `/ipd/:id/status` | `{ status: "Stable" \| "Observation" \| "Critical" \| "Discharge" }` |
 | GET | `/ipd/:id/events` | admission feed, oldest first |
-| POST | `/ipd/:id/events` | `{ note, role?, reportUrl? }` — attributed to the signed-in user, not the workstation doctor |
+| POST | `/ipd/:id/events` | `{ note, reportUrl? }` — attributed to the signed-in user, not the workstation doctor; `role` is set by the server from the workstation ("Assistant" for an assistant), a body `role` is ignored |
 
 `CreateAdmissionDto`: `bed`, `name` (required), `patientId?`, `hospitalId?`,
 `roomNo?`, `wardNo?`, `wardId?`, `floorBuilding?`, `mobile?` (11 digits),

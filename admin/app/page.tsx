@@ -421,7 +421,20 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
       {/* Any not-yet-approved live account (pending, or suspended — setTier
           deliberately keeps a suspension) needs Approve to be reinstated. */}
       {((isLive && reg.approvalStatus !== "approved") || mode === "trash") && (
-        <button onClick={() => void run(() => adminApi.approve(reg.id))} style={actBtn(C.pri, "#fff")} disabled={busy}>Approve</button>
+        <button
+          onClick={() => void run(
+            () => adminApi.approve(reg.id),
+            // Approving restores from Trash and lifts a suspension/rejection:
+            // the account can sign in and reach patient data at once.
+            mode === "trash" || reg.approvalStatus === "suspended" || reg.approvalStatus === "rejected"
+              ? `Approve ${reg.name}? ${mode === "trash" ? "This restores the account from Trash and they" : "They"} will be able to sign in right away.`
+              : undefined,
+          )}
+          style={actBtn(C.pri, "#fff")}
+          disabled={busy}
+        >
+          Approve
+        </button>
       )}
       {moveSelect}
       {isLive && reg.approvalStatus !== "suspended" && (

@@ -83,6 +83,9 @@ export class AssistantsService {
       where: {
         role: 'professional',
         id: { notIn: excludeIds },
+        // An account in Trash must not be offered as an assistant (same rule
+        // as the ward-team search).
+        deletedAt: null,
         OR: [
           { email: { contains: term, mode: 'insensitive' } },
           { mobile: { contains: term } },

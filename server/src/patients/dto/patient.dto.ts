@@ -16,6 +16,13 @@ import {
   ValidatorConstraint,
   type ValidatorConstraintInterface,
 } from 'class-validator';
+
+// Lifetime clinical history / galleries only ever GROW and are written whole
+// (the client sends the full merged array). A cap of 200 made every save for a
+// long-term patient 400 once they passed it — and the client swallows that
+// write, so a visit's findings silently never reached the record. The 8 MB
+// body limit is the abuse bound; this only stops a pathological array.
+const HISTORY_MAX = 20000;
 import { Type } from 'class-transformer';
 
 // A birth date cannot be in the future. The client already refuses one, but the
@@ -73,8 +80,8 @@ export class CreatePatientDto {
   @IsOptional() @IsString() pictureUrl?: string;
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) tags?: string[];
   @IsOptional() @IsBoolean() watched?: boolean;
-  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) prescriptionImages?: string[];
-  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) reportImages?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(HISTORY_MAX) @IsString({ each: true }) @MaxLength(2000, { each: true }) prescriptionImages?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(HISTORY_MAX) @IsString({ each: true }) @MaxLength(2000, { each: true }) reportImages?: string[];
 }
 
 export class UpdatePatientDto extends PartialType(CreatePatientDto) {
@@ -101,11 +108,11 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   // Family tree — array of { name, mobile, nid, sex, relation }.
   @IsOptional() @IsArray() @ArrayMaxSize(200) familyMembers?: Record<string, unknown>[];
   // Persistent investigation history — array of { date, category, test, value }.
-  @IsOptional() @IsArray() @ArrayMaxSize(200) investigationSummary?: Record<string, unknown>[];
+  @IsOptional() @IsArray() @ArrayMaxSize(HISTORY_MAX) investigationSummary?: Record<string, unknown>[];
   // Persistent on-examination history — array of { date, text }.
-  @IsOptional() @IsArray() @ArrayMaxSize(200) onExaminationSummary?: Record<string, unknown>[];
+  @IsOptional() @IsArray() @ArrayMaxSize(HISTORY_MAX) onExaminationSummary?: Record<string, unknown>[];
   // Persistent drug history — date-stamped entry strings.
-  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsString({ each: true }) @MaxLength(2000, { each: true }) drugHistory?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(HISTORY_MAX) @IsString({ each: true }) @MaxLength(2000, { each: true }) drugHistory?: string[];
   // Saved-but-not-printed prescription editor snapshot (null clears it).
   @IsOptional() incompleteRx?: Record<string, unknown> | null;
 }

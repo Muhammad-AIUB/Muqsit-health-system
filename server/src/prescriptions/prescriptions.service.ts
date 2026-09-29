@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prescription, PrescriptionItem } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { forViewer } from '../patients/patients.service';
 import { CreatePrescriptionDto } from './dto/prescription.dto';
 import { RxHabitsService } from '../rx-habits/rx-habits.service';
 import { DoctorPhrasesService } from '../doctor-phrases/doctor-phrases.service';
@@ -82,6 +83,9 @@ export class PrescriptionsService {
       include: { items: { orderBy: { order: 'asc' } }, patient: true },
     });
     if (!rx) throw new NotFoundException('Prescription not found');
-    return rx;
+    // A supervisor's own Rx on another practice's patient must not carry
+    // that owner's in-progress draft along with the patient row.
+    // (The declared return type omits the included relations; the object keeps them.)
+    return rx.patient ? ({ ...rx, patient: forViewer(rx.patient, doctorId) } as Prescription) : rx;
   }
 }

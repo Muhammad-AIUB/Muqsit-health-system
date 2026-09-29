@@ -24,6 +24,10 @@ Controllers touching practice data use `@UseGuards(JwtAuthGuard, WorkstationGuar
 
 If you add a new patient-scoped endpoint, decide explicitly which column of this table it belongs to and mirror the corresponding `where` shape from `patients.service.ts`.
 
+**A supervisor reads the patient row without the owner's draft (2026-09-29).** `incompleteRx` is the owner's in-progress prescription; every read made by someone other than the owner goes through `patients.service.ts#forViewer`, which returns it as `null` (`get`, `findByMobile`, and the `patient` included on `GET /prescriptions/:id`). A new read path that returns a Patient row to a possibly-supervising caller must use it too.
+
+**Read-modify-write of a JSON column takes a row lock.** `ipd.service.ts#lockAdmission` (`SELECT … FOR UPDATE`) before re-reading `clinical`, like the family-tree link. A plain SELECT at READ COMMITTED let two overlapping writes each read the same order sheets and the later one erase the earlier page.
+
 **Narrower than the table above:** `hmDrugDates` / `hmSymptomDates` (the Health-trend-chart duration overrides) are **owner-only**, and the two denials come from **different layers** — both load-bearing:
 
 | Caller | Stopped by |

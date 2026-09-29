@@ -33,7 +33,7 @@ function makeService(storedClinical: unknown): Ctx {
     .fn()
     .mockImplementation(({ data }) => Promise.resolve({ ...admission, ...data }));
   const event = jest.fn().mockResolvedValue({ id: 'ev_1' });
-  const tx = { ipdAdmission: { findFirst, update }, ipdEvent: { create: event } };
+  const tx = { ipdAdmission: { findFirst, update }, ipdEvent: { create: event }, $queryRaw: jest.fn().mockResolvedValue([]) };
 
   const prisma = {
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),

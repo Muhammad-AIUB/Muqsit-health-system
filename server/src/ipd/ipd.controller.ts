@@ -125,10 +125,15 @@ export class IpdController {
   addEvent(
     @WorkstationDoctorId() doctorId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @ActiveWorkstation() ws: Workstation,
     @Param('id') id: string,
     @Body() dto: CreateIpdEventDto,
   ) {
-    return this.ipd.addEvent(doctorId, id, user.displayName?.trim() || user.name, dto);
+    // The role on the audit line comes from the workstation, never the body:
+    // an assistant's note must read "Assistant", and nobody may label
+    // themselves "Doctor" by sending it.
+    const actor = actorOf(user, ws);
+    return this.ipd.addEvent(doctorId, id, actor.name, { ...dto, role: actor.role });
   }
 }
 

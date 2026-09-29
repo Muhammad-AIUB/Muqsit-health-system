@@ -49,3 +49,19 @@ describe('PatientsService — owner-record boundaries', () => {
     expect(del).toHaveBeenCalledWith({ where: { id: 'p1' } });
   });
 });
+
+// A supervising doctor may open the patient but never sees the owner's
+// in-progress prescription (docs/DOMAIN.md).
+describe('forViewer', () => {
+  const { forViewer } = jest.requireActual('./patients.service') as typeof import('./patients.service');
+  const p = { id: 'p1', doctorId: OWNER, incompleteRx: { rxItems: ['x'] } };
+
+  it('keeps the draft for the owner', () => {
+    expect(forViewer(p, OWNER).incompleteRx).toEqual({ rxItems: ['x'] });
+  });
+
+  it('blanks the draft for anyone else', () => {
+    expect(forViewer(p, SUPERVISOR).incompleteRx).toBeNull();
+    expect(p.incompleteRx).toEqual({ rxItems: ['x'] }); // never mutates the row
+  });
+});

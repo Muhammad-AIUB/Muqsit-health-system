@@ -73,6 +73,18 @@ function inferSex(relation: string, tIsMale: boolean): string {
 
 // Every query is scoped to the signed-in doctor — one doctor can never
 // see or touch another doctor's patients.
+// The owner's in-progress prescription (incompleteRx) is the owner's draft.
+// A supervising doctor may open the patient and prescribe fresh, but never
+// sees the owner's prescriptions or draft (docs/DOMAIN.md) — so it is
+// blanked on every read made by someone other than the owner.
+export function forViewer<T extends { doctorId: string | null; incompleteRx?: unknown }>(
+  patient: T,
+  viewerDoctorId: string,
+): T {
+  if (patient.doctorId === viewerDoctorId) return patient;
+  return { ...patient, incompleteRx: null };
+}
+
 @Injectable()
 export class PatientsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -110,7 +122,7 @@ export class PatientsService {
       where: { id, ...this.accessibleWhere(doctorId) },
     });
     if (!patient) throw new NotFoundException('Patient not found');
-    return patient;
+    return forViewer(patient, doctorId);
   }
 
   // Every patient sharing a phone number, newest first. Powers the prescription
@@ -119,10 +131,12 @@ export class PatientsService {
   findByMobile(doctorId: string, mobile: string): Promise<Patient[]> {
     const m = mobile.trim();
     if (!m) return Promise.resolve([]);
-    return this.prisma.patient.findMany({
-      where: { mobile: m, ...this.accessibleWhere(doctorId) },
-      orderBy: { updatedAt: 'desc' },
-    });
+    return this.prisma.patient
+      .findMany({
+        where: { mobile: m, ...this.accessibleWhere(doctorId) },
+        orderBy: { updatedAt: 'desc' },
+      })
+      .then((rows) => rows.map((r) => forViewer(r, doctorId)));
   }
 
   // Family-tree members (across the doctor's patients) whose number matches —

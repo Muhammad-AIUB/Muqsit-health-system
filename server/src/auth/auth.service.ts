@@ -114,16 +114,21 @@ export class AuthService {
       });
     }
 
+    // The OTP is keyed by the STORED spelling of the address: the lookup above
+    // is case-insensitive, so a re-register as "dr.x@…" can match a row stored
+    // as "Dr.X@…", and verification must land on that same row.
+    const email = existing?.email ?? dto.email;
+
     // Fire-and-forget: OTP hashing + DB writes + email happen in the
     // background so the user gets their response immediately.
-    void this.issueOtp(dto.email).catch((e) => {
-      this.logger.error(`Failed to issue OTP for ${dto.email}: ${e?.message ?? e}`);
+    void this.issueOtp(email).catch((e) => {
+      this.logger.error(`Failed to issue OTP for ${email}: ${e?.message ?? e}`);
     });
 
     return {
       message:
         'Registration received. We emailed a 6-digit verification code to your address.',
-      email: dto.email,
+      email,
     };
   }
 
@@ -159,11 +164,16 @@ export class AuthService {
     if (user.emailVerified) {
       return { message: 'Email already verified. You can sign in.' };
     }
-    await this.issueOtp(email);
+    await this.issueOtp(user.email);
     return { message: 'A new verification code has been sent.' };
   }
 
-  async verifyEmail(email: string, otp: string) {
+  async verifyEmail(typedEmail: string, otp: string) {
+    // Resolve the account the same case-insensitive way register/resend do,
+    // then work with its stored address and id — an exact-match update used
+    // to verify 0 rows while still answering "Email verified".
+    const user = await this.users.findByEmail(typedEmail);
+    const email = user?.email ?? typedEmail;
     const record = await this.prisma.emailOtp.findFirst({
       where: { email, consumed: false },
       orderBy: { createdAt: 'desc' },
@@ -174,16 +184,18 @@ export class AuthService {
     if (record.expiresAt < new Date()) {
       throw new BadRequestException('Code expired. Please request a new one.');
     }
-    if (record.attempts >= 5) {
+    // Claim an attempt ATOMICALLY before comparing. Read-then-increment let
+    // parallel guesses all read attempts=0 and each get a compare.
+    const claimed = await this.prisma.emailOtp.updateMany({
+      where: { id: record.id, consumed: false, attempts: { lt: 5 } },
+      data: { attempts: { increment: 1 } },
+    });
+    if (claimed.count === 0) {
       throw new BadRequestException('Too many attempts. Request a new code.');
     }
 
     const ok = await bcrypt.compare(otp, record.codeHash);
     if (!ok) {
-      await this.prisma.emailOtp.update({
-        where: { id: record.id },
-        data: { attempts: { increment: 1 } },
-      });
       throw new BadRequestException('Incorrect code.');
     }
 
@@ -191,7 +203,8 @@ export class AuthService {
       where: { id: record.id },
       data: { consumed: true },
     });
-    await this.users.setEmailVerified(email);
+    if (user) await this.users.update(user.id, { emailVerified: true });
+    else await this.users.setEmailVerified(email);
 
     return {
       message:

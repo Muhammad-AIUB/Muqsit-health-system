@@ -19,6 +19,11 @@ export class TemplateItemDto {
   @IsString() duration!: string;
   @IsString() instruction!: string;
   @IsOptional() @IsBoolean() isNote?: boolean;
+  // SAFETY field, not a label: prescribing-alert rules are written against the
+  // generic while the line carries the brand. Without it (the whitelist used to
+  // strip it) a medicine added from a template never triggered its alerts.
+  @IsOptional() @IsString() @MaxLength(200) generic?: string;
+  @IsOptional() @IsBoolean() isCont?: boolean;
 }
 
 export class CreateTemplateDto {

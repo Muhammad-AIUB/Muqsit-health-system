@@ -144,6 +144,16 @@ export class IpdService {
     return admission;
   }
 
+  // Read the admission for a read-modify-write of `clinical` UNDER A ROW LOCK.
+  // A plain SELECT at READ COMMITTED let two overlapping writes (two devices
+  // photographing pages, or a PATCH racing an upload) each read the same
+  // sheets and the later write erase the earlier page — while both filed an
+  // "added" audit line. Same pattern as the family-tree link (FOR UPDATE).
+  private async lockAdmission(tx: Prisma.TransactionClient, id: string, doctorId: string) {
+    await tx.$queryRaw`SELECT 1 FROM "IpdAdmission" WHERE "id" = ${id} AND "doctorId" = ${doctorId} FOR UPDATE`;
+    return tx.ipdAdmission.findFirst({ where: { id, doctorId } });
+  }
+
   async setStatus(
     doctorId: string,
     id: string,
@@ -168,7 +178,7 @@ export class IpdService {
   ): Promise<IpdAdmission> {
     const ward = await this.resolveWard(doctorId, dto.wardId, dto.wardNo);
     return this.prisma.$transaction(async (tx) => {
-      const admission = await tx.ipdAdmission.findFirst({ where: { id, doctorId } });
+      const admission = await this.lockAdmission(tx, id, doctorId);
       if (!admission) throw new NotFoundException('Admission not found');
       // Only re-check occupancy when the bed actually changes.
       if (dto.bed !== undefined && dto.bed !== admission.bed) {
@@ -253,7 +263,7 @@ export class IpdService {
   ): Promise<IpdAdmission> {
     this.assertMayEditAnalogue(ws);
     return this.prisma.$transaction(async (tx) => {
-      const admission = await tx.ipdAdmission.findFirst({ where: { id, doctorId } });
+      const admission = await this.lockAdmission(tx, id, doctorId);
       if (!admission) throw new NotFoundException('Admission not found');
 
       const stored = (admission as unknown as { clinical: Prisma.JsonValue | null }).clinical;

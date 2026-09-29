@@ -68,6 +68,13 @@ export class UsersService {
     return this.prisma.user.create({ data });
   }
 
+  // Chat messages this user wrote on patients owned by someone else.
+  countChatMessagesInOtherPractices(id: string): Promise<number> {
+    return this.prisma.patientChatMessage.count({
+      where: { authorId: id, patient: { doctorId: { not: id } } },
+    });
+  }
+
   update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
     return this.prisma.user.update({ where: { id }, data });
   }
