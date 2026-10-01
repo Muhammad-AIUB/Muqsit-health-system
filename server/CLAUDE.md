@@ -233,7 +233,7 @@ Four more rules there are safety, not style:
 ## Auth architecture (don't regress these)
 
 - Access token `mhs_at` (15 min) + refresh `mhs_rt` (rotated, path `/api/auth`), both httpOnly. `publicUser()` must keep returning `accountTier` — the client's tier gates read it from the login/refresh response.
-- **Rotation grace window (30 s)** in `auth.service.ts#refresh`: a just-rotated token presented again while the family has a live successor is a benign concurrent-refresh race (multiple tabs / client+admin share the cookie) → issue a fresh token. Only replay after the window, or against a dead family, revokes the family. Removing this brings back the "everyone logs out on reload" bug.
+- **Rotation grace window (10 s, same User-Agent only)** in `auth.service.ts#refresh` (`ROTATION_GRACE_MS`; was 30 s until the CSO pass): a just-rotated token presented again by the SAME browser while the family has a live successor is a benign concurrent-refresh race (multiple tabs / client+admin share the cookie) → issue a fresh token. A different or missing User-Agent inside the window is treated as theft. Only replay after the window, or against a dead family, revokes the family. Removing this brings back the "everyone logs out on reload" bug.
 - Client `apiFetch` silently refreshes once on 401 and only logs out on a definitive rejection; keep server semantics compatible.
 - `revokeAllForUser` is the admin evict path; sessions die within one access-token lifetime.
 

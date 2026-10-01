@@ -22,6 +22,11 @@ npm run dev                               # root: api + web + admin together
 npm run build                             # root: build server, client, admin
 cd server && npm run start:dev            # nodemon API on :4000
 cd server && npm test                     # jest, *.spec.ts beside the code in src/
+docker compose -f docker-compose.test.yml up -d   # root: throwaway Postgres on 127.0.0.1:5544
+cd server && npm run test:db              # build the test databases (schema.prisma + medicines + marker)
+cd server && npm run test:int             # integration/contract/regression, server/test/*.int-spec.ts
+cd e2e && npx playwright test             # browser journeys on :3100/:4200 (see e2e/README.md)
+node scripts/test-repeat.mjs <server|int|client> 3   # root: flaky-test detector
 cd server && npx tsc --noEmit -p tsconfig.json
 cd server && npm run lint                 # eslint --fix
 cd server && npm run format               # prettier
@@ -64,6 +69,9 @@ npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.pri
 - We do not send new per-admission data through the IPD `clinical` PATCH. It replaces the whole column; give it its own route (see `/ipd/:id/analogue`).
 - We do not store upload URLs minted on localhost. The dev DB is production; `upload.service.ts` refuses them.
 - We do not instruct manual deploys or builds on the VPS. Push to `main`; only DB migrations are manual.
+- We do not point a test at `DATABASE_URL` from `.env`. It is production behind the tunnel; DB-backed tests use the container on `127.0.0.1:5544` and `assertTestDatabase()` refuses anything else. `prisma db push` is allowed only inside `server/test/support/setup-db.js`, which forces both URLs to that container.
+- We do not retry a flaky test. A test whose outcome varies is a defect; find the cause (clock, order, timeout) with `scripts/test-repeat.mjs`.
+- We do not change a test to make a real defect pass. It stays as `it.failing` / `it.fails` with a `DEFECT-` comment until the code is fixed.
 - We do not enable the ECC plugin in this repo. Its hooks have not been checked against these safety rules.
 
 ## Read First

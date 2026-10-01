@@ -1,0 +1,13 @@
+{
+  "name": "muqsit-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Browser end-to-end tests (Playwright). Runs only against the throwaway test database.",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

@@ -81,7 +81,7 @@ domains).
 
 **Refresh rotation** revokes the presented token and issues a new one in the same
 family. A replayed token normally kills the whole family (theft assumption), but
-a **30-second grace window** treats a just-rotated token with a live successor as
+a **10-second grace window** (same User-Agent only) treats a just-rotated token with a live successor as
 a benign concurrent-refresh race — multiple tabs, and the client and admin apps,
 share one cookie. Removing that window brings back "everyone logs out on reload".
 
@@ -288,7 +288,8 @@ the ward; that door must be built inside `ipd.service`, never by extending
 `sex?`, `ethnicity?`, `religion?`, `mobile?`, `nid?`, `spouseMobile?`,
 `relativeMobile?`, `relativeRelation?`, `district?`, `fullAddress?`,
 `monthlyIncome?`, `pictureUrl?`, `tags?`, `watched?`, `prescriptionImages?`,
-`reportImages?`. Array fields cap at 200 entries / 2000 chars each.
+`reportImages?`. `tags` caps at 200 entries; the two image galleries cap at
+20,000 (`HISTORY_MAX`); every string at 2000 chars.
 
 `UpdatePatientDto` = all of the above optional, **plus** the record fields:
 

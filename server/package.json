@@ -24,7 +24,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:db": "node test/support/setup-db.js",
     "test:int": "jest --config ./test/jest-int.json",
-    "test:serve": "ts-node --transpile-only test/serve.ts"
+    "test:serve": "ts-node --transpile-only test/serve.ts",
+    "test:int:cov": "jest --config ./test/jest-int.json --coverage --coverageDirectory coverage-int --collectCoverageFrom \"src/**/*.ts\" --collectCoverageFrom \"!src/**/*.spec.ts\""
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -95,6 +96,14 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "global": {
+        "statements": 25,
+        "branches": 29,
+        "functions": 25,
+        "lines": 25
+      }
+    }
   }
 }

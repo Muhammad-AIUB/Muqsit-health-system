@@ -1,0 +1,827 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`printed prescription — the whole document > a short prescription 1`] = `
+"<!doctype html>
+<html><head><meta charset="utf-8" />
+<base href="/" />
+<title>Prescription — Patient</title>
+<style>
+  * { box-sizing: border-box; }
+  /* Reserve the pre-printed letterhead header/footer band as a PAGE margin, so
+     it is kept clear on every physical page of a multi-page prescription — not
+     just page 1 (a one-time .sheet padding would be overprinted on overflow
+     pages). The on-screen preview keeps the padding for WYSIWYG. */
+  @page { size: 8.27in 11.69in; margin: 0.5in 0.4in 0.5in 0.4in; }
+  body { font-family: "DM Sans", Arial, "Nirmala UI", "Noto Sans Bengali", "Kohinoor Bangla", Vrinda, sans-serif; color: #1a1a1a; margin: 0; background: #f0f0f0; }
+  .sheet { background: #fff; width: 8.27in; min-height: 11.69in; margin: 16px auto; padding: 0.5in 0.4in 0.5in 0.4in; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  /* Empty by design — the rule under the (pre-printed) letterhead band. The
+     brand/logo/doctor rules that used to fill it went with the printed name. */
+  .head { border-bottom: 2px solid #1d9e75; }
+  /* Two UNEQUAL halves: the right one (Date / Mobile / Address) starts past the
+     middle of the sheet. minmax(0, …) for the same reason .body carries it — a
+     bare fr track floors at its content's min width, so one long name or
+     address would push the date column back to wherever it happened to fit and
+     the offset would change from patient to patient. With minmax(0, …) the
+     halves hold their share whatever they carry and long values wrap inside
+     their own column. The gap is written from PT_GAP_PX so the CSS and the
+     width bound above cannot drift apart. */
+  .pt { display: grid; grid-template-columns: minmax(0, 0.56fr) minmax(0, 0.44fr); gap: 4px 24px; font-size: calc(var(--k, 1) * 14px); margin: 14px 0 6px; }
+  .pt span { color: #6b6b6b; }
+  /* minmax(0, …): an fr track floors at its content's min width, so anything
+     too wide on the ℞ side (a table, a long word) used to STEAL the clinical
+     column's share and print a diagnosis one word per line. The two columns now
+     hold their proportions whatever they carry, and content that does not fit
+     wraps inside its own column. */
+  /* The two fr values are the Body Section's separator (bodyShares), or the
+     historic 0.7 / 1.7 when the slider has never been moved. They are written
+     from the SAME call that sized the ℞ table and bounded the fill factor —
+     a second answer here is how a table ends up wider than its own track. */
+  .body { display: grid; grid-template-columns: minmax(0, 0.291667fr) 0.5px minmax(0, 0.708333fr); gap: 0; margin-top: 10px; }
+  /* Per-column top margins from the Body Section. In the PAGE's unit, not
+     through SCALE_PX: this is a distance the doctor measured on paper, like the
+     page margins, and it must not grow when the type does. */
+  .left { padding-right: 16px; padding-top: 0; }
+  .divider { background: #e5e5e3; }
+  .right { padding-left: 18px; padding-top: 0; }
+  .rx-symbol { font-size: calc(var(--k, 1) * 26px); font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
+  .block { margin-bottom: 12px; }
+  /* Written from the constants, so the sizes the width bound measures against
+     and the sizes that print can never drift apart. */
+  .block-title { font-size: calc(var(--k, 1) * 13px); font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  ul { margin: 0; padding-left: 16px; }
+  li { font-size: calc(var(--k, 1) * 12px); line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  /* Vertical padding scales with the sheet (it is height, which the fitting
+     script measures). Horizontal padding does NOT: the column widths are shares
+     of a fixed table now, so a padding that grew with the fit factor would eat the content
+     box the widths were measured against. CELL_PAD_PX must stay 2 x this. */
+  td { padding: calc(var(--k, 1) * 7px) 4px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+  /* Width comes from the colgroup (a share of the table) — not from here, or a
+     px width would fight the percentage under table-layout: fixed. */
+  .rx-no { color: #999; font-size: calc(var(--k, 1) * 14px); }
+  /* Column widths and the two font sizes are computed per sheet and emitted as
+     a <colgroup> plus inline styles (see layoutRxColumns) — measured against
+     what each column actually carries, so an empty "food" column holds no width
+     the dose column needs. Do not put percentage widths back here. */
+  /* The cell is regular; only the brand name inside it is bold. Note that
+     layoutRxColumns still MEASURES the whole label as bold — an
+     over-estimate by a couple of percent, which can only ever hand the
+     column more room than it needs. Measuring the parts separately
+     would print a shade larger and is not worth risking the one
+     guarantee this table has: no cell past its own column. */
+  .rx-drug { font-weight: 400; }
+  .rx-drug b { font-weight: 600; }
+  /* The medicine name and, under it, its dose — two block lines in ONE cell
+     (2026-09-12). They are blocks so each is its own line; the cell's own
+     white-space: nowrap is inherited, so neither wraps. The small top margin
+     keeps the dose visibly attached to the name above it rather than floating
+     midway between two medicines. A tapering row has no name, so its dose sits
+     inline beside the ↳ instead. */
+  .rx-name { display: block; }
+  .rx-dose { display: block; color: #333; margin-top: calc(var(--k, 1) * 2px); }
+  .rx-cont { color: #999; padding-left: 14px; }
+  .rx-dose-inline { color: #333; padding-left: 6px; }
+  .rx-mid { color: #333; }
+  /* A free-typed note is one of the ℞ table's own rows, so it takes the table's
+     smaller size — at 14 it printed LARGER than the medicine names above it. */
+  .rx-note { font-size: calc(var(--k, 1) * 11px); color: #444; font-style: italic; }
+  .followup { margin-top: 18px; font-size: calc(var(--k, 1) * 13px); }
+  .followup b { color: #0f6e56; }
+  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; }
+  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
+     global table/td rules above belong to the Rx table and must not leak in
+     (the child combinators keep them off the nested Rx table too). */
+  .pagegrid { width: 100%; border-collapse: collapse; table-layout: auto; }
+  /* overflow-wrap / word-break are INHERITED, so the ℞-cell rule above used to
+     reach the clinical column through this cell and break "multifocal" as
+     "multifoc / al". "anywhere" also drops an element's min-content width to a
+     single character, which is what let the left column be squeezed to nothing.
+     Reset both here; a long word on the left still wraps (break-word); it just
+     no longer splits mid-word or collapses its column. */
+  .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
+  .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
+  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1d9e75; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
+  .bb-exhort { height: 19px; width: auto; display: block; }
+  /* Each sheet starts on its own printed page. */
+  .sheet + .sheet { page-break-before: always; }
+  /* In print the header/footer band is reserved by the @page margin, so the
+     sheet fills the margined content box with no padding of its own (padding
+     would double-reserve and clip content on overflow pages). */
+  /* On screen a sheet is a full page tall, so stretch the table and let the
+     tfoot fall to the bottom of it — that is the bar the doctor sees in Preview.
+     Screen only: making .sheet a flex container in print risks breaking how the
+     table fragments across pages, and in print the tfoot repeats per fragment
+     anyway (page bottom on a full page, under the content on a short one). */
+  @media screen { .sheet { display: flex; flex-direction: column; } .pagegrid { flex: 1 1 auto; height: 100%; } }
+  @media print {
+    body { background: #fff; }
+    .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; }
+    /* ⚕️ The ↳ tapering marker is a SCREEN aid and does not go on paper
+       (physician's decision, 2026-09-12). It is on screen — in the print
+       preview and in the gallery snapshot — and hidden on the printed sheet.
+
+       visibility: hidden, NOT display: none, and both halves of that matter.
+       The dose on a tapering row keeps the arrow's space, so it stays
+       indented under the medicine it continues — without the indent
+       "0+0+2 · Continue" would read as a medicine of its own with no name,
+       which on a dispensed sheet is a misread, not a tidier line. It also
+       keeps the width maths honest: drugLineNeed measures that row as
+       CONT_INDENT_PX + the dose, and hiding the box would make the printed
+       row narrower than the column it was measured for. */
+    .rx-cont { visibility: hidden; }
+  }
+</style></head>
+<body>
+  
+  <div class="sheet" data-avail-h="1026" data-kmax="1.150">
+    <table class="pagegrid"><tbody><tr><td class="pagebody"><div class="pagecontent">
+    <!-- No printed brand name here (2026-08-16). The top band is reserved for
+         the practice's own pre-printed letterhead (headerHeight in Prescription
+         settings), and a second name printed under it competed with it. What
+         stays is the rule that separates the letterhead from the patient
+         details. The footer brand bar is unaffected. -->
+    <div class="head"></div>
+
+    <div class="pt">
+      <div><span>Name:</span> <b>Patient</b></div>
+      <div><span>Date:</span> 16/08/2026</div>
+      <div><span>Age / Sex:</span> 39 / Male</div>
+      <div><span>Mobile:</span> 01700000000</div>
+      <div><span>Weight:</span> — kg</div>
+      <div><span>Address:</span> —</div>
+    </div>
+
+    <div class="body">
+      <div class="left"><div class="block"><div class="block-title">Clinical</div><ul><li>—</li></ul></div></div>
+      <div class="divider"></div>
+      <div class="right">
+        <div class="rx-symbol">℞</div>
+        <table><colgroup><col style="width:6.667%" /><col style="width:72.708%" /><col style="width:20.625%" /></colgroup>
+        <tr>
+          <td class="rx-no">1.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
+        </tr></table>
+        
+        
+        
+        <div class="sign"><span class="line">Dr Test</span></div>
+      </div>
+    </div>
+    </div></td></tr></tbody>
+    <tfoot><tr><td class="pagefoot">
+      <div class="brandbar">
+        <span class="bb-mhs">MHS</span>
+        <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
+      </div>
+    </td></tr></tfoot></table>
+  </div>
+  
+<script>(function(){
+  function fits(sheet, availH){
+    var c = sheet.querySelector('.pagecontent');
+    var f = sheet.querySelector('.pagefoot');
+    if (!c) return false;
+    var h = c.getBoundingClientRect().height + (f ? f.getBoundingClientRect().height : 0);
+    if (h > availH) return false;
+    var tables = sheet.querySelectorAll('.pagecontent table');
+    for (var i = 0; i < tables.length; i++) {
+      if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
+    }
+    return true;
+  }
+  function fit(sheet){
+    var availH = parseFloat(sheet.getAttribute('data-avail-h'));
+    var kMax = parseFloat(sheet.getAttribute('data-kmax'));
+    if (!(availH > 0) || !(kMax > 1)) return;
+    sheet.style.setProperty('--k', '1');
+    if (!fits(sheet, availH)) return;
+    var lo = 1, hi = kMax;
+    for (var i = 0; i < 9; i++) {
+      var mid = (lo + hi) / 2;
+      sheet.style.setProperty('--k', String(mid));
+      if (fits(sheet, availH)) lo = mid; else hi = mid;
+    }
+    sheet.style.setProperty('--k', String(lo));
+  }
+  function run(){
+    try {
+      var sheets = document.querySelectorAll('.sheet');
+      for (var i = 0; i < sheets.length; i++) fit(sheets[i]);
+    } catch (e) { /* the sheet prints at its floor size */ }
+  }
+  run();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+  window.addEventListener('load', run);
+  window.addEventListener('beforeprint', run);
+})();</script>
+</body></html>"
+`;
+
+exports[`printed prescription — the whole document > the OPD privacy copy 1`] = `
+"<!doctype html>
+<html><head><meta charset="utf-8" />
+<base href="/" />
+<title>Prescription — Patient</title>
+<style>
+  * { box-sizing: border-box; }
+  /* Reserve the pre-printed letterhead header/footer band as a PAGE margin, so
+     it is kept clear on every physical page of a multi-page prescription — not
+     just page 1 (a one-time .sheet padding would be overprinted on overflow
+     pages). The on-screen preview keeps the padding for WYSIWYG. */
+  @page { size: 8.27in 11.69in; margin: 0.5in 0.4in 0.5in 0.4in; }
+  body { font-family: "DM Sans", Arial, "Nirmala UI", "Noto Sans Bengali", "Kohinoor Bangla", Vrinda, sans-serif; color: #1a1a1a; margin: 0; background: #f0f0f0; }
+  .sheet { background: #fff; width: 8.27in; min-height: 11.69in; margin: 16px auto; padding: 0.5in 0.4in 0.5in 0.4in; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  /* Empty by design — the rule under the (pre-printed) letterhead band. The
+     brand/logo/doctor rules that used to fill it went with the printed name. */
+  .head { border-bottom: 2px solid #1d9e75; }
+  /* Two UNEQUAL halves: the right one (Date / Mobile / Address) starts past the
+     middle of the sheet. minmax(0, …) for the same reason .body carries it — a
+     bare fr track floors at its content's min width, so one long name or
+     address would push the date column back to wherever it happened to fit and
+     the offset would change from patient to patient. With minmax(0, …) the
+     halves hold their share whatever they carry and long values wrap inside
+     their own column. The gap is written from PT_GAP_PX so the CSS and the
+     width bound above cannot drift apart. */
+  .pt { display: grid; grid-template-columns: minmax(0, 0.56fr) minmax(0, 0.44fr); gap: 4px 24px; font-size: calc(var(--k, 1) * 14px); margin: 14px 0 6px; }
+  .pt span { color: #6b6b6b; }
+  /* minmax(0, …): an fr track floors at its content's min width, so anything
+     too wide on the ℞ side (a table, a long word) used to STEAL the clinical
+     column's share and print a diagnosis one word per line. The two columns now
+     hold their proportions whatever they carry, and content that does not fit
+     wraps inside its own column. */
+  /* The two fr values are the Body Section's separator (bodyShares), or the
+     historic 0.7 / 1.7 when the slider has never been moved. They are written
+     from the SAME call that sized the ℞ table and bounded the fill factor —
+     a second answer here is how a table ends up wider than its own track. */
+  .body { display: grid; grid-template-columns: minmax(0, 0.291667fr) 0.5px minmax(0, 0.708333fr); gap: 0; margin-top: 10px; }
+  /* Per-column top margins from the Body Section. In the PAGE's unit, not
+     through SCALE_PX: this is a distance the doctor measured on paper, like the
+     page margins, and it must not grow when the type does. */
+  .left { padding-right: 16px; padding-top: 0; }
+  .divider { background: #e5e5e3; }
+  .right { padding-left: 18px; padding-top: 0; }
+  .rx-symbol { font-size: calc(var(--k, 1) * 26px); font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
+  .block { margin-bottom: 12px; }
+  /* Written from the constants, so the sizes the width bound measures against
+     and the sizes that print can never drift apart. */
+  .block-title { font-size: calc(var(--k, 1) * 13px); font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  ul { margin: 0; padding-left: 16px; }
+  li { font-size: calc(var(--k, 1) * 12px); line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  /* Vertical padding scales with the sheet (it is height, which the fitting
+     script measures). Horizontal padding does NOT: the column widths are shares
+     of a fixed table now, so a padding that grew with the fit factor would eat the content
+     box the widths were measured against. CELL_PAD_PX must stay 2 x this. */
+  td { padding: calc(var(--k, 1) * 7px) 4px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+  /* Width comes from the colgroup (a share of the table) — not from here, or a
+     px width would fight the percentage under table-layout: fixed. */
+  .rx-no { color: #999; font-size: calc(var(--k, 1) * 14px); }
+  /* Column widths and the two font sizes are computed per sheet and emitted as
+     a <colgroup> plus inline styles (see layoutRxColumns) — measured against
+     what each column actually carries, so an empty "food" column holds no width
+     the dose column needs. Do not put percentage widths back here. */
+  /* The cell is regular; only the brand name inside it is bold. Note that
+     layoutRxColumns still MEASURES the whole label as bold — an
+     over-estimate by a couple of percent, which can only ever hand the
+     column more room than it needs. Measuring the parts separately
+     would print a shade larger and is not worth risking the one
+     guarantee this table has: no cell past its own column. */
+  .rx-drug { font-weight: 400; }
+  .rx-drug b { font-weight: 600; }
+  /* The medicine name and, under it, its dose — two block lines in ONE cell
+     (2026-09-12). They are blocks so each is its own line; the cell's own
+     white-space: nowrap is inherited, so neither wraps. The small top margin
+     keeps the dose visibly attached to the name above it rather than floating
+     midway between two medicines. A tapering row has no name, so its dose sits
+     inline beside the ↳ instead. */
+  .rx-name { display: block; }
+  .rx-dose { display: block; color: #333; margin-top: calc(var(--k, 1) * 2px); }
+  .rx-cont { color: #999; padding-left: 14px; }
+  .rx-dose-inline { color: #333; padding-left: 6px; }
+  .rx-mid { color: #333; }
+  /* A free-typed note is one of the ℞ table's own rows, so it takes the table's
+     smaller size — at 14 it printed LARGER than the medicine names above it. */
+  .rx-note { font-size: calc(var(--k, 1) * 11px); color: #444; font-style: italic; }
+  .followup { margin-top: 18px; font-size: calc(var(--k, 1) * 13px); }
+  .followup b { color: #0f6e56; }
+  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; }
+  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
+     global table/td rules above belong to the Rx table and must not leak in
+     (the child combinators keep them off the nested Rx table too). */
+  .pagegrid { width: 100%; border-collapse: collapse; table-layout: auto; }
+  /* overflow-wrap / word-break are INHERITED, so the ℞-cell rule above used to
+     reach the clinical column through this cell and break "multifocal" as
+     "multifoc / al". "anywhere" also drops an element's min-content width to a
+     single character, which is what let the left column be squeezed to nothing.
+     Reset both here; a long word on the left still wraps (break-word); it just
+     no longer splits mid-word or collapses its column. */
+  .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
+  .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
+  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1d9e75; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
+  .bb-exhort { height: 19px; width: auto; display: block; }
+  /* Each sheet starts on its own printed page. */
+  .sheet + .sheet { page-break-before: always; }
+  /* In print the header/footer band is reserved by the @page margin, so the
+     sheet fills the margined content box with no padding of its own (padding
+     would double-reserve and clip content on overflow pages). */
+  /* On screen a sheet is a full page tall, so stretch the table and let the
+     tfoot fall to the bottom of it — that is the bar the doctor sees in Preview.
+     Screen only: making .sheet a flex container in print risks breaking how the
+     table fragments across pages, and in print the tfoot repeats per fragment
+     anyway (page bottom on a full page, under the content on a short one). */
+  @media screen { .sheet { display: flex; flex-direction: column; } .pagegrid { flex: 1 1 auto; height: 100%; } }
+  @media print {
+    body { background: #fff; }
+    .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; }
+    /* ⚕️ The ↳ tapering marker is a SCREEN aid and does not go on paper
+       (physician's decision, 2026-09-12). It is on screen — in the print
+       preview and in the gallery snapshot — and hidden on the printed sheet.
+
+       visibility: hidden, NOT display: none, and both halves of that matter.
+       The dose on a tapering row keeps the arrow's space, so it stays
+       indented under the medicine it continues — without the indent
+       "0+0+2 · Continue" would read as a medicine of its own with no name,
+       which on a dispensed sheet is a misread, not a tidier line. It also
+       keeps the width maths honest: drugLineNeed measures that row as
+       CONT_INDENT_PX + the dose, and hiding the box would make the printed
+       row narrower than the column it was measured for. */
+    .rx-cont { visibility: hidden; }
+  }
+</style></head>
+<body>
+  
+  <div class="sheet" data-avail-h="1026" data-kmax="1.150">
+    <table class="pagegrid"><tbody><tr><td class="pagebody"><div class="pagecontent">
+    <!-- No printed brand name here (2026-08-16). The top band is reserved for
+         the practice's own pre-printed letterhead (headerHeight in Prescription
+         settings), and a second name printed under it competed with it. What
+         stays is the rule that separates the letterhead from the patient
+         details. The footer brand bar is unaffected. -->
+    <div class="head"></div>
+
+    <div class="pt">
+      <div><span>Name:</span> <b>Patient</b></div>
+      <div><span>Date:</span> 16/08/2026</div>
+      <div><span>Age / Sex:</span> 39 / Male</div>
+      <div><span>Mobile:</span> 01700000000</div>
+      <div><span>Weight:</span> — kg</div>
+      <div><span>Address:</span> —</div>
+    </div>
+
+    <div class="body">
+      <div class="left">
+        <div class="block">
+          <div class="block-title">Final diagnosis</div>
+          <ul><li>Chronic hepatitis B</li></ul>
+        </div></div>
+      <div class="divider"></div>
+      <div class="right">
+        <div class="rx-symbol">℞</div>
+        <table><colgroup><col style="width:6.667%" /><col style="width:76.875%" /><col style="width:16.458%" /></colgroup>
+        <tr>
+          <td class="rx-no">1.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">2.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
+        </tr>
+        <tr>
+          <td class="rx-no">3.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4tsf at night if constipation</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+        </tr>
+        <tr>
+          <td class="rx-no">4.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Bicozin</b> N/A</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">5.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Denvar</b> 400 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">7 days</td>
+        </tr></table>
+        <div class="block"><div class="block-title">Advice</div><ul><li>bed rest</li></ul></div>
+        <div class="block"><div class="block-title">Advised tests / investigation</div><ul><li>ALT/SGPT</li></ul></div>
+        <div class="followup">Follow-up: <b>12/09/2026</b></div>
+        <div class="sign"><span class="line">Dr Test</span></div>
+      </div>
+    </div>
+    </div></td></tr></tbody>
+    <tfoot><tr><td class="pagefoot">
+      <div class="brandbar">
+        <span class="bb-mhs">MHS</span>
+        <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
+      </div>
+    </td></tr></tfoot></table>
+  </div>
+  
+  <div class="sheet" data-avail-h="1026" data-kmax="1.150">
+    <table class="pagegrid"><tbody><tr><td class="pagebody"><div class="pagecontent">
+    <!-- No printed brand name here (2026-08-16). The top band is reserved for
+         the practice's own pre-printed letterhead (headerHeight in Prescription
+         settings), and a second name printed under it competed with it. What
+         stays is the rule that separates the letterhead from the patient
+         details. The footer brand bar is unaffected. -->
+    <div class="head"></div>
+
+    <div class="pt">
+      <div><span>Name:</span> <b>P*t*e*t*</b></div>
+      <div><span>Date:</span> 16/08/2026</div>
+      <div><span>Age / Sex:</span> 39 / Male</div>
+      <div><span>Mobile:</span> ******* 0000</div>
+      <div><span>Weight:</span> — kg</div>
+      <div><span>Address:</span> —</div>
+    </div>
+
+    <div class="body">
+      <div class="left"></div>
+      <div class="divider"></div>
+      <div class="right">
+        <div class="rx-symbol">℞</div>
+        <table><colgroup><col style="width:6.667%" /><col style="width:76.875%" /><col style="width:16.458%" /></colgroup>
+        <tr>
+          <td class="rx-no">1.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">2.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
+        </tr>
+        <tr>
+          <td class="rx-no">3.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4tsf at night if constipation</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+        </tr>
+        <tr>
+          <td class="rx-no">4.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Bicozin</b> N/A</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">5.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Denvar</b> 400 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">7 days</td>
+        </tr></table>
+        
+        <div class="block"><div class="block-title">Advised tests / investigation</div><ul><li>ALT/SGPT</li></ul></div>
+        <div class="followup">Follow-up: <b>12/09/2026</b></div>
+        <div class="sign"><span class="line">Dr Test</span></div>
+      </div>
+    </div>
+    </div></td></tr></tbody>
+    <tfoot><tr><td class="pagefoot">
+      <div class="brandbar">
+        <span class="bb-mhs">MHS</span>
+        <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
+      </div>
+    </td></tr></tfoot></table>
+  </div>
+<script>(function(){
+  function fits(sheet, availH){
+    var c = sheet.querySelector('.pagecontent');
+    var f = sheet.querySelector('.pagefoot');
+    if (!c) return false;
+    var h = c.getBoundingClientRect().height + (f ? f.getBoundingClientRect().height : 0);
+    if (h > availH) return false;
+    var tables = sheet.querySelectorAll('.pagecontent table');
+    for (var i = 0; i < tables.length; i++) {
+      if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
+    }
+    return true;
+  }
+  function fit(sheet){
+    var availH = parseFloat(sheet.getAttribute('data-avail-h'));
+    var kMax = parseFloat(sheet.getAttribute('data-kmax'));
+    if (!(availH > 0) || !(kMax > 1)) return;
+    sheet.style.setProperty('--k', '1');
+    if (!fits(sheet, availH)) return;
+    var lo = 1, hi = kMax;
+    for (var i = 0; i < 9; i++) {
+      var mid = (lo + hi) / 2;
+      sheet.style.setProperty('--k', String(mid));
+      if (fits(sheet, availH)) lo = mid; else hi = mid;
+    }
+    sheet.style.setProperty('--k', String(lo));
+  }
+  function run(){
+    try {
+      var sheets = document.querySelectorAll('.sheet');
+      for (var i = 0; i < sheets.length; i++) fit(sheets[i]);
+    } catch (e) { /* the sheet prints at its floor size */ }
+  }
+  run();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+  window.addEventListener('load', run);
+  window.addEventListener('beforeprint', run);
+})();</script>
+</body></html>"
+`;
+
+exports[`printed prescription — the whole document > the eight-medicine sheet, with a taper and a note line 1`] = `
+"<!doctype html>
+<html><head><meta charset="utf-8" />
+<base href="/" />
+<title>Prescription — Patient</title>
+<style>
+  * { box-sizing: border-box; }
+  /* Reserve the pre-printed letterhead header/footer band as a PAGE margin, so
+     it is kept clear on every physical page of a multi-page prescription — not
+     just page 1 (a one-time .sheet padding would be overprinted on overflow
+     pages). The on-screen preview keeps the padding for WYSIWYG. */
+  @page { size: 8.27in 11.69in; margin: 0.5in 0.4in 0.5in 0.4in; }
+  body { font-family: "DM Sans", Arial, "Nirmala UI", "Noto Sans Bengali", "Kohinoor Bangla", Vrinda, sans-serif; color: #1a1a1a; margin: 0; background: #f0f0f0; }
+  .sheet { background: #fff; width: 8.27in; min-height: 11.69in; margin: 16px auto; padding: 0.5in 0.4in 0.5in 0.4in; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  /* Empty by design — the rule under the (pre-printed) letterhead band. The
+     brand/logo/doctor rules that used to fill it went with the printed name. */
+  .head { border-bottom: 2px solid #1d9e75; }
+  /* Two UNEQUAL halves: the right one (Date / Mobile / Address) starts past the
+     middle of the sheet. minmax(0, …) for the same reason .body carries it — a
+     bare fr track floors at its content's min width, so one long name or
+     address would push the date column back to wherever it happened to fit and
+     the offset would change from patient to patient. With minmax(0, …) the
+     halves hold their share whatever they carry and long values wrap inside
+     their own column. The gap is written from PT_GAP_PX so the CSS and the
+     width bound above cannot drift apart. */
+  .pt { display: grid; grid-template-columns: minmax(0, 0.56fr) minmax(0, 0.44fr); gap: 4px 24px; font-size: calc(var(--k, 1) * 14px); margin: 14px 0 6px; }
+  .pt span { color: #6b6b6b; }
+  /* minmax(0, …): an fr track floors at its content's min width, so anything
+     too wide on the ℞ side (a table, a long word) used to STEAL the clinical
+     column's share and print a diagnosis one word per line. The two columns now
+     hold their proportions whatever they carry, and content that does not fit
+     wraps inside its own column. */
+  /* The two fr values are the Body Section's separator (bodyShares), or the
+     historic 0.7 / 1.7 when the slider has never been moved. They are written
+     from the SAME call that sized the ℞ table and bounded the fill factor —
+     a second answer here is how a table ends up wider than its own track. */
+  .body { display: grid; grid-template-columns: minmax(0, 0.291667fr) 0.5px minmax(0, 0.708333fr); gap: 0; margin-top: 10px; }
+  /* Per-column top margins from the Body Section. In the PAGE's unit, not
+     through SCALE_PX: this is a distance the doctor measured on paper, like the
+     page margins, and it must not grow when the type does. */
+  .left { padding-right: 16px; padding-top: 0; }
+  .divider { background: #e5e5e3; }
+  .right { padding-left: 18px; padding-top: 0; }
+  .rx-symbol { font-size: calc(var(--k, 1) * 26px); font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
+  .block { margin-bottom: 12px; }
+  /* Written from the constants, so the sizes the width bound measures against
+     and the sizes that print can never drift apart. */
+  .block-title { font-size: calc(var(--k, 1) * 13px); font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  ul { margin: 0; padding-left: 16px; }
+  li { font-size: calc(var(--k, 1) * 12px); line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  /* Vertical padding scales with the sheet (it is height, which the fitting
+     script measures). Horizontal padding does NOT: the column widths are shares
+     of a fixed table now, so a padding that grew with the fit factor would eat the content
+     box the widths were measured against. CELL_PAD_PX must stay 2 x this. */
+  td { padding: calc(var(--k, 1) * 7px) 4px; border-bottom: 0.5px solid #eee; vertical-align: top; overflow-wrap: anywhere; word-break: break-word; }
+  /* Width comes from the colgroup (a share of the table) — not from here, or a
+     px width would fight the percentage under table-layout: fixed. */
+  .rx-no { color: #999; font-size: calc(var(--k, 1) * 14px); }
+  /* Column widths and the two font sizes are computed per sheet and emitted as
+     a <colgroup> plus inline styles (see layoutRxColumns) — measured against
+     what each column actually carries, so an empty "food" column holds no width
+     the dose column needs. Do not put percentage widths back here. */
+  /* The cell is regular; only the brand name inside it is bold. Note that
+     layoutRxColumns still MEASURES the whole label as bold — an
+     over-estimate by a couple of percent, which can only ever hand the
+     column more room than it needs. Measuring the parts separately
+     would print a shade larger and is not worth risking the one
+     guarantee this table has: no cell past its own column. */
+  .rx-drug { font-weight: 400; }
+  .rx-drug b { font-weight: 600; }
+  /* The medicine name and, under it, its dose — two block lines in ONE cell
+     (2026-09-12). They are blocks so each is its own line; the cell's own
+     white-space: nowrap is inherited, so neither wraps. The small top margin
+     keeps the dose visibly attached to the name above it rather than floating
+     midway between two medicines. A tapering row has no name, so its dose sits
+     inline beside the ↳ instead. */
+  .rx-name { display: block; }
+  .rx-dose { display: block; color: #333; margin-top: calc(var(--k, 1) * 2px); }
+  .rx-cont { color: #999; padding-left: 14px; }
+  .rx-dose-inline { color: #333; padding-left: 6px; }
+  .rx-mid { color: #333; }
+  /* A free-typed note is one of the ℞ table's own rows, so it takes the table's
+     smaller size — at 14 it printed LARGER than the medicine names above it. */
+  .rx-note { font-size: calc(var(--k, 1) * 11px); color: #444; font-style: italic; }
+  .followup { margin-top: 18px; font-size: calc(var(--k, 1) * 13px); }
+  .followup b { color: #0f6e56; }
+  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; }
+  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
+     global table/td rules above belong to the Rx table and must not leak in
+     (the child combinators keep them off the nested Rx table too). */
+  .pagegrid { width: 100%; border-collapse: collapse; table-layout: auto; }
+  /* overflow-wrap / word-break are INHERITED, so the ℞-cell rule above used to
+     reach the clinical column through this cell and break "multifocal" as
+     "multifoc / al". "anywhere" also drops an element's min-content width to a
+     single character, which is what let the left column be squeezed to nothing.
+     Reset both here; a long word on the left still wraps (break-word); it just
+     no longer splits mid-word or collapses its column. */
+  .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
+  .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
+  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1d9e75; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
+  .bb-exhort { height: 19px; width: auto; display: block; }
+  /* Each sheet starts on its own printed page. */
+  .sheet + .sheet { page-break-before: always; }
+  /* In print the header/footer band is reserved by the @page margin, so the
+     sheet fills the margined content box with no padding of its own (padding
+     would double-reserve and clip content on overflow pages). */
+  /* On screen a sheet is a full page tall, so stretch the table and let the
+     tfoot fall to the bottom of it — that is the bar the doctor sees in Preview.
+     Screen only: making .sheet a flex container in print risks breaking how the
+     table fragments across pages, and in print the tfoot repeats per fragment
+     anyway (page bottom on a full page, under the content on a short one). */
+  @media screen { .sheet { display: flex; flex-direction: column; } .pagegrid { flex: 1 1 auto; height: 100%; } }
+  @media print {
+    body { background: #fff; }
+    .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; }
+    /* ⚕️ The ↳ tapering marker is a SCREEN aid and does not go on paper
+       (physician's decision, 2026-09-12). It is on screen — in the print
+       preview and in the gallery snapshot — and hidden on the printed sheet.
+
+       visibility: hidden, NOT display: none, and both halves of that matter.
+       The dose on a tapering row keeps the arrow's space, so it stays
+       indented under the medicine it continues — without the indent
+       "0+0+2 · Continue" would read as a medicine of its own with no name,
+       which on a dispensed sheet is a misread, not a tidier line. It also
+       keeps the width maths honest: drugLineNeed measures that row as
+       CONT_INDENT_PX + the dose, and hiding the box would make the printed
+       row narrower than the column it was measured for. */
+    .rx-cont { visibility: hidden; }
+  }
+</style></head>
+<body>
+  
+  <div class="sheet" data-avail-h="1026" data-kmax="1.010">
+    <table class="pagegrid"><tbody><tr><td class="pagebody"><div class="pagecontent">
+    <!-- No printed brand name here (2026-08-16). The top band is reserved for
+         the practice's own pre-printed letterhead (headerHeight in Prescription
+         settings), and a second name printed under it competed with it. What
+         stays is the rule that separates the letterhead from the patient
+         details. The footer brand bar is unaffected. -->
+    <div class="head"></div>
+
+    <div class="pt">
+      <div><span>Name:</span> <b>Patient</b></div>
+      <div><span>Date:</span> 12/09/2026</div>
+      <div><span>Age / Sex:</span> 39 / Male</div>
+      <div><span>Mobile:</span> 01700000000</div>
+      <div><span>Weight:</span> — kg</div>
+      <div><span>Address:</span> House 12/B, Road 5, Dhanmondi Residential Area, Dhaka 1209</div>
+    </div>
+
+    <div class="body">
+      <div class="left">
+        <div class="block">
+          <div class="block-title">Final diagnosis</div>
+          <ul><li>Chronic hepatitis B</li></ul>
+        </div>
+        <div class="block">
+          <div class="block-title">History</div>
+          <ul><li>Past: TB, treated</li><li>Current: smoker</li></ul>
+        </div>
+        <div class="block">
+          <div class="block-title">Drug history</div>
+          <ul><li>Losartan 50mg</li><li>Stopped warfarin — GI bleed</li></ul>
+        </div></div>
+      <div class="divider"></div>
+      <div class="right">
+        <div class="rx-symbol">℞</div>
+        <table><colgroup><col style="width:6.667%" /><col style="width:62.917%" /><col style="width:16.667%" /><col style="width:13.750%" /></colgroup>
+        <tr>
+          <td class="rx-no">1.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Xynovir</b> 300 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">2.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">0+0+1</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">3.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Lenva</b> 4 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">0+0+2</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no"></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-cont">↳</span><span class="rx-dose-inline" style="font-size:calc(var(--k, 1) * 11px)">0+0+2</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">4.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Carvista</b> 3.125 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">5.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Bicozin</b></span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">0+0+1</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
+        </tr>
+        <tr>
+          <td class="rx-no">6.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule (Enteric Coated). <b>Sergel</b> 40 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">2 month</td>
+        </tr>
+        <tr>
+          <td class="rx-no">7.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Deflux</b> 10 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">if needed</td>
+        </tr>
+        <tr>
+          <td class="rx-no">8.</td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4TSF at night if constipation</span></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
+        </tr>
+        <tr>
+          <td class="rx-no">9.</td>
+          <td class="rx-note" colspan="3">Take plenty of water</td>
+        </tr></table>
+        
+        
+        
+        <div class="sign"><span class="line">Dr Test</span></div>
+      </div>
+    </div>
+    </div></td></tr></tbody>
+    <tfoot><tr><td class="pagefoot">
+      <div class="brandbar">
+        <span class="bb-mhs">MHS</span>
+        <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
+      </div>
+    </td></tr></tfoot></table>
+  </div>
+  
+<script>(function(){
+  function fits(sheet, availH){
+    var c = sheet.querySelector('.pagecontent');
+    var f = sheet.querySelector('.pagefoot');
+    if (!c) return false;
+    var h = c.getBoundingClientRect().height + (f ? f.getBoundingClientRect().height : 0);
+    if (h > availH) return false;
+    var tables = sheet.querySelectorAll('.pagecontent table');
+    for (var i = 0; i < tables.length; i++) {
+      if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
+    }
+    return true;
+  }
+  function fit(sheet){
+    var availH = parseFloat(sheet.getAttribute('data-avail-h'));
+    var kMax = parseFloat(sheet.getAttribute('data-kmax'));
+    if (!(availH > 0) || !(kMax > 1)) return;
+    sheet.style.setProperty('--k', '1');
+    if (!fits(sheet, availH)) return;
+    var lo = 1, hi = kMax;
+    for (var i = 0; i < 9; i++) {
+      var mid = (lo + hi) / 2;
+      sheet.style.setProperty('--k', String(mid));
+      if (fits(sheet, availH)) lo = mid; else hi = mid;
+    }
+    sheet.style.setProperty('--k', String(lo));
+  }
+  function run(){
+    try {
+      var sheets = document.querySelectorAll('.sheet');
+      for (var i = 0; i < sheets.length; i++) fit(sheets[i]);
+    } catch (e) { /* the sheet prints at its floor size */ }
+  }
+  run();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+  window.addEventListener('load', run);
+  window.addEventListener('beforeprint', run);
+})();</script>
+</body></html>"
+`;

@@ -12,3 +12,5 @@ next-env.d.ts
 
 # Env
 .env*.local
+/.next-e2e/
+/coverage/

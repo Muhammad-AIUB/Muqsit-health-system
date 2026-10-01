@@ -18,3 +18,4 @@ coverage/
 # of server/node_modules on purpose so a one-off resizer can never move the live
 # API's dependencies. Safe to delete once a backfill is done.
 /scripts/.tools/
+coverage-int/
