@@ -1,0 +1,25 @@
+# Throwaway Postgres for integration, E2E and load tests.
+#
+# The dev DATABASE_URL tunnels to PRODUCTION, so tests never use it. This
+# container is bound to loopback on a port nothing else uses (5544) and keeps
+# its data in memory: `down` leaves nothing behind.
+#
+#   docker compose -f docker-compose.test.yml up -d
+#   cd server && npm run test:db
+services:
+  testdb:
+    image: postgres:16-alpine
+    container_name: muqsit-testdb
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: muqsit_int_test
+    ports:
+      - "127.0.0.1:5544:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d muqsit_int_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
