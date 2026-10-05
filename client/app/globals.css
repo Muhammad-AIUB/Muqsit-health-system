@@ -147,6 +147,16 @@ input[type="range"] {
   padding: 16px;
 }
 
+/* ── Narrow desktop (tablet landscape, a split-screen window) ────
+   Seven labelled tabs plus the BAN/EN switch need ~925px. Below that the switch
+   dropped onto a third header row. The labels are what a doctor reads, so the
+   icons are what gives way. */
+@media (max-width: 1040px) {
+  .nav-ico {
+    display: none;
+  }
+}
+
 /* ── Phones ─────────────────────────────────────────────────────
    The mobile shell is the device layout: edge to edge, and exactly one screen
    tall so its bottom navigation stays on screen while the content scrolls
