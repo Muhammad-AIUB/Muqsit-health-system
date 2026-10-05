@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
+import { btnPrimary, btnSecondary, inputMd } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddOpdVisit, useOpdQueue, useSetOpdStatus } from "@/hooks/useOpd";
 import { displayAge } from "@/lib/age";
@@ -49,13 +50,13 @@ export default function OpdView() {
     setShowAdd(false);
   };
 
-  const inp = { padding: "7px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 12, outline: "none", fontFamily: font } as const;
+  const inp = { ...inputMd, width: undefined } as const;
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ fontSize: 16, fontWeight: 500 }}>OPD queue management</div>
-        <button onClick={() => setShowAdd((s) => !s)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font }}>
+        <button onClick={() => setShowAdd((s) => !s)} style={btnPrimary("md")}>
           {showAdd ? "Close" : "+ Add to queue"}
         </button>
       </div>
@@ -94,7 +95,7 @@ export default function OpdView() {
             <option>Follow-up</option>
             <option>Urgent</option>
           </select>
-          <button onClick={submitAdd} disabled={addVisit.isPending || !name.trim()} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font, opacity: addVisit.isPending || !name.trim() ? 0.6 : 1 }}>
+          <button onClick={submitAdd} disabled={addVisit.isPending || !name.trim()} style={{ ...btnPrimary("md"), opacity: addVisit.isPending || !name.trim() ? 0.6 : 1 }}>
             {addVisit.isPending ? "Adding…" : "Add"}
           </button>
         </div>
@@ -102,7 +103,7 @@ export default function OpdView() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
         <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.n[600] }}>Total today</div><div style={{ fontSize: 22, fontWeight: 500 }}>{queue.length}</div></div>
-        <div style={{ background: C.pri[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.pri[600] }}>Completed</div><div style={{ fontSize: 22, fontWeight: 500, color: C.pri[600] }}>{done}</div></div>
+        <div style={{ background: C.ok[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.ok[600] }}>Completed</div><div style={{ fontSize: 22, fontWeight: 500, color: C.ok[600] }}>{done}</div></div>
         <div style={{ background: C.warn[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.warn[800] }}>Waiting</div><div style={{ fontSize: 22, fontWeight: 500, color: C.warn[800] }}>{waiting}</div></div>
       </div>
 
@@ -125,7 +126,7 @@ export default function OpdView() {
               {p.rxStatus === "incomplete" ? (
                 <Pill bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
               ) : p.rxStatus === "complete" ? (
-                <Pill bg={C.pri[50]} fg={C.pri[600]}>Complete</Pill>
+                <Pill bg={C.ok[50]} fg={C.ok[600]}>Complete</Pill>
               ) : p.type && p.type !== "New" && p.type !== "Rx" ? (
                 <Pill bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
               ) : null}
@@ -162,16 +163,16 @@ export default function OpdView() {
                       }
                       setActiveTab("prescription");
                     }}
-                    style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, cursor: "pointer", fontFamily: font }}
+                    style={btnPrimary("sm")}
                   >
                     Prescribe
                   </button>
-                  <button onClick={() => setStatus.mutate({ id: p.id, status: "done" })} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 11, cursor: "pointer", fontFamily: font }}>
+                  <button onClick={() => setStatus.mutate({ id: p.id, status: "done" })} style={btnSecondary("sm")}>
                     Done
                   </button>
                 </>
               ) : (
-                <Pill bg={C.pri[50]} fg={C.pri[600]}>✓ done</Pill>
+                <Pill bg={C.ok[50]} fg={C.ok[600]}>✓ done</Pill>
               )}
             </div>
           );

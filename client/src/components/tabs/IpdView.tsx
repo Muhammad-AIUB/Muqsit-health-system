@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
+import { btnDisabled, btnPrimary, btnSecondary, inputMd } from "@/theme/styles";
 import { useAdmitIpd, useIpdList, useSetIpdStatus } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
@@ -16,7 +17,7 @@ const OTHER_WARD = "__other";
 
 const STATUSES = ["Stable", "Observation", "Critical", "Discharge"] as const;
 const statusColor = (s: string) =>
-  s === "Critical" ? "danger" : s === "Observation" ? "warn" : s === "Discharge" ? "info" : "pri";
+  s === "Critical" ? "danger" : s === "Observation" ? "warn" : s === "Discharge" ? "info" : "ok";
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("default", { month: "short", day: "numeric" });
@@ -105,8 +106,8 @@ export default function IpdView() {
     setShowAdd(false);
   };
 
-  const inp = { padding: "7px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 12, outline: "none", fontFamily: font } as const;
-  const navBtn = (disabled: boolean) => ({ padding: "7px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: disabled ? C.n[100] : C.n[0], color: disabled ? C.n[400] : C.n[700], fontSize: 11.5, fontWeight: 500, cursor: disabled ? "not-allowed" : "pointer", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" } as const);
+  const inp = { ...inputMd, width: undefined } as const;
+  const navBtn = (disabled: boolean) => ({ ...btnSecondary("sm"), ...(disabled ? btnDisabled : null) });
 
   // Full admission detail (opened by clicking a patient).
   const openAdmission = admissions.find((a) => a.id === openId) ?? null;
@@ -119,11 +120,11 @@ export default function IpdView() {
       <div style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8 }}>
           <div style={{ fontSize: 16, fontWeight: 500 }}>IPD ward management</div>
-          <button disabled title="Nursing Genie — coming soon" style={{ padding: "6px 14px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[100], color: C.n[400], fontSize: 12.5, fontWeight: 500, cursor: "not-allowed", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <button disabled title="Nursing Genie — coming soon" style={{ ...btnSecondary("sm"), ...btnDisabled }}>
             🧞 Nursing Genie <span style={{ fontSize: 9, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
           </button>
         </div>
-        <button onClick={() => { setShowAdd((s) => !s); setAdmitError(""); }} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font }}>
+        <button onClick={() => { setShowAdd((s) => !s); setAdmitError(""); }} style={btnPrimary("md")}>
           {showAdd ? "Close" : "+ Admit patient"}
         </button>
       </div>
@@ -175,7 +176,7 @@ export default function IpdView() {
           )}
           <input value={floorBuilding} onChange={(e) => setFloorBuilding(e.target.value)} placeholder="Floor or building" style={{ ...inp, flex: "1 1 130px" }} />
           <input value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Diagnosis" style={{ ...inp, flex: "1 1 140px" }} />
-          <button onClick={submitAdmit} disabled={admit.isPending || !bed.trim() || !name.trim() || mobileInvalid} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: font, opacity: admit.isPending || !bed.trim() || !name.trim() || mobileInvalid ? 0.6 : 1 }}>
+          <button onClick={submitAdmit} disabled={admit.isPending || !bed.trim() || !name.trim() || mobileInvalid} style={{ ...btnPrimary("md"), opacity: admit.isPending || !bed.trim() || !name.trim() || mobileInvalid ? 0.6 : 1 }}>
             {admit.isPending ? "Admitting…" : "Admit"}
           </button>
           {admitError && (
@@ -185,7 +186,7 @@ export default function IpdView() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
-        <div style={{ background: C.pri[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.pri[600] }}>Occupied</div><div style={{ fontSize: 22, fontWeight: 500, color: C.pri[600] }}>{occupied}</div></div>
+        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.n[600] }}>Occupied</div><div style={{ fontSize: 22, fontWeight: 500, color: C.n[900] }}>{occupied}</div></div>
         <div style={{ background: C.danger[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.danger[800] }}>Critical</div><div style={{ fontSize: 22, fontWeight: 500, color: C.danger[800] }}>{critical}</div></div>
         <div style={{ background: C.info[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.info[800] }}>Discharge</div><div style={{ fontSize: 22, fontWeight: 500, color: C.info[800] }}>{discharge}</div></div>
       </div>
@@ -198,7 +199,7 @@ export default function IpdView() {
       </div>
 
       <div style={{ marginBottom: 10 }}>
-        <input value={search} onChange={(e) => setSearch(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="🔍 Search admitted patients by mobile number…" style={{ ...inp, width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 12.5 }} />
+        <input value={search} onChange={(e) => setSearch(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="🔍 Search admitted patients by mobile number…" style={{ ...inp, width: "100%" }} />
       </div>
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
@@ -225,11 +226,11 @@ export default function IpdView() {
               <select
                 value={p.status}
                 onChange={(e) => setStatus.mutate({ id: p.id, status: e.target.value })}
-                style={{ ...inp, padding: "5px 6px", fontSize: 11, cursor: "pointer" }}
+                style={{ ...inp, minHeight: 30, padding: "0 6px", fontSize: 12, cursor: "pointer" }}
               >
                 {STATUSES.map((s) => <option key={s}>{s}</option>)}
               </select>
-              <button onClick={() => setOpenId(p.id)} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 11, cursor: "pointer", fontFamily: font }}>Open</button>
+              <button onClick={() => setOpenId(p.id)} style={btnSecondary("sm")}>Open</button>
             </div>
           );
         })}

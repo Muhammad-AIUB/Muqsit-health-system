@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatients } from "@/hooks/usePatients";
 import type { Patient } from "@/lib/api";
@@ -54,12 +55,7 @@ const SectionHeader = ({ icon, title, count, color, action }: { icon: string; ti
   </div>
 );
 
-const smallBtn = (filled: boolean) => ({
-  padding: "4px 12px", borderRadius: 6, fontSize: 10, cursor: "pointer", fontFamily: font,
-  border: filled ? "none" : `0.5px solid ${C.n[200]}`,
-  background: filled ? C.pri[400] : C.n[0],
-  color: filled ? "#fff" : C.n[700],
-});
+const smallBtn = (filled: boolean) => (filled ? btnPrimary("sm") : btnSecondary("sm"));
 
 export default function PatientsView() {
   const {
@@ -137,7 +133,7 @@ export default function PatientsView() {
       {/* ── GROUP 2: All patients (from API) ── */}
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "14px 16px" }}>
         <SectionHeader icon="🗂️" title="Your patients" count={patients.length} color={C.pri}
-          action={<button onClick={newPatient} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: font }}>+ New patient</button>}
+          action={<button onClick={newPatient} style={btnPrimary("sm")}>+ New patient</button>}
         />
         {isLoading ? (
           <div style={{ textAlign: "center", padding: "24px 0", color: C.n[500], fontSize: 12 }}>Loading patients…</div>
