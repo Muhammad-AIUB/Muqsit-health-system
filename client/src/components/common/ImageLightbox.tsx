@@ -165,6 +165,9 @@ export default function ImageLightbox({
     <div
       ref={overlayRef}
       data-testid="image-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image viewer"
       // ⚕️ A pan that ends on the backdrop must not close the viewer — the
       // doctor was reading, not dismissing.
       onClick={() => { if (moved.current) { moved.current = false; return; } onClose(); }}

@@ -9,6 +9,7 @@ import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/l
 import DateField from "@/components/common/DateField";
 import { ddmmyyyyMs } from "@/lib/dateInput";
 import Icon from "@/components/common/Icon";
+import { useDialog } from "@/lib/useDialog";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
@@ -19,6 +20,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 // window + category, grouped by date or category (3.docx records request).
 export default function InvestigationDownload({ findings, onClose }: { findings: InvFinding[]; onClose: () => void }) {
   const { ptName, ptAge, ptGender, ptWeight, ptPhone, ptAddress, ptInfo } = useMuqsit();
+  const dialog = useDialog(true, onClose);
   const [dateMode, setDateMode] = useState<"all" | "6m" | "12m" | "custom">("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -137,7 +139,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
   return (
     <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,32,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, fontFamily: font, padding: 16 }}>
-      <div style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 480, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
+      <div role="dialog" aria-modal="true" aria-label="Download investigation summary" {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 480, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: C.n[900] }}>Download investigation summary</div>
           <button aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: C.n[500], cursor: "pointer" }}>×</button>

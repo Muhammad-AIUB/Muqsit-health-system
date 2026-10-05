@@ -6,6 +6,7 @@ import { btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
 import { useInvestigationPrefs, useSaveInvestigationGroups } from "@/hooks/useInvestigationPrefs";
 import { groupTicked, newGroupProblem, toggleGroup } from "@/lib/investigationGroups";
 import InvestigationDirectory from "./InvestigationDirectory";
+import { useDialog } from "@/lib/useDialog";
 
 // The "Investigations group" tab of Advised tests / investigation (physician's
 // request, 2026-09-24): the doctor's own groups, each with a tick box that puts
@@ -60,6 +61,7 @@ export default function InvestigationGroups({ selected, apply }: {
 }
 
 function NewGroupModal({ onClose }: { onClose: () => void }) {
+  const dialog = useDialog(true, onClose);
   const { groups, loaded } = useInvestigationPrefs();
   const save = useSaveInvestigationGroups();
   const [name, setName] = useState("");
@@ -99,7 +101,9 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
     >
       <div
         role="dialog"
+        aria-modal="true"
         aria-label="Add new group"
+        {...dialog}
         onClick={(e) => e.stopPropagation()}
         style={{ width: "min(720px, 100%)", maxHeight: "85vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.16)", overflow: "hidden" }}
       >

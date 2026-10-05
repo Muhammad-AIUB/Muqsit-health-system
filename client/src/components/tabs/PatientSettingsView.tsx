@@ -17,6 +17,7 @@ import SupervisingDoctors from "./SupervisingDoctors";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { pressable } from "@/lib/a11y";
 import Icon from "@/components/common/Icon";
+import { useDialog } from "@/lib/useDialog";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
 const ethnicities = ["South Asian","Caucasian / European descent","African / African-American","East Asian","Southeast Asian","Middle Eastern / Arab","Native American / Indigenous Peoples","Pacific Islander / Polynesian","Hispanic / Latino","Aboriginal / Indigenous Australian","Jewish (Ashkenazi, Sephardic, Mizrahi)","Mediterranean","Scandinavian / Northern European","Black Caribbean","Mixed Ethnicity (Multiracial)"];
@@ -133,6 +134,7 @@ export default function PatientSettingsView() {
     currentPatientId, setCurrentPatientId, hmDrugs, watchPatient, can,
     ptEditing: editing, setPtEditing: setEditing,
   } = useMuqsit();
+  const familyDialog = useDialog(showFamilyForm, () => setShowFamilyForm(false));
 
   const createPatient = useCreatePatient();
   const updatePatient = useUpdatePatient();
@@ -447,7 +449,7 @@ export default function PatientSettingsView() {
           {showFamilyForm && (
             <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
               onClick={() => setShowFamilyForm(false)}>
-              <div role="dialog" aria-modal="true" aria-label="Add family member" onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflowX: "hidden", overflowY: "auto" }}>
+              <div role="dialog" aria-modal="true" aria-label="Add family member" {...familyDialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflowX: "hidden", overflowY: "auto" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "0.5px solid " + C.n[200], display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>Add {familyRelation.toLowerCase()}</div>

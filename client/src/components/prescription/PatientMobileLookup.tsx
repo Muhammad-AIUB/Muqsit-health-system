@@ -8,6 +8,7 @@ import { ageFromDob, displayAge } from "@/lib/age";
 import { YEAR_POLICY } from "@/lib/dateInput";
 import DateField from "@/components/common/DateField";
 import { useMuqsit } from "@/context/MuqsitContext";
+import { useDialog } from "@/lib/useDialog";
 
 // Reusable mobile-first patient lookup (3.docx). Typing a full 11-digit number
 // surfaces every patient on it; the consumer's `onPick` fires when one is
@@ -397,12 +398,13 @@ const identityInput = (dob: string, age: string, sex: string) => {
 
 // ── Small shared pieces ─────────────────────────────────────────────────────
 function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useDialog(true, onClose);
   return (
     <div
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: "fixed", inset: 0, background: "rgba(15,23,32,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, fontFamily: font, padding: 16 }}
     >
-      <div style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 440, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
+      <div role="dialog" aria-modal="true" aria-label={title} {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 440, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: C.n[900], marginBottom: 16 }}>{title}</div>
         {children}
       </div>

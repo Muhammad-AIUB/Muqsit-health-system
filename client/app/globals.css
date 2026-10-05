@@ -78,7 +78,7 @@ textarea {
 
    A control that draws its own focus state opts out with
    data-focus-ring="off" (the sign-in fields light their wrapper instead). */
-:where(a, button, select, summary, [role="button"], [tabindex]):focus-visible {
+:where(a, button, select, summary, [role="button"], [tabindex]):not([data-focus-ring="off"]):focus-visible {
   outline: 2px solid var(--pri-400) !important;
   outline-offset: 2px;
 }

@@ -8,6 +8,7 @@ import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import type { PhraseSource } from "@/lib/api";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
 import { useMuqsit } from "@/context/MuqsitContext";
+import { useDialog } from "@/lib/useDialog";
 
 interface ExpandableFieldProps {
   label: string;
@@ -192,6 +193,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     setOpen(false);
     setInputVal("");
   };
+  const dialog = useDialog(open, cancel);
 
   const done = () => {
     // Anything still in the input counts too.
@@ -365,7 +367,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 1000,
         }} onClick={cancel}>
-          <div role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()} style={{
+          <div role="dialog" aria-modal="true" aria-label={label} {...dialog} onClick={(e) => e.stopPropagation()} style={{
             width: `min(${pd.length > 0 ? 760 : 520}px, 100%)`, maxWidth: "100%", maxHeight: "80vh", background: C.n[0], borderRadius: 14,
             border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
             display: "flex", flexDirection: "column", overflow: "hidden",

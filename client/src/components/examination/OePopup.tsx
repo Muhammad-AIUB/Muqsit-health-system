@@ -5,6 +5,7 @@ import { C } from "@/theme";
 import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import type { OeData } from "@/types";
+import { useDialog } from "@/lib/useDialog";
 
 export default function OePopup() {
   const { showOePopup, setShowOePopup, oeData, setOeData, setOnExamination, setPtWeight } = useMuqsit();
@@ -85,11 +86,13 @@ export default function OePopup() {
   const oeRow: CSSProperties = { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" };
   const oeCalc: CSSProperties = { fontSize: 11, color: C.pri[600], background: C.pri[50], padding: "3px 8px", borderRadius: 4, marginTop: 2 };
 
+  const dialog = useDialog(showOePopup, () => setShowOePopup(false));
+
   if (!showOePopup) return null;
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowOePopup(false)}>
-      <div role="dialog" aria-modal="true" aria-label="On examination" onClick={(e) => e.stopPropagation()} style={{ width: "min(700px, 100%)", maxWidth: "100%", maxHeight: "88vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div role="dialog" aria-modal="true" aria-label="On examination" {...dialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(700px, 100%)", maxWidth: "100%", maxHeight: "88vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "0.5px solid " + C.n[200], background: C.n[50] }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>On examination</div>

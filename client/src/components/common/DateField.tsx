@@ -114,7 +114,7 @@ export default function DateField({
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
-          else if (e.key === "Escape") { cancelRef.current = true; e.currentTarget.blur(); }
+          else if (e.key === "Escape") { e.preventDefault(); cancelRef.current = true; e.currentTarget.blur(); }
         }}
         placeholder={placeholder}
         title={title}
