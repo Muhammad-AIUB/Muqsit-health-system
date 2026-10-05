@@ -4,6 +4,18 @@
   box-sizing: border-box;
 }
 
+/* The few colours the global rules below need. They MIRROR
+   src/theme/index.ts (C.pri / C.n) — components are styled inline from that
+   file, and a stylesheet cannot import it. Change both together. */
+:root {
+  --pri-100: #c6dafc;
+  --pri-400: #1a73e8;
+  --n-100: #f1f3f4;
+  --n-300: #cdd1d6;
+  --n-400: #8e949a;
+  color-scheme: light;
+}
+
 html {
   /* Without this the root element defaults to Times New Roman — visible on any
      element that doesn't inherit the body font. */
@@ -12,7 +24,9 @@ html {
 
 body {
   font-family: "DM Sans", "Outfit", system-ui, sans-serif;
-  background: #f8f8f6;
+  background: var(--n-100);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   /* Uniformly scales the whole UI (text + spacing) up by 12% */
   zoom: 1.12;
 }
@@ -24,6 +38,80 @@ input,
 select,
 textarea {
   font-family: inherit;
+}
+
+/* ── Keyboard focus ─────────────────────────────────────────────
+   Almost every control is styled inline with `outline: none`, so nothing on
+   screen showed where the keyboard was — on an app doctors drive with Tab and
+   Enter. An inline style beats a stylesheet rule, hence `!important`.
+
+   Text boxes get the ring INSIDE their own box (negative offset): the ℞ pad's
+   cells sit edge to edge, and a ring drawn outside one would cover its
+   neighbour or be clipped by the pad's scroll box.
+
+   A control that draws its own focus state opts out with
+   data-focus-ring="off" (the sign-in fields light their wrapper instead). */
+:where(a, button, select, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--pri-400) !important;
+  outline-offset: 2px;
+}
+
+:where(input, textarea, [contenteditable="true"]):not([data-focus-ring="off"]):focus-visible {
+  outline: 2px solid var(--pri-400) !important;
+  outline-offset: -2px;
+}
+
+:where(input[type="checkbox"], input[type="radio"], input[type="range"], input[type="file"]):focus-visible {
+  outline-offset: 2px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────
+   Buttons carry their colours inline, so a hover cannot swap the background
+   from here. Dimming the whole button works whatever colour it is. Scoped to
+   devices that really hover — on a phone :hover sticks after a tap. */
+button {
+  transition: filter 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+@media (hover: hover) {
+  button:hover:not(:disabled) {
+    filter: brightness(0.95);
+  }
+}
+
+button:active:not(:disabled) {
+  filter: brightness(0.9);
+}
+
+button:disabled {
+  cursor: not-allowed !important;
+}
+
+/* ── Browser surfaces, themed ───────────────────────────────── */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--pri-400);
+}
+
+::selection {
+  background: var(--pri-100);
+}
+
+::placeholder {
+  color: var(--n-400);
+  opacity: 1;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--n-300) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
 }
 
 .app-root {

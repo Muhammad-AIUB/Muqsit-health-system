@@ -121,7 +121,7 @@ export default function LoginPage() {
             border: `1px solid ${C.n[200]}`,
             borderRadius: 18,
             padding: 30,
-            boxShadow: "0 12px 40px rgba(15, 110, 86, 0.08), 0 2px 8px rgba(0,0,0,0.04)",
+            boxShadow: "0 12px 40px rgba(26, 115, 232, 0.10), 0 2px 8px rgba(0,0,0,0.04)",
           }}
         >
           <h2 style={{ fontSize: 17, fontWeight: 600, color: C.n[900], margin: "0 0 4px" }}>Welcome back</h2>
@@ -143,6 +143,7 @@ export default function LoginPage() {
                 name="username"
                 autoComplete="username"
                 style={inputBase}
+                data-focus-ring="off"
               />
             </div>
           </div>
@@ -163,6 +164,7 @@ export default function LoginPage() {
                 name="password"
                 autoComplete="current-password"
                 style={inputBase}
+                data-focus-ring="off"
               />
               <button
                 type="button"
