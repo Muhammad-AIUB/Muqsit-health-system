@@ -61,18 +61,18 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
 <style>
   *{box-sizing:border-box}@page{size:A4;margin:0}
   body{font-family:"DM Sans",Arial,sans-serif;color:#1a1a1a;margin:0;background:#f0f0f0}
-  .toolbar{position:sticky;top:0;background:#1d9e75;padding:10px;text-align:center;z-index:10}
-  .toolbar button{background:#fff;color:#0f6e56;border:none;padding:8px 22px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;margin:0 4px}
+  .toolbar{position:sticky;top:0;background:#1a73e8;padding:10px;text-align:center;z-index:10}
+  .toolbar button{background:#fff;color:#185abc;border:none;padding:8px 22px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;margin:0 4px}
   .sheet{background:#fff;width:8.27in;min-height:11.69in;margin:16px auto;padding:0.5in 0.5in;box-shadow:0 2px 12px rgba(0,0,0,.15)}
-  h1{font-size:17px;color:#0f6e56;margin:0 0 2px}
+  h1{font-size:17px;color:#185abc;margin:0 0 2px}
   .printed{font-size:11px;color:#6b6b6b;margin-bottom:10px}
   .pt{display:grid;grid-template-columns:1fr 1fr;gap:3px 24px;font-size:12.5px;border:1px solid #e5e5e3;border-radius:8px;padding:10px 14px;margin-bottom:14px}
   .pt span{color:#6b6b6b}
   .grp{margin-bottom:12px}
-  .gh{font-size:12px;font-weight:700;color:#0f6e56;border-bottom:1px solid #1d9e75;padding-bottom:2px;margin-bottom:4px}
+  .gh{font-size:12px;font-weight:700;color:#185abc;border-bottom:1px solid #1a73e8;padding-bottom:2px;margin-bottom:4px}
   .row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;font-size:12.5px;padding:3px 0;border-bottom:0.5px solid #eee}
   .t{color:#333;flex:0 0 auto;max-width:38%;overflow-wrap:anywhere}
-  .v{font-weight:600;color:#0f6e56;flex:1 1 auto;min-width:0;text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+  .v{font-weight:600;color:#185abc;flex:1 1 auto;min-width:0;text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
   @media print{.toolbar{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0}}
 </style></head><body>
   <div class="toolbar"><button onclick="window.print()">🖨️ Print / Save as PDF</button><button onclick="window.close()">Close</button></div>

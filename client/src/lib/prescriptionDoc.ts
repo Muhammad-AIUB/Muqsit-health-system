@@ -1023,9 +1023,16 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   @page { size: ${pageW} ${pageH}; margin: ${padT} ${padR} ${padB} ${padL}; }
   body { font-family: ${PRINT_FONT}; color: #1a1a1a; margin: 0; background: #f0f0f0; }
   .sheet { background: #fff; width: ${pageW}; min-height: ${pageH}; margin: 16px auto; padding: ${padT} ${padR} ${padB} ${padL}; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  /* ACCENT. Five rules carry the app's brand colour and nothing else does: this
+     rule, .rx-symbol, .block-title, .followup b and .bb-mhs. #1a73e8 / #185abc
+     are theme C.pri[400] / C.pri[600], written out because this file imports
+     no theme (the sheet must not change when the app's palette is edited).
+     Green (#1d9e75 / #0f6e56) until 2026-10-05, when the physician moved the
+     brand to blue and asked for the paper to match. Colour only — no size,
+     spacing or text changed. */
   /* Empty by design — the rule under the (pre-printed) letterhead band. The
      brand/logo/doctor rules that used to fill it went with the printed name. */
-  .head { border-bottom: 2px solid #1d9e75; }
+  .head { border-bottom: 2px solid #1a73e8; }
   /* Two UNEQUAL halves: the right one (Date / Mobile / Address) starts past the
      middle of the sheet. minmax(0, …) for the same reason .body carries it — a
      bare fr track floors at its content's min width, so one long name or
@@ -1052,11 +1059,11 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .left { padding-right: 16px; padding-top: ${leftTop}; }
   .divider { background: #e5e5e3; }
   .right { padding-left: 18px; padding-top: ${rightTop}; }
-  .rx-symbol { font-size: ${SCALE_PX(26)}; font-style: italic; color: #1d9e75; font-weight: 600; margin-bottom: 6px; }
+  .rx-symbol { font-size: ${SCALE_PX(26)}; font-style: italic; color: #1a73e8; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
   /* Written from the constants, so the sizes the width bound measures against
      and the sizes that print can never drift apart. */
-  .block-title { font-size: ${SCALE_PX(BLOCK_TITLE_PX)}; font-weight: 700; color: #0f6e56; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+  .block-title { font-size: ${SCALE_PX(BLOCK_TITLE_PX)}; font-weight: 700; color: #185abc; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
   ul { margin: 0; padding-left: 16px; }
   li { font-size: ${SCALE_PX(PROSE_PX)}; line-height: 1.5; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -1095,7 +1102,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      smaller size — at 14 it printed LARGER than the medicine names above it. */
   .rx-note { font-size: ${SCALE_PX(MID_PX)}; color: #444; font-style: italic; }
   .followup { margin-top: 18px; font-size: ${SCALE_PX(FOOT_PX)}; }
-  .followup b { color: #0f6e56; }
+  .followup b { color: #185abc; }
   .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(FOOT_PX)}; color: #333; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
@@ -1111,7 +1118,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
   .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
-  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1d9e75; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1a73e8; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
   .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
   .bb-exhort { height: 19px; width: auto; display: block; }
   /* Each sheet starts on its own printed page. */
