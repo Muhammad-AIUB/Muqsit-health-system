@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
+import { confirmAction } from "@/lib/dialogs";
 import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
@@ -31,12 +32,13 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
   const openCategory = (c: TemplateCategory) => { exitRemove(); setCat(c); };
   const toggleSelect = (id: string) =>
     setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const deleteSelected = () => {
+  const deleteSelected = async () => {
     if (!cat || selected.size === 0) return;
-    if (window.confirm(`Delete ${selected.size} selected template${selected.size === 1 ? "" : "s"}?`)) {
-      selected.forEach((id) => del.mutate(id));
-      exitRemove();
-    }
+    // Exactly the ones ticked when the question was asked.
+    const ids = [...selected];
+    if (!(await confirmAction({ title: `Delete ${ids.length} selected template${ids.length === 1 ? "" : "s"}?`, confirmLabel: "Delete", danger: true }))) return;
+    ids.forEach((id) => del.mutate(id));
+    exitRemove();
   };
 
   // ── Editor (blank or existing) ──

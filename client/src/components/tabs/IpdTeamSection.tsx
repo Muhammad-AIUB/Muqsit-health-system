@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C } from "@/theme";
+import { confirmAction } from "@/lib/dialogs";
 import { ApiError, type Ward, type WardCandidate } from "@/lib/api";
 import {
   useAddWardMember,
@@ -150,11 +151,11 @@ function WardCard({
   // Deleting a ward never deletes an admitted patient — the admissions are
   // unlinked and keep their record. Say the number out loud so the doctor is
   // deciding with the consequence in front of them, not after it.
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     const tail = ward.admissionCount
-      ? ` ${ward.admissionCount} admitted patient${ward.admissionCount === 1 ? "" : "s"} will stay in IPD but no longer belong to a ward team.`
-      : "";
-    if (!window.confirm(`Delete the ward "${ward.name}" and its team of ${ward.members.length}?${tail}`)) return;
+      ? `${ward.admissionCount} admitted patient${ward.admissionCount === 1 ? "" : "s"} will stay in IPD but no longer belong to a ward team.`
+      : undefined;
+    if (!(await confirmAction({ title: `Delete the ward "${ward.name}" and its team of ${ward.members.length}?`, body: tail, confirmLabel: "Delete ward", danger: true }))) return;
     onDelete();
   };
 
@@ -292,11 +293,12 @@ function WardCard({
                       {m.status === "active" ? "Suspend" : "Reinstate"}
                     </button>
                     <button
-                      onClick={() => {
-                        if (!window.confirm(`Remove ${m.name} from ${ward.name}?`)) return;
+                      onClick={async () => {
+                        if (!(await confirmAction({ title: `Remove ${m.name} from ${ward.name}?`, confirmLabel: "Remove", danger: true }))) return;
                         removeMember.mutate(
                           { wardId: ward.id, memberId: m.id },
-                          { onSuccess: () => { if (editingId === m.id) setEditingId(null); }, onError: (e) => onError(errMsg(e, "Could not remove the member.")) },
+                          // Read when it lands, not when the question was asked.
+                          { onSuccess: () => setEditingId((cur) => (cur === m.id ? null : cur)), onError: (e) => onError(errMsg(e, "Could not remove the member.")) },
                         );
                       }}
                       style={btn(C.danger[50], C.danger[800])}

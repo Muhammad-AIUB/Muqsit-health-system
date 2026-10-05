@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, font } from "@/theme";
+import { tell } from "@/lib/dialogs";
 import { btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/lib/investigationSummary";
@@ -88,7 +89,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
   </div>
 </body></html>`;
     const w = window.open("", "_blank", "width=820,height=1000");
-    if (!w) { window.alert("Please allow pop-ups to download the PDF."); return; }
+    if (!w) { tell({ title: "The summary could not open.", body: "Allow pop-ups for this site, then press Download again.", tone: "info" }); return; }
     w.document.write(html);
     w.document.close();
   };

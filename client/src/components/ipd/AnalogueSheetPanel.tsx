@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { confirmAction } from "@/lib/dialogs";
 import { uploadImage, type IpdAnalogueSheet } from "@/lib/api";
 import ImageGallery from "@/components/common/ImageGallery";
 import ImageLightbox from "@/components/common/ImageLightbox";
@@ -113,7 +114,7 @@ export default function AnalogueSheetPanel({
   const onRemoveMany = async (ids: string[]) => {
     const n = ids.length;
     const what = n === 1 ? "this page" : `these ${n} pages`;
-    if (!window.confirm(`Remove ${what} from the order sheet?\n\nYou can undo this.`)) return;
+    if (!(await confirmAction({ title: `Remove ${what} from the order sheet?`, body: "You can undo this.", confirmLabel: "Remove", danger: true }))) return;
     setMsg("");
     // Pages already removed must stay undoable when a later one fails, and the
     // message must say how many actually went — not imply none did.

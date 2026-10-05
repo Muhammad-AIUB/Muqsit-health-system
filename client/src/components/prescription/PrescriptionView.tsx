@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { tell } from "@/lib/dialogs";
 import { btnDisabled, btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -223,7 +224,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       html = buildHtml();
     } catch {
       closeSheet();
-      window.alert("Prescription saved, but the printable sheet could not be built. Open Preview PDF to print it.");
+      tell({ title: "Prescription saved, but the printable sheet could not be built.", body: "Open Preview PDF to print it." });
       logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
       return;
     }
@@ -267,7 +268,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     try {
       setSheet({ open: true, html: buildHtml() });
     } catch {
-      window.alert("The printable sheet could not be built.");
+      tell({ title: "The printable sheet could not be built.", body: "Nothing you have written is affected." });
     }
   };
 

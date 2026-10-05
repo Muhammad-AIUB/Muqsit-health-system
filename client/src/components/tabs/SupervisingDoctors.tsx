@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { C } from "@/theme";
+import { confirmAction } from "@/lib/dialogs";
 import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddSupervisor, useRemoveSupervisor, useSupervisors } from "@/hooks/useChat";
@@ -18,6 +19,9 @@ export default function SupervisingDoctors() {
   const { data: supervisors = [], isLoading } = useSupervisors(currentPatientId);
   const add = useAddSupervisor(currentPatientId);
   const remove = useRemoveSupervisor(currentPatientId);
+  // The patient on screen NOW, for an answer that arrives after the question.
+  const currentPatientIdRef = useRef(currentPatientId);
+  currentPatientIdRef.current = currentPatientId;
 
   const [showAdd, setShowAdd] = useState(false);
   const [identifier, setIdentifier] = useState("");
@@ -77,7 +81,13 @@ export default function SupervisingDoctors() {
               </div>
               {canManage && (
                 <button
-                  onClick={() => { if (window.confirm(`Remove ${d.name} from this patient?`)) remove.mutate(d.doctorId); }}
+                  onClick={async () => {
+                    const forPatient = currentPatientId;
+                    if (!(await confirmAction({ title: `Remove ${d.name} from this patient?`, confirmLabel: "Remove", danger: true }))) return;
+                    // "This patient" was the one on screen when it was asked.
+                    if (currentPatientIdRef.current !== forPatient) return;
+                    remove.mutate(d.doctorId);
+                  }}
                   style={{ ...btnSecondary("sm"), color: C.danger[800] }}
                 >
                   Remove

@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { C } from "@/theme";
+import { tell } from "@/lib/dialogs";
 import { ApiError, uploadImage } from "@/lib/api";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { highlightedRun, rangeIsHighlighted } from "@/lib/highlight";
@@ -264,7 +265,7 @@ const RichTextEditor = forwardRef<
     try {
       insertImage(await uploadImage(file));
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : "Image upload failed. Check your internet connection and try again.");
+      tell({ title: "The image was not added.", body: err instanceof ApiError ? err.message : "Check your internet connection and try again." });
     } finally {
       setImgBusy(false);
     }
@@ -510,7 +511,7 @@ function ColorMenu({
   const eyedrop = async () => {
     const Ctor = (window as unknown as { EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper;
     if (!Ctor) {
-      window.alert("Eyedropper isn't supported in this browser.");
+      tell({ title: "The eyedropper is not available in this browser.", body: "Pick a colour from the list instead.", tone: "info" });
       return;
     }
     try {

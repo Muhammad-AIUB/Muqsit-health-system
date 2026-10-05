@@ -74,7 +74,14 @@ export const btnTonal = (size: BtnSize = "md"): CSSProperties => ({
   ...btnBase, ...BTN_SIZE[size], border: `1px solid ${C.pri[100]}`, background: C.pri[50], color: C.pri[600],
 });
 
-// What any of the three looks like while it cannot be pressed. Spread it LAST.
+// Filled red: the button that takes something away, and only where the doctor
+// is being asked to confirm it (see `confirmAction`). A row's own "Remove" stays
+// outlined — a column of red buttons down a list is an alarm nobody reads.
+export const btnDanger = (size: BtnSize = "md"): CSSProperties => ({
+  ...btnBase, ...BTN_SIZE[size], border: `1px solid ${C.danger[800]}`, background: C.danger[800], color: C.n[0],
+});
+
+// What any of the four looks like while it cannot be pressed. Spread it LAST.
 export const btnDisabled: CSSProperties = {
   border: `1px solid ${C.n[200]}`, background: C.n[100], color: C.n[400], cursor: "not-allowed",
 };

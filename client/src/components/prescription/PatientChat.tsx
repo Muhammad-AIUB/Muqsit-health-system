@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { tell } from "@/lib/dialogs";
 import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatientChat, useSendChat } from "@/hooks/useChat";
-import { uploadImage, type ChatMessage } from "@/lib/api";
+import { ApiError, uploadImage, type ChatMessage } from "@/lib/api";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { imageUrlIsRenderable } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
@@ -71,8 +72,8 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
       // Resolved after a patient switch: it was meant for the previous patient.
       if (patientRef.current !== forPatient) return;
       setPendingFile({ url, name: file.name });
-    } catch {
-      window.alert("Could not upload the file.");
+    } catch (e) {
+      tell({ title: "The file was not attached.", body: e instanceof ApiError ? e.message : "Check your internet connection and try again." });
     } finally {
       setUploading(false);
     }
@@ -86,8 +87,9 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
       await send.mutateAsync({ body: body || undefined, attachmentUrl: pendingFile?.url });
       // Don't wipe a draft already started for the next patient.
       if (patientRef.current === forPatient) { setText(""); setPendingFile(null); }
-    } catch {
-      window.alert("Could not send the message.");
+    } catch (e) {
+      // The text stays in the box, so nothing typed is lost.
+      tell({ title: "The message was not sent.", body: e instanceof ApiError ? e.message : "Check your internet connection and try again." });
     }
   };
 

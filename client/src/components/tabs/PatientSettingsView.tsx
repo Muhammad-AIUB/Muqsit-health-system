@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
+import { confirmAction } from "@/lib/dialogs";
 import { btnDisabled, btnPrimary, btnSecondary, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
 import { patientsApi, uploadImage, type PatientInput } from "@/lib/api";
 import { ptInfoToInput } from "@/lib/patientForm";
-import type { PtInfo } from "@/types";
+import type { FamilyMember, PtInfo } from "@/types";
 import Pill from "@/components/common/Pill";
 import Lock from "@/components/common/Lock";
 import DateField from "@/components/common/DateField";
@@ -23,6 +24,17 @@ const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madar
 const ethnicities = ["South Asian","Caucasian / European descent","African / African-American","East Asian","Southeast Asian","Middle Eastern / Arab","Native American / Indigenous Peoples","Pacific Islander / Polynesian","Hispanic / Latino","Aboriginal / Indigenous Australian","Jewish (Ashkenazi, Sephardic, Mizrahi)","Mediterranean","Scandinavian / Northern European","Black Caribbean","Mixed Ethnicity (Multiracial)"];
 const religions = ["Islam","Hinduism","Christianity","Buddhism","Sikhism","Judaism","Confucianism","Other"];
 const QUICK_TAGS: string[] = [];
+// One relative, however the list around them was rebuilt: the linked patient
+// when there is one, else every field the entry carries (the same identity
+// `familyKey` uses in MuqsitContext).
+function sameRelative(a: FamilyMember, b: FamilyMember): boolean {
+  if (a === b) return true;
+  const ia = (a as FamilyMember & { patientId?: unknown }).patientId;
+  const ib = (b as FamilyMember & { patientId?: unknown }).patientId;
+  if (ia || ib) return ia === ib;
+  return a.name === b.name && a.relation === b.relation && a.mobile === b.mobile && a.nid === b.nid && a.sex === b.sex;
+}
+
 const RELATIONS = [
   { rel: "Spouse", icon: "♥", autoSex: "" },
   { rel: "Father", icon: "♂", autoSex: "Male" },
@@ -65,12 +77,16 @@ function PatientPhotoCorner() {
   };
 
   const removePhoto = async () => {
-    if (!window.confirm("Remove this patient's photo?")) return;
+    const patientId = currentPatientId;
+    if (!(await confirmAction({ title: "Remove this patient's photo?", confirmLabel: "Remove photo", danger: true }))) return;
+    // "This patient" was the one on screen when it was asked. The same rule as
+    // the upload above: another patient's form must never be touched.
+    if (currentPatientIdRef.current !== patientId) return;
     setBusy(true);
     setErr("");
     try {
-      if (currentPatientId) await patientsApi.update(currentPatientId, { pictureUrl: null });
-      setPtInfo((prev) => ({ ...prev, picture: null }));
+      if (patientId) await patientsApi.update(patientId, { pictureUrl: null });
+      if (currentPatientIdRef.current === patientId) setPtInfo((prev) => ({ ...prev, picture: null }));
     } catch {
       setErr("Could not remove");
     } finally {
@@ -135,6 +151,22 @@ export default function PatientSettingsView() {
     ptEditing: editing, setPtEditing: setEditing,
   } = useMuqsit();
   const familyDialog = useDialog(showFamilyForm, () => setShowFamilyForm(false));
+
+  // ⚕️ Taking a relative off asks first, and the page stays live while it asks.
+  // So the answer is applied to the tree as it is THEN, read through this ref —
+  // never to the copy the button was drawn with: another device may have added
+  // a relative meanwhile, and writing the older list back would drop them.
+  const live = useRef({ currentPatientId, familyMembers, saveFamilyMembers });
+  live.current = { currentPatientId, familyMembers, saveFamilyMembers };
+  const removeRelative = async (fm: FamilyMember, at: number) => {
+    const forPatient = currentPatientId;
+    if (!(await confirmAction({ title: `Remove ${fm.name || "this member"} (${fm.relation}) from the family tree?`, confirmLabel: "Remove", danger: true }))) return;
+    const now = live.current;
+    if (now.currentPatientId !== forPatient) return; // asked about another patient
+    const idx = now.familyMembers[at] && sameRelative(now.familyMembers[at], fm) ? at : now.familyMembers.findIndex((m) => sameRelative(m, fm));
+    if (idx === -1) return; // already gone
+    now.saveFamilyMembers(now.familyMembers.filter((_, j) => j !== idx));
+  };
 
   const createPatient = useCreatePatient();
   const updatePatient = useUpdatePatient();
@@ -435,10 +467,7 @@ export default function PatientSettingsView() {
                     <div style={{ fontSize: 11, color: C.n[600] }}>{fm.sex}{fm.mobile ? " · " + fm.mobile : ""}{fm.nid ? " · NID: " + fm.nid : ""}</div>
                   </div>
                   <Pill bg={rc.bg} fg={rc.fg}>{fm.relation}</Pill>
-                  <button title="Remove from family tree" onClick={() => {
-                      if (!window.confirm("Remove " + (fm.name || "this member") + " (" + fm.relation + ") from the family tree?")) return;
-                      saveFamilyMembers(familyMembers.filter((_, idx) => idx !== i));
-                    }}
+                  <button title="Remove from family tree" onClick={() => removeRelative(fm, i)}
                     style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14, padding: "2px 6px" }}>×</button>
                 </div>
               );

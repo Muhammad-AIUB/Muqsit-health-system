@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C } from "@/theme";
+import { confirmAction } from "@/lib/dialogs";
 import { btnSecondary, pageTitle } from "@/theme/styles";
 import { ApiError, type AssistantCandidate, type AssistantRecord } from "@/lib/api";
 import {
@@ -73,11 +74,12 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
     );
   };
 
-  const handleRemove = (a: AssistantRecord) => {
-    if (!window.confirm(`Permanently remove ${a.name}? This cannot be undone.`)) return;
+  const handleRemove = async (a: AssistantRecord) => {
+    if (!(await confirmAction({ title: `Permanently remove ${a.name}?`, body: "This cannot be undone.", confirmLabel: "Remove assistant", danger: true }))) return;
     setError("");
     removeAssistant.mutate(a.id, {
-      onSuccess: () => { if (editingId === a.id) setEditingId(null); },
+      // Read when it lands, not when the question was asked.
+      onSuccess: () => setEditingId((cur) => (cur === a.id ? null : cur)),
       onError: (e) => setError(errMsg(e, "Could not remove assistant.")),
     });
   };

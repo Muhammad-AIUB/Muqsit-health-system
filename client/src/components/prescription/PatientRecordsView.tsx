@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { tell } from "@/lib/dialogs";
 import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
@@ -125,11 +126,10 @@ export default function PatientRecordsView() {
       }
     });
     if (failed.length) {
-      window.alert(
-        urls.length
-          ? `${urls.length} added, ${failed.length} failed: ${failed.join(", ")}`
-          : `Nothing was added. ${failed.join(", ")}`,
-      );
+      tell({
+        title: urls.length ? `${urls.length} added, ${failed.length} failed` : "Nothing was added.",
+        body: failed.join("\n"),
+      });
     }
     return { urls, thumbs };
   };
@@ -150,7 +150,10 @@ export default function PatientRecordsView() {
   // points at a different image once an upload prepends to the list.
   const rxItems = rxImages.map((url) => ({ id: url, url, thumbUrl: thumbFor(imageThumbs, url) }));
   const notFiledForSwitch = (n: number) =>
-    window.alert(`${n} image${n === 1 ? " was" : "s were"} NOT added: a different patient was opened while uploading. Open the patient again and re-add ${n === 1 ? "it" : "them"}.`);
+    tell({
+      title: `${n} image${n === 1 ? " was" : "s were"} NOT added`,
+      body: `A different patient was opened while uploading. Open the patient again and re-add ${n === 1 ? "it" : "them"}.`,
+    });
   const addRx = async (files: File[]) => {
     const forPid = currentPatientId;
     setBusyRx(true);
