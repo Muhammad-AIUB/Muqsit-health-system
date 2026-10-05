@@ -48,14 +48,14 @@ test.describe('writing a prescription', () => {
     await addMedicine(page, 0, NAPA);
   });
 
-  // DEFECT-E2: the gate stops the mouse only. PatientGate.tsx closes the editor
-  // with `pointer-events: none`, which the keyboard ignores: Tab from the mobile
-  // field walks into the blurred editor, and what is typed there lands in the ℞
-  // pad with no patient chosen. The component's own rule is "nothing can be
-  // written on the prescription until a patient is chosen". Remove `test.fail`
-  // when the closed gate also refuses keyboard focus (e.g. `inert`).
+  // Was DEFECT-E2, fixed 2026-10-06. The gate stopped the mouse only:
+  // PatientGate.tsx closed the editor with `pointer-events: none`, which the
+  // keyboard ignores, so Tab from the mobile field walked into the blurred editor
+  // and what was typed there landed in the ℞ pad with no patient chosen. The
+  // closed gate is `inert` now. This stays as the regression test of the
+  // component's own rule: "nothing can be written on the prescription until a
+  // patient is chosen".
   test('the gated editor cannot be typed into from the keyboard either', async ({ page }, testInfo) => {
-    test.fail();
     await login(page, 'gateKeyboard');
     await expect(padTypingLine(page)).toBeVisible();
 

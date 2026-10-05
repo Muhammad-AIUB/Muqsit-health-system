@@ -84,11 +84,12 @@ own Associated-illness quick-picks — its text is read from the screen.
   `E2E_PROBES=1 npx playwright test defect-probes`. Evidence in `evidence/`.
   Because of it the helpers wait for the page to go idle between pad edits
   (`settle()`); remove that when the defect is fixed.
-- **DEFECT-E2 — the patient gate stops the mouse, not the keyboard.**
-  `PatientGate` closes the editor with `pointer-events: none`; Tab from the
-  mobile field still walks into it and text can be typed into the ℞ pad with no
-  patient chosen. Pinned with `test.fail()` in `prescription.spec.ts` — when it
-  is fixed that test reports "expected to fail, but passed"; remove the marker.
+- **DEFECT-E2 — FIXED 2026-10-06.** The patient gate stopped the mouse, not the
+  keyboard: `PatientGate` closed the editor with `pointer-events: none`, so Tab
+  from the mobile field walked into it and text could be typed into the ℞ pad
+  with no patient chosen. The closed gate is `inert` now, and the `test.fail()`
+  marker is gone — "the gated editor cannot be typed into from the keyboard
+  either" in `prescription.spec.ts` is an ordinary regression test.
 
 ## Selectors
 
