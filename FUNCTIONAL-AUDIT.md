@@ -60,7 +60,7 @@ CLAUDE.md section before picking one up.
   ≤15 → 2.5) after two earlier versions disagreed with it. The table is written
   into the comment. If the practice follows a different source, change it there
   and say which — do not re-band from memory.
-- [ ] **The "🩺 Symptoms · all visits" panel** on the idsp tab now duplicates the
+- [ ] **The "Symptoms · all visits" panel** on the idsp tab now duplicates the
   chart's own "Symptoms shown" column exactly — same source, same list. Removing
   it is a taste call, so it was left. (The "🧪 Lab tests" panel beside it is not
   redundant: it lists *advised* tests, which the chart never plots.)
