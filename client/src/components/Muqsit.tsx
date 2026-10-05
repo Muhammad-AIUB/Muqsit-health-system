@@ -40,19 +40,20 @@ function MuqsitInner() {
     <div style={{ fontFamily: font, color: C.n[900] }}>
       {/* A quiet utility strip: sync state and the layout preview. The brand is
           NOT repeated here — both shells carry it in their own header, and two
-          logos stacked 40px apart read as two different products. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 8, minHeight: 24 }}>
-        <div role="status" style={{ fontSize: 11, color: C.n[600], display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: C.ok[400] }} /> Synced</div>
-        {/* Manual preview toggle — only useful on larger screens; a real phone
-            gets the mobile layout from its viewport, so hide it there. */}
-        {!viewportMobile && (
+          logos stacked 40px apart read as two different products.
+          Not on a real phone: the manual preview is only useful on a larger
+          screen, the mobile header shows Synced itself, and a strip here would
+          push the shell (and its bottom navigation) off the screen. */}
+      {!viewportMobile && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 8, minHeight: 24 }}>
+          <div role="status" style={{ fontSize: 11, color: C.n[600], display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: C.ok[400] }} /> Synced</div>
           <div role="group" aria-label="Layout preview" style={{ display: "flex", gap: 2, background: C.n[200], borderRadius: 8, padding: 2 }}>
             {VIEWS.map((v) => (
               <button key={v} onClick={() => setView(v)} aria-pressed={view === v} style={{ minHeight: 22, padding: "0 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: view === v ? 600 : 500, background: view === v ? C.n[0] : "transparent", color: view === v ? C.n[900] : C.n[600], boxShadow: view === v ? "0 1px 2px rgba(0,0,0,0.08)" : "none", fontFamily: font }}>{v === "desktop" ? "Desktop" : "Mobile"}</button>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {effectiveView === "desktop" && <DesktopShell />}
       {effectiveView === "mobile" && <MobileShell preview={!viewportMobile} />}

@@ -119,3 +119,21 @@ input[type="range"] {
   margin: 0 auto;
   padding: 16px;
 }
+
+/* ── Phones ─────────────────────────────────────────────────────
+   The mobile shell is the device layout: edge to edge, and exactly one screen
+   tall so its bottom navigation stays on screen while the content scrolls
+   inside it. Dividing by the body zoom is the point — `100dvh` inside a
+   1.12 zoom is 112% of the screen, which pushed the navigation below the fold
+   on every page (measured at 375x812: the bar started at y=895).
+   Keep the divisor equal to `zoom` on body above. */
+@media (max-width: 767px) {
+  .app-root {
+    padding: 0;
+  }
+}
+
+.mobile-shell-fill {
+  height: calc(100vh / 1.12);
+  height: calc(100dvh / 1.12);
+}
