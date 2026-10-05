@@ -7,14 +7,17 @@
 import { useEffect, useState } from "react";
 import { adminApi, ApiError, PROFESSION_LABELS, type Registration } from "@/lib/api";
 
+// See app/page.tsx: `pri` is the brand (blue), `ok` a status or category (green).
 const C = {
-  pri: "#1D9E75",
-  priDark: "#0F6E56",
-  priLight: "#E1F5EE",
-  border: "#E5E5E3",
-  n500: "#999",
-  n600: "#6B6B6B",
-  n900: "#1A1A1A",
+  pri: "#1A73E8",
+  priDark: "#185ABC",
+  priLight: "#E8F0FE",
+  okDark: "#0F6E56",
+  okLight: "#E1F5EE",
+  border: "#E3E6EA",
+  n500: "#6B7075",
+  n600: "#565A5F",
+  n900: "#202124",
   blue: "#185FA5",
   blueLight: "#E6F1FB",
 };
@@ -103,7 +106,7 @@ export default function AccountRecordPage({ params }: { params: { id: string } }
           <h1 style={{ fontSize: 22, color: C.n900, margin: 0 }}>{reg.name}</h1>
           <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
             <span style={{ ...pill, background: badge.bg, color: badge.fg }}>{reg.approvalStatus}</span>
-            <span style={{ ...pill, background: reg.accountTier === "secondary" ? C.blueLight : C.priLight, color: reg.accountTier === "secondary" ? C.blue : C.priDark }}>{reg.accountTier}</span>
+            <span style={{ ...pill, background: reg.accountTier === "secondary" ? C.blueLight : C.okLight, color: reg.accountTier === "secondary" ? C.blue : C.okDark }}>{reg.accountTier}</span>
             {reg.deletedAt && <span style={{ ...pill, background: "#FCEBEB", color: "#A32D2D" }}>in trash</span>}
           </div>
         </div>

@@ -33,19 +33,19 @@
 
 body {
   font-family: "DM Sans", "Outfit", system-ui, sans-serif;
-  background: #f8f8f6;
+  background: #f1f3f4;
 }
 
 /* Inputs set outline:none inline; this is their visible focus state. */
 input:focus,
 select:focus {
-  border-color: #1d9e75 !important;
-  box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.15);
+  border-color: #1a73e8 !important;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.18);
 }
 
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid #1d9e75;
+  outline: 2px solid #1a73e8;
   outline-offset: 2px;
 }
 
@@ -54,8 +54,7 @@ button:disabled {
 }
 
 ::selection {
-  background: #e1f5ee;
-  color: #0f6e56;
+  background: #c6dafc;
 }
 
 .app-root {

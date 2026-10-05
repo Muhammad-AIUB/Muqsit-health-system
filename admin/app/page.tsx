@@ -10,20 +10,25 @@ import {
   type Registration,
 } from "@/lib/api";
 
+// Same roles as the doctor app (client/src/theme/index.ts): `pri` is the brand
+// and anything pressable or selected — blue since 2026-10-05; `ok` is a status
+// or category that was green before the rebrand and still is.
 const C = {
-  pri: "#1D9E75",
-  priDark: "#0F6E56",
-  priLight: "#E1F5EE",
+  pri: "#1A73E8",
+  priDark: "#185ABC",
+  priLight: "#E8F0FE",
+  okDark: "#0F6E56",
+  okLight: "#E1F5EE",
   danger: "#E24B4A",
   dangerDark: "#A32D2D",
   dangerLight: "#FCEBEB",
   warn: "#EF9F27",
   warnLight: "#FAEEDA",
-  border: "#E5E5E3",
-  n50: "#F8F8F6",
-  n500: "#999",
-  n600: "#6B6B6B",
-  n900: "#1A1A1A",
+  border: "#E3E6EA",
+  n50: "#F8F9FA",
+  n500: "#6B7075",
+  n600: "#565A5F",
+  n900: "#202124",
   white: "#fff",
 };
 
@@ -334,7 +339,7 @@ function AccountsPage({ mode }: { mode: NavId }) {
                       {(() => {
                         const tc = r.accountTier === "secondary" ? { bg: "#E6F1FB", fg: "#185FA5" }
                           : r.accountTier === "premium" ? { bg: "#F3EAFB", fg: "#7B3FB3" }
-                          : { bg: C.priLight, fg: C.priDark };
+                          : { bg: C.okLight, fg: C.okDark };
                         return (
                           <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: tc.bg, color: tc.fg }}>
                             {r.accountTier}
