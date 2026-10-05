@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useResearchSearch } from "@/hooks/useResearch";
 
@@ -105,8 +106,8 @@ export default function ResearchView() {
                 {rcSelected.size > 0 && (
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <span style={{ fontSize: 11, color: C.pri[600], fontWeight: 500 }}>{rcSelected.size} selected</span>
-                    <button onClick={() => setShowCompare(true)} disabled={selectedPatients.length < 2} title={selectedPatients.length < 2 ? "Select at least 2 patients to compare" : "Compare selected patients"} style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, cursor: selectedPatients.length < 2 ? "not-allowed" : "pointer", opacity: selectedPatients.length < 2 ? 0.5 : 1, fontFamily: font }}>Compare</button>
-                    <button onClick={exportCsv} style={{ padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 11, cursor: "pointer", fontFamily: font }}>Export CSV</button>
+                    <button onClick={() => setShowCompare(true)} disabled={selectedPatients.length < 2} title={selectedPatients.length < 2 ? "Select at least 2 patients to compare" : "Compare selected patients"} style={{ ...btnPrimary("sm"), cursor: selectedPatients.length < 2 ? "not-allowed" : "pointer", opacity: selectedPatients.length < 2 ? 0.5 : 1 }}>Compare</button>
+                    <button onClick={exportCsv} style={btnSecondary("sm")}>Export CSV</button>
                   </div>
                 )}
               </div>
@@ -205,8 +206,8 @@ export default function ResearchView() {
             </div>
 
             <div style={{ padding: "12px 18px", borderTop: `0.5px solid ${C.n[200]}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={exportCsv} style={{ padding: "7px 16px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, cursor: "pointer", fontFamily: font }}>Export CSV</button>
-              <button onClick={() => setShowCompare(false)} style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Done</button>
+              <button onClick={exportCsv} style={btnSecondary("md")}>Export CSV</button>
+              <button onClick={() => setShowCompare(false)} style={btnPrimary("md")}>Done</button>
             </div>
           </div>
         </div>

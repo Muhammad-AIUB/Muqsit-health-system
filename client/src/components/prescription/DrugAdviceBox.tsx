@@ -20,6 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { btnTonal, btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useSaveDrugAdvice } from "@/hooks/useDrugAdvice";
 import { adviceLines, drugKeyOf, offKey, savedAdviceFor, type AdviceScope } from "@/lib/rxDrugAdvice";
@@ -135,10 +136,7 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
     </label>
   );
 
-  const btn = (primary: boolean) => ({
-    padding: "7px 18px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, fontFamily: font, cursor: "pointer",
-    border: `1px solid ${primary ? C.pri[400] : C.n[300]}`, background: primary ? C.pri[400] : C.n[0], color: primary ? C.n[0] : C.n[800],
-  });
+  const btn = (primary: boolean) => ({ ...(primary ? btnPrimary("md") : btnSecondary("md")), fontWeight: 600 });
 
   return (
     <div
@@ -227,7 +225,7 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
               type="button"
               onClick={addLine}
               disabled={lines.length >= MAX_LINES || (scope === "generic" && !genericName)}
-              style={{ alignSelf: "flex-start", padding: "6px 12px", borderRadius: 7, border: `1px dashed ${C.pri[400]}`, background: C.pri[50], color: C.pri[800], fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: font }}
+              style={{ ...btnTonal("sm"), alignSelf: "flex-start", fontWeight: 600 }}
             >
               + Add Advice
             </button>

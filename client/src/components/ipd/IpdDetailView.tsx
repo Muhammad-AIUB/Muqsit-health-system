@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
+import { btnSecondary, btnPrimary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import RxAlerts from "@/components/prescription/RxAlerts";
@@ -486,5 +487,5 @@ function Vital({ label, placeholder, value, onChange }: { label: string; placeho
 
 const vLbl: CSSProperties = { fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
 const hInp = (w: number): CSSProperties => ({ padding: "3px 6px", borderRadius: 5, border: `0.5px solid ${C.n[200]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", width: w });
-const btnBack: CSSProperties = { padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font };
-const btnSave: CSSProperties = { padding: "7px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: font };
+const btnBack: CSSProperties = btnSecondary("sm");
+const btnSave: CSSProperties = { ...btnPrimary("md"), fontWeight: 600 };

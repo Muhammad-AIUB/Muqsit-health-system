@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { C, font } from "@/theme";
+import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 
 // ── A titled image gallery: upload, edit/remove, drag-reorder, open ─────────
@@ -237,7 +238,7 @@ export default function ImageGallery({
           ))}
           {canEdit && (
             <>
-              <button onClick={() => inputRef.current?.click()} disabled={busy} style={{ padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.pri[400]}`, background: busy ? C.n[100] : C.pri[400], color: busy ? C.n[500] : "#fff", fontSize: 12, fontWeight: 500, cursor: busy ? "default" : "pointer", fontFamily: font, whiteSpace: "nowrap" }}>
+              <button onClick={() => inputRef.current?.click()} disabled={busy} style={{ ...btnPrimary("md"), ...(busy ? { ...btnDisabled, cursor: "default" } : null) }}>
                 ＋ {addLabel}
               </button>
               <input
@@ -420,8 +421,4 @@ const TILE = {
   lg: { landscape: { w: 370, h: 270 }, portrait: { w: 270, h: 370 } },
 } as const;
 
-const ghostBtn: CSSProperties = {
-  padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`,
-  background: C.n[0], color: C.n[600], fontSize: 12, fontWeight: 500,
-  cursor: "pointer", fontFamily: font, whiteSpace: "nowrap",
-};
+const ghostBtn: CSSProperties = btnSecondary("sm");

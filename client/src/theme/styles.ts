@@ -22,14 +22,16 @@ export const inputMd: CSSProperties = { ...inputSm, minHeight: 36, padding: "0 1
 // One scale for the whole app, so the same action is the same size on every
 // screen (the primary button alone had 16 hand-written paddings). Height comes
 // from `minHeight`, not padding, so a label's font can never change it.
-//   sm — a button inside a list row (Open, Edit, Prescribe)
+//   sm — a button inside a list row or a panel's toolbar (Open, Edit, Prescribe)
 //   md — the main action of a screen, a form or a dialog (Save, Done, Admit)
-// `body { zoom: 1.12 }` applies on top: sm is ~34px on screen and md ~40px.
-export type BtnSize = "sm" | "md";
+//   lg — the one action a whole page exists for (Save & print, Create account)
+// `body { zoom: 1.12 }` applies on top: ~34px, ~40px and ~47px on screen.
+export type BtnSize = "sm" | "md" | "lg";
 
 const BTN_SIZE: Record<BtnSize, CSSProperties> = {
   sm: { minHeight: 30, padding: "0 12px", fontSize: 12 },
   md: { minHeight: 36, padding: "0 16px", fontSize: 13 },
+  lg: { minHeight: 42, padding: "0 20px", fontSize: 14 },
 };
 
 const btnBase: CSSProperties = {

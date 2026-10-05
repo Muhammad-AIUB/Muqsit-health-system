@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import type { PhraseSource } from "@/lib/api";
@@ -457,11 +458,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                     border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50],
                     color: C.n[900], fontFamily: "inherit",
                   }} />
-                <button onClick={() => { if (inputVal.trim()) addToDraft(inputVal); }} style={{
-                  padding: "10px 18px", borderRadius: 8, border: "none",
-                  background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500,
-                  cursor: "pointer", whiteSpace: "nowrap",
-                }}>Add</button>
+                <button onClick={() => { if (inputVal.trim()) addToDraft(inputVal); }} style={btnPrimary("md")}>Add</button>
               </div>
 
               {/* Fixed quick-pick checkboxes — ticked ones move up to Added */}
@@ -567,15 +564,8 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
               display: "flex", justifyContent: "flex-end", gap: 8,
               padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50],
             }}>
-              <button onClick={cancel} style={{
-                padding: "8px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`,
-                background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-              }}>Cancel</button>
-              <button onClick={done} style={{
-                padding: "8px 24px", borderRadius: 8, border: "none",
-                background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>Done</button>
+              <button onClick={cancel} style={btnSecondary("md")}>Cancel</button>
+              <button onClick={done} style={btnPrimary("md")}>Done</button>
             </div>
           </div>
         </div>

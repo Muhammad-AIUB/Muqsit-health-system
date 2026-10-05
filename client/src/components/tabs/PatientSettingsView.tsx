@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
+import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
 import { patientsApi, uploadImage, type PatientInput } from "@/lib/api";
@@ -325,7 +326,7 @@ export default function PatientSettingsView() {
                     if (!(pI.tags || []).includes(newTag)) setPi("tags", (pI.tags || []).concat([newTag]));
                     inp.value = "";
                   }
-                }} style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>Add tag</button>
+                }} style={btnPrimary("sm")}>Add tag</button>
               </div>
               {/* Quick tag suggestions */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
@@ -347,11 +348,11 @@ export default function PatientSettingsView() {
             </fieldset>
             <div style={{ display: "flex", gap: 12, marginTop: 8, alignItems: "center" }}>
               {currentPatientId && (
-                <button onClick={() => { setEditing(true); setFormMsg(null); }} disabled={editing} style={{ padding: "10px 24px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: editing ? C.n[400] : C.info[800], fontSize: 12, fontWeight: 500, cursor: editing ? "default" : "pointer", fontFamily: "inherit" }}>
+                <button onClick={() => { setEditing(true); setFormMsg(null); }} disabled={editing} style={{ ...btnSecondary("md"), ...(editing ? { ...btnDisabled, cursor: "default" } : { color: C.info[800] }) }}>
                   Edit
                 </button>
               )}
-              <button onClick={savePatient} disabled={saving || !editing} style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: (saving || !editing) ? C.n[200] : C.pri[400], color: (saving || !editing) ? C.n[500] : "#fff", fontSize: 12, fontWeight: 500, cursor: (saving || !editing) ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+              <button onClick={savePatient} disabled={saving || !editing} style={{ ...btnPrimary("md"), ...((saving || !editing) ? btnDisabled : null) }}>
                 {saving ? "Saving…" : "Save"}
               </button>
               {formMsg && (
@@ -398,11 +399,7 @@ export default function PatientSettingsView() {
                 setFamilyRelation(r.rel);
                 setFamilyForm({ name: "", mobile: "", nid: "", sex: r.autoSex });
                 setShowFamilyForm(true);
-              }} style={{
-                padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer",
-                border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[800],
-                display: "flex", alignItems: "center", gap: 5, fontFamily: "inherit",
-              }}>
+              }} style={btnSecondary("sm")}>
                 <span style={{ fontSize: 13 }}>{r.icon}</span> Add {r.rel.toLowerCase()}
               </button>
             ))}
@@ -483,13 +480,13 @@ export default function PatientSettingsView() {
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: "0.5px solid " + C.n[200], background: C.n[50] }}>
-                  <button onClick={() => setShowFamilyForm(false)} style={{ padding: "8px 20px", borderRadius: 8, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                  <button onClick={() => setShowFamilyForm(false)} style={btnSecondary("md")}>Cancel</button>
                   <button onClick={() => {
                     if (familyForm.name.trim()) {
                       saveFamilyMembers(familyMembers.concat([Object.assign({}, familyForm, { relation: familyRelation })]));
                       setShowFamilyForm(false);
                     }
-                  }} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Add {familyRelation.toLowerCase()}</button>
+                  }} style={btnPrimary("md")}>Add {familyRelation.toLowerCase()}</button>
                 </div>
               </div>
             </div>

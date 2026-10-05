@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C } from "@/theme";
+import { btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
 import { useInvestigationPrefs, useSaveInvestigationGroups } from "@/hooks/useInvestigationPrefs";
 import { groupTicked, newGroupProblem, toggleGroup } from "@/lib/investigationGroups";
 import InvestigationDirectory from "./InvestigationDirectory";
@@ -23,7 +24,7 @@ export default function InvestigationGroups({ selected, apply }: {
       <button
         type="button"
         onClick={() => setAdding(true)}
-        style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+        style={{ ...btnTonal("md"), fontWeight: 600 }}
       >+ Add new group</button>
 
       <div style={{ marginTop: 14 }}>
@@ -146,7 +147,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={addTyped}
-              style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}
+              style={btnPrimary("md")}
             >Add</button>
           </div>
 
@@ -159,11 +160,11 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
           {/* Beside the button that raised it, so it is seen however far the
               list was scrolled. */}
           <div role={problem ? "alert" : undefined} style={{ flex: 1, minWidth: 0, fontSize: 12, color: C.danger[800] }}>{problem}</div>
-          <button onClick={onClose} style={{ padding: "8px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={onClose} style={btnSecondary("md")}>Cancel</button>
           <button
             onClick={() => void submit()}
             disabled={save.isPending}
-            style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: save.isPending ? "default" : "pointer", fontFamily: "inherit", opacity: save.isPending ? 0.7 : 1 }}
+            style={{ ...btnPrimary("md"), cursor: save.isPending ? "default" : "pointer", opacity: save.isPending ? 0.7 : 1 }}
           >{save.isPending ? "Saving…" : "Save"}</button>
         </div>
       </div>

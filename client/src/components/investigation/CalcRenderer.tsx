@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
+import { btnPrimary } from "@/theme/styles";
 import type { CalculatorInput, CalculationResult } from "@/types/calculator";
 import { getCalculator } from "@/lib/calculators/calculator-registry";
 import { INPUT_OVERRIDES } from "@/lib/calculators/calc-inputs";
@@ -325,11 +326,7 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
             </div>
           )}
 
-          <button onClick={() => onAdd(summaryOf(result))} style={{
-            marginTop: 8, padding: "6px 16px", borderRadius: 6, border: "none",
-            background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>Add result</button>
+          <button onClick={() => onAdd(summaryOf(result))} style={{ ...btnPrimary("sm"), marginTop: 8 }}>Add result</button>
         </div>
       )}
     </div>

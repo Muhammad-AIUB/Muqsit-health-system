@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { C, font } from "@/theme";
+import { btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkstations } from "@/hooks/useWorkstations";
@@ -53,7 +54,7 @@ export default function WorkstationSwitcher() {
           <div style={{ fontSize: 12.5, color: C.n[500], marginTop: 14 }}>
             Ask a primary doctor to add you as their assistant, or upgrade your account.
           </div>
-          <button onClick={() => void logout()} style={{ marginTop: 18, padding: "9px 22px", borderRadius: 8, border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Log out</button>
+          <button onClick={() => void logout()} style={{ ...btnSecondary("md"), marginTop: 18 }}>Log out</button>
         </div>
       </div>
     );
@@ -113,7 +114,7 @@ export function WorkstationIndicator() {
     <button
       onClick={() => setShowWorkstations(true)}
       title="Switch workstation"
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 11.5, fontWeight: 500, cursor: "pointer", fontFamily: font, maxWidth: 200 }}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 32, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.n[300]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font, maxWidth: 200 }}
     >
       <span style={{ fontSize: 12 }}>🏥</span>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{active?.name ?? "Choose workstation"}</span>

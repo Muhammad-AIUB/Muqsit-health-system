@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { C, font } from "@/theme";
-import { inputSm } from "@/theme/styles";
+import { inputSm, btnPrimary, btnSecondary } from "@/theme/styles";
 import {
   ApiError,
   usersApi,
@@ -642,7 +642,7 @@ function CertImageUploader({
 
 // ── Styles ──────────────────────────────────────────────────
 const field: React.CSSProperties = { ...inputSm, padding: "10px 14px", fontSize: 13, width: "100%", boxSizing: "border-box" };
-const btnPri: React.CSSProperties = { padding: "10px 22px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer" };
-const btnGhost: React.CSSProperties = { padding: "7px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer" };
-const btnBack: React.CSSProperties = { padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer" };
+const btnPri: React.CSSProperties = btnPrimary("md");
+const btnGhost: React.CSSProperties = btnSecondary("sm");
+const btnBack: React.CSSProperties = btnSecondary("sm");
 const statusBox: React.CSSProperties = { fontSize: 12, padding: "10px 12px", borderRadius: 8, border: "0.5px solid", marginTop: 14 };

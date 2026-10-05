@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
@@ -193,14 +194,14 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
       {error && <div style={{ fontSize: 12, color: C.danger[800], marginTop: 10 }}>{error}</div>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
-        <button onClick={save} disabled={saveMut.isPending} style={{ padding: "10px 26px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font, opacity: saveMut.isPending ? 0.6 : 1 }}>{saveMut.isPending ? "Saving…" : "Save"}</button>
-        <button onClick={onClose} style={{ padding: "10px 26px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[700], fontSize: 13, cursor: "pointer", fontFamily: font }}>Cancel</button>
+        <button onClick={save} disabled={saveMut.isPending} style={{ ...btnPrimary("md"), fontWeight: 600, opacity: saveMut.isPending ? 0.6 : 1 }}>{saveMut.isPending ? "Saving…" : "Save"}</button>
+        <button onClick={onClose} style={btnSecondary("md")}>Cancel</button>
       </div>
     </div>
   );
 }
 
 // ── Styles ──
-const btnBack: React.CSSProperties = { padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font };
+const btnBack: React.CSSProperties = btnSecondary("sm");
 const blankCard: React.CSSProperties = { width: 150, height: 200, display: "flex", flexDirection: "column", alignItems: "center", padding: 14, borderRadius: 14, border: `1px solid ${C.n[200]}`, background: C.n[0], cursor: "pointer", fontFamily: font };
 const tplCard: React.CSSProperties = { position: "relative", width: 150, height: 200, borderRadius: 14, border: `1px solid ${C.pri[100]}`, background: C.pri[50], color: C.pri[600], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: font };

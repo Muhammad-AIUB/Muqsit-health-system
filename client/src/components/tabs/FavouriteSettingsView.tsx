@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { C, font } from "@/theme";
+import { btnSecondary } from "@/theme/styles";
 import { INV_CATS } from "@/data/investigations";
 import { useInvestigationPrefs, useSaveFavourites, useSaveUnitPrefs } from "@/hooks/useInvestigationPrefs";
 
@@ -170,4 +171,4 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
   );
 }
 
-const btnBack: React.CSSProperties = { padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font };
+const btnBack: React.CSSProperties = btnSecondary("sm");

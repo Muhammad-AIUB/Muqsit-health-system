@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, font } from "@/theme";
+import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/lib/investigationSummary";
 import DateField from "@/components/common/DateField";
@@ -185,8 +186,8 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
         <div style={{ fontSize: 12, color: C.n[500], marginBottom: 14 }}>{filtered.length} finding{filtered.length === 1 ? "" : "s"} in selection.</div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button onClick={downloadPdf} disabled={!filtered.length} style={{ padding: "10px 20px", borderRadius: 9, border: "none", background: filtered.length ? C.pri[400] : C.n[200], color: filtered.length ? "#fff" : C.n[500], fontSize: 13, fontWeight: 600, cursor: filtered.length ? "pointer" : "not-allowed", fontFamily: font }}>📄 PDF</button>
-          <button onClick={downloadXlsx} disabled={!filtered.length} style={{ padding: "10px 20px", borderRadius: 9, border: `0.5px solid ${C.pri[400]}`, background: C.n[0], color: filtered.length ? C.pri[600] : C.n[400], fontSize: 13, fontWeight: 600, cursor: filtered.length ? "pointer" : "not-allowed", fontFamily: font }}>📊 Excel</button>
+          <button onClick={downloadPdf} disabled={!filtered.length} style={{ ...btnPrimary("md"), fontWeight: 600, ...(filtered.length ? null : btnDisabled) }}>📄 PDF</button>
+          <button onClick={downloadXlsx} disabled={!filtered.length} style={{ ...btnSecondary("md"), fontWeight: 600, border: `1px solid ${C.pri[400]}`, color: C.pri[600], ...(filtered.length ? null : btnDisabled) }}>📊 Excel</button>
         </div>
       </div>
     </div>

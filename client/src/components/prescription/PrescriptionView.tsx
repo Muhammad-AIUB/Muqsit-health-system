@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { btnDisabled, btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
@@ -276,8 +277,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.n[200]}`, color: C.n[800] }}>Clinical assessment</div><LeftColumn /></div>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.pri[400]}`, color: C.pri[600] }}>Prescription</div><RightColumn mobile /></div>
         </PatientGate>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, marginBottom: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", fontFamily: font }}>Save to complete later</button>
-        <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>{saving ? "Saving…" : "Save & print"}</button>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled), width: "100%", marginBottom: 8 }}>Save to complete later</button>
+        <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), width: "100%" }}>{saving ? "Saving…" : "Save & print"}</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
         {sheet.open && <PrintSheetModal html={sheet.html} onClose={closeSheet} />}
@@ -307,9 +308,9 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       {/* Wraps: "Save to complete later" is a long label, and this row also
           serves tablets (≥768px) where three buttons on one line get cramped. */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 12, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", whiteSpace: "nowrap", fontFamily: font }}>Save to complete later</button>
-        <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ flex: 1, padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>{saving ? "Saving…" : "Save & print prescription"}</button>
-        <button onClick={previewPdf} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Preview PDF</button>
+        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled) }}>Save to complete later</button>
+        <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), flex: 1 }}>{saving ? "Saving…" : "Save & print prescription"}</button>
+        <button onClick={previewPdf} style={btnSecondary("lg")}>Preview PDF</button>
       </div>
       {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}
       {gateOpen && <><ReportsSection /><PatientChat /></>}

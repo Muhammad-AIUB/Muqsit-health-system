@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { C, font } from "@/theme";
-import { inputSm } from "@/theme/styles";
+import { inputSm, btnPrimary, btnSecondary } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, authApi, uploadImage, type Profession, type RegisterInput } from "@/lib/api";
 import { verifyNidNumber, type NidMatch } from "@/lib/ocr";
@@ -449,7 +449,7 @@ export default function SignupPage() {
                 <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px", margin: "14px 0" }}>{error}</div>
               )}
 
-              <button onClick={submit} disabled={loading} style={{ width: "100%", marginTop: 8, padding: "12px 20px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 14, fontWeight: 500, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
+              <button onClick={submit} disabled={loading} style={{ ...btnPrimary("lg"), width: "100%", marginTop: 8, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
                 {loading ? "Submitting…" : "Create account"}
               </button>
 
@@ -483,7 +483,7 @@ export default function SignupPage() {
               </div>
               {otpMsg && <div style={{ fontSize: 11, color: C.pri[600], marginBottom: 10 }}>{otpMsg}</div>}
               {error && <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>{error}</div>}
-              <button onClick={verify} disabled={loading || otp.length !== 6 || otpExpired} style={{ width: "100%", padding: "12px 20px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 14, fontWeight: 500, cursor: loading ? "default" : "pointer", opacity: loading || otp.length !== 6 || otpExpired ? 0.6 : 1 }}>
+              <button onClick={verify} disabled={loading || otp.length !== 6 || otpExpired} style={{ ...btnPrimary("lg"), width: "100%", cursor: loading ? "default" : "pointer", opacity: loading || otp.length !== 6 || otpExpired ? 0.6 : 1 }}>
                 {loading ? "Verifying…" : "Verify email"}
               </button>
               <div style={{ textAlign: "center", fontSize: 11, color: C.n[600], marginTop: 16 }}>
@@ -497,7 +497,7 @@ export default function SignupPage() {
               <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.ok[50], color: C.ok[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>✓</div>
               <h2 style={{ fontSize: 17, fontWeight: 600, color: C.n[900], margin: "0 0 8px" }}>Email verified</h2>
               <p style={{ fontSize: 12.5, color: C.n[600], lineHeight: 1.6 }}>{otpMsg || "Your account is awaiting admin approval. You'll be able to sign in once an administrator approves your documents."}</p>
-              <button onClick={onBack} style={{ marginTop: 18, padding: "11px 24px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[900], fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+              <button onClick={onBack} style={{ ...btnSecondary("md"), marginTop: 18 }}>
                 Back to sign in
               </button>
             </div>

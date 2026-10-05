@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
+import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { isoToDdmmyyyy, ddmmyyyyMs } from "@/lib/dateInput";
 import { appendBlocks, blocksFromRows, moveSummary, type HistoryBlock } from "@/lib/drugHistorySelect";
@@ -316,19 +317,19 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                 {canRx && blocks.length > 0 && (
                   <>
                     <button onClick={toggleAll}
-                      style={{ padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.n[300]}`, background: C.n[0], color: C.n[700], fontSize: 11.5, cursor: "pointer", fontFamily: font }}>
+                      style={btnSecondary("md")}>
                       {allPicked ? "Clear" : "Select all"}
                     </button>
                     <button onClick={moveToRx} disabled={pickedCount === 0}
                       title={pickedCount === 0 ? "Tick a medicine first" : "Add the ticked medicines to today's prescription"}
-                      style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: pickedCount ? C.pri[400] : C.n[200], color: pickedCount ? "#fff" : C.n[500], fontSize: 11.5, fontWeight: 600, cursor: pickedCount ? "pointer" : "default", fontFamily: font }}>
+                      style={{ ...btnPrimary("md"), fontWeight: 600, ...(pickedCount ? null : { ...btnDisabled, cursor: "default" }) }}>
                       Move to Rx{pickedCount ? ` (${pickedCount})` : ""}
                     </button>
                   </>
                 )}
                 <span style={{ fontSize: 11, color: C.pri[600] }}>{rxMsg}</span>
               </div>
-              <button onClick={close} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font }}>Close</button>
+              <button onClick={close} style={btnPrimary("md")}>Close</button>
             </div>
           </div>
         </div>

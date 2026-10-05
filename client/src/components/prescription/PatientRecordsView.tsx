@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
 import { THUMB_UPLOAD, thumbFor, type ThumbMap } from "@/lib/imageThumbs";
@@ -302,8 +303,8 @@ export default function PatientRecordsView() {
           <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>On examination</div>
           {oeGroups.length > 0 && (
             oeEditing
-              ? <button onClick={() => { setOeEditing(false); setOeUndo(null); }} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>Done</button>
-              : <button onClick={() => setOeEditing(true)} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>✎ Edit</button>
+              ? <button onClick={() => { setOeEditing(false); setOeUndo(null); }} style={ghostBtn}>Done</button>
+              : <button onClick={() => setOeEditing(true)} style={ghostBtn}>✎ Edit</button>
           )}
         </div>
         {oeGroups.length === 0 ? (
@@ -354,11 +355,11 @@ export default function PatientRecordsView() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {summary.length > 0 && (
               editingSummary
-                ? <button onClick={() => { setEditingSummary(false); setUndo(null); }} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>Done</button>
-                : <button onClick={() => setEditingSummary(true)} style={{ ...ghostBtn, padding: "6px 14px", borderRadius: 7 }}>✎ Edit</button>
+                ? <button onClick={() => { setEditingSummary(false); setUndo(null); }} style={ghostBtn}>Done</button>
+                : <button onClick={() => setEditingSummary(true)} style={ghostBtn}>✎ Edit</button>
             )}
-            <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: currentPatientId ? C.pri[400] : C.n[200], color: currentPatientId ? "#fff" : C.n[500], fontSize: 12, fontWeight: 500, cursor: currentPatientId ? "pointer" : "not-allowed", fontFamily: font }}>+ Add</button>
-            <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ padding: "6px 14px", borderRadius: 7, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: allFindings.length ? C.pri[600] : C.n[400], fontSize: 12, fontWeight: 500, cursor: allFindings.length ? "pointer" : "not-allowed", fontFamily: font }}>⬇ Download</button>
+            <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ ...btnPrimary("sm"), ...(currentPatientId ? null : btnDisabled) }}>+ Add</button>
+            <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ ...btnSecondary("sm"), color: C.pri[600], ...(allFindings.length ? null : btnDisabled) }}>⬇ Download</button>
           </div>
         </div>
         {summary.length === 0 ? (
@@ -426,8 +427,4 @@ function UndoBar<T>({ entry, onUndo, onDismiss }: { entry: UndoEntry<T>; onUndo:
   );
 }
 
-const ghostBtn: React.CSSProperties = {
-  padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`,
-  background: C.n[0], color: C.n[600], fontSize: 12, fontWeight: 500,
-  cursor: "pointer", fontFamily: font, whiteSpace: "nowrap",
-};
+const ghostBtn: React.CSSProperties = btnSecondary("sm");

@@ -1,7 +1,7 @@
 "use client";
 
 import { C, font } from "@/theme";
-import { inputSm, fieldLabel } from "@/theme/styles";
+import { inputSm, fieldLabel, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import PatientMobileLookup from "./PatientMobileLookup";
 
@@ -28,7 +28,7 @@ export default function MobileLookupField({ mobile }: { mobile?: boolean }) {
             type="button"
             onClick={() => { flushEditorDraft(); resetEditor(); setCurrentPatientId(null); }}
             title="Look up a different patient"
-            style={{ padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.pri[600], fontSize: 11, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", fontFamily: font }}
+            style={{ ...btnSecondary("sm"), color: C.pri[600] }}
           >
             New Prescription
           </button>

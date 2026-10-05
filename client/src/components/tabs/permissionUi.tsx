@@ -2,6 +2,7 @@
 
 import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import { C } from "@/theme";
+import { btnSecondary } from "@/theme/styles";
 import { PERMISSION_GROUPS, PERM_LABEL_OF, type PermGroup } from "@/lib/permissions";
 
 // Shared bits between the assistant editor and the IPD team editor. Both grant
@@ -13,8 +14,7 @@ export const card: CSSProperties = {
 };
 
 export const btn = (bg: string, fg: string): CSSProperties => ({
-  padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer",
-  fontSize: 12, fontWeight: 500, background: bg, color: fg, fontFamily: "inherit",
+  ...btnSecondary("sm"), border: `1px solid ${bg}`, background: bg, color: fg,
 });
 
 export const toggleInSet = (setter: Dispatch<SetStateAction<Set<string>>>) => (key: string) =>

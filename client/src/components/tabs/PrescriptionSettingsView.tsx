@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
 import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
@@ -834,6 +835,6 @@ const field: React.CSSProperties = {
   background: C.n[0],
   outline: "none",
 };
-const btnBack: React.CSSProperties = { padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" };
-const btnSave: React.CSSProperties = { padding: "11px 30px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
-const btnNext: React.CSSProperties = { padding: "11px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
+const btnBack: React.CSSProperties = btnSecondary("sm");
+const btnSave: React.CSSProperties = { ...btnPrimary("lg"), fontWeight: 600, padding: "0 28px" };
+const btnNext: React.CSSProperties = { ...btnPrimary("lg"), fontWeight: 600, padding: "0 24px" };

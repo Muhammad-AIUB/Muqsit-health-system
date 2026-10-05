@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, font } from "@/theme";
-import { inputSm, fieldLabel } from "@/theme/styles";
+import { inputSm, fieldLabel, btnPrimary, btnSecondary } from "@/theme/styles";
 import { patientsApi, type Patient, type RelativeMatch } from "@/lib/api";
 import { ageFromDob, displayAge } from "@/lib/age";
 import { YEAR_POLICY } from "@/lib/dateInput";
@@ -448,8 +448,8 @@ function RelationRadio({ value, onChange }: { value: string; onChange: (v: strin
 function ModalButtons({ saving, onSave, onClose }: { saving: boolean; onSave: () => void; onClose: () => void }) {
   return (
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-      <button type="button" onClick={onClose} disabled={saving} style={{ padding: "9px 20px", borderRadius: 9, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[700], fontSize: 13, cursor: "pointer", fontFamily: font }}>Cancel</button>
-      <button type="button" onClick={onSave} disabled={saving} style={{ padding: "9px 24px", borderRadius: 9, border: "none", background: saving ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", fontFamily: font }}>{saving ? "Saving…" : "Save"}</button>
+      <button type="button" onClick={onClose} disabled={saving} style={btnSecondary("md")}>Cancel</button>
+      <button type="button" onClick={onSave} disabled={saving} style={{ ...btnPrimary("md"), fontWeight: 600, opacity: saving ? 0.7 : 1, cursor: saving ? "default" : "pointer" }}>{saving ? "Saving…" : "Save"}</button>
     </div>
   );
 }

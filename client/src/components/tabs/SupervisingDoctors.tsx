@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddSupervisor, useRemoveSupervisor, useSupervisors } from "@/hooks/useChat";
 import { ApiError } from "@/lib/api";
@@ -76,7 +77,7 @@ export default function SupervisingDoctors() {
               {canManage && (
                 <button
                   onClick={() => { if (window.confirm(`Remove ${d.name} from this patient?`)) remove.mutate(d.doctorId); }}
-                  style={{ padding: "4px 10px", borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.danger[800], fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+                  style={{ ...btnSecondary("sm"), color: C.danger[800] }}
                 >
                   Remove
                 </button>
@@ -102,10 +103,10 @@ export default function SupervisingDoctors() {
                 placeholder="Doctor's email or mobile"
                 style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "0.5px solid " + C.n[200], fontSize: 12, outline: "none", fontFamily: "inherit" }}
               />
-              <button onClick={submit} disabled={add.isPending} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", opacity: add.isPending ? 0.6 : 1 }}>
+              <button onClick={submit} disabled={add.isPending} style={{ ...btnPrimary("md"), opacity: add.isPending ? 0.6 : 1 }}>
                 {add.isPending ? "Adding…" : "Add"}
               </button>
-              <button onClick={() => { setShowAdd(false); setErr(""); setIdentifier(""); }} style={{ padding: "8px 14px", borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              <button onClick={() => { setShowAdd(false); setErr(""); setIdentifier(""); }} style={btnSecondary("md")}>
                 Cancel
               </button>
             </div>

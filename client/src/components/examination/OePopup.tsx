@@ -2,6 +2,7 @@
 
 import { useRef, type CSSProperties } from "react";
 import { C } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import type { OeData } from "@/types";
 
@@ -143,8 +144,8 @@ export default function OePopup() {
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: "0.5px solid " + C.n[200], background: C.n[50] }}>
-          <button onClick={() => setShowOePopup(false)} style={{ padding: "8px 20px", borderRadius: 8, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-          <button onClick={saveOeToItems} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Save examination</button>
+          <button onClick={() => setShowOePopup(false)} style={btnSecondary("md")}>Cancel</button>
+          <button onClick={saveOeToItems} style={btnPrimary("md")}>Save examination</button>
         </div>
       </div>
     </div>

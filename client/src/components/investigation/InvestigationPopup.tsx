@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
+import { btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
 import type { InvTest } from "@/types";
@@ -666,10 +667,7 @@ export default function InvestigationPopup() {
                           style={{ width: 15, height: 15, borderRadius: "50%", border: "none", background: C.danger[100], color: C.danger[800], fontSize: 9, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", padding: 0 }}>✕</button>
                       </span>
                     ))}
-                    <button onClick={() => addInvNormal(test.name)} style={{
-                      padding: "4px 12px", borderRadius: 6, border: `0.5px solid ${C.pri[100]}`,
-                      background: C.pri[50], color: C.pri[600], fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-                    }}>Normal</button>
+                    <button onClick={() => addInvNormal(test.name)} style={btnTonal("sm")}>Normal</button>
                     {(
                       <label
                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
@@ -843,7 +841,7 @@ export default function InvestigationPopup() {
                 <button onClick={(e) => {
                   const input = e.currentTarget.previousSibling as HTMLInputElement | null;
                   if (input && input.value.trim()) { const dateStr = formatCalDate(calDate); const text = input.value.trim(); setInvestigation([...investigation, dateStr + ":" + text]); logInv(text); input.value = ""; }
-                }} style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Add</button>
+                }} style={btnPrimary("sm")}>Add</button>
               </div>
             </div>
           </div>
@@ -891,8 +889,8 @@ export default function InvestigationPopup() {
                             style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: 6, fontSize: 12.5, border: `0.5px solid ${C.n[200]}`, outline: "none", fontFamily: "inherit", color: C.n[900] }}
                           />
                           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                            <button onClick={commitEdit} style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: C.pri[400], color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Save</button>
-                            <button onClick={() => setEditItem(null)} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                            <button onClick={commitEdit} style={btnPrimary("sm")}>Save</button>
+                            <button onClick={() => setEditItem(null)} style={btnSecondary("sm")}>Cancel</button>
                             <button onClick={() => { deleteResult(item); setEditItem(null); }} style={{ padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${C.danger[100]}`, background: C.danger[50], color: C.danger[800], fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Delete</button>
                           </div>
                         </div>
@@ -909,7 +907,7 @@ export default function InvestigationPopup() {
 
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
-          <button onClick={handleCloseInvPopup} style={{ padding: "8px 24px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Done</button>
+          <button onClick={handleCloseInvPopup} style={btnPrimary("md")}>Done</button>
         </div>
         </div>{/* /Main column */}
       </div>

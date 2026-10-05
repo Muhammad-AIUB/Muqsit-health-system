@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { btnPrimary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatientChat, useSendChat } from "@/hooks/useChat";
 import { uploadImage, type ChatMessage } from "@/lib/api";
@@ -128,7 +129,7 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
           rows={1}
           style={{ flex: 1, resize: "none", padding: "9px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, fontSize: 13, fontFamily: font, outline: "none", color: C.n[900], maxHeight: 120, boxSizing: "border-box" }}
         />
-        <button onClick={submit} disabled={!canSend} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: C.pri[400], color: "#fff", fontSize: 13, fontWeight: 600, cursor: canSend ? "pointer" : "not-allowed", fontFamily: font, opacity: canSend ? 1 : 0.6 }}>Send</button>
+        <button onClick={submit} disabled={!canSend} style={{ ...btnPrimary("md"), fontWeight: 600, cursor: canSend ? "pointer" : "not-allowed", opacity: canSend ? 1 : 0.6 }}>Send</button>
       </div>
     </div>
   );

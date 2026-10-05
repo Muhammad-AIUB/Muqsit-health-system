@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C, font } from "@/theme";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, patientNotesApi, type PatientNoteInfo } from "@/lib/api";
@@ -163,9 +164,8 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
 
   const today = (() => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`; })();
   const btn = (primary: boolean, disabled = false) => ({
-    padding: "7px 18px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, fontFamily: font,
+    ...(primary ? btnPrimary("md") : btnSecondary("md")), fontWeight: 600,
     cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
-    border: `1px solid ${primary ? C.pri[400] : C.n[300]}`, background: primary ? C.pri[400] : C.n[0], color: primary ? C.n[0] : C.n[800],
   });
 
   return (
