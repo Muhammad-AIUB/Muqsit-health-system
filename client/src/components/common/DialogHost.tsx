@@ -62,7 +62,11 @@ function DialogBox({ dialog }: { dialog: PendingDialog }) {
             <Icon name="alert" size={18} />
           </div>
           <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-            <div id={titleId} style={{ ...dialogTitle, overflowWrap: "anywhere" }}>{dialog.title}</div>
+            {/* `pretty`: a question does not end with one word alone on its last
+                line (measured: "…team of / 0?" became "…team / of 0?"). Not
+                `balance` — that evened the two lines by breaking inside the name
+                being asked about ("Ward / 3"). */}
+            <div id={titleId} style={{ ...dialogTitle, overflowWrap: "anywhere", textWrap: "pretty" }}>{dialog.title}</div>
             {dialog.body && (
               <div id={bodyId} style={{ fontSize: 13, color: C.n[600], lineHeight: 1.55, marginTop: 6, whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{dialog.body}</div>
             )}

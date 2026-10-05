@@ -158,7 +158,9 @@ function WardCard({
     const tail = ward.admissionCount
       ? `${ward.admissionCount} admitted patient${ward.admissionCount === 1 ? "" : "s"} will stay in IPD but no longer belong to a ward team.`
       : undefined;
-    if (!(await confirmAction({ title: `Delete the ward "${ward.name}" and its team of ${ward.members.length}?`, body: tail, confirmLabel: "Delete ward", danger: true }))) return;
+    // An empty ward has no team to mention: "…and its team of 0?" asked about nothing.
+    const team = ward.members.length ? ` and its team of ${ward.members.length}` : "";
+    if (!(await confirmAction({ title: `Delete the ward "${ward.name}"${team}?`, body: tail, confirmLabel: "Delete ward", danger: true }))) return;
     onDelete();
   };
 
