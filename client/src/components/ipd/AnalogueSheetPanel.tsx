@@ -195,7 +195,7 @@ export default function AnalogueSheetPanel({
       />
 
       {msg && (
-        <div style={{ fontSize: 12, color: msg.includes("added.") ? C.pri[600] : C.warn[800], marginTop: -12, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: msg.includes("added.") ? C.ok[600] : C.warn[800], marginTop: -12, marginBottom: 12 }}>
           {msg}
         </div>
       )}

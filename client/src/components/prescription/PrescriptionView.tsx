@@ -278,7 +278,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         </PatientGate>
         <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, marginBottom: 8, border: `0.5px solid ${canSaveDraft ? C.pri[100] : C.n[200]}`, background: canSaveDraft ? C.pri[50] : C.n[0], color: canSaveDraft ? C.pri[600] : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSaveDraft ? "pointer" : "not-allowed", fontFamily: font }}>Save to complete later</button>
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ width: "100%", padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>{saving ? "Saving…" : "Save & print"}</button>
-        {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
+        {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
         {sheet.open && <PrintSheetModal html={sheet.html} onClose={closeSheet} />}
       </>
@@ -311,7 +311,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ flex: 1, padding: "11px 20px", borderRadius: 8, border: "none", background: canSave ? C.pri[400] : C.n[200], color: canSave ? "#fff" : C.n[500], fontSize: 13, fontWeight: 500, cursor: canSave ? "pointer" : "not-allowed", fontFamily: font }}>{saving ? "Saving…" : "Save & print prescription"}</button>
         <button onClick={previewPdf} style={{ padding: "11px 20px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 12, cursor: "pointer", fontFamily: font }}>Preview PDF</button>
       </div>
-      {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.pri[400], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}
+      {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}
       {gateOpen && <><ReportsSection /><PatientChat /></>}
       {sheet.open && <PrintSheetModal html={sheet.html} onClose={closeSheet} />}
     </>
@@ -365,7 +365,7 @@ function ReportsSection() {
         ) : (
           items.map((it, idx) => (
             <div key={it.id} style={{ display: "flex", gap: 10, padding: "9px 14px", borderTop: idx === 0 ? "none" : `0.5px solid ${C.n[100]}` }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: it.kind === "chat" ? C.info[400] : it.action === "saved" ? C.pri[400] : C.warn[800], flexShrink: 0, marginTop: 6 }} />
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: it.kind === "chat" ? C.info[400] : it.action === "saved" ? C.ok[400] : C.warn[800], flexShrink: 0, marginTop: 6 }} />
               <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.n[800], lineHeight: 1.55 }}>
                 <span style={{ color: C.n[500] }}>{formatActivityTime(it.createdAt)}: </span>
                 <b style={{ color: C.n[900] }}>{it.name}</b>{" "}

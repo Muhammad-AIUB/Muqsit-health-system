@@ -72,6 +72,7 @@ npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.pri
 - We do not point a test at `DATABASE_URL` from `.env`. It is production behind the tunnel; DB-backed tests use the container on `127.0.0.1:5544` and `assertTestDatabase()` refuses anything else. `prisma db push` is allowed only inside `server/test/support/setup-db.js`, which forces both URLs to that container.
 - We do not retry a flaky test. A test whose outcome varies is a defect; find the cause (clock, order, timeout) with `scripts/test-repeat.mjs`.
 - We do not change a test to make a real defect pass. It stays as `it.failing` / `it.fails` with a `DEFECT-` comment until the code is fixed.
+- We do not colour a status with the brand colour. `C.pri` (blue) is for what can be pressed or is selected; "done / normal / saved / stable" is `C.ok` (green). The brand was green until 2026-10-05 and doubled as "fine" — a normal BMI and a Save button were the same colour.
 - We do not enable the ECC plugin in this repo. Its hooks have not been checked against these safety rules.
 
 ## Read First

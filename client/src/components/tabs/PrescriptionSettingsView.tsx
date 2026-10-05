@@ -198,7 +198,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, marginBottom: 16 }}>
         <button onClick={() => setMode(null)} style={btnBack}>← Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: isOpd ? C.pri[800] : C.info[800], background: isOpd ? C.pri[50] : C.info[50], borderRadius: 6, padding: "4px 10px" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: isOpd ? C.ok[800] : C.info[800], background: isOpd ? C.ok[50] : C.info[50], borderRadius: 6, padding: "4px 10px" }}>
           {isOpd ? "OPD · patient privacy on" : "IPD · full details"}
         </span>
         <span style={{ fontSize: 12, color: C.n[600], borderLeft: `1px solid ${C.n[200]}`, paddingLeft: 12 }}>
@@ -404,7 +404,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
         {saved && !loadFailed && (
           <span style={{
             position: "absolute", top: "100%", marginTop: 6, left: "50%", transform: "translateX(-50%)",
-            whiteSpace: "nowrap", fontSize: 12, color: saved === "Saved." ? C.pri[600] : C.danger[800],
+            whiteSpace: "nowrap", fontSize: 12, color: saved === "Saved." ? C.ok[600] : C.danger[800],
           }}>{saved}</span>
         )}
         {stepIndex > 0 && (

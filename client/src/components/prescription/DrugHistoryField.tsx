@@ -276,7 +276,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                 <div style={{ paddingTop: 8 }}>
                   {pastGroups.map((g, gi) => (
                     <div key={g.date} style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.n[400], letterSpacing: "0.03em", textTransform: "uppercase", paddingBottom: 4, borderBottom: `0.5px solid ${C.n[100]}` }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 600, color: C.n[600], letterSpacing: "0.03em", textTransform: "uppercase", paddingBottom: 4, borderBottom: `0.5px solid ${C.n[100]}` }}>
                         {g.date === PAST_MARKER ? "Earlier (no date)" : g.date}
                       </div>
                       {g.list.map((p, i) => {

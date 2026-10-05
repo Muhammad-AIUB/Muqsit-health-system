@@ -356,7 +356,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <button onClick={onBack} style={btnBack}>← Back to ward</button>
         <div style={{ flex: 1 }} />
-        {savedMsg && <span style={{ fontSize: 12, color: savedMsg === "Saved!" ? C.pri[600] : C.danger[800] }}>{savedMsg}</span>}
+        {savedMsg && <span style={{ fontSize: 12, color: savedMsg === "Saved!" ? C.ok[600] : C.danger[800] }}>{savedMsg}</span>}
         <button onClick={() => void save()} disabled={update.isPending} style={btnSave}>{update.isPending ? "Saving…" : "Save"}</button>
       </div>
 

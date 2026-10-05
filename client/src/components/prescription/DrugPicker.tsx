@@ -19,7 +19,7 @@ export default function DrugPicker({ mobile }: { mobile?: boolean }) {
           {filteredDrugs.map((d) => { const added = rxItems.find((r) => r.drug === d.name); return (
             <div key={d.name} onClick={() => !added && addDrug(d.name)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 6px", cursor: added ? "default" : "pointer", borderBottom: `0.5px solid ${C.n[100]}` }}>
               <div><div style={{ fontSize: 12, fontWeight: 500 }}>{d.name}</div><div style={{ fontSize: 10, color: C.n[600] }}>{d.cat} · ৳{d.price}/unit</div></div>
-              {added ? <Pill bg={C.pri[50]} fg={C.pri[600]}>Added</Pill> : <span style={{ fontSize: 18, color: C.pri[400] }}>+</span>}
+              {added ? <Pill bg={C.ok[50]} fg={C.ok[600]}>Added</Pill> : <span style={{ fontSize: 18, color: C.pri[400] }}>+</span>}
             </div>); })}
         </div>
       </div>

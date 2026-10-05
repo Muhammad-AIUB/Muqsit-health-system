@@ -355,7 +355,7 @@ export default function PatientSettingsView() {
                 {saving ? "Saving…" : "Save"}
               </button>
               {formMsg && (
-                <span style={{ fontSize: 12, fontWeight: 500, color: formMsg.ok ? C.pri[600] : C.danger[800] }}>{formMsg.text}</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: formMsg.ok ? C.ok[600] : C.danger[800] }}>{formMsg.text}</span>
               )}
             </div>
           </div>
@@ -417,9 +417,9 @@ export default function PatientSettingsView() {
               const relColors: Record<string, { bg: string; fg: string }> = {
                 Spouse: { bg: C.danger[50], fg: C.danger[800] },
                 Father: { bg: C.info[50], fg: C.info[800] },
-                Mother: { bg: C.pri[50], fg: C.pri[600] },
+                Mother: { bg: C.ok[50], fg: C.ok[600] },
                 Brother: { bg: C.info[50], fg: C.info[800] },
-                Sister: { bg: C.pri[50], fg: C.pri[600] },
+                Sister: { bg: C.ok[50], fg: C.ok[600] },
                 Son: { bg: C.warn[50], fg: C.warn[800] },
                 Daughter: { bg: C.warn[50], fg: C.warn[800] },
               };

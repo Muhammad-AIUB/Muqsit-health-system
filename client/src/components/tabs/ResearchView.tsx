@@ -122,7 +122,7 @@ export default function ResearchView() {
                       setRcSelected(s);
                     }} style={{ background: sel ? C.pri[50] : C.n[0], border: `0.5px solid ${sel ? C.pri[400] : C.n[200]}`, borderRadius: 10, padding: "12px 14px", cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 12, transition: "background 0.15s" }}>
                       <input type="checkbox" checked={sel} onChange={() => {}} onClick={(e) => e.stopPropagation()} style={{ width: 14, height: 14, accentColor: C.pri[400], cursor: "pointer", marginTop: 2, flexShrink: 0 }} />
-                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: colorOf(p.sex === "Female" ? "pri" : "info").bg, color: colorOf(p.sex === "Female" ? "pri" : "info").fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: colorOf(p.sex === "Female" ? "ok" : "info").bg, color: colorOf(p.sex === "Female" ? "ok" : "info").fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
                         {p.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>

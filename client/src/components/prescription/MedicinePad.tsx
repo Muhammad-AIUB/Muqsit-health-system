@@ -566,7 +566,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     aria-label={`Special advice for ${row.drug.trim()}`}
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={() => { setAcRow(null); drugAdvice.open(row); }}
-                    style={{ width: 22, alignSelf: "stretch", flexShrink: 0, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 13, lineHeight: 1, letterSpacing: -1, fontWeight: 700, color: drugAdvice.has(row) ? C.pri[400] : C.n[800], fontFamily: font }}
+                    style={{ width: 22, alignSelf: "stretch", flexShrink: 0, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 13, lineHeight: 1, letterSpacing: -1, fontWeight: 700, color: drugAdvice.has(row) ? C.ok[400] : C.n[800], fontFamily: font }}
                   >
                     •••
                   </button>

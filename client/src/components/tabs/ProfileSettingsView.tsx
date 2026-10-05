@@ -403,7 +403,7 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
         </div>
       )}
       {success && !error && (
-        <div style={{ ...statusBox, color: C.pri[600], background: C.pri[50], borderColor: C.pri[100] }}>
+        <div style={{ ...statusBox, color: C.ok[600], background: C.ok[50], borderColor: C.ok[100] }}>
           {success}
         </div>
       )}

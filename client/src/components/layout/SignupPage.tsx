@@ -358,7 +358,7 @@ export default function SignupPage() {
                     style={{ ...fieldStyle, borderColor: mobile.length > 0 && mobile.length !== 11 ? C.danger[400] : (inputSm.border as string) }}
                   />
                   {mobile.length > 0 && (
-                    <span style={{ fontSize: 10, color: mobile.length === 11 ? C.pri[600] : C.warn[800] }}>
+                    <span style={{ fontSize: 10, color: mobile.length === 11 ? C.ok[600] : C.warn[800] }}>
                       {mobile.length === 11 ? "✓ Looks good" : `Must be exactly 11 digits (${mobile.length}/11)`}
                     </span>
                   )}
@@ -397,7 +397,7 @@ export default function SignupPage() {
                         fontSize: 10,
                         color:
                           nidOcr === "match"
-                            ? C.pri[600]
+                            ? C.ok[600]
                             : nidOcr === "checking"
                               ? C.n[500]
                               : C.warn[800],
@@ -431,7 +431,7 @@ export default function SignupPage() {
                   <label style={labelStyle}>Password</label>
                   <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
                   {password.length > 0 && (
-                    <span style={{ fontSize: 10, color: passwordOk ? C.pri[600] : C.warn[800] }}>
+                    <span style={{ fontSize: 10, color: passwordOk ? C.ok[600] : C.warn[800] }}>
                       {passwordOk ? "✓ Strong password" : "Must include uppercase, lowercase, number & special character (min 8)"}
                     </span>
                   )}
@@ -494,7 +494,7 @@ export default function SignupPage() {
 
           {step === "done" && (
             <div style={{ textAlign: "center", padding: "12px 0" }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.pri[50], color: C.pri[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>✓</div>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.ok[50], color: C.ok[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>✓</div>
               <h2 style={{ fontSize: 17, fontWeight: 600, color: C.n[900], margin: "0 0 8px" }}>Email verified</h2>
               <p style={{ fontSize: 12.5, color: C.n[600], lineHeight: 1.6 }}>{otpMsg || "Your account is awaiting admin approval. You'll be able to sign in once an administrator approves your documents."}</p>
               <button onClick={onBack} style={{ marginTop: 18, padding: "11px 24px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[900], fontSize: 13, fontWeight: 500, cursor: "pointer" }}>

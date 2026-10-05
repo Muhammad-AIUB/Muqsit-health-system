@@ -27,12 +27,12 @@ interface Props {
 }
 
 const DEFAULT_TRACK_LIMIT = 5;
-// C.pri[400] and C.warn[400] are deliberately absent: they mean "medication
+// C.ok[400] and C.warn[400] are deliberately absent: they mean "medication
 // bar" and "symptom bar". Keeping them out of the line palette stops a lab
 // series from taking on a colour that already carries a different meaning.
 // Only shades that actually exist in theme/index.ts are listed — several
 // shades referenced elsewhere in the app resolve to undefined at runtime.
-const SERIES_COLORS = [C.info[400], C.danger[400], C.pri[600], C.warn[600], C.info[800], C.danger[800], C.pri[800], C.warn[800]];
+const SERIES_COLORS = [C.info[400], C.danger[400], C.ok[600], C.warn[600], C.info[800], C.danger[800], C.ok[800], C.warn[800]];
 
 type WindowKey = "3m" | "6m" | "1y" | "all";
 const WINDOW_OPTIONS: { key: WindowKey; label: string }[] = [
@@ -646,7 +646,7 @@ export default function HealthTrendsChart({
           ))}
           {tracks.some((t) => t.kind === "drug") && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.n[700] }}>
-              <span style={{ width: 9, height: 9, borderRadius: 2, background: C.pri[400], display: "inline-block", flexShrink: 0 }} /> Medication
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: C.ok[400], display: "inline-block", flexShrink: 0 }} /> Medication
             </span>
           )}
           {tracks.some((t) => t.kind === "symptom") && (
@@ -800,7 +800,7 @@ export default function HealthTrendsChart({
               const x1 = Math.max(rawX1, PLOT_L);
               const x2 = Math.min(Math.max(rawX2, PLOT_L), PLOT_R);
               const clippedLeft = rawX1 < PLOT_L - 0.5;
-              const color = t.kind === "drug" ? C.pri[400] : C.warn[400];
+              const color = t.kind === "drug" ? C.ok[400] : C.warn[400];
               // Recorded on a single date only: draw a point, not a stub bar.
               // Compared on the CALENDAR DAY, not the raw timestamp — a symptom
               // range comes from Prescription.createdAt, so two visits on the

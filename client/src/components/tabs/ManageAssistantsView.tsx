@@ -193,7 +193,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>{a.name}</span>
-                      <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: a.status === "active" ? C.pri[50] : C.warn[50], color: a.status === "active" ? C.pri[600] : C.warn[800] }}>
+                      <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: a.status === "active" ? C.ok[50] : C.warn[50], color: a.status === "active" ? C.ok[600] : C.warn[800] }}>
                         {a.status === "active" ? "Active" : "Suspended"}
                       </span>
                     </div>
@@ -255,7 +255,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
             {updateDefaults.isPending ? "Saving…" : "Save"}
           </button>
           <button onClick={() => setDefaultDraft(new Set(defaultPerms))} disabled={!defaultsDirty} style={{ ...btn(C.n[100], C.n[800]), opacity: defaultsDirty ? 1 : 0.5, cursor: defaultsDirty ? "pointer" : "default" }}>Cancel</button>
-          {!defaultsDirty && defaultPerms.length > 0 && <span style={{ fontSize: 11, color: C.pri[600], marginLeft: 4 }}>Saved</span>}
+          {!defaultsDirty && defaultPerms.length > 0 && <span style={{ fontSize: 11, color: C.ok[600], marginLeft: 4 }}>Saved</span>}
         </div>
       </div>
 
