@@ -45,6 +45,20 @@ npx playwright show-report                           # traces/screenshots of fai
 first run after a cold start is slow: `next dev` compiles each route on first
 use (global setup warms `/login` and `/prescription`).
 
+## Opening the sandbox by hand (design / QA passes)
+
+To look at screens with made-up patients instead of the production data behind
+`:3000`: start the container and `npm run test:db` as above, seed it
+(`cd server && TEST_DB_NAME=muqsit_e2e_test TEST_PORT=4200 npx ts-node --transpile-only test/seed-e2e.ts`),
+then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
+`http://localhost:3100` as any doctor in `e2e/.seed.json`.
+
+- **It signs you out of `localhost:3000`.** A browser keeps one set of cookies
+  per HOST, not per port, so the sandbox session replaces the dev one. Sign in
+  again at `:3000` afterwards.
+- `next dev` with `NEXT_DIST_DIR=.next-e2e` rewrites `client/tsconfig.json`.
+  Stop the server, then `git checkout -- client/tsconfig.json`. Never commit it.
+
 ## Journeys
 
 | File | What it proves |
