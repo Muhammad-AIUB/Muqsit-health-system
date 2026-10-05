@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { C } from "@/theme";
+import { pageTitle } from "@/theme/styles";
 import ManageAssistantsView from "./ManageAssistantsView";
 import ProfileSettingsView from "./ProfileSettingsView";
 import PrescriptionSettingsView from "./PrescriptionSettingsView";
@@ -85,7 +86,7 @@ export default function SettingsView() {
 
   return (
     <div>
-      <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 14 }}>Settings</div>
+      <div style={{ ...pageTitle, marginBottom: 14 }}>Settings</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {SETTINGS_ITEMS.map((s) => {
           const dis = !!s.disabled;

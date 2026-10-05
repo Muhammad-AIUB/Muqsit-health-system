@@ -128,7 +128,7 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
           placeholder="Write a message…  (Enter to send, Shift+Enter for newline)"
           rows={1}
-          style={{ flex: 1, resize: "none", padding: "9px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, fontSize: 13, fontFamily: font, outline: "none", color: C.n[900], maxHeight: 120, boxSizing: "border-box" }}
+          style={{ flex: 1, resize: "none", padding: "9px 12px", borderRadius: 8, border: `1px solid ${C.n[300]}`, fontSize: 13, fontFamily: font, outline: "none", color: C.n[900], maxHeight: 120, boxSizing: "border-box" }}
         />
         <button onClick={submit} disabled={!canSend} style={{ ...btnPrimary("md"), fontWeight: 600, cursor: canSend ? "pointer" : "not-allowed", opacity: canSend ? 1 : 0.6 }}>Send</button>
       </div>

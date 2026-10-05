@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, font } from "@/theme";
-import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/lib/investigationSummary";
 import DateField from "@/components/common/DateField";
@@ -133,15 +133,15 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
     border: `1px solid ${active ? C.pri[400] : C.n[200]}`, background: active ? C.pri[50] : C.n[0],
     color: active ? C.pri[600] : C.n[700], fontWeight: active ? 600 : 400,
   });
-  const inp: React.CSSProperties = { padding: "6px 10px", borderRadius: 7, border: `0.5px solid ${C.n[200]}`, fontSize: 12, outline: "none", fontFamily: font };
+  const inp: React.CSSProperties = { padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.n[300]}`, fontSize: 12, outline: "none", fontFamily: font };
   const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 6 };
 
   return (
     <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,32,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, fontFamily: font, padding: 16 }}>
+      style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, fontFamily: font, padding: 16 }}>
       <div role="dialog" aria-modal="true" aria-label="Download investigation summary" {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 480, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.n[900] }}>Download investigation summary</div>
+          <div style={{ ...dialogTitle }}>Download investigation summary</div>
           <button aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: C.n[500], cursor: "pointer" }}>×</button>
         </div>
 

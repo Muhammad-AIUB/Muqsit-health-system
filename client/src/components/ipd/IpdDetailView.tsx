@@ -302,7 +302,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
           <div style={{ marginTop: 10 }}>
             <div style={vLbl}>Specific Note</div>
             <textarea aria-label="Specific Note" value={draft.note ?? ""} onChange={(e) => setFu("note", e.target.value)} rows={2}
-              style={{ width: "100%", boxSizing: "border-box", resize: "vertical", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, padding: "8px 10px", fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", lineHeight: 1.5, background: C.n[0] }} />
+              style={{ width: "100%", boxSizing: "border-box", resize: "vertical", borderRadius: 6, border: `1px solid ${C.n[300]}`, padding: "8px 10px", fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", lineHeight: 1.5, background: C.n[0] }} />
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
             <button onClick={saveFollowUp} disabled={!draftHasValue || update.isPending} style={{ ...btnSave, padding: "6px 16px", opacity: draftHasValue ? 1 : 0.5, cursor: draftHasValue ? "pointer" : "default" }}>Save follow up</button>
@@ -457,7 +457,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
             <textarea value={eventMsg} onChange={(e) => setEventMsg(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendEvent(); } }}
               placeholder="Add an event / note… (Enter to send, Shift+Enter for new line)" rows={2}
-              style={{ flex: 1, resize: "none", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, padding: "8px 10px", fontSize: 12, fontFamily: font, color: C.n[800], outline: "none", lineHeight: 1.5, background: C.n[50] }} />
+              style={{ flex: 1, resize: "none", borderRadius: 8, border: `1px solid ${C.n[300]}`, padding: "8px 10px", fontSize: 12, fontFamily: font, color: C.n[800], outline: "none", lineHeight: 1.5, background: C.n[50] }} />
             <button onClick={() => void sendEvent()} disabled={addEvent.isPending} style={{ ...btnSave, alignSelf: "flex-end" }}>{addEvent.isPending ? "…" : "Send"}</button>
           </div>
           {sendErr && <div role="alert" style={{ padding: "0 14px 10px", fontSize: 11.5, color: C.danger[800] }}>{sendErr}</div>}
@@ -481,12 +481,12 @@ function Vital({ label, placeholder, value, onChange }: { label: string; placeho
     <div style={{ flex: "1 1 140px", minWidth: 120 }}>
       <div style={vLbl}>{label}</div>
       <input aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }} />
+        style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 6, border: `1px solid ${C.n[300]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }} />
     </div>
   );
 }
 
 const vLbl: CSSProperties = { fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
-const hInp = (w: number): CSSProperties => ({ padding: "3px 6px", borderRadius: 5, border: `0.5px solid ${C.n[200]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", width: w });
+const hInp = (w: number): CSSProperties => ({ padding: "3px 6px", borderRadius: 5, border: `1px solid ${C.n[300]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", width: w });
 const btnBack: CSSProperties = btnSecondary("sm");
 const btnSave: CSSProperties = { ...btnPrimary("md"), fontWeight: 600 };

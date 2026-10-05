@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
-import { btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
@@ -129,7 +129,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
     <div style={{ fontFamily: font, maxWidth: 900 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
         <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
-        <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription templates</div>
+        <div style={pageTitle}>Prescription templates</div>
       </div>
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -185,7 +185,7 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
           onChange={(e) => { setName(e.target.value); setError(""); }}
           placeholder="e.g. AVH"
           autoFocus
-          style={{ flex: 1, maxWidth: 420, padding: "9px 14px", borderRadius: 8, border: `0.5px solid ${C.n[300]}`, fontSize: 14, fontFamily: font, color: C.n[900], background: C.n[0], outline: "none" }}
+          style={{ flex: 1, maxWidth: 420, padding: "9px 14px", borderRadius: 8, border: `1px solid ${C.n[300]}`, fontSize: 14, fontFamily: font, color: C.n[900], background: C.n[0], outline: "none" }}
         />
       </div>
 

@@ -613,7 +613,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     onChange={(e) => updateRow(idx, { sf: e.target.value })}
                     onBlur={() => updateRow(idx, { sf: formatSF(row.sf ?? "") })}
                     placeholder="date"
-                    style={{ width: 96, padding: "3px 7px", borderRadius: 5, border: `0.5px solid ${C.n[300]}`, fontSize: 11, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }}
+                    style={{ width: 96, padding: "3px 7px", borderRadius: 5, border: `1px solid ${C.n[300]}`, fontSize: 11, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }}
                   />
                 </span>
               )}

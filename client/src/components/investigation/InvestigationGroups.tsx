@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
+import { btnPrimary, btnSecondary, btnTonal, scrim } from "@/theme/styles";
 import { useInvestigationPrefs, useSaveInvestigationGroups } from "@/hooks/useInvestigationPrefs";
 import { groupTicked, newGroupProblem, toggleGroup } from "@/lib/investigationGroups";
 import InvestigationDirectory from "./InvestigationDirectory";
@@ -97,7 +97,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
   return (
     <div
       onClick={(e) => { e.stopPropagation(); onClose(); }}
-      style={{ position: "fixed", inset: 0, padding: 16, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}
+      style={{ position: "fixed", inset: 0, padding: 16, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}
     >
       <div
         role="dialog"
@@ -120,7 +120,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
             onChange={(e) => { setName(e.target.value); setProblem(null); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submit(); } }}
             placeholder="e.g. DM follow-up"
-            style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 8, fontSize: 13, border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50], color: C.n[900], fontFamily: "inherit" }}
+            style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 8, fontSize: 13, border: `1px solid ${C.n[300]}`, outline: "none", background: C.n[50], color: C.n[900], fontFamily: "inherit" }}
           />
 
           {/* The group's tests so far — ticked or typed — each removable, since
@@ -146,7 +146,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTyped(); } }}
               placeholder="Type a test and press Enter..."
               aria-label="Type a test"
-              style={{ flex: 1, minWidth: 0, padding: "10px 14px", borderRadius: 8, fontSize: 13, border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50], color: C.n[900], fontFamily: "inherit" }}
+              style={{ flex: 1, minWidth: 0, padding: "10px 14px", borderRadius: 8, fontSize: 13, border: `1px solid ${C.n[300]}`, outline: "none", background: C.n[50], color: C.n[900], fontFamily: "inherit" }}
             />
             <button
               type="button"

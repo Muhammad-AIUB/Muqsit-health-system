@@ -95,7 +95,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             value={tplSearch}
             onChange={(e) => setTplSearch(e.target.value)}
             placeholder="Search templates…"
-            style={{ width: 180, padding: "5px 28px 5px 10px", borderRadius: 7, border: `0.5px solid ${C.n[200]}`, fontSize: 11, fontFamily: font, color: C.n[900], background: C.n[0], outline: "none" }}
+            style={{ width: 180, padding: "5px 28px 5px 10px", borderRadius: 7, border: `1px solid ${C.n[300]}`, fontSize: 11, fontFamily: font, color: C.n[900], background: C.n[0], outline: "none" }}
           />
           <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: C.n[500], display: "flex", pointerEvents: "none" }}><Icon name="search" size={13} /></span>
         </div>
@@ -150,7 +150,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
         <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800] }}>Follow-up</span>
         <div style={{ display: "flex", gap: 10, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
           <input type="number" min="1" value={followUpNum} onChange={(e) => setFollowUpNum(e.target.value)}
-            placeholder="No." style={{ width: 60, padding: "6px 8px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit", textAlign: "center" }} />
+            placeholder="No." style={{ width: 60, padding: "6px 8px", borderRadius: 6, fontSize: 12, border: "1px solid " + C.n[300], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit", textAlign: "center" }} />
           <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: followUpUnit === "day" ? C.pri[600] : C.n[600], cursor: "pointer" }}>
             <input type="radio" name="fuUnit" checked={followUpUnit === "day"} onChange={() => setFollowUpUnit("day")} style={{ accentColor: C.pri[400] }} />
             Day

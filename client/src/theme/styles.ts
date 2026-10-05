@@ -18,6 +18,18 @@ export const inputSm: CSSProperties = {
 // A field that sits in a row with an `md` button, at the same height.
 export const inputMd: CSSProperties = { ...inputSm, minHeight: 36, padding: "0 12px", borderRadius: 8 };
 
+// ── Surfaces and headings ─────────────────────────────────────
+// The veil behind a popup. One value — eleven popups used eight different
+// greys, so the page behind looked a different distance away each time.
+export const scrim = "rgba(32,33,36,0.45)";
+
+// The name of the screen you are on ("OPD queue management", "Settings").
+// It was 16px/500, lighter than the 13px/600 card headings beneath it.
+export const pageTitle: CSSProperties = { fontSize: 18, fontWeight: 600, color: C.n[900], letterSpacing: "-0.01em", lineHeight: 1.3 };
+
+// The name of a popup. They ran from 14px/500 to 16px/700.
+export const dialogTitle: CSSProperties = { fontSize: 16, fontWeight: 600, color: C.n[900], lineHeight: 1.3 };
+
 // ── Buttons ───────────────────────────────────────────────────
 // One scale for the whole app, so the same action is the same size on every
 // screen (the primary button alone had 16 hand-written paddings). Height comes

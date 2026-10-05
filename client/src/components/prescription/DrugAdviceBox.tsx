@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { btnTonal, btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnTonal, btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useSaveDrugAdvice } from "@/hooks/useDrugAdvice";
 import { adviceLines, drugKeyOf, offKey, savedAdviceFor, type AdviceScope } from "@/lib/rxDrugAdvice";
@@ -141,12 +141,12 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
   return (
     <div
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      style={{ position: "fixed", inset: 0, background: scrim, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
       <div role="dialog" aria-modal="true" aria-label="Special advice" style={{ width: "min(520px, 92vw)", maxHeight: "86vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", fontFamily: font }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>Special advice</div>
+          <div style={{ ...dialogTitle }}>Special advice</div>
           <button type="button" onClick={requestClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 18, lineHeight: 1, color: C.n[500], cursor: "pointer", padding: "2px 6px" }}>×</button>
         </div>
 
@@ -201,7 +201,7 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
                       placeholder="Write the advice…"
                       onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLine(); } }}
-                      style={{ flex: 1, minWidth: 0, padding: "6px 9px", borderRadius: 6, border: `0.5px solid ${C.n[300]}`, fontSize: 13, fontFamily: font, color: C.n[900], outline: "none" }}
+                      style={{ flex: 1, minWidth: 0, padding: "6px 9px", borderRadius: 6, border: `1px solid ${C.n[300]}`, fontSize: 13, fontFamily: font, color: C.n[900], outline: "none" }}
                     />
                     <button
                       type="button"

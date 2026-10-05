@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
+import { btnPrimary, btnSecondary, btnTonal, dialogTitle, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
 import type { InvTest } from "@/types";
@@ -408,7 +408,7 @@ export default function InvestigationPopup() {
   const zoomBtn: CSSProperties = { width: 22, height: 22, border: "none", background: "transparent", color: "#fff", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" };
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
       <div role="dialog" aria-modal="true" aria-label="Investigation report findings" {...dialog} onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
         <style>{`
@@ -510,7 +510,7 @@ export default function InvestigationPopup() {
         {/* Header — title + actions (show/hide reports, add images, close) */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8, padding: "12px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 500, color: C.n[900] }}>Investigation report findings</div>
+            <div style={dialogTitle}>Investigation report findings</div>
             <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Enter test results — select a category, fill values, and add</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, rowGap: 8 }}>
@@ -612,7 +612,7 @@ export default function InvestigationPopup() {
             <Icon name="search" size={15} style={{ color: C.n[500] }} />
             <input value={invSearch} onChange={(e) => setInvSearch(e.target.value)}
               placeholder="Search test name across all categories..."
-              style={{ flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit" }} />
+              style={{ flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, border: "1px solid " + C.n[300], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit" }} />
             {invSearch && <button aria-label="Clear search" onClick={() => setInvSearch("")} style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14, padding: 0 }}>×</button>}
           </div>
           {invSearch && (
@@ -849,7 +849,7 @@ export default function InvestigationPopup() {
                   }}
                   style={{
                     flex: 1, padding: "8px 12px", borderRadius: 6, fontSize: 12,
-                    border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50],
+                    border: `1px solid ${C.n[300]}`, outline: "none", background: C.n[50],
                     color: C.n[900], fontFamily: "inherit",
                   }} />
                 <button onClick={(e) => {
@@ -900,7 +900,7 @@ export default function InvestigationPopup() {
                             value={editVal}
                             onChange={(e) => setEditVal(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") { e.preventDefault(); setEditItem(null); } }}
-                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: 6, fontSize: 12.5, border: `0.5px solid ${C.n[200]}`, outline: "none", fontFamily: "inherit", color: C.n[900] }}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: 6, fontSize: 12.5, border: `1px solid ${C.n[300]}`, outline: "none", fontFamily: "inherit", color: C.n[900] }}
                           />
                           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                             <button onClick={commitEdit} style={btnPrimary("sm")}>Save</button>
@@ -951,7 +951,7 @@ function QuickDateBox({ onPick }: { onPick: (d: Date) => void }) {
       title="Type a date as DDMMYY (e.g. 060625 → 06/06/2025) — jumps the calendar instantly"
       style={{
         width: 150, textAlign: "center", padding: "3px 8px", borderRadius: 6,
-        border: "0.5px solid " + C.n[300], fontSize: 11, outline: "none",
+        border: "1px solid " + C.n[300], fontSize: 11, outline: "none",
         background: C.n[0], color: C.n[900], fontFamily: "inherit",
       }}
     />

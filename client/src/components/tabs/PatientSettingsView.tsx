@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
-import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
 import { patientsApi, uploadImage, type PatientInput } from "@/lib/api";
@@ -447,7 +447,7 @@ export default function PatientSettingsView() {
 
           {/* Add family member modal */}
           {showFamilyForm && (
-            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
               onClick={() => setShowFamilyForm(false)}>
               <div role="dialog" aria-modal="true" aria-label="Add family member" {...familyDialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflowX: "hidden", overflowY: "auto" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "0.5px solid " + C.n[200], display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -461,24 +461,24 @@ export default function PatientSettingsView() {
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Name</div>
                     <input aria-label="Name" value={familyForm.name} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { name: e.target.value }))}
-                      placeholder="Full name" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
+                      placeholder="Full name" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "1px solid " + C.n[300], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                   </div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Mobile (11 digit)</div>
                       <input aria-label="Mobile (11 digit)" value={familyForm.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setFamilyForm(Object.assign({}, familyForm, { mobile: v })); }}
-                        placeholder="01XXXXXXXXX" maxLength={11} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
+                        placeholder="01XXXXXXXXX" maxLength={11} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "1px solid " + C.n[300], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>NID number</div>
                       <input aria-label="NID number" value={familyForm.nid} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { nid: e.target.value.replace(/\D/g, "") }))}
-                        placeholder="National ID" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
+                        placeholder="National ID" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "1px solid " + C.n[300], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                     </div>
                   </div>
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Sex {familyForm.sex && <span style={{ fontSize: 10.5, color: C.pri[600], fontWeight: 400 }}>(auto-set from relation)</span>}</div>
                     <select value={familyForm.sex} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { sex: e.target.value }))}
-                      style={{ width: "100%", padding: "8px 6px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }}>
+                      style={{ width: "100%", padding: "8px 6px", borderRadius: 6, fontSize: 12, border: "1px solid " + C.n[300], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }}>
                       <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
                     </select>
                   </div>

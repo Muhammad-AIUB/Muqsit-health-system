@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/theme";
+import { pageTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { useActivityLog } from "@/hooks/useActivity";
@@ -151,7 +152,7 @@ export default function HealthMonitoringView() {
 
   return (
     <div>
-      <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>Integrated health monitoring and overview</div>
+      <div style={{ ...pageTitle, marginBottom: 4 }}>Integrated health monitoring and overview</div>
       <div style={{ fontSize: 12, color: C.n[600], marginBottom: 14 }}>Track disease patterns, health trends, and plan personalised care</div>
 
       <HealthTrendsChart

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnPrimary, btnSecondary, scrim } from "@/theme/styles";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import type { PhraseSource } from "@/lib/api";
@@ -334,7 +334,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   onChange={(e) => onItemNote?.(item, e.target.value)}
                   placeholder={notePlaceholder ?? ""}
                   disabled={!editable}
-                  style={{ flex: 1, minWidth: 0, marginLeft: 4, padding: "3px 8px", borderRadius: 5, border: `0.5px solid ${C.n[300]}`, fontSize: 11.5, fontFamily: "inherit", color: C.n[900], outline: "none", background: editable ? C.n[0] : C.n[50] }}
+                  style={{ flex: 1, minWidth: 0, marginLeft: 4, padding: "3px 8px", borderRadius: 5, border: `1px solid ${C.n[300]}`, fontSize: 11.5, fontFamily: "inherit", color: C.n[900], outline: "none", background: editable ? C.n[0] : C.n[50] }}
                 />
               )}
               {removable && editable && !editOpen && (
@@ -364,7 +364,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       {open && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16,
-          background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center",
+          background: scrim, display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 1000,
         }} onClick={cancel}>
           <div role="dialog" aria-modal="true" aria-label={label} {...dialog} onClick={(e) => e.stopPropagation()} style={{
@@ -457,7 +457,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   placeholder={`Type ${label.toLowerCase()} and press Enter...`}
                   style={{
                     flex: 1, padding: "10px 14px", borderRadius: 8, fontSize: 13,
-                    border: `0.5px solid ${C.n[200]}`, outline: "none", background: C.n[50],
+                    border: `1px solid ${C.n[300]}`, outline: "none", background: C.n[50],
                     color: C.n[900], fontFamily: "inherit",
                   }} />
                 <button onClick={() => { if (inputVal.trim()) addToDraft(inputVal); }} style={btnPrimary("md")}>Add</button>

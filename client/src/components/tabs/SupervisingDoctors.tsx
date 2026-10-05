@@ -102,7 +102,7 @@ export default function SupervisingDoctors() {
                 onChange={(e) => setIdentifier(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
                 placeholder="Doctor's email or mobile"
-                style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "0.5px solid " + C.n[200], fontSize: 12, outline: "none", fontFamily: "inherit" }}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "1px solid " + C.n[300], fontSize: 12, outline: "none", fontFamily: "inherit" }}
               />
               <button onClick={submit} disabled={add.isPending} style={{ ...btnPrimary("md"), opacity: add.isPending ? 0.6 : 1 }}>
                 {add.isPending ? "Adding…" : "Add"}

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { C, font } from "@/theme";
-import { btnSecondary } from "@/theme/styles";
+import { btnSecondary, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkstations } from "@/hooks/useWorkstations";
@@ -66,7 +66,7 @@ export default function WorkstationSwitcher() {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", fontFamily: font }}>
-      <div onClick={canClose ? () => setShowWorkstations(false) : undefined} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.25)" }} />
+      <div onClick={canClose ? () => setShowWorkstations(false) : undefined} style={{ position: "absolute", inset: 0, background: scrim }} />
       <aside style={{ position: "relative", width: 264, height: "100%", background: C.n[0], borderRight: `1px solid ${C.n[200]}`, boxShadow: "4px 0 24px rgba(0,0,0,0.08)", padding: "22px 16px", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: C.n[900], textDecoration: "underline" }}>Your workstations</div>

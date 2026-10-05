@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { C, font } from "@/theme";
-import { inputSm, btnPrimary, btnSecondary } from "@/theme/styles";
+import { inputSm, btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
 import {
   ApiError,
   usersApi,
@@ -168,7 +168,7 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
         <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
-        <div style={{ fontSize: 16, fontWeight: 500 }}>Profile</div>
+        <div style={pageTitle}>Profile</div>
       </div>
 
       {/* ── Identity card (avatar + read-only name) ── */}

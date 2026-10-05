@@ -387,7 +387,7 @@ export default function ImageGallery({
                           const next = e.target.value.trim();
                           if (next !== (it.label ?? "")) onLabel(it.id, next);
                         }}
-                        style={{ width: "100%", boxSizing: "border-box", marginTop: 3, padding: "3px 6px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 11, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }}
+                        style={{ width: "100%", boxSizing: "border-box", marginTop: 3, padding: "3px 6px", borderRadius: 6, border: `1px solid ${C.n[300]}`, fontSize: 11, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }}
                       />
                     ) : (
                       it.label && <div style={{ fontSize: 11, color: C.n[800], marginTop: 3 }}>{it.label}</div>

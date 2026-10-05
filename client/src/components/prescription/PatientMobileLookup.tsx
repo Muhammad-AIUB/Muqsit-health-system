@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, font } from "@/theme";
-import { inputSm, fieldLabel, btnPrimary, btnSecondary } from "@/theme/styles";
+import { inputSm, fieldLabel, btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
 import { patientsApi, type Patient, type RelativeMatch } from "@/lib/api";
 import { ageFromDob, displayAge } from "@/lib/age";
 import { YEAR_POLICY } from "@/lib/dateInput";
@@ -402,10 +402,10 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
   return (
     <div
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,32,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, fontFamily: font, padding: 16 }}
+      style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, fontFamily: font, padding: 16 }}
     >
       <div role="dialog" aria-modal="true" aria-label={title} {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 440, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: C.n[900], marginBottom: 16 }}>{title}</div>
+        <div style={{ ...dialogTitle, marginBottom: 16 }}>{title}</div>
         {children}
       </div>
     </div>

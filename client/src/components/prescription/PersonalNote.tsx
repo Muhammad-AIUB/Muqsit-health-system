@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C, font } from "@/theme";
-import { btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, patientNotesApi, type PatientNoteInfo } from "@/lib/api";
@@ -172,13 +172,13 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
   return (
     <div
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      style={{ position: "fixed", inset: 0, background: scrim, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
       <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", fontFamily: font }}>
         <style>{sensitiveCss(".pn-view", { inert: true })}</style>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>My Personal Note for This Patient</div>
+            <div style={{ ...dialogTitle }}>My Personal Note for This Patient</div>
             <div style={{ fontSize: 11.5, color: C.n[600], marginTop: 2 }}><Icon name="lock" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Private — only you can see this note. It is not part of the prescription.</div>
           </div>
           <button type="button" onClick={requestClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 18, lineHeight: 1, color: C.n[500], cursor: "pointer", padding: "2px 6px" }}>×</button>
