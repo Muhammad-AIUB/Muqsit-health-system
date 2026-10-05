@@ -74,3 +74,16 @@ CLAUDE.md section before picking one up.
   owner's permission to exercise the medication editor. Duration overrides on
   that patient were all cleared. Remove the two drugs from Drug history when they
   are no longer wanted.
+
+- [ ] **Lab test names without forced capitals (design pass, 2026-10-05).** The
+  units had to change — capitals turned `g/dL` into `G/DL` and `µL` into `ΜL` —
+  and the test names lost their capitals in the same edit (`RBC (million/uL)`).
+  The physician was told and has not yet said whether names should be capitals
+  again. If so: on the name only, never on the unit (`docs/DOMAIN.md`, "A unit
+  is shown as it is written").
+- [ ] **Left open by the 2026-10-05/06 design pass** (engineering, not product):
+  dialogs do not close on Escape or trap focus; the Investigation calendar's day
+  cells have no keyboard route (the date box above them does); a `<label>`
+  names its field but is not linked with `htmlFor`, so clicking it does not
+  focus the field; the health-trend chart's SVG axis text is still 8-10px; the
+  admin console was recoloured but only its sign-in screen was looked at.
