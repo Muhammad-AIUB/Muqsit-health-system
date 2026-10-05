@@ -299,7 +299,7 @@ function AddNewModal({
           <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: "0 0 130px" }}>
               <div style={fieldLabel}>Their sex</div>
-              <select value={ownerSex} onChange={(e) => setOwnerSex(e.target.value)} style={{ ...inputSm, cursor: "pointer" }}>
+              <select aria-label="Their sex" value={ownerSex} onChange={(e) => setOwnerSex(e.target.value)} style={{ ...inputSm, cursor: "pointer" }}>
                 <option value="">—</option>
                 <option>Male</option>
                 <option>Female</option>
@@ -347,7 +347,7 @@ function IdentityFields({
     <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
       <div style={{ flex: "0 0 130px" }}>
         <div style={fieldLabel}>Sex</div>
-        <select value={sex} onChange={(e) => setSex(e.target.value)} style={{ ...inputSm, cursor: "pointer" }}>
+        <select aria-label="Sex" value={sex} onChange={(e) => setSex(e.target.value)} style={{ ...inputSm, cursor: "pointer" }}>
           <option value="">—</option>
           <option>Male</option>
           <option>Female</option>
@@ -369,7 +369,7 @@ function IdentityFields({
       </div>
       <div style={{ flex: "0 0 100px" }}>
         <div style={fieldLabel}>Age</div>
-        <input
+        <input aria-label="Age"
           value={fromDob != null ? String(fromDob) : age}
           onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
           readOnly={fromDob != null}

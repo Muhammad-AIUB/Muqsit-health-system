@@ -115,7 +115,7 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
       {pendingFile && (
         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.n[700], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 8, padding: "6px 10px" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0 }}><Icon name="paperclip" size={13} /> {pendingFile.name}</span>
-          <button onClick={() => setPendingFile(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14 }}>×</button>
+          <button aria-label="Remove attachment" onClick={() => setPendingFile(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14 }}>×</button>
         </div>
       )}
 

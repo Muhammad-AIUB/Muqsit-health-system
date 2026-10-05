@@ -110,7 +110,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
 
         <div style={{ padding: "16px 20px", overflowY: "auto" }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], marginBottom: 6 }}>Name of the group</div>
-          <input
+          <input aria-label="Name of the group"
             autoFocus
             value={name}
             onChange={(e) => { setName(e.target.value); setProblem(null); }}

@@ -274,7 +274,7 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
               return (
                 <div key={name} style={{ display: "flex", flexWrap: "wrap", gap: 6, rowGap: 4, alignItems: "center" }}>
                   <span style={{ flex: "0 0 90px", fontSize: 11, color: C.n[700], textTransform: "capitalize" }}>{name}</span>
-                  <input type="number" inputMode="decimal" placeholder="dose" value={drugDoses[name] || ""}
+                  <input aria-label={name} type="number" inputMode="decimal" placeholder="dose" value={drugDoses[name] || ""}
                     onChange={(e) => setDrugDoses((p) => ({ ...p, [name]: e.target.value }))} style={{ ...inp, flex: 1 }} />
                   <select value={drugUnits[name] || units[0]} onChange={(e) => setDrugUnits((p) => ({ ...p, [name]: e.target.value }))}
                     style={{ ...inp, width: "auto", flexShrink: 0, padding: "6px 4px" }}>

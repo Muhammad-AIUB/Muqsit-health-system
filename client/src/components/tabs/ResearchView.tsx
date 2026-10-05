@@ -74,7 +74,7 @@ export default function ResearchView() {
           autoFocus
         />
         {isFetching && <span style={{ fontSize: 11, color: C.n[500] }}>Searching…</span>}
-        {rcQuery && <button onClick={() => { setRcQuery(""); setRcSelected(new Set()); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.n[500], fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>}
+        {rcQuery && <button aria-label="Close" onClick={() => { setRcQuery(""); setRcSelected(new Set()); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.n[500], fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>}
       </div>
 
       {Boolean(error) && (
@@ -173,7 +173,7 @@ export default function ResearchView() {
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 50px rgba(0,0,0,0.18)" }}>
             <div style={{ position: "sticky", top: 0, background: C.n[0], padding: "14px 18px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 15, fontWeight: 600 }}>Comparing {selectedPatients.length} patients</div>
-              <button onClick={() => setShowCompare(false)} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer" }}>×</button>
+              <button aria-label="Close" onClick={() => setShowCompare(false)} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer" }}>×</button>
             </div>
 
             {(["diseases", "tags"] as const).map((key) => {

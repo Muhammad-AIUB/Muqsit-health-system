@@ -15,6 +15,7 @@ import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
 import { ageFromDob } from "@/lib/age";
 import SupervisingDoctors from "./SupervisingDoctors";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
+import { pressable } from "@/lib/a11y";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
 const ethnicities = ["South Asian","Caucasian / European descent","African / African-American","East Asian","Southeast Asian","Middle Eastern / Arab","Native American / Indigenous Peoples","Pacific Islander / Polynesian","Hispanic / Latino","Aboriginal / Indigenous Australian","Jewish (Ashkenazi, Sephardic, Mizrahi)","Mediterranean","Scandinavian / Northern European","Black Caribbean","Mixed Ethnicity (Multiracial)"];
@@ -226,8 +227,8 @@ export default function PatientSettingsView() {
             <fieldset disabled={!editing} style={{ flex: 1, minWidth: 0, border: "none", margin: 0, padding: 0, opacity: editing ? 1 : 0.6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={piRow}>
-                  <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
-                  <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Hospital ID</div><input style={piInp} value={pI.hospitalId} onChange={(e) => setPi("hospitalId", e.target.value)} placeholder="Hospital ID" /></div>
+                  <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input aria-label="Name" style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
+                  <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Hospital ID</div><input aria-label="Hospital ID" style={piInp} value={pI.hospitalId} onChange={(e) => setPi("hospitalId", e.target.value)} placeholder="Hospital ID" /></div>
                   <div style={{ flex: "0 0 140px" }}>
                     <div style={piLbl}>Date of birth</div>
                     {/* Text entry, not a native picker: DDMMYY must work here the
@@ -256,25 +257,25 @@ export default function PatientSettingsView() {
                       }
                     />
                   </div>
-                  <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => { setPi("age", e.target.value); if (!pI.dob) setPtAge(e.target.value); }} placeholder="Auto" />{piAge && <div style={{ fontSize: 10.5, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
-                  <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => { setPi("sex", e.target.value); setPtGender(e.target.value); }}><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+                  <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input aria-label="Age" style={piInp} value={piAge || pI.age} onChange={(e) => { setPi("age", e.target.value); if (!pI.dob) setPtAge(e.target.value); }} placeholder="Auto" />{piAge && <div style={{ fontSize: 10.5, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
+                  <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select aria-label="Sex" style={piSel} value={pI.sex} onChange={(e) => { setPi("sex", e.target.value); setPtGender(e.target.value); }}><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
                 </div>
                 <div style={piRow}>
-                  <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Ethnicity</div><select style={piSel} value={pI.ethnicity} onChange={(e) => setPi("ethnicity", e.target.value)}><option value="">Select ethnicity…</option>{ethnicities.map((e) => <option key={e}>{e}</option>)}</select></div>
-                  <div style={{ flex: "1 1 150px" }}><div style={piLbl}>Religion</div><select style={piSel} value={pI.religion} onChange={(e) => setPi("religion", e.target.value)}><option value="">—</option>{religions.map((r) => <option key={r}>{r}</option>)}</select></div>
-                  <div style={{ flex: "0 0 130px" }}><div style={piLbl}>Blood group &amp; Rh</div><select style={piSel} value={pI.bloodGroup} onChange={(e) => setPi("bloodGroup", e.target.value)}><option value="">—</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Other</option></select></div>
+                  <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Ethnicity</div><select aria-label="Ethnicity" style={piSel} value={pI.ethnicity} onChange={(e) => setPi("ethnicity", e.target.value)}><option value="">Select ethnicity…</option>{ethnicities.map((e) => <option key={e}>{e}</option>)}</select></div>
+                  <div style={{ flex: "1 1 150px" }}><div style={piLbl}>Religion</div><select aria-label="Religion" style={piSel} value={pI.religion} onChange={(e) => setPi("religion", e.target.value)}><option value="">—</option>{religions.map((r) => <option key={r}>{r}</option>)}</select></div>
+                  <div style={{ flex: "0 0 130px" }}><div style={piLbl}>Blood group &amp; Rh</div><select aria-label="Blood group & Rh" style={piSel} value={pI.bloodGroup} onChange={(e) => setPi("bloodGroup", e.target.value)}><option value="">—</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Other</option></select></div>
                 </div>
               </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Contact numbers</div>
             <div style={piRow}>
-              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Patient mobile * (11 digit)</div><input style={piInp} value={pI.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) { setPi("mobile", v); setPtPhone(v); } }} placeholder="01XXXXXXXXX" maxLength={11} />{pI.mobile && pI.mobile.length !== 11 && <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}</div>
-              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>NID number</div><input style={piInp} value={pI.nid} onChange={(e) => setPi("nid", e.target.value.replace(/\D/g, ""))} placeholder="National ID" /></div>
-              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Spouse mobile (11 digit)</div><input style={piInp} value={pI.spouseMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("spouseMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
+              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Patient mobile * (11 digit)</div><input aria-label="Patient mobile (11 digit)" style={piInp} value={pI.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) { setPi("mobile", v); setPtPhone(v); } }} placeholder="01XXXXXXXXX" maxLength={11} />{pI.mobile && pI.mobile.length !== 11 && <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}</div>
+              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>NID number</div><input aria-label="NID number" style={piInp} value={pI.nid} onChange={(e) => setPi("nid", e.target.value.replace(/\D/g, ""))} placeholder="National ID" /></div>
+              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Spouse mobile (11 digit)</div><input aria-label="Spouse mobile (11 digit)" style={piInp} value={pI.spouseMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("spouseMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
             </div>
             <div style={piRow}>
-              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>1st degree relative mobile *</div><input style={piInp} value={pI.relativeMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("relativeMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
-              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Relation</div><select style={piSel} value={pI.relativeRelation} onChange={(e) => setPi("relativeRelation", e.target.value)}><option value="">Select relation…</option><option>Father</option><option>Mother</option><option>Sister</option><option>Brother</option><option>Son</option><option>Daughter</option></select></div>
+              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>1st degree relative mobile *</div><input aria-label="1st degree relative mobile" style={piInp} value={pI.relativeMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("relativeMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
+              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Relation</div><select aria-label="Relation" style={piSel} value={pI.relativeRelation} onChange={(e) => setPi("relativeRelation", e.target.value)}><option value="">Select relation…</option><option>Father</option><option>Mother</option><option>Sister</option><option>Brother</option><option>Son</option><option>Daughter</option></select></div>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Financial</div>
@@ -286,18 +287,18 @@ export default function PatientSettingsView() {
             <div style={piRow}>
               <div style={{ flex: "1 1 200px", position: "relative" }}>
                 <div style={piLbl}>District (type to search)</div>
-                <input style={piInp} value={pI.district} onChange={(e) => setPi("district", e.target.value)} placeholder="Start typing district..." />
+                <input aria-label="District (type to search)" style={piInp} value={pI.district} onChange={(e) => setPi("district", e.target.value)} placeholder="Start typing district..." />
                 {pI.district && pI.district.length > 0 && filteredDistricts.length > 0 && filteredDistricts.length < 10 && !districts.includes(pI.district) && (
                   <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 6, maxHeight: 150, overflowY: "auto", zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
                     {filteredDistricts.map((d) => (
-                      <div key={d} onClick={() => setPi("district", d)} style={{ padding: "6px 10px", fontSize: 11, cursor: "pointer", borderBottom: "0.5px solid " + C.n[100] }}
+                      <div key={d} onClick={() => setPi("district", d)} {...pressable()} style={{ padding: "6px 10px", fontSize: 11, cursor: "pointer", borderBottom: "0.5px solid " + C.n[100] }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>{d}</div>
                     ))}
                   </div>
                 )}
               </div>
-              <div style={{ flex: "2 1 300px" }}><div style={piLbl}>Full address</div><input style={piInp} value={pI.fullAddress} onChange={(e) => setPi("fullAddress", e.target.value)} placeholder="House, Road, Area, Upazila..." /></div>
+              <div style={{ flex: "2 1 300px" }}><div style={piLbl}>Full address</div><input aria-label="Full address" style={piInp} value={pI.fullAddress} onChange={(e) => setPi("fullAddress", e.target.value)} placeholder="House, Road, Area, Upazila..." /></div>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Tags</div>
@@ -307,7 +308,7 @@ export default function PatientSettingsView() {
                 {(pI.tags || []).map((tag, i) => (
                   <span key={i} style={{ fontSize: 11, color: C.pri[600], background: C.pri[50], padding: "4px 8px 4px 10px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 5, border: "0.5px solid " + C.pri[100] }}>
                     {tag}
-                    <button onClick={() => setPi("tags", (pI.tags || []).filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>×</button>
+                    <button aria-label="Remove tag" onClick={() => setPi("tags", (pI.tags || []).filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>×</button>
                   </span>
                 ))}
               </div>
@@ -445,29 +446,29 @@ export default function PatientSettingsView() {
           {showFamilyForm && (
             <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
               onClick={() => setShowFamilyForm(false)}>
-              <div onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflowX: "hidden", overflowY: "auto" }}>
+              <div role="dialog" aria-modal="true" aria-label="Add family member" onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflowX: "hidden", overflowY: "auto" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "0.5px solid " + C.n[200], display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>Add {familyRelation.toLowerCase()}</div>
                     <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Fill in the details below</div>
                   </div>
-                  <button onClick={() => setShowFamilyForm(false)} style={{ width: 28, height: 28, borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                  <button aria-label="Close" onClick={() => setShowFamilyForm(false)} style={{ width: 28, height: 28, borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
                 </div>
                 <div style={{ padding: "16px 20px" }}>
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Name</div>
-                    <input value={familyForm.name} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { name: e.target.value }))}
+                    <input aria-label="Name" value={familyForm.name} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { name: e.target.value }))}
                       placeholder="Full name" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                   </div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Mobile (11 digit)</div>
-                      <input value={familyForm.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setFamilyForm(Object.assign({}, familyForm, { mobile: v })); }}
+                      <input aria-label="Mobile (11 digit)" value={familyForm.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setFamilyForm(Object.assign({}, familyForm, { mobile: v })); }}
                         placeholder="01XXXXXXXXX" maxLength={11} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>NID number</div>
-                      <input value={familyForm.nid} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { nid: e.target.value.replace(/\D/g, "") }))}
+                      <input aria-label="NID number" value={familyForm.nid} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { nid: e.target.value.replace(/\D/g, "") }))}
                         placeholder="National ID" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                     </div>
                   </div>

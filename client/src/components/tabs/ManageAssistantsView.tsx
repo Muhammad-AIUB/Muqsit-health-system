@@ -19,6 +19,7 @@ import {
   MarkedChips, PermissionGrid, btn, card, contactLine, sameSet, toggleInSet,
 } from "./permissionUi";
 import Icon from "@/components/common/Icon";
+import { pressable } from "@/lib/a11y";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -160,6 +161,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
                   <div
                     key={u.id}
                     onClick={() => !addAssistant.isPending && handleAdd(u)}
+                    {...pressable()}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 7, border: `0.5px solid ${C.n[200]}`, cursor: addAssistant.isPending ? "default" : "pointer", background: C.n[50], opacity: addAssistant.isPending ? 0.6 : 1 }}
                   >
                     <div style={{ flex: 1 }}>

@@ -9,6 +9,7 @@ import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
 import { type RxType, type OpdLayout } from "@/lib/rxPrivacy";
 import { useUpdatePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
 import Icon from "@/components/common/Icon";
+import { pressable } from "@/lib/a11y";
 
 // Mirrors the "Print Layout Configuration → Prescription pad" wizard:
 // a 5-step header, a live page preview with margin labels, page-type cards
@@ -444,6 +445,8 @@ function OpdOption({
   return (
     <div
       onClick={onClick}
+      {...pressable()}
+      aria-pressed={active}
       style={{
         flex: "1 1 280px",
         display: "flex",
@@ -499,6 +502,7 @@ function TypeChooser({
     return (
       <div
         onClick={opts.disabled || !opts.type ? undefined : () => onChoose(opts.type!)}
+        {...pressable(!opts.disabled && Boolean(opts.type))}
         style={{
           flex: "1 1 240px",
           background: C.n[0],
@@ -818,7 +822,7 @@ function NumField({ label, value, onChange }: { label: string; value: string; on
   return (
     <div>
       <div style={{ fontSize: 11, color: C.n[600], marginBottom: 6 }}>{label}</div>
-      <input value={value} onChange={onChange} inputMode="decimal" style={field} />
+      <input aria-label={label} value={value} onChange={onChange} inputMode="decimal" style={field} />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { ALL_IPD_PERM_KEYS, IPD_PERMISSION_GROUPS } from "@/lib/permissions";
 import {
   MarkedChips, PermissionGrid, btn, card, contactLine, sameSet, toggleInSet,
 } from "./permissionUi";
+import { pressable } from "@/lib/a11y";
 
 // ⚕️ "Your IPD team" — the second half of the Manage assistants page
 // ("new correction 2.docx" #2).
@@ -226,6 +227,7 @@ function WardCard({
                 candidates.map((u) => (
                   <div
                     key={u.id}
+                    {...pressable()}
                     onClick={() => {
                       if (addMember.isPending) return;
                       addMember.mutate(

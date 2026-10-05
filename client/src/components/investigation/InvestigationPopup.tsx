@@ -14,6 +14,7 @@ import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
+import { pressable } from "@/lib/a11y";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -406,7 +407,7 @@ export default function InvestigationPopup() {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
-      <div onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
+      <div role="dialog" aria-modal="true" aria-label="Investigation report findings" onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
         <style>{`
           @media (max-width: 820px) {
             .invModal { flex-direction: column !important; width: 100% !important; }
@@ -518,7 +519,7 @@ export default function InvestigationPopup() {
               <input type="file" accept={IMAGE_ACCEPT} multiple disabled={reportsUploading} style={{ display: "none" }}
                 onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
             </label>
-            <button onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
+            <button aria-label="Close" onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
           </div>
         </div>
 
@@ -548,7 +549,7 @@ export default function InvestigationPopup() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {/* Clickable month with dropdown */}
               <div style={{ position: "relative" }}>
-                <span onClick={() => setShowMonthPicker(!showMonthPicker)} style={{ fontSize: 12, fontWeight: 500, color: C.pri[600], cursor: "pointer", padding: "1px 5px", borderRadius: 4, background: showMonthPicker ? C.pri[50] : "transparent" }}>{months[m]}</span>
+                <span onClick={() => setShowMonthPicker(!showMonthPicker)} {...pressable()} aria-expanded={showMonthPicker} style={{ fontSize: 12, fontWeight: 500, color: C.pri[600], cursor: "pointer", padding: "1px 5px", borderRadius: 4, background: showMonthPicker ? C.pri[50] : "transparent" }}>{months[m]}</span>
                 {showMonthPicker && (
                   <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", marginTop: 3, background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", zIndex: 20, width: 110, maxHeight: 180, overflowY: "auto" }}>
                     {months.map((mn, idx) => (
@@ -600,7 +601,7 @@ export default function InvestigationPopup() {
             <input value={invSearch} onChange={(e) => setInvSearch(e.target.value)}
               placeholder="Search test name across all categories..."
               style={{ flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit" }} />
-            {invSearch && <button onClick={() => setInvSearch("")} style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14, padding: 0 }}>×</button>}
+            {invSearch && <button aria-label="Clear search" onClick={() => setInvSearch("")} style={{ background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14, padding: 0 }}>×</button>}
           </div>
           {invSearch && (
             searchResults.length === 0 ? (
@@ -717,7 +718,7 @@ export default function InvestigationPopup() {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
                           <div style={testLbl}>{f.l}</div>
-                          <select value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
+                          <select aria-label={f.l} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             style={{ ...inp, padding: "6px 4px" }}>
                             <option value="">Select</option>
                             {(f.opts || []).map((o) => <option key={o} value={o}>{o}</option>)}
@@ -730,7 +731,7 @@ export default function InvestigationPopup() {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
                           <div style={testLbl}>{f.l}</div>
-                          <input value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
+                          <input aria-label={f.l} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                             placeholder="Enter..." style={inp} />
                         </div>

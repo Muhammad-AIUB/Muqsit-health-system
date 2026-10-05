@@ -268,7 +268,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 28 }}>
         <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], cursor: editable ? "pointer" : "default" }} onClick={editable ? handleOpen : undefined}>{label}</span>
         {editable ? (
-          <button onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
+          <button aria-label={`Add ${label}`} onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
         ) : (
@@ -365,7 +365,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 1000,
         }} onClick={cancel}>
-          <div onClick={(e) => e.stopPropagation()} style={{
+          <div role="dialog" aria-modal="true" aria-label={label} onClick={(e) => e.stopPropagation()} style={{
             width: `min(${pd.length > 0 ? 760 : 520}px, 100%)`, maxWidth: "100%", maxHeight: "80vh", background: C.n[0], borderRadius: 14,
             border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
             display: "flex", flexDirection: "column", overflow: "hidden",
@@ -379,7 +379,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                 <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>{label}</div>
                 <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Add items, then press Done to apply</div>
               </div>
-              <button onClick={cancel} style={{
+              <button aria-label="Close" onClick={cancel} style={{
                 width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`,
                 background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -430,7 +430,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                       ) : (
                         <span key={idx} style={greenTag}>
                           {item}
-                          <button onClick={() => removeFromDraft(idx)} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                          <button aria-label={`Remove from selection: ${item}`} onClick={() => removeFromDraft(idx)} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
                         </span>
                       ),
                     )}

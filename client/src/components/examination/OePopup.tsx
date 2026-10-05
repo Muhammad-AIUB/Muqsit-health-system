@@ -89,13 +89,13 @@ export default function OePopup() {
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowOePopup(false)}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(700px, 100%)", maxWidth: "100%", maxHeight: "88vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div role="dialog" aria-modal="true" aria-label="On examination" onClick={(e) => e.stopPropagation()} style={{ width: "min(700px, 100%)", maxWidth: "100%", maxHeight: "88vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "0.5px solid " + C.n[200], background: C.n[50] }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>On examination</div>
             <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Physical examination with auto-calculations</div>
           </div>
-          <button onClick={() => setShowOePopup(false)} style={{ width: 28, height: 28, borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+          <button aria-label="Close" onClick={() => setShowOePopup(false)} style={{ width: 28, height: 28, borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
         </div>
         <div style={{ padding: "16px 20px", flex: 1, overflowY: "auto" }}>
 
@@ -104,11 +104,11 @@ export default function OePopup() {
 
           <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 6, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Anthropometry</div>
           <div style={oeRow}>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Height (cm)</div><input style={oeInp} value={oeD.heightCm} onChange={(e) => setOe("heightCm", e.target.value)} placeholder="cm" />{hCm > 0 && <div style={oeCalc}>{calcFt} ft {calcIn} in</div>}</div>
-            <div style={{ flex: "1 1 60px" }}><div style={oeLbl}>Height (ft)</div><input style={oeInp} value={oeD.heightFt} onChange={(e) => setOe("heightFt", e.target.value)} placeholder="feet" /></div>
-            <div style={{ flex: "1 1 60px" }}><div style={oeLbl}>Height (in)</div><input style={oeInp} value={oeD.heightIn} onChange={(e) => setOe("heightIn", e.target.value)} placeholder="inch" />{(hFt > 0 || hIn > 0) && <div style={oeCalc}>{calcCmFromFtIn} cm</div>}</div>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Weight (lb)</div><input style={oeInp} value={oeD.weightLb} onChange={(e) => setOe("weightLb", e.target.value)} placeholder="lb" />{wLb > 0 && <div style={oeCalc}>{calcKgFromLb} kg</div>}</div>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Weight (kg)</div><input style={oeInp} value={oeD.weightKg} onChange={(e) => setOe("weightKg", e.target.value)} placeholder="kg" /></div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Height (cm)</div><input aria-label="Height (cm)" style={oeInp} value={oeD.heightCm} onChange={(e) => setOe("heightCm", e.target.value)} placeholder="cm" />{hCm > 0 && <div style={oeCalc}>{calcFt} ft {calcIn} in</div>}</div>
+            <div style={{ flex: "1 1 60px" }}><div style={oeLbl}>Height (ft)</div><input aria-label="Height (ft)" style={oeInp} value={oeD.heightFt} onChange={(e) => setOe("heightFt", e.target.value)} placeholder="feet" /></div>
+            <div style={{ flex: "1 1 60px" }}><div style={oeLbl}>Height (in)</div><input aria-label="Height (in)" style={oeInp} value={oeD.heightIn} onChange={(e) => setOe("heightIn", e.target.value)} placeholder="inch" />{(hFt > 0 || hIn > 0) && <div style={oeCalc}>{calcCmFromFtIn} cm</div>}</div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Weight (lb)</div><input aria-label="Weight (lb)" style={oeInp} value={oeD.weightLb} onChange={(e) => setOe("weightLb", e.target.value)} placeholder="lb" />{wLb > 0 && <div style={oeCalc}>{calcKgFromLb} kg</div>}</div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Weight (kg)</div><input aria-label="Weight (kg)" style={oeInp} value={oeD.weightKg} onChange={(e) => setOe("weightKg", e.target.value)} placeholder="kg" /></div>
           </div>
           <div style={oeRow}>
             <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>BMI (auto)</div><div style={{ padding: "7px 8px", borderRadius: 6, fontSize: 13, fontWeight: 500, background: bmi > 0 ? (bmi < 18.5 ? C.warn[50] : bmi > 25 ? C.danger[50] : C.ok[50]) : C.n[100], color: bmi > 0 ? (bmi < 18.5 ? C.warn[800] : bmi > 25 ? C.danger[800] : C.ok[600]) : C.n[500] }}>{bmi > 0 ? bmi : "—"}</div></div>
@@ -117,30 +117,30 @@ export default function OePopup() {
 
           <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 6, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Vitals</div>
           <div style={oeRow}>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Systolic BP</div><input style={oeInp} value={oeD.sbp} onChange={onSbpChange} placeholder="120/80" /></div>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Diastolic BP</div><input ref={dbpRef} style={oeInp} value={oeD.dbp} onChange={(e) => setOe("dbp", e.target.value)} placeholder="mmHg" /></div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Systolic BP</div><input aria-label="Systolic BP" style={oeInp} value={oeD.sbp} onChange={onSbpChange} placeholder="120/80" /></div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Diastolic BP</div><input aria-label="Diastolic BP" ref={dbpRef} style={oeInp} value={oeD.dbp} onChange={(e) => setOe("dbp", e.target.value)} placeholder="mmHg" /></div>
             <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>MAP (auto)</div><div style={{ padding: "7px 8px", borderRadius: 6, fontSize: 13, fontWeight: 500, background: mapVal > 0 ? C.info[50] : C.n[100], color: mapVal > 0 ? C.info[800] : C.n[500] }}>{mapVal > 0 ? mapVal + " mmHg" : "—"}</div></div>
-            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Pulse (b/m)</div><input style={oeInp} value={oeD.pulse} onChange={(e) => setOe("pulse", e.target.value)} placeholder="b/m" /></div>
-            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Pulse note</div><input style={oeInp} value={oeD.pulseNote} onChange={(e) => setOe("pulseNote", e.target.value)} placeholder="Regular, irregular..." /></div>
+            <div style={{ flex: "1 1 80px" }}><div style={oeLbl}>Pulse (b/m)</div><input aria-label="Pulse (b/m)" style={oeInp} value={oeD.pulse} onChange={(e) => setOe("pulse", e.target.value)} placeholder="b/m" /></div>
+            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Pulse note</div><input aria-label="Pulse note" style={oeInp} value={oeD.pulseNote} onChange={(e) => setOe("pulseNote", e.target.value)} placeholder="Regular, irregular..." /></div>
           </div>
           <div style={oeRow}>
-            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Respiratory rate (/min)</div><input style={oeInp} value={oeD.rr} onChange={(e) => setOe("rr", e.target.value)} placeholder="/min" /></div>
-            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>SpO2 (%)</div><input style={oeInp} value={oeD.spo2} onChange={(e) => setOe("spo2", e.target.value)} placeholder="%" /></div>
-            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Anaemia</div><select style={oeSel} value={oeD.anaemia} onChange={(e) => setOe("anaemia", e.target.value)}><option value="">None</option><option>+</option><option>++</option><option>+++</option></select></div>
-            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Jaundice</div><select style={oeSel} value={oeD.jaundice} onChange={(e) => setOe("jaundice", e.target.value)}><option value="">None</option><option>+</option><option>++</option><option>+++</option></select></div>
+            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Respiratory rate (/min)</div><input aria-label="Respiratory rate (/min)" style={oeInp} value={oeD.rr} onChange={(e) => setOe("rr", e.target.value)} placeholder="/min" /></div>
+            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>SpO2 (%)</div><input aria-label="SpO2 (%)" style={oeInp} value={oeD.spo2} onChange={(e) => setOe("spo2", e.target.value)} placeholder="%" /></div>
+            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Anaemia</div><select aria-label="Anaemia" style={oeSel} value={oeD.anaemia} onChange={(e) => setOe("anaemia", e.target.value)}><option value="">None</option><option>+</option><option>++</option><option>+++</option></select></div>
+            <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>Jaundice</div><select aria-label="Jaundice" style={oeSel} value={oeD.jaundice} onChange={(e) => setOe("jaundice", e.target.value)}><option value="">None</option><option>+</option><option>++</option><option>+++</option></select></div>
           </div>
 
           <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 6, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Clinical findings</div>
           <div style={oeRow}>
-            <div style={{ flex: "1 1 120px" }}><div style={oeLbl}>Ascites</div><select style={oeSel} value={oeD.ascites} onChange={(e) => setOe("ascites", e.target.value)}><option value="">Absent</option><option>Mild</option><option>Moderate</option><option>Huge</option></select></div>
-            <div style={{ flex: "1 1 200px" }}><div style={oeLbl}>Auscultation of heart</div><input style={oeInp} value={oeD.auscHeart} onChange={(e) => setOe("auscHeart", e.target.value)} placeholder="S1S2 normal, murmur..." /></div>
-            <div style={{ flex: "1 1 200px" }}><div style={oeLbl}>Auscultation of lung</div><input style={oeInp} value={oeD.auscLung} onChange={(e) => setOe("auscLung", e.target.value)} placeholder="Clear, crepts, wheeze..." /></div>
+            <div style={{ flex: "1 1 120px" }}><div style={oeLbl}>Ascites</div><select aria-label="Ascites" style={oeSel} value={oeD.ascites} onChange={(e) => setOe("ascites", e.target.value)}><option value="">Absent</option><option>Mild</option><option>Moderate</option><option>Huge</option></select></div>
+            <div style={{ flex: "1 1 200px" }}><div style={oeLbl}>Auscultation of heart</div><input aria-label="Auscultation of heart" style={oeInp} value={oeD.auscHeart} onChange={(e) => setOe("auscHeart", e.target.value)} placeholder="S1S2 normal, murmur..." /></div>
+            <div style={{ flex: "1 1 200px" }}><div style={oeLbl}>Auscultation of lung</div><input aria-label="Auscultation of lung" style={oeInp} value={oeD.auscLung} onChange={(e) => setOe("auscLung", e.target.value)} placeholder="Clear, crepts, wheeze..." /></div>
           </div>
-          <div style={{ marginBottom: 10 }}><div style={oeLbl}>Special note / other findings</div><input style={oeInp} value={oeD.specialNote} onChange={(e) => setOe("specialNote", e.target.value)} placeholder="Any additional examination findings..." /></div>
+          <div style={{ marginBottom: 10 }}><div style={oeLbl}>Special note / other findings</div><input aria-label="Special note / other findings" style={oeInp} value={oeD.specialNote} onChange={(e) => setOe("specialNote", e.target.value)} placeholder="Any additional examination findings..." /></div>
 
           <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 6, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>History</div>
-          <div style={{ marginBottom: 10 }}><div style={oeLbl}>Disease history</div><input style={oeInp} value={oeD.diseaseHistory} onChange={(e) => setOe("diseaseHistory", e.target.value)} placeholder="e.g. First known, disease event etc." /></div>
-          <div style={{ marginBottom: 6 }}><div style={oeLbl}>Surgical / intervention history</div><input style={oeInp} value={oeD.surgicalHistory} onChange={(e) => setOe("surgicalHistory", e.target.value)} placeholder="e.g. Cholecystectomy, RFA, TACE of HCC etc." /></div>
+          <div style={{ marginBottom: 10 }}><div style={oeLbl}>Disease history</div><input aria-label="Disease history" style={oeInp} value={oeD.diseaseHistory} onChange={(e) => setOe("diseaseHistory", e.target.value)} placeholder="e.g. First known, disease event etc." /></div>
+          <div style={{ marginBottom: 6 }}><div style={oeLbl}>Surgical / intervention history</div><input aria-label="Surgical / intervention history" style={oeInp} value={oeD.surgicalHistory} onChange={(e) => setOe("surgicalHistory", e.target.value)} placeholder="e.g. Cholecystectomy, RFA, TACE of HCC etc." /></div>
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: "0.5px solid " + C.n[200], background: C.n[50] }}>

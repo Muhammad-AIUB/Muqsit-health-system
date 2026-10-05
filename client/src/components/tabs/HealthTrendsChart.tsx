@@ -620,7 +620,7 @@ export default function HealthTrendsChart({
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: C.n[700] }}>Health trend chart</div>
-        <select
+        <select aria-label="Time window"
           value={windowKey}
           onChange={(e) => setWindowKey(e.target.value as WindowKey)}
           title="Time window shown on the chart"

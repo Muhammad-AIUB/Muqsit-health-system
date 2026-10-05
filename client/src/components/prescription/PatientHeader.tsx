@@ -8,6 +8,7 @@ import { useUpdatePatient } from "@/hooks/usePatients";
 import DateField from "@/components/common/DateField";
 import MobileLookupField from "./MobileLookupField";
 import Icon from "@/components/common/Icon";
+import { pressable } from "@/lib/a11y";
 
 // The three views of one patient. "Selected" is the brand's selected look on
 // all three — it used to be amber on one and blue on the other two, and amber
@@ -123,6 +124,8 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           <label style={fieldLabel}>Photo</label>
           <div
             onClick={() => setActiveTab("pt-settings")}
+            {...pressable()}
+            aria-label="Patient photo — open Patient Settings"
             title={ptInfo.picture ? "Patient photo — change in Patient Settings" : "Add a photo in Patient Settings"}
             style={{ width: mobile ? 44 : 54, height: mobile ? 44 : 54, borderRadius: 10, overflow: "hidden", border: `0.5px solid ${C.n[200]}`, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
           >
@@ -134,13 +137,13 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             )}
           </div>
         </div>
-        <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
-        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={ageEditable ? inputSm : lk(inputSm)} readOnly={!ageEditable} title={ageEditable ? (locked ? "Not recorded yet — type it here" : undefined) : lockTitle} /></div>
+        <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input aria-label="Patient name" value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
+        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input aria-label="Age" value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={ageEditable ? inputSm : lk(inputSm)} readOnly={!ageEditable} title={ageEditable ? (locked ? "Not recorded yet — type it here" : undefined) : lockTitle} /></div>
         {/* "Sex", not "Gender": same field as Patient Settings and the IPD header,
             same column (`Patient.sex`), and the term the clinical use actually
             wants. Two names for one field is how the two screens drifted apart. */}
         <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Sex</label>
-          <select
+          <select aria-label="Sex"
             value={ptGender}
             onChange={(e) => onGender(e.target.value)}
             disabled={!sexEditable}
@@ -153,8 +156,8 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             <option>Other</option>
           </select>
         </div>
-        <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
-        <div style={{ flex: "0 0 60px" }}><label style={fieldLabel}>Weight</label><input value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
+        <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input aria-label="Address" value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
+        <div style={{ flex: "0 0 60px" }}><label style={fieldLabel}>Weight</label><input aria-label="Weight" value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
         <div style={{ flex: "0 0 130px" }}><label style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
         <MobileLookupField mobile={mobile} />
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 150px" }}>
@@ -166,7 +169,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         {/* Hospital ID — a normal inline field, in line with the others */}
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 140px" }}>
           <label style={fieldLabel}>Hospital ID</label>
-          <input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={lk({ ...inputSm, width: "100%", boxSizing: "border-box" })} readOnly={locked} title={lockTitle} />
+          <input aria-label="Hospital ID" value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={lk({ ...inputSm, width: "100%", boxSizing: "border-box" })} readOnly={locked} title={lockTitle} />
         </div>
         <div style={{ flex: mobile ? "1 1 100%" : "1 1 auto", display: "flex", alignItems: "flex-end", gap: 6, rowGap: 6, flexWrap: "wrap", paddingBottom: 1 }}>
           <button onClick={() => setActiveTab("pt-settings")} aria-current={activeTab === "pt-settings" ? "page" : undefined} style={subNav(activeTab === "pt-settings")}>

@@ -608,7 +608,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
               {showSF && isHead && (
                 <span style={{ display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }} title="Start From — type a date like 170626">
                   <span style={{ fontSize: 10, fontWeight: 700, color: C.pri[600] }}>SF:</span>
-                  <input
+                  <input aria-label="SF"
                     value={row.sf ?? ""}
                     onChange={(e) => updateRow(idx, { sf: e.target.value })}
                     onBlur={() => updateRow(idx, { sf: formatSF(row.sf ?? "") })}
@@ -874,7 +874,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 </span>
               )}
               {editMode && (started || isCont) && (
-                <button onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.danger[400], cursor: "pointer", fontSize: 15, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
+                <button aria-label="Remove this line" onClick={() => removeRow(idx)} style={{ background: "none", border: "none", color: C.danger[400], cursor: "pointer", fontSize: 15, padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>×</button>
               )}
             </div>
             {/* The prescribing warning for THIS medicine, pointing up at it,

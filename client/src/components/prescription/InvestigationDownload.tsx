@@ -140,7 +140,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
       <div style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 480, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: C.n[900] }}>Download investigation summary</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: C.n[500], cursor: "pointer" }}>×</button>
+          <button aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: C.n[500], cursor: "pointer" }}>×</button>
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -170,7 +170,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
         <div style={{ display: "flex", gap: 20, marginBottom: 18, flexWrap: "wrap" }}>
           <div>
             <div style={lbl}>By category</div>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inp, cursor: "pointer", minWidth: 170 }}>
+            <select aria-label="By category" value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inp, cursor: "pointer", minWidth: 170 }}>
               <option value="all">All categories</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>

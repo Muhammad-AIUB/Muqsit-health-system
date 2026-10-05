@@ -9,6 +9,7 @@ import { ApiError, authApi, uploadImage, type Profession, type RegisterInput } f
 import { verifyNidNumber, type NidMatch } from "@/lib/ocr";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
+import { pressable } from "@/lib/a11y";
 
 // ── Profession metadata (drives conditional fields) ──────────
 const PROFESSIONS: { value: Profession; label: string }[] = [
@@ -340,18 +341,18 @@ export default function SignupPage() {
 
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
                   <label style={labelStyle}>Name</label>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Rahman" style={fieldStyle} />
+                  <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Rahman" style={fieldStyle} />
                 </div>
 
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
                   <label style={labelStyle}>Email address</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="doctor@clinic.com" style={fieldStyle} />
+                  <input aria-label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="doctor@clinic.com" style={fieldStyle} />
                   <span style={{ fontSize: 11, color: C.n[500] }}>We&apos;ll email a verification code after you submit.</span>
                 </div>
 
                 <div style={groupStyle}>
                   <label style={labelStyle}>Mobile number</label>
-                  <input
+                  <input aria-label="Mobile number"
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 11))}
                     inputMode="numeric"
@@ -367,7 +368,7 @@ export default function SignupPage() {
 
                 <div style={groupStyle}>
                   <label style={labelStyle}>Are you</label>
-                  <select value={profession} onChange={(e) => setProfession(e.target.value as Profession | "")} style={{ ...fieldStyle, cursor: "pointer" }}>
+                  <select aria-label="Are you" value={profession} onChange={(e) => setProfession(e.target.value as Profession | "")} style={{ ...fieldStyle, cursor: "pointer" }}>
                     <option value="">Select…</option>
                     {PROFESSIONS.map((p) => (
                       <option key={p.value} value={p.value}>{p.label}</option>
@@ -378,7 +379,7 @@ export default function SignupPage() {
                 {needsRegNo && (
                   <div style={groupStyle}>
                     <label style={labelStyle}>{regNoLabel(profession)}</label>
-                    <input value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} placeholder={regNoLabel(profession) ?? ""} style={fieldStyle} />
+                    <input aria-label={regNoLabel(profession) ?? undefined} value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} placeholder={regNoLabel(profession) ?? ""} style={fieldStyle} />
                   </div>
                 )}
 
@@ -391,7 +392,7 @@ export default function SignupPage() {
 
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
                   <label style={labelStyle}>NID number</label>
-                  <input value={nidNo} onChange={(e) => setNidNo(e.target.value)} placeholder="National ID number" style={fieldStyle} />
+                  <input aria-label="NID number" value={nidNo} onChange={(e) => setNidNo(e.target.value)} placeholder="National ID number" style={fieldStyle} />
                   {nidOcr !== "idle" && (
                     <span
                       style={{
@@ -420,17 +421,17 @@ export default function SignupPage() {
 
                 <div style={groupStyle}>
                   <label style={labelStyle}>Designation</label>
-                  <input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Professor, Medical Officer" style={fieldStyle} />
+                  <input aria-label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Professor, Medical Officer" style={fieldStyle} />
                 </div>
 
                 <div style={groupStyle}>
                   <label style={labelStyle}>Specialty</label>
-                  <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Hepatology / General practitioner" style={fieldStyle} />
+                  <input aria-label="Specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Hepatology / General practitioner" style={fieldStyle} />
                 </div>
 
                 <div style={groupStyle}>
                   <label style={labelStyle}>Password</label>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
+                  <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
                   {password.length > 0 && (
                     <span style={{ fontSize: 11, color: passwordOk ? C.ok[600] : C.warn[800] }}>
                       {passwordOk ? "✓ Strong password" : "Must include uppercase, lowercase, number & special character (min 8)"}
@@ -440,7 +441,7 @@ export default function SignupPage() {
 
                 <div style={groupStyle}>
                   <label style={labelStyle}>Retype password</label>
-                  <input type="password" value={retype} onChange={(e) => setRetype(e.target.value)} placeholder="Re-enter password" style={{ ...fieldStyle, borderColor: mismatch ? C.danger[400] : (inputSm.border as string) }} />
+                  <input aria-label="Retype password" type="password" value={retype} onChange={(e) => setRetype(e.target.value)} placeholder="Re-enter password" style={{ ...fieldStyle, borderColor: mismatch ? C.danger[400] : (inputSm.border as string) }} />
                   {mismatch && <span style={{ fontSize: 11, color: C.danger[800] }}>Passwords do not match</span>}
                 </div>
 
@@ -456,7 +457,7 @@ export default function SignupPage() {
 
               <div style={{ textAlign: "center", fontSize: 13.5, color: C.n[600], marginTop: 18 }}>
                 Already have an account?{" "}
-                <span onClick={onBack} style={{ color: C.pri[600], cursor: "pointer", fontWeight: 600 }}>Sign in</span>
+                <span onClick={onBack} {...pressable()} style={{ color: C.pri[600], cursor: "pointer", fontWeight: 600 }}>Sign in</span>
               </div>
             </>
           )}
@@ -471,7 +472,7 @@ export default function SignupPage() {
               </div>
               <div style={groupStyle}>
                 <label style={labelStyle}>Verification code</label>
-                <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="••••••" disabled={otpExpired} style={{ ...fieldStyle, letterSpacing: 8, textAlign: "center", fontSize: 18, opacity: otpExpired ? 0.5 : 1 }} />
+                <input aria-label="Verification code" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="••••••" disabled={otpExpired} style={{ ...fieldStyle, letterSpacing: 8, textAlign: "center", fontSize: 18, opacity: otpExpired ? 0.5 : 1 }} />
                 <div style={{ textAlign: "center", marginTop: 8 }}>
                   {otpExpired ? (
                     <span style={{ fontSize: 12, fontWeight: 600, color: C.danger[800] }}>Code expired — please resend a new one</span>
@@ -488,7 +489,7 @@ export default function SignupPage() {
                 {loading ? "Verifying…" : "Verify email"}
               </button>
               <div style={{ textAlign: "center", fontSize: 11, color: C.n[600], marginTop: 16 }}>
-                Didn&apos;t get it? <span onClick={resend} style={{ color: C.pri[400], cursor: "pointer", fontWeight: 500 }}>Resend code</span>
+                Didn&apos;t get it? <span onClick={resend} {...pressable()} style={{ color: C.pri[600], cursor: "pointer", fontWeight: 600 }}>Resend code</span>
               </div>
             </>
           )}

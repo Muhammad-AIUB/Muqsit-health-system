@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 
 import { C, font } from "@/theme";
 import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
+import { pressable } from "@/lib/a11y";
 
 // ── A titled image gallery: upload, edit/remove, drag-reorder, open ─────────
 //
@@ -298,6 +299,7 @@ export default function ImageGallery({
                 <div key={it.id} style={{ width: box.w }}>
                   <div
                     data-testid={`gallery-tile-${it.id}`}
+                    {...pressable()}
                     draggable={canReorder}
                     onDragStart={() => canReorder && setDragId(it.id)}
                     onDragEnd={() => { setDragId(null); setOverId(null); }}

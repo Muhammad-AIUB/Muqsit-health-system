@@ -8,6 +8,7 @@ import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
 import { useTemplates, useSaveTemplate, useDeleteTemplate } from "@/hooks/useTemplates";
 import Icon from "@/components/common/Icon";
+import { pressable } from "@/lib/a11y";
 
 const CATEGORIES: { cat: TemplateCategory; desc: string; icon: string }[] = [
   { cat: "opd", desc: "Templates for outdoor / consultation prescriptions.", icon: "▤" },
@@ -136,6 +137,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
           <div
             key={c}
             onClick={() => openCategory(c)}
+            {...pressable()}
             style={{ flex: "1 1 240px", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 12, padding: 18, cursor: "pointer" }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -178,7 +180,7 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
         <label style={{ fontSize: 13, color: C.n[800], whiteSpace: "nowrap" }}>Name of the template:</label>
-        <input
+        <input aria-label="Name of the template"
           value={name}
           onChange={(e) => { setName(e.target.value); setError(""); }}
           placeholder="e.g. AVH"

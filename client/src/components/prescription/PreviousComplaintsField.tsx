@@ -73,7 +73,7 @@ export default function PreviousComplaintsField({
               <div key={idx} style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 0" }}>
                 <span style={{ color: C.n[500], flexShrink: 0 }}>•</span>
                 <span style={{ fontSize: 12, color: C.n[800], flexShrink: 0, maxWidth: "45%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={complaint}>{complaint}</span>
-                <input
+                <input aria-label={complaint}
                   {...BANGLA_ATTR}
                   value={note}
                   onChange={(e) => setNote(idx, e.target.value)}

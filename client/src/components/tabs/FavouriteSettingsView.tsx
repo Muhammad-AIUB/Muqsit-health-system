@@ -6,6 +6,7 @@ import { btnSecondary } from "@/theme/styles";
 import { INV_CATS } from "@/data/investigations";
 import { useInvestigationPrefs, useSaveFavourites, useSaveUnitPrefs } from "@/hooks/useInvestigationPrefs";
 import Icon from "@/components/common/Icon";
+import { pressable } from "@/lib/a11y";
 
 // Settings → Favourite & unit settings.
 // Part 1 (this view): pick favourite investigations — they populate the
@@ -118,7 +119,7 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
             tests.map((t) => {
               const fav = isFav(t.name);
               return (
-                <div key={t.name} onClick={() => toggle(t.name)} style={{
+                <div key={t.name} onClick={() => toggle(t.name)} {...pressable()} aria-pressed={fav} style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, cursor: "pointer",
                   background: fav ? C.pri[50] : "transparent",
                 }}
