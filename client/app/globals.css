@@ -147,6 +147,31 @@ input[type="range"] {
   padding: 16px;
 }
 
+/* ── Working indicator ──────────────────────────────────────────
+   A ring that turns. With reduced motion it stays still and the words beside
+   it carry the message. */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--pri-100);
+  border-top-color: var(--pri-400);
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
 /* ── Narrow desktop (tablet landscape, a split-screen window) ────
    Seven labelled tabs plus the BAN/EN switch need ~925px. Below that the switch
    dropped onto a third header row. The labels are what a doctor reads, so the
