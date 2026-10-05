@@ -15,6 +15,7 @@ import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
+import { useDialog } from "@/lib/useDialog";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -336,6 +337,8 @@ export default function InvestigationPopup() {
     setShowInvPopup(false);
   };
 
+  const dialog = useDialog(showInvPopup, handleCloseInvPopup);
+
   if (!showInvPopup) return null;
 
   const today = new Date();
@@ -407,13 +410,22 @@ export default function InvestigationPopup() {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
-      <div role="dialog" aria-modal="true" aria-label="Investigation report findings" onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
+      <div role="dialog" aria-modal="true" aria-label="Investigation report findings" {...dialog} onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
         <style>{`
           @media (max-width: 820px) {
             .invModal { flex-direction: column !important; width: 100% !important; }
             .invReports { width: 100% !important; flex-shrink: 1 !important; max-height: 38vh; border-right: none !important; border-bottom: 0.5px solid ${C.n[200]}; }
-            .invBody { flex-direction: column !important; overflow-y: auto !important; }
-            .invSidebar { width: 100% !important; max-height: 150px; flex-shrink: 1 !important; border-right: none !important; border-bottom: 0.5px solid ${C.n[200]}; }
+            /* On a phone the form scrolls as ONE column. It used to keep the
+               header, calendar and search fixed and scroll only what was left —
+               about a third of the screen — while the category list, told to
+               shrink, was squeezed to a 45px strip showing one name. Now the
+               calendar scrolls away, the categories become a row of chips that
+               stays at the top, and Done stays at the bottom. */
+            .invMain { overflow-y: auto !important; }
+            .invBody { flex: none !important; flex-direction: column !important; overflow: visible !important; min-height: auto !important; }
+            .invSidebar { width: 100% !important; display: flex !important; flex-direction: row; gap: 6px; padding: 8px 12px !important; overflow-x: auto !important; overflow-y: hidden !important; flex-shrink: 0 !important; border-right: none !important; border-bottom: 1px solid ${C.n[200]}; position: sticky; top: 0; z-index: 2; background: ${C.n[0]}; }
+            .invSidebar > button { display: inline-block !important; width: auto !important; flex-shrink: 0; white-space: nowrap; padding: 6px 12px !important; border: 1px solid ${C.n[200]} !important; border-radius: 999px; font-size: 12.5px !important; }
+            .invFooter { position: sticky; bottom: 0; z-index: 2; }
             .invResults { width: 100% !important; flex-shrink: 1 !important; border-left: none !important; border-top: 0.5px solid ${C.n[200]}; }
           }
         `}</style>
@@ -493,7 +505,7 @@ export default function InvestigationPopup() {
         })()}
 
         {/* Main column (form side) */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, minHeight: 0 }}>
+        <div className="invMain" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0, minHeight: 0 }}>
 
         {/* Header — title + actions (show/hide reports, add images, close) */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8, padding: "12px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
@@ -887,7 +899,7 @@ export default function InvestigationPopup() {
                             autoFocus
                             value={editVal}
                             onChange={(e) => setEditVal(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditItem(null); }}
+                            onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") { e.preventDefault(); setEditItem(null); } }}
                             style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: 6, fontSize: 12.5, border: `0.5px solid ${C.n[200]}`, outline: "none", fontFamily: "inherit", color: C.n[900] }}
                           />
                           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
@@ -908,7 +920,7 @@ export default function InvestigationPopup() {
         </div>
 
         {/* Footer */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
+        <div className="invFooter" style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50] }}>
           <button onClick={handleCloseInvPopup} style={btnPrimary("md")}>Done</button>
         </div>
         </div>{/* /Main column */}
