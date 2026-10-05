@@ -41,7 +41,7 @@ export default function LoginPage() {
       if (remember) window.localStorage.setItem(REMEMBER_KEY, id);
       else window.localStorage.removeItem(REMEMBER_KEY);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Something went wrong. Is the API running?");
+      setError(e instanceof ApiError ? e.message : "Something went wrong. Check your internet connection and try again.");
     } finally {
       setLoading(false);
     }

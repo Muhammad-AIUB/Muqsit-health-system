@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle, scrim } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useResearchSearch } from "@/hooks/useResearch";
 
@@ -60,7 +60,7 @@ export default function ResearchView() {
 
   return (
     <div>
-      <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>Research Companion</div>
+      <div style={{ ...pageTitle, marginBottom: 4 }}>Research Companion</div>
       <div style={{ fontSize: 12, color: C.n[600], marginBottom: 16 }}>Find patients by disease, tags, or both</div>
 
       {/* Search bar */}
@@ -79,7 +79,7 @@ export default function ResearchView() {
 
       {Boolean(error) && (
         <div style={{ fontSize: 12, color: C.danger[800], background: C.danger[50], borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
-          Search failed. Is the API running?
+          Search failed. Check your internet connection and try again.
         </div>
       )}
 
@@ -169,7 +169,7 @@ export default function ResearchView() {
 
       {/* Compare panel — selected patients side by side, with shared diseases/tags */}
       {showCompare && (
-        <div onClick={() => setShowCompare(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, padding: 24 }}>
+        <div onClick={() => setShowCompare(false)} style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 50px rgba(0,0,0,0.18)" }}>
             <div style={{ position: "sticky", top: 0, background: C.n[0], padding: "14px 18px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 15, fontWeight: 600 }}>Comparing {selectedPatients.length} patients</div>

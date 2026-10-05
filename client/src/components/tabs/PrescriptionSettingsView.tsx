@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
 import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
@@ -170,7 +170,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
       setSaved("Saved.");
       setTimeout(() => setSaved(""), 2500);
     } catch (e) {
-      setSaved(e instanceof ApiError ? e.message : "Save failed. Is the API running?");
+      setSaved(e instanceof ApiError ? e.message : "Save failed. Check your internet connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -200,7 +200,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
       {/* ── Top bar ── */}
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, marginBottom: 16 }}>
         <button onClick={() => setMode(null)} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
-        <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
+        <div style={pageTitle}>Prescription settings</div>
         <span style={{ fontSize: 11, fontWeight: 600, color: isOpd ? C.ok[800] : C.info[800], background: isOpd ? C.ok[50] : C.info[50], borderRadius: 6, padding: "4px 10px" }}>
           {isOpd ? "OPD · patient privacy on" : "IPD · full details"}
         </span>
@@ -538,7 +538,7 @@ function TypeChooser({
     <div style={{ fontFamily: font, maxWidth: 900 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
         <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
-        <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
+        <div style={pageTitle}>Prescription settings</div>
       </div>
       <div style={{ fontSize: 12, color: C.n[600], marginBottom: 18 }}>
         Choose the prescription type to set up. This becomes the active type used when you print.

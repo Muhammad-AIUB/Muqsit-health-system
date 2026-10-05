@@ -95,7 +95,7 @@ export default function IpdTeamSection() {
         {wardsQuery.isLoading ? (
           <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>Loading wards…</div>
         ) : wardsQuery.isError ? (
-          <div style={{ ...card, textAlign: "center", color: C.danger[800], fontSize: 12 }}>Could not load wards. Is the API running?</div>
+          <div style={{ ...card, textAlign: "center", color: C.danger[800], fontSize: 12 }}>Could not load wards. Check your internet connection and try again.</div>
         ) : wards.length === 0 ? (
           <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>
             No wards yet. Add one, then put your team on it.

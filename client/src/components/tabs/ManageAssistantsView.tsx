@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C } from "@/theme";
-import { btnSecondary } from "@/theme/styles";
+import { btnSecondary, pageTitle } from "@/theme/styles";
 import { ApiError, type AssistantCandidate, type AssistantRecord } from "@/lib/api";
 import {
   useAddAssistant,
@@ -20,6 +20,7 @@ import {
 } from "./permissionUi";
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
+import EmptyState from "@/components/common/EmptyState";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -121,7 +122,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <button onClick={onBack} style={btnSecondary("sm")}><Icon name="arrowLeft" size={14} /> Back</button>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>Manage your assistants and IPD team</div>
+          <div style={pageTitle}>Manage your assistants and IPD team</div>
           <div style={{ fontSize: 11, color: C.n[600] }}>Role based access control &amp; dynamic permission</div>
         </div>
       </div>
@@ -181,10 +182,10 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
         {assistantsQuery.isLoading ? (
           <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>Loading assistants…</div>
         ) : assistantsQuery.isError ? (
-          <div style={{ ...card, textAlign: "center", color: C.danger[800], fontSize: 12 }}>Could not load assistants. Is the API running?</div>
+          <div style={{ ...card, textAlign: "center", color: C.danger[800], fontSize: 12 }}>Could not load assistants. Check your internet connection and try again.</div>
         ) : assistants.length === 0 ? (
-          <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>
-            No assistants yet. Use “Add new assistant” to add as many as you want.
+          <div style={{ ...card, padding: 0 }}>
+            <EmptyState compact icon="users" title="No assistants yet" hint="Use “+ Add new assistant” to add as many as you want." />
           </div>
         ) : (
           assistants.map((a) => {

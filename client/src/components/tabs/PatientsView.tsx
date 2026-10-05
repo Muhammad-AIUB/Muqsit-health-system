@@ -2,13 +2,14 @@
 
 import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatients } from "@/hooks/usePatients";
 import type { Patient } from "@/lib/api";
 import { normaliseSex } from "@/lib/sex";
 import type { PtInfo } from "@/types";
 import Icon, { type IconName } from "@/components/common/Icon";
+import EmptyState from "@/components/common/EmptyState";
 
 interface RowData {
   id: string;
@@ -106,15 +107,13 @@ export default function PatientsView() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 2 }}>Patient Records</div>
+      <div style={{ ...pageTitle, marginBottom: 2 }}>Patient Records</div>
 
       {/* ── GROUP 1: Surveillance (watched flag from the API) ── */}
       <div style={{ background: C.n[0], border: `0.5px solid ${C.warn[100]}`, borderRadius: 12, padding: "14px 16px" }}>
         <SectionHeader icon="eye" title="Patients on your surveillance" count={watchedPatients.length} color={C.warn} />
         {watchedPatients.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "20px 0", color: C.n[500], fontSize: 12 }}>
-            No patients flagged — tick <strong>&quot;Keep eye on this patient&quot;</strong> in the prescription header to add one here
-          </div>
+          <EmptyState compact icon="eye" title="No patient is being watched" hint={<>Tick <strong>Keep eye on this patient</strong> in a patient&apos;s header and they are listed here.</>} />
         ) : (
           <div style={{ borderTop: `0.5px solid ${C.n[100]}` }}>
             {watchedPatients.map((p, i) => (
@@ -143,9 +142,7 @@ export default function PatientsView() {
             Couldn&apos;t load patients{error instanceof Error ? ` — ${error.message}` : ""}
           </div>
         ) : patients.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "24px 0", color: C.n[400], fontSize: 12 }}>
-            No patients yet — click <strong>+ New patient</strong> to add your first one.
-          </div>
+          <EmptyState icon="folder" title="No patients yet" hint={<>Add your first one with <strong>+ New patient</strong>.</>} />
         ) : (
           <div style={{ borderTop: `0.5px solid ${C.n[100]}` }}>
             {/* ⚕️ No Delete here (physician's decision, 2026-08-30). A patient row

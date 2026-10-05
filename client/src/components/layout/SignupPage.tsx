@@ -287,7 +287,7 @@ export default function SignupPage() {
       setOtpDeadline(Date.now() + OTP_TTL_MS);
       setStep("otp");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Something went wrong. Is the API running?");
+      setError(e instanceof ApiError ? e.message : "Something went wrong. Check your internet connection and try again.");
     } finally {
       setLoading(false);
     }

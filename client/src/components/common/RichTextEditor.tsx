@@ -264,7 +264,7 @@ const RichTextEditor = forwardRef<
     try {
       insertImage(await uploadImage(file));
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : "Image upload failed. Is the API running?");
+      window.alert(err instanceof ApiError ? err.message : "Image upload failed. Check your internet connection and try again.");
     } finally {
       setImgBusy(false);
     }

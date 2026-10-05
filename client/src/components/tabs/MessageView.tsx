@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
+import { pageTitle } from "@/theme/styles";
 import { useSupervisedPatients } from "@/hooks/useChat";
 import { displayAge } from "@/lib/age";
 import PatientChat from "@/components/prescription/PatientChat";
-import Icon from "@/components/common/Icon";
+import EmptyState from "@/components/common/EmptyState";
 
 // 4.docx: a supervising doctor's home — the patients other doctors assigned them
 // to supervise. Selecting one opens that patient's team chat (cross-doctor).
@@ -19,7 +20,7 @@ export default function MessageView() {
 
   return (
     <div>
-      <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>Supervised patients</div>
+      <div style={{ ...pageTitle, marginBottom: 4 }}>Supervised patients</div>
       <div style={{ fontSize: 12, color: C.n[500], marginBottom: 14 }}>
         Patients other doctors have assigned you to supervise. Open one to join its team chat.
       </div>
@@ -27,11 +28,7 @@ export default function MessageView() {
       {isLoading ? (
         <div style={{ padding: 40, textAlign: "center", color: C.n[500], fontSize: 13 }}>Loading…</div>
       ) : patients.length === 0 ? (
-        <div style={{ padding: 50, textAlign: "center", color: C.n[500] }}>
-          <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><Icon name="userCheck" size={30} /></div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: C.n[800] }}>No supervised patients yet</div>
-          <div style={{ fontSize: 12, marginTop: 4 }}>When a doctor adds you as a supervising doctor on a patient, it appears here.</div>
-        </div>
+        <EmptyState icon="userCheck" title="No supervised patients yet" hint="When a doctor adds you as a supervising doctor on a patient, it appears here." />
       ) : (
         <div className="msgGrid" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 14, alignItems: "start" }}>
           <style>{`@media (max-width: 680px){ .msgGrid{ grid-template-columns: 1fr !important; } }`}</style>

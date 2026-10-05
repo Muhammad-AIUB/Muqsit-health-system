@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnDisabled, btnPrimary, btnSecondary, inputMd } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
 import { useAdmitIpd, useIpdList, useSetIpdStatus } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
@@ -11,6 +11,7 @@ import { useWards } from "@/hooks/useWards";
 import { ApiError } from "@/lib/api";
 import { useMuqsit } from "@/context/MuqsitContext";
 import Icon from "@/components/common/Icon";
+import EmptyState from "@/components/common/EmptyState";
 
 // Sentinel for "not one of my wards — let me type it". Not a ward id, so it can
 // never be sent to the server as one.
@@ -120,7 +121,7 @@ export default function IpdView() {
     <div style={{ position: "relative" }}>
       <div style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8 }}>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>IPD ward management</div>
+          <div style={pageTitle}>IPD ward management</div>
           <button disabled title="Nursing Genie — coming soon" style={{ ...btnSecondary("sm"), ...btnDisabled }}>
             <Icon name="sparkles" size={15} /> Nursing Genie <span style={{ fontSize: 10.5, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
           </button>
@@ -205,9 +206,11 @@ export default function IpdView() {
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
         {isLoading && <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Loading ward…</div>}
-        {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the ward. Is the API running?</div>}
+        {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the ward. Check your internet connection and try again.</div>}
         {!isLoading && !error && filtered.length === 0 && (
-          <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>{q ? "No admitted patient matches your search." : "No admissions — admit a patient above."}</div>
+          q
+            ? <EmptyState icon="search" title="No admitted patient has this mobile number" hint="Check the number, or clear the search to see the whole ward." />
+            : <EmptyState icon="bed" title="No one is admitted" hint="Admit a patient with “+ Admit patient”." />
         )}
         {filtered.map((p, i) => {
           const color = statusColor(p.status);

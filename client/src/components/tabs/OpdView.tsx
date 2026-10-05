@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary, inputMd } from "@/theme/styles";
+import { btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddOpdVisit, useOpdQueue, useSetOpdStatus } from "@/hooks/useOpd";
 import { displayAge } from "@/lib/age";
 import { normaliseSex, sexLabel } from "@/lib/sex";
 import Pill from "@/components/common/Pill";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
+import EmptyState from "@/components/common/EmptyState";
 
 const typeColor = (type: string) => (type === "Urgent" ? "danger" : type === "Follow-up" ? "pri" : "warn");
 const initials = (name: string) =>
@@ -55,7 +56,7 @@ export default function OpdView() {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 500 }}>OPD queue management</div>
+        <div style={pageTitle}>OPD queue management</div>
         <button onClick={() => setShowAdd((s) => !s)} style={btnPrimary("md")}>
           {showAdd ? "Close" : "+ Add to queue"}
         </button>
@@ -109,9 +110,9 @@ export default function OpdView() {
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
         {isLoading && <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Loading queue…</div>}
-        {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the OPD queue. Is the API running?</div>}
+        {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the OPD queue. Check your internet connection and try again.</div>}
         {!isLoading && !error && queue.length === 0 && (
-          <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Queue is empty — add a patient above.</div>
+          <EmptyState icon="users" title="No one is in the queue" hint="Add the first patient of the day with “+ Add to queue”." />
         )}
         {queue.map((p, i) => {
           const color = typeColor(p.type);
