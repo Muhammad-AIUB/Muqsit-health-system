@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
+import { btnPrimary, btnSecondary, inputMd, pageTitle, btnDisabled, fieldLabel } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddOpdVisit, useOpdQueue, useSetOpdStatus } from "@/hooks/useOpd";
 import { displayAge } from "@/lib/age";
@@ -62,9 +62,14 @@ export default function OpdView() {
         </button>
       </div>
 
+      {/* Every box keeps its caption above it. They used to be named only by a
+          placeholder, which is gone the moment something is typed. */}
       {showAdd && (
-        <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, flex: "1 1 160px" }} />
+        <div className="form-row" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 10, rowGap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <div style={fieldLabel}>Patient name *</div>
+            <input aria-label="Patient name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, width: "100%" }} />
+          </div>
           <PatientMobileLookup
             value={phone}
             onChange={(d) => { setPhone(d); setPatientId(undefined); }}
@@ -77,28 +82,40 @@ export default function OpdView() {
               setGender(normaliseSex(p.sex));
               setPatientId(p.id);
             }}
-            label={null}
-            placeholder="Mobile"
+            label="Mobile"
+            placeholder="01XXXXXXXXX"
             wrapStyle={{ flex: "0 0 150px" }}
             inputStyle={{ ...inp, width: "100%", boxSizing: "border-box" }}
           />
-          <input value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Age" style={{ ...inp, flex: "0 0 60px" }} />
+          <div style={{ flex: "0 0 70px" }}>
+            <div style={fieldLabel}>Age</div>
+            <input aria-label="Age" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Years" style={{ ...inp, width: "100%" }} />
+          </div>
           {/* Same words as the prescription header and Patient Settings, so one
               vocabulary reaches the queue instead of M/F alongside Male/Female. */}
-          <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inp, flex: "0 0 92px" }}>
-            <option value="">Sex —</option>
+          <div style={{ flex: "0 0 100px" }}>
+            <div style={fieldLabel}>Sex</div>
+          <select aria-label="Sex" value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inp, width: "100%" }}>
+            <option value="">—</option>
             <option value="Male">Male</option>
             <option value="Female">Female</option>
             <option value="Other">Other</option>
           </select>
-          <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inp, flex: "0 0 110px" }}>
+          </div>
+          <div style={{ flex: "0 0 120px" }}>
+            <div style={fieldLabel}>Visit type</div>
+          <select aria-label="Visit type" value={type} onChange={(e) => setType(e.target.value)} style={{ ...inp, width: "100%" }}>
             <option>New</option>
             <option>Follow-up</option>
             <option>Urgent</option>
           </select>
-          <button onClick={submitAdd} disabled={addVisit.isPending || !name.trim()} style={{ ...btnPrimary("md"), opacity: addVisit.isPending || !name.trim() ? 0.6 : 1 }}>
-            {addVisit.isPending ? "Adding…" : "Add"}
-          </button>
+          </div>
+          <div className="form-submit">
+            <div style={fieldLabel} aria-hidden>&nbsp;</div>
+            <button onClick={submitAdd} disabled={addVisit.isPending || !name.trim()} title={name.trim() ? undefined : "Enter the patient's name first"} style={{ ...btnPrimary("md"), ...(addVisit.isPending || !name.trim() ? btnDisabled : null) }}>
+              {addVisit.isPending ? "Adding…" : "Add"}
+            </button>
+          </div>
         </div>
       )}
 

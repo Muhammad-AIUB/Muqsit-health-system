@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnDisabled, btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, inputMd, pageTitle, fieldLabel } from "@/theme/styles";
 import { useAdmitIpd, useIpdList, useSetIpdStatus } from "@/hooks/useIpd";
 import Pill from "@/components/common/Pill";
 import IpdDetailView from "@/components/ipd/IpdDetailView";
@@ -131,9 +131,15 @@ export default function IpdView() {
         </button>
       </div>
 
+      {/* Every box keeps its caption above it. Bed, Room no and Cabin / ward no
+          were named only by a placeholder — three numbers in a row with
+          nothing left to say which was which once they were typed. */}
       {showAdd && (
-        <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, flex: "1 1 160px" }} />
+        <div className="form-row" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 10, rowGap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div style={{ flex: "2 1 200px", minWidth: 0 }}>
+            <div style={fieldLabel}>Patient name *</div>
+            <input aria-label="Patient name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, width: "100%" }} />
+          </div>
           <div style={{ flex: "0 0 150px" }}>
             <PatientMobileLookup
               value={mobile}
@@ -144,19 +150,31 @@ export default function IpdView() {
                 if (p.hospitalId) setHospitalId(p.hospitalId);
                 setPatientId(p.id);
               }}
-              label={null}
+              label="Mobile"
               placeholder="Mobile (11 digit)"
-              inputStyle={{ ...inp, width: "100%", boxSizing: "border-box", borderColor: mobileInvalid ? C.danger[400] : C.n[200] }}
+              inputStyle={{ ...inp, width: "100%", boxSizing: "border-box", borderColor: mobileInvalid ? C.danger[400] : C.n[300] }}
             />
             {mobileInvalid && <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}
           </div>
-          <input value={hospitalId} onChange={(e) => setHospitalId(e.target.value)} placeholder="Hospital id" style={{ ...inp, flex: "0 0 110px" }} />
-          <input value={bed} onChange={(e) => setBed(e.target.value)} placeholder="Bed (e.g. B-3)" style={{ ...inp, flex: "0 0 110px" }} />
-          <input value={roomNo} onChange={(e) => setRoomNo(e.target.value)} placeholder="Room no" style={{ ...inp, flex: "0 0 100px" }} />
+          <div style={{ flex: "0 0 120px" }}>
+            <div style={fieldLabel}>Hospital ID</div>
+            <input aria-label="Hospital ID" value={hospitalId} onChange={(e) => setHospitalId(e.target.value)} style={{ ...inp, width: "100%" }} />
+          </div>
+          <div style={{ flex: "0 0 130px" }}>
+            <div style={fieldLabel}>Bed *</div>
+            <input aria-label="Bed" value={bed} onChange={(e) => setBed(e.target.value)} placeholder="Bed (e.g. B-3)" style={{ ...inp, width: "100%" }} />
+          </div>
+          <div style={{ flex: "0 0 100px" }}>
+            <div style={fieldLabel}>Room no</div>
+            <input aria-label="Room no" value={roomNo} onChange={(e) => setRoomNo(e.target.value)} style={{ ...inp, width: "100%" }} />
+          </div>
           {/* A listed ward carries the team; anything else stays free text, so
               a doctor who has not set wards up yet is never blocked. */}
           {wards.length > 0 && (
+            <div style={{ flex: "0 0 160px" }}>
+            <div style={fieldLabel}>Ward</div>
             <select
+              aria-label="Ward"
               value={wardMode === "other" ? OTHER_WARD : wardId}
               onChange={(e) => {
                 const v = e.target.value;
@@ -166,21 +184,34 @@ export default function IpdView() {
                 setWardNo(wards.find((w) => w.id === v)?.name ?? "");
               }}
               title="Wards are managed in Settings → Manage your assistants and IPD team"
-              style={{ ...inp, flex: "0 0 150px", cursor: "pointer" }}
+              style={{ ...inp, width: "100%", cursor: "pointer" }}
             >
-              <option value="">Ward — none</option>
+              <option value="">None</option>
               {wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               <option value={OTHER_WARD}>Other (type it)…</option>
             </select>
+            </div>
           )}
           {(wards.length === 0 || wardMode === "other") && (
-            <input value={wardNo} onChange={(e) => { setWardNo(e.target.value); setWardId(""); }} placeholder="Cabin / ward no" style={{ ...inp, flex: "0 0 130px" }} />
+            <div style={{ flex: "0 0 140px" }}>
+              <div style={fieldLabel}>Cabin / ward no</div>
+              <input aria-label="Cabin / ward no" value={wardNo} onChange={(e) => { setWardNo(e.target.value); setWardId(""); }} style={{ ...inp, width: "100%" }} />
+            </div>
           )}
-          <input value={floorBuilding} onChange={(e) => setFloorBuilding(e.target.value)} placeholder="Floor or building" style={{ ...inp, flex: "1 1 130px" }} />
-          <input value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Diagnosis" style={{ ...inp, flex: "1 1 140px" }} />
-          <button onClick={submitAdmit} disabled={admit.isPending || !bed.trim() || !name.trim() || mobileInvalid} style={{ ...btnPrimary("md"), opacity: admit.isPending || !bed.trim() || !name.trim() || mobileInvalid ? 0.6 : 1 }}>
-            {admit.isPending ? "Admitting…" : "Admit"}
-          </button>
+          <div style={{ flex: "1 1 130px", minWidth: 0 }}>
+            <div style={fieldLabel}>Floor or building</div>
+            <input aria-label="Floor or building" value={floorBuilding} onChange={(e) => setFloorBuilding(e.target.value)} style={{ ...inp, width: "100%" }} />
+          </div>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <div style={fieldLabel}>Diagnosis</div>
+            <input aria-label="Diagnosis" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} style={{ ...inp, width: "100%" }} />
+          </div>
+          <div className="form-submit">
+            <div style={fieldLabel} aria-hidden>&nbsp;</div>
+            <button onClick={submitAdmit} disabled={admit.isPending || !bed.trim() || !name.trim() || mobileInvalid} title={!name.trim() || !bed.trim() ? "Enter the patient's name and a bed first" : undefined} style={{ ...btnPrimary("md"), ...(admit.isPending || !bed.trim() || !name.trim() || mobileInvalid ? btnDisabled : null) }}>
+              {admit.isPending ? "Admitting…" : "Admit"}
+            </button>
+          </div>
           {admitError && (
             <div role="alert" style={{ flex: "1 1 100%", fontSize: 11, color: C.danger[800] }}>{admitError}</div>
           )}

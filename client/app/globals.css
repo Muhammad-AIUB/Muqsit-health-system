@@ -195,6 +195,28 @@ input[type="range"] {
   }
 }
 
+/* ── A captioned form row (`.form-row`), on a phone ──────────────
+   On a wide screen each box keeps the width written on it and the submit
+   button stands level with the boxes, under a blank caption. On a phone the
+   same widths left every wrapped line ragged — two boxes and a gap — and the
+   button alone under 30px of nothing. So there the boxes share out each line
+   and the button becomes a full-width bar of its own.
+   `!important` because the widths are inline styles. */
+@media (max-width: 767px) {
+  .form-row > * {
+    flex-grow: 1 !important;
+  }
+  .form-row > .form-submit {
+    flex-basis: 100% !important;
+  }
+  .form-row > .form-submit > [aria-hidden] {
+    display: none !important;
+  }
+  .form-row > .form-submit > button {
+    width: 100%;
+  }
+}
+
 .mobile-shell-fill {
   height: calc(100vh / 1.12);
   height: calc(100dvh / 1.12);

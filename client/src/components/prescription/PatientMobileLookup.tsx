@@ -110,6 +110,7 @@ export default function PatientMobileLookup({
         onChange={(e) => onChange(cleanDigits(e.target.value))}
         onFocus={() => { if (digits.length >= 11) setOpen(true); }}
         inputMode="tel"
+        aria-label={label || "Mobile"}
         placeholder={placeholder}
         style={inputStyle ?? inputSm}
       />
