@@ -44,6 +44,11 @@ export default function PatientMobileLookup({
     | null
   >(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  // Which edge of the field the list hangs from. The list is wider than the
+  // field and the app shell clips whatever leaves it: with Mobile at the end of
+  // the header row (1280px wide) the list ran off the right edge and its one
+  // action, "Add New", was cut off. A field in the right half hangs it leftwards.
+  const [alignRight, setAlignRight] = useState(false);
 
   const digits = cleanDigits(value);
 
@@ -66,6 +71,12 @@ export default function PatientMobileLookup({
     }, 250);
     return () => { cancel = true; clearTimeout(t); };
   }, [digits]);
+
+  useEffect(() => {
+    if (!open || !boxRef.current) return;
+    const r = boxRef.current.getBoundingClientRect();
+    setAlignRight(r.left + r.width / 2 > window.innerWidth / 2);
+  }, [open]);
 
   // Close the dropdown on an outside click.
   useEffect(() => {
@@ -103,7 +114,7 @@ export default function PatientMobileLookup({
       />
 
       {open && digits.length >= 11 && (
-        <div style={dropdown}>
+        <div style={alignRight ? { ...dropdown, left: "auto", right: 0 } : dropdown}>
           {loading && <div style={rowMuted}>Searching…</div>}
           {!loading && matches.map((p) => (
             <button key={p.id} onClick={() => pick(p)} style={rowBtn} type="button">
@@ -137,7 +148,7 @@ export default function PatientMobileLookup({
             </button>
           )}
           {!loading && matches.length === 0 && (
-            <button onClick={() => { setModal({ kind: "new", number: digits }); setOpen(false); }} style={rowAction} type="button">
+            <button onClick={() => { setModal({ kind: "new", number: digits }); setOpen(false); }} style={{ ...rowAction, whiteSpace: "nowrap" }} type="button">
               No patient on this number — <b style={{ marginLeft: 3 }}>Add New</b>
             </button>
           )}
