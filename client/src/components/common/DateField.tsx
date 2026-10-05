@@ -123,7 +123,7 @@ export default function DateField({
         style={inputStyle}
       />
       {note && (
-        <div style={{ fontSize: 9, color: C.danger[800], marginTop: 2, lineHeight: 1.3 }}>{note}</div>
+        <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2, lineHeight: 1.3 }}>{note}</div>
       )}
       {hint}
     </div>

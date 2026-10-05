@@ -102,9 +102,9 @@ export default function OpdView() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
-        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.n[600] }}>Total today</div><div style={{ fontSize: 22, fontWeight: 500 }}>{queue.length}</div></div>
-        <div style={{ background: C.ok[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.ok[600] }}>Completed</div><div style={{ fontSize: 22, fontWeight: 500, color: C.ok[600] }}>{done}</div></div>
-        <div style={{ background: C.warn[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.warn[800] }}>Waiting</div><div style={{ fontSize: 22, fontWeight: 500, color: C.warn[800] }}>{waiting}</div></div>
+        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.n[600] }}>Total today</div><div style={{ fontSize: 24, fontWeight: 600 }}>{queue.length}</div></div>
+        <div style={{ background: C.ok[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.ok[600] }}>Completed</div><div style={{ fontSize: 24, fontWeight: 600, color: C.ok[600] }}>{done}</div></div>
+        <div style={{ background: C.warn[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.warn[800] }}>Waiting</div><div style={{ fontSize: 24, fontWeight: 600, color: C.warn[800] }}>{waiting}</div></div>
       </div>
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>

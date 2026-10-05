@@ -129,12 +129,12 @@ export default function ResearchView() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>{p.name}</span>
-                          <span style={{ fontSize: 10, color: C.n[500] }}>{p.age != null ? `${p.age}y` : "—"} · {p.sex ?? "—"} · {p.mobile ?? "—"}</span>
+                          <span style={{ fontSize: 11, color: C.n[500] }}>{p.age != null ? `${p.age}y` : "—"} · {p.sex ?? "—"} · {p.mobile ?? "—"}</span>
                         </div>
                         {p.diseases.length > 0 && (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 5 }}>
                             {p.diseases.map((d) => (
-                              <span key={d} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.danger[50], color: C.danger[800], border: `0.5px solid ${C.danger[100]}` }}>
+                              <span key={d} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: C.danger[50], color: C.danger[800], border: `0.5px solid ${C.danger[100]}` }}>
                                 🩺 {highlight(d)}
                               </span>
                             ))}
@@ -143,7 +143,7 @@ export default function ResearchView() {
                         {p.tags.length > 0 && (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                             {p.tags.map((t) => (
-                              <span key={t} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.n[100], color: C.n[800] }}>
+                              <span key={t} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: C.n[100], color: C.n[800] }}>
                                 # {highlight(t)}
                               </span>
                             ))}
@@ -192,14 +192,14 @@ export default function ResearchView() {
               {selectedPatients.map((p, i) => (
                 <div key={p.id} style={{ padding: "12px 16px", borderRight: i < selectedPatients.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>{p.name}</div>
-                  <div style={{ fontSize: 10, color: C.n[500], marginBottom: 10 }}>{p.age != null ? `${p.age}y` : "—"} · {p.sex ?? "—"} · {p.mobile ?? "—"}</div>
-                  <div style={{ fontSize: 9.5, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Diseases</div>
+                  <div style={{ fontSize: 11, color: C.n[500], marginBottom: 10 }}>{p.age != null ? `${p.age}y` : "—"} · {p.sex ?? "—"} · {p.mobile ?? "—"}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Diseases</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
-                    {p.diseases.length ? p.diseases.map((d) => <span key={d} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: C.danger[50], color: C.danger[800], border: `0.5px solid ${C.danger[100]}` }}>🩺 {d}</span>) : <span style={{ fontSize: 10, color: C.n[400] }}>—</span>}
+                    {p.diseases.length ? p.diseases.map((d) => <span key={d} style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4, background: C.danger[50], color: C.danger[800], border: `0.5px solid ${C.danger[100]}` }}>🩺 {d}</span>) : <span style={{ fontSize: 11, color: C.n[400] }}>—</span>}
                   </div>
-                  <div style={{ fontSize: 9.5, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Tags</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Tags</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {p.tags.length ? p.tags.map((t) => <span key={t} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: C.n[100], color: C.n[800] }}># {t}</span>) : <span style={{ fontSize: 10, color: C.n[400] }}>—</span>}
+                    {p.tags.length ? p.tags.map((t) => <span key={t} style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4, background: C.n[100], color: C.n[800] }}># {t}</span>) : <span style={{ fontSize: 11, color: C.n[400] }}>—</span>}
                   </div>
                 </div>
               ))}

@@ -414,7 +414,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   2026-09-24) — the picks are kept and shown on Investigations. */}
               {draft.length > 0 && !(investigationTabs && tab === "groups") && (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Added ({draft.length})</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Added ({draft.length})</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center" }}>
                     {draft.map((item, idx) =>
                       (checkboxOptions || []).includes(item) ? (
@@ -483,7 +483,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   then the standard list. */}
               {filteredSugs.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Suggestions</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Suggestions</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {filteredSugs.map((s) => {
                       // ⚕️ A learned phrase carries a patient count: how many
@@ -519,7 +519,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
               <div style={{ width: 240, flexShrink: 0, borderLeft: `0.5px solid ${C.n[200]}`, background: C.n[50], display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
                 <div style={{ padding: "16px 18px 0", flexShrink: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: C.n[900], letterSpacing: "-0.01em" }}>Previous diagnosis</div>
-                <div style={{ fontSize: 10.5, color: C.n[500], marginTop: 2, marginBottom: 10 }}>From this patient&apos;s past visits</div>
+                <div style={{ fontSize: 11, color: C.n[500], marginTop: 2, marginBottom: 10 }}>From this patient&apos;s past visits</div>
 
                 {/* Actions, deliberately NOT a "select all" checkbox: a tickbox
                     that mirrors the rows below reads as though the doctor
@@ -536,7 +536,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                       color: C.n[600], cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2,
                     }}>Clear</button>
                   )}
-                  <span style={{ fontSize: 10.5, color: C.n[500], marginLeft: "auto" }}>{pdChosen.length}/{pd.length}</span>
+                  <span style={{ fontSize: 11, color: C.n[500], marginLeft: "auto" }}>{pdChosen.length}/{pd.length}</span>
                 </div>
                 </div>
 

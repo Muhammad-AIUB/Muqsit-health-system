@@ -38,7 +38,7 @@ export default function InvestigationDirectory({ selected, onToggle }: {
 
   return (
     <div style={{ marginTop: 16 }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
         Select from Directories
       </div>
       <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 8, overflow: "hidden" }}>

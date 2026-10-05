@@ -571,13 +571,13 @@ export default function HealthTrendsChart({
           style={dateInput(Boolean(uptoBad))}
         />
         {(sfBad || uptoBad) && (
-          <div style={{ flex: "1 1 100%", fontSize: 9.5, color: C.danger[800], lineHeight: 1.45 }}>{sfBad ?? uptoBad}</div>
+          <div style={{ flex: "1 1 100%", fontSize: 10.5, color: C.danger[800], lineHeight: 1.45 }}>{sfBad ?? uptoBad}</div>
         )}
         {/* The bar this row controls may be unticked, or outside the chosen
             window, so the row has to state the result itself — otherwise a date
             can be typed with nothing visibly happening. */}
         {overridden && !sfBad && !uptoBad && (
-          <div style={{ flex: "1 1 100%", fontSize: 9.5, color: C.n[500], lineHeight: 1.45 }}>
+          <div style={{ flex: "1 1 100%", fontSize: 10.5, color: C.n[500], lineHeight: 1.45 }}>
             Shown as <b>{track.from === track.to ? track.from : `${track.from} – ${track.to}`}</b>
             {" · recorded "}{track.recFrom === track.recTo ? track.recFrom : `${track.recFrom} – ${track.recTo}`}
           </div>
@@ -631,13 +631,13 @@ export default function HealthTrendsChart({
           ))}
         </select>
       </div>
-      <div style={{ fontSize: 10.5, color: C.n[500], marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: C.n[500], marginBottom: 12 }}>
         Medication and symptom bars span first → last recorded mention for that name — not necessarily continuous use.
         A dot marks a name recorded on one date only. A dashed bar has a duration the doctor set by hand.
       </div>
 
       {(hasPlot || hasGantt) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 8, fontSize: 10.5 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 8, fontSize: 11 }}>
           {lanes.map(({ param }) => (
             <span key={paramKey(param)} style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.n[700] }}>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: colorFor(param), display: "inline-block", flexShrink: 0 }} />
@@ -861,7 +861,7 @@ export default function HealthTrendsChart({
               );
             })}
           </svg>
-          <div style={{ fontSize: 9.5, color: C.n[500], textAlign: "right", marginTop: 2 }}>
+          <div style={{ fontSize: 10.5, color: C.n[500], textAlign: "right", marginTop: 2 }}>
             {windowKey === "all"
               ? dataFrom != null && dataTo != null
                 ? `Showing ${msToDdmmyyyy(dataFrom)} – ${msToDdmmyyyy(dataTo)} · hover any point or bar for its date`
@@ -926,7 +926,7 @@ export default function HealthTrendsChart({
       </div>
 
       {(unplaceable > 0 || aheadDated > 0) && (
-        <div style={{ fontSize: 10, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
           {unplaceable > 0 && (
             <>
               {unplaceable} recorded {unplaceable === 1 ? "entry has a date" : "entries have dates"} this timeline cannot read,
@@ -945,13 +945,13 @@ export default function HealthTrendsChart({
       )}
 
       {saveError && (
-        <div style={{ fontSize: 10.5, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 6, padding: "7px 10px", marginTop: 8, lineHeight: 1.5 }}>
           {saveError}
         </div>
       )}
 
       {(editDrugs || editSymptoms) && (
-        <div style={{ fontSize: 10, color: C.n[500], marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: C.n[500], marginTop: 8, lineHeight: 1.5 }}>
           Type <b>DDMMYY</b> (e.g. <b>030626</b>) or a full date. Leave a box empty to keep the date recorded in this
           patient&apos;s notes. Editing here only changes the chart — the prescriptions and the drug history are untouched.
         </div>
@@ -961,14 +961,14 @@ export default function HealthTrendsChart({
 }
 
 const colHeaderRow: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 8, minHeight: 20 };
-const colTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.05em" };
+const colTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.05em" };
 const emptyMsg: React.CSSProperties = { fontSize: 11, color: C.n[500], padding: "4px 0" };
 const checkRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, marginBottom: 6, cursor: "pointer" };
 const checkInput: React.CSSProperties = { accentColor: C.pri[400], width: 13, height: 13, cursor: "pointer", flexShrink: 0 };
 const checkLabel: React.CSSProperties = { fontSize: 11, color: C.n[800], flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const countBadge: React.CSSProperties = { fontSize: 9.5, color: C.n[500], flexShrink: 0 };
-const rangeHint: React.CSSProperties = { fontSize: 9.5, color: C.n[500], flexShrink: 0, whiteSpace: "nowrap" };
-const fieldTag: React.CSSProperties = { fontSize: 9, color: C.n[500], flexShrink: 0, letterSpacing: "0.03em" };
+const countBadge: React.CSSProperties = { fontSize: 10.5, color: C.n[500], flexShrink: 0 };
+const rangeHint: React.CSSProperties = { fontSize: 10.5, color: C.n[500], flexShrink: 0, whiteSpace: "nowrap" };
+const fieldTag: React.CSSProperties = { fontSize: 10.5, color: C.n[500], flexShrink: 0, letterSpacing: "0.03em" };
 const windowSelect: React.CSSProperties = {
   fontSize: 11, fontFamily: "inherit", color: C.n[800], background: C.n[0],
   border: `0.5px solid ${C.n[300]}`, borderRadius: 6, padding: "4px 8px", cursor: "pointer", outline: "none",
@@ -981,15 +981,15 @@ const dateInput = (bad: boolean): React.CSSProperties => ({
   flex: "1 1 76px", minWidth: 0, padding: "3px 6px", borderRadius: 5,
   border: `0.5px solid ${bad ? C.danger[400] : C.n[200]}`,
   background: bad ? C.danger[50] : C.n[0],
-  fontFamily: "inherit", fontSize: 10.5, outline: "none", color: C.n[800],
+  fontFamily: "inherit", fontSize: 11, outline: "none", color: C.n[800],
 });
 const editBtn = (on: boolean): React.CSSProperties => ({
-  fontSize: 9.5, fontFamily: "inherit", fontWeight: 600, letterSpacing: "0.03em",
+  fontSize: 10.5, fontFamily: "inherit", fontWeight: 600, letterSpacing: "0.03em",
   color: on ? C.n[0] : C.pri[600], background: on ? C.pri[400] : C.pri[50],
   border: "none", borderRadius: 5, padding: "3px 8px", cursor: "pointer", flexShrink: 0,
 });
 const resetBtn = (enabled: boolean): React.CSSProperties => ({
-  fontSize: 9.5, fontFamily: "inherit", color: enabled ? C.danger[800] : C.n[300],
+  fontSize: 10.5, fontFamily: "inherit", color: enabled ? C.danger[800] : C.n[300],
   background: enabled ? C.danger[50] : "transparent",
   border: `0.5px solid ${enabled ? C.danger[100] : C.n[200]}`,
   borderRadius: 5, padding: "3px 7px", cursor: enabled ? "pointer" : "default", flexShrink: 0,

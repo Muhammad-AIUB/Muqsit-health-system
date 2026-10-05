@@ -190,7 +190,7 @@ function HabitRow({ habit, dim, onPick, onHide, onRestore }: {
             ↳ {instructionLine(c.dose, c.food, c.duration)}
           </span>
         ))}
-        {meta && <span style={{ display: "block", fontSize: 10.5, color: C.n[500], marginTop: 2 }}>{meta}</span>}
+        {meta && <span style={{ display: "block", fontSize: 11, color: C.n[500], marginTop: 2 }}>{meta}</span>}
       </button>
       {onHide && (
         <button
@@ -696,7 +696,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                         silence plus a working dropdown. */}
                     {visibleHabitGroups.length > 0 && (
                       <div style={{ borderBottom: `1px solid ${C.n[200]}`, background: C.pri[50] + "22" }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: C.n[500], padding: "8px 14px 4px" }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: C.n[500], padding: "8px 14px 4px" }}>
                           Your usual
                         </div>
                         {visibleHabitGroups.map((g) => (
@@ -750,7 +750,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                         saved and printed; nothing is inserted without a click. */}
                     {notePhrases.length > 0 && !row.isMedicine && (
                       <div style={{ borderBottom: `1px solid ${C.n[200]}` }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: C.n[500], padding: "8px 14px 4px" }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: C.n[500], padding: "8px 14px 4px" }}>
                           Your usual notes
                         </div>
                         {notePhrases.map((p) => (
@@ -769,7 +769,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                             {/* DISTINCT PATIENTS, not prescriptions — the only
                                 thing separating routine practice from one visit. */}
                             {p.patientCount > 1 && (
-                              <span style={{ fontSize: 10.5, color: C.n[500], flexShrink: 0 }}>{p.patientCount} patients</span>
+                              <span style={{ fontSize: 11, color: C.n[500], flexShrink: 0 }}>{p.patientCount} patients</span>
                             )}
                           </button>
                         ))}

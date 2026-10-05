@@ -93,7 +93,7 @@ function PatientPhotoCorner() {
           ) : (
             <>
               <span style={{ fontSize: 22, color: C.n[500] }}>{busy ? "…" : "📷"}</span>
-              <span style={{ fontSize: 9, color: C.n[500], marginTop: 2 }}>Upload photo</span>
+              <span style={{ fontSize: 10.5, color: C.n[500], marginTop: 2 }}>Upload photo</span>
             </>
           )}
           <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onChange} disabled={busy} />
@@ -114,7 +114,7 @@ function PatientPhotoCorner() {
           </button>
         )}
       </div>
-      <div style={{ fontSize: 9, color: err ? C.danger[800] : C.n[500], marginTop: 4 }}>
+      <div style={{ fontSize: 10.5, color: err ? C.danger[800] : C.n[500], marginTop: 4 }}>
         {busy ? "Working…" : err ? err : ptInfo.picture ? "Click to change" : "For identification"}
       </div>
     </div>
@@ -215,7 +215,7 @@ export default function PatientSettingsView() {
         <Lock locked={!can("pt.info")}><div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 500 }}>Patient information</div>
-            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: currentPatientId ? C.info[50] : C.pri[50], color: currentPatientId ? C.info[800] : C.pri[600] }}>
+            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 600, background: currentPatientId ? C.info[50] : C.pri[50], color: currentPatientId ? C.info[800] : C.pri[600] }}>
               {currentPatientId ? "Editing existing" : "New patient"}
             </span>
           </div>
@@ -247,7 +247,7 @@ export default function PatientSettingsView() {
                         // DOB. Say so; never rewrite it behind the doctor's back.
                         isImplausibleDate(pI.dob ? new Date(pI.dob) : null, YEAR_POLICY.past) ? (
                           <div
-                            style={{ fontSize: 9, color: C.warn[600], marginTop: 2, lineHeight: 1.3 }}
+                            style={{ fontSize: 10.5, color: C.warn[600], marginTop: 2, lineHeight: 1.3 }}
                             title="Recorded date of birth is in the future. Please correct it."
                           >
                             ⚠ Recorded date is in the future
@@ -256,7 +256,7 @@ export default function PatientSettingsView() {
                       }
                     />
                   </div>
-                  <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => { setPi("age", e.target.value); if (!pI.dob) setPtAge(e.target.value); }} placeholder="Auto" />{piAge && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
+                  <div style={{ flex: "0 0 70px" }}><div style={piLbl}>Age *</div><input style={piInp} value={piAge || pI.age} onChange={(e) => { setPi("age", e.target.value); if (!pI.dob) setPtAge(e.target.value); }} placeholder="Auto" />{piAge && <div style={{ fontSize: 10.5, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}</div>
                   <div style={{ flex: "0 0 100px" }}><div style={piLbl}>Sex *</div><select style={piSel} value={pI.sex} onChange={(e) => { setPi("sex", e.target.value); setPtGender(e.target.value); }}><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
                 </div>
                 <div style={piRow}>
@@ -268,7 +268,7 @@ export default function PatientSettingsView() {
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Contact numbers</div>
             <div style={piRow}>
-              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Patient mobile * (11 digit)</div><input style={piInp} value={pI.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) { setPi("mobile", v); setPtPhone(v); } }} placeholder="01XXXXXXXXX" maxLength={11} />{pI.mobile && pI.mobile.length !== 11 && <div style={{ fontSize: 9, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}</div>
+              <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Patient mobile * (11 digit)</div><input style={piInp} value={pI.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) { setPi("mobile", v); setPtPhone(v); } }} placeholder="01XXXXXXXXX" maxLength={11} />{pI.mobile && pI.mobile.length !== 11 && <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}</div>
               <div style={{ flex: "1 1 160px" }}><div style={piLbl}>NID number</div><input style={piInp} value={pI.nid} onChange={(e) => setPi("nid", e.target.value.replace(/\D/g, ""))} placeholder="National ID" /></div>
               <div style={{ flex: "1 1 160px" }}><div style={piLbl}>Spouse mobile (11 digit)</div><input style={piInp} value={pI.spouseMobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setPi("spouseMobile", v); }} placeholder="01XXXXXXXXX" maxLength={11} /></div>
             </div>
@@ -334,7 +334,7 @@ export default function PatientSettingsView() {
                   const already = (pI.tags || []).includes(st);
                   return (
                     <button key={st} onClick={() => { if (!already) setPi("tags", (pI.tags || []).concat([st])); }}
-                      style={{ padding: "3px 10px", borderRadius: 5, fontSize: 9, cursor: already ? "default" : "pointer",
+                      style={{ padding: "3px 10px", borderRadius: 5, fontSize: 10.5, cursor: already ? "default" : "pointer",
                         border: "0.5px solid " + (already ? C.pri[400] : C.n[200]),
                         background: already ? C.pri[50] : C.n[50],
                         color: already ? C.pri[600] : C.n[600],
@@ -428,7 +428,7 @@ export default function PatientSettingsView() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{fm.name}</div>
-                    <div style={{ fontSize: 10, color: C.n[600] }}>{fm.sex}{fm.mobile ? " · " + fm.mobile : ""}{fm.nid ? " · NID: " + fm.nid : ""}</div>
+                    <div style={{ fontSize: 11, color: C.n[600] }}>{fm.sex}{fm.mobile ? " · " + fm.mobile : ""}{fm.nid ? " · NID: " + fm.nid : ""}</div>
                   </div>
                   <Pill bg={rc.bg} fg={rc.fg}>{fm.relation}</Pill>
                   <button title="Remove from family tree" onClick={() => {
@@ -455,24 +455,24 @@ export default function PatientSettingsView() {
                 </div>
                 <div style={{ padding: "16px 20px" }}>
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Name</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Name</div>
                     <input value={familyForm.name} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { name: e.target.value }))}
                       placeholder="Full name" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                   </div>
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Mobile (11 digit)</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Mobile (11 digit)</div>
                       <input value={familyForm.mobile} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 11) setFamilyForm(Object.assign({}, familyForm, { mobile: v })); }}
                         placeholder="01XXXXXXXXX" maxLength={11} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>NID number</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>NID number</div>
                       <input value={familyForm.nid} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { nid: e.target.value.replace(/\D/g, "") }))}
                         placeholder="National ID" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }} />
                     </div>
                   </div>
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Sex {familyForm.sex && <span style={{ fontSize: 9, color: C.pri[600], fontWeight: 400 }}>(auto-set from relation)</span>}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", marginBottom: 4 }}>Sex {familyForm.sex && <span style={{ fontSize: 10.5, color: C.pri[600], fontWeight: 400 }}>(auto-set from relation)</span>}</div>
                     <select value={familyForm.sex} onChange={(e) => setFamilyForm(Object.assign({}, familyForm, { sex: e.target.value }))}
                       style={{ width: "100%", padding: "8px 6px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: C.n[900] }}>
                       <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>

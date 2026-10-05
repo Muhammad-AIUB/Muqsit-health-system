@@ -265,7 +265,7 @@ function WardCard({
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</span>
-                      <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: m.status === "active" ? C.ok[50] : C.warn[50], color: m.status === "active" ? C.ok[600] : C.warn[800] }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: m.status === "active" ? C.ok[50] : C.warn[50], color: m.status === "active" ? C.ok[600] : C.warn[800] }}>
                         {m.status === "active" ? "Active" : "Suspended"}
                       </span>
                     </div>

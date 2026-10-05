@@ -335,7 +335,7 @@ export default function ImageGallery({
                         display: "flex", alignItems: "center", justifyContent: "center",
                         pointerEvents: "none",
                       }}>
-                        <span style={{ fontSize: 10, color: C.n[400], fontFamily: font }}>
+                        <span style={{ fontSize: 11, color: C.n[400], fontFamily: font }}>
                           Loading…
                         </span>
                       </div>
@@ -348,7 +348,7 @@ export default function ImageGallery({
                           position: "absolute", inset: 0, width: "100%", height: "100%",
                           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                           gap: 3, border: "none", background: C.warn[50], color: C.warn[800],
-                          fontFamily: font, fontSize: 10.5, lineHeight: 1.3, textAlign: "center",
+                          fontFamily: font, fontSize: 11, lineHeight: 1.3, textAlign: "center",
                           padding: 4, cursor: "pointer",
                         }}
                       >
@@ -365,7 +365,7 @@ export default function ImageGallery({
                   </div>
 
                   {it.caption && (
-                    <div style={{ fontSize: 10, color: C.n[500], marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: 11, color: C.n[500], marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {it.caption}
                     </div>
                   )}

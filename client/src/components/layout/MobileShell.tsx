@@ -45,7 +45,7 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {/* The phone mock shows this in its fake status bar; a real phone has
                 no strip above the shell, so it lives here. */}
-            {!preview && <span role="status" style={{ fontSize: 10.5, color: C.n[600], display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.ok[400] }} />Synced</span>}
+            {!preview && <span role="status" style={{ fontSize: 11, color: C.n[600], display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.ok[400] }} />Synced</span>}
             <WorkstationIndicator />
             <AccountMenu size={30} />
           </div>

@@ -122,7 +122,7 @@ export default function PatientMobileLookup({
                 {p.name}
                 {/* Another practice's patient this doctor supervises (4.docx). */}
                 {!!p.doctorId && !!activeWorkstationId && p.doctorId !== activeWorkstationId && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 999, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.03em" }}>Supervised</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: C.warn[800], background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 999, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.03em" }}>Supervised</span>
                 )}
               </span>
               <span style={{ fontSize: 11, color: C.n[500] }}>
@@ -378,7 +378,7 @@ function IdentityFields({
           title={fromDob != null ? "Computed from the date of birth — clear the date to type an age." : undefined}
           style={fromDob != null ? { ...inputSm, background: C.n[100], color: C.n[600] } : inputSm}
         />
-        {fromDob != null && <div style={{ fontSize: 9, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}
+        {fromDob != null && <div style={{ fontSize: 10.5, color: C.pri[600], marginTop: 2 }}>Auto from DOB</div>}
       </div>
     </div>
   );

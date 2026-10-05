@@ -10,7 +10,7 @@ export default function Pill({ bg, fg, children }: PillProps) {
   return (
     <span
       style={{
-        fontSize: 10,
+        fontSize: 11,
         padding: "2px 10px",
         borderRadius: 12,
         fontWeight: 500,
