@@ -281,8 +281,14 @@ export default function ImageGallery({
         }}
       >
         {items.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: C.n[500], display: "flex", alignItems: "center", minHeight: box.h }}>
-            {fileOver ? "Drop the images here" : emptyText}
+          // Centred, with a picture mark: a grey sentence pinned to the left of a
+          // large empty box read as a caption that had lost its pictures. The
+          // mark turns blue while files are held over the box.
+          <div style={{ minHeight: box.h, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, textAlign: "center", fontSize: 12.5, color: fileOver ? C.pri[600] : C.n[600] }}>
+            <span aria-hidden style={{ width: 40, height: 40, borderRadius: "50%", background: fileOver ? C.pri[100] : C.n[100], color: fileOver ? C.pri[600] : C.n[500], display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="image" size={18} />
+            </span>
+            <span style={{ maxWidth: 440, lineHeight: 1.5 }}>{fileOver ? "Drop the images here" : emptyText}</span>
           </div>
         ) : (
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
