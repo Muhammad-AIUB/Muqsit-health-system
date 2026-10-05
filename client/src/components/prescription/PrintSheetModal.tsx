@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { C, font } from "@/theme";
+import Icon from "@/components/common/Icon";
 
 // The printable prescription, shown IN the app instead of a pop-up window
 // (physician's decision, 2026-08-26). "Save & print" used to `window.open` a
@@ -79,9 +80,9 @@ export default function PrintSheetModal({
         <button
           onClick={printSheet}
           disabled={!html}
-          style={{ background: "#fff", color: html ? C.pri[600] : C.n[400], border: "none", padding: "8px 22px", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: html ? "pointer" : "not-allowed", margin: "0 4px", fontFamily: font }}
+          style={{ background: "#fff", color: html ? C.pri[600] : C.n[400], border: "none", padding: "8px 22px", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: html ? "pointer" : "not-allowed", margin: "0 4px", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 6 }}
         >
-          🖨️ Print / Save as PDF
+          <Icon name="printer" size={15} /> Print / Save as PDF
         </button>
         <button
           onClick={onClose}

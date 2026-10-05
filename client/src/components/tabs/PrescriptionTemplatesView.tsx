@@ -7,13 +7,13 @@ import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
 import { useTemplates, useSaveTemplate, useDeleteTemplate } from "@/hooks/useTemplates";
-import Icon from "@/components/common/Icon";
+import Icon, { type IconName } from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 
-const CATEGORIES: { cat: TemplateCategory; desc: string; icon: string }[] = [
-  { cat: "opd", desc: "Templates for outdoor / consultation prescriptions.", icon: "▤" },
-  { cat: "ipd", desc: "Templates for in-patient prescriptions.", icon: "▥" },
-  { cat: "custom", desc: "Your own custom prescription templates.", icon: "🛠️" },
+const CATEGORIES: { cat: TemplateCategory; desc: string; icon: IconName }[] = [
+  { cat: "opd", desc: "Templates for outdoor / consultation prescriptions.", icon: "fileText" },
+  { cat: "ipd", desc: "Templates for in-patient prescriptions.", icon: "bed" },
+  { cat: "custom", desc: "Your own custom prescription templates.", icon: "tool" },
 ];
 
 export default function PrescriptionTemplatesView({ onBack }: { onBack: () => void }) {
@@ -141,7 +141,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
             style={{ flex: "1 1 240px", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 12, padding: 18, cursor: "pointer" }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 9, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{icon}</div>
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[700] }}><Icon name={icon} size={20} /></div>
               <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>{CATEGORY_LABEL[c]}</div>
             </div>
             <div style={{ fontSize: 12, color: C.n[600], lineHeight: 1.5 }}>{desc}</div>

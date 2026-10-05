@@ -16,6 +16,7 @@ import { ageFromDob } from "@/lib/age";
 import SupervisingDoctors from "./SupervisingDoctors";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { pressable } from "@/lib/a11y";
+import Icon from "@/components/common/Icon";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
 const ethnicities = ["South Asian","Caucasian / European descent","African / African-American","East Asian","Southeast Asian","Middle Eastern / Arab","Native American / Indigenous Peoples","Pacific Islander / Polynesian","Hispanic / Latino","Aboriginal / Indigenous Australian","Jewish (Ashkenazi, Sephardic, Mizrahi)","Mediterranean","Scandinavian / Northern European","Black Caribbean","Mixed Ethnicity (Multiracial)"];
@@ -93,7 +94,7 @@ function PatientPhotoCorner() {
             <img src={ptInfo.picture} alt={ptInfo.name || "Patient"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
             <>
-              <span style={{ fontSize: 22, color: C.n[500] }}>{busy ? "…" : "📷"}</span>
+              <span style={{ fontSize: 22, color: C.n[500], display: "flex" }}>{busy ? "…" : <Icon name="camera" size={22} />}</span>
               <span style={{ fontSize: 10.5, color: C.n[500], marginTop: 2 }}>Upload photo</span>
             </>
           )}

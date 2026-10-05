@@ -8,7 +8,7 @@ import { ApiError, prescriptionLayoutApi } from "@/lib/api";
 import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
 import { type RxType, type OpdLayout } from "@/lib/rxPrivacy";
 import { useUpdatePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
-import Icon from "@/components/common/Icon";
+import Icon, { type IconName } from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 
 // Mirrors the "Print Layout Configuration → Prescription pad" wizard:
@@ -218,14 +218,14 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
           <OpdOption
             active={opdLayout === "single"}
             onClick={() => pickOpdLayout("single")}
-            icon="📄"
+            icon={["fileText"]}
             title="Full prescription in a single page"
             desc="Print one page with the patient's real name and full details."
           />
           <OpdOption
             active={opdLayout === "extra"}
             onClick={() => pickOpdLayout("extra")}
-            icon="📄+🔒"
+            icon={["fileText", "lock"]}
             title="Print an extra page for patient privacy"
             desc="Page 1 is the full prescription; page 2 repeats it with the name & mobile masked and the clinical details hidden."
           />
@@ -416,7 +416,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
           </button>
         )}
         <button onClick={save} disabled={saving || loading || loadFailed} style={{ ...btnSave, opacity: saving || loading || loadFailed ? 0.6 : 1 }}>
-          <span style={{ marginRight: 6 }}>💾</span> {saving ? "Saving…" : "Save"}
+          {saving ? "Saving…" : "Save"}
         </button>
         {stepIndex < STEPS.length - 1 && (
           <button onClick={goNext} style={{ ...btnNext, position: "absolute", right: 0 }}>
@@ -438,7 +438,7 @@ function OpdOption({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: string;
+  icon: IconName[];
   title: string;
   desc: string;
 }) {
@@ -472,7 +472,7 @@ function OpdOption({
       />
       <div>
         <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>
-          <span style={{ marginRight: 6 }}>{icon}</span>{title}
+          <span style={{ marginRight: 6, display: "inline-flex", gap: 2, verticalAlign: "-3px", color: C.n[600] }}>{icon.map((n) => <Icon key={n} name={n} size={15} />)}</span>{title}
         </div>
         <div style={{ fontSize: 11, color: C.n[600], marginTop: 3, lineHeight: 1.5 }}>{desc}</div>
       </div>
@@ -492,7 +492,7 @@ function TypeChooser({
 }) {
   const card = (opts: {
     type?: RxType;
-    icon: string;
+    icon: IconName;
     title: string;
     desc: string;
     note?: string;
@@ -521,7 +521,7 @@ function TypeChooser({
           </span>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 9, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{opts.icon}</div>
+          <div style={{ width: 38, height: 38, borderRadius: 9, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[700] }}><Icon name={opts.icon} size={20} /></div>
           <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>{opts.title}</div>
         </div>
         <div style={{ fontSize: 12, color: C.n[600], lineHeight: 1.5 }}>{opts.desc}</div>
@@ -547,18 +547,18 @@ function TypeChooser({
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
         {card({
           type: "opd",
-          icon: "🩺",
+          icon: "fileText",
           title: "OPD prescription",
           desc: "Outdoor / consultation prescription with the standard layout.",
         })}
         {card({
           type: "ipd",
-          icon: "🛏️",
+          icon: "bed",
           title: "IPD prescription",
           desc: "In-patient prescription with the full layout and complete patient details.",
         })}
         {card({
-          icon: "🛠️",
+          icon: "tool",
           title: "Customize prescription",
           desc: "Build a fully custom prescription layout from scratch.",
           note: "This feature is not available at this time.",

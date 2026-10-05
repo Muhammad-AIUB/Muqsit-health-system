@@ -25,6 +25,7 @@ import PatientGate from "./PatientGate";
 import PatientChat from "./PatientChat";
 import RxAlerts from "./RxAlerts";
 import PrintSheetModal from "./PrintSheetModal";
+import Icon from "@/components/common/Icon";
 
 // Only ever emit an href for an http(s) URL. A javascript:/data: payload (e.g. a
 // stored-XSS attempt planted on the shared practice feed) yields undefined so
@@ -372,11 +373,11 @@ function ReportsSection() {
                 <b style={{ color: C.n[900] }}>{it.name}</b>{" "}
                 {it.kind === "chat" ? (
                   <>: message : <span style={{ fontStyle: "italic", color: C.n[700] }}>“{it.body || "(attachment)"}”</span>
-                    {safeUrl(it.attachmentUrl) && <> <a href={safeUrl(it.attachmentUrl)} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎</a></>}
+                    {safeUrl(it.attachmentUrl) && <> <a href={safeUrl(it.attachmentUrl)} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }} aria-label="Open attachment"><Icon name="paperclip" size={13} style={{ verticalAlign: "-2px" }} /></a></>}
                   </>
                 ) : (
                   <>{it.action === "saved" ? "saved" : "added"} {it.section}: <span style={{ fontWeight: 600 }}>{it.detail}</span>
-                    {safeUrl(it.imageUrl) && <> <a href={safeUrl(it.imageUrl)} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}>📎 View image</a></>}
+                    {safeUrl(it.imageUrl) && <> <a href={safeUrl(it.imageUrl)} target="_blank" rel="noreferrer" style={{ color: C.info[800], textDecoration: "none", fontWeight: 500 }}><Icon name="paperclip" size={13} style={{ verticalAlign: "-2px", marginRight: 3 }} />View image</a></>}
                   </>
                 )}
               </div>

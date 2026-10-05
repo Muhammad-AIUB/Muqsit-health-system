@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { pressable } from "@/lib/a11y";
+import Icon from "@/components/common/Icon";
 
 // ── A titled image gallery: upload, edit/remove, drag-reorder, open ─────────
 //
@@ -230,7 +231,7 @@ export default function ImageGallery({
           {canEdit && (editing ? (
             <>
               <button onClick={removeSelected} disabled={selected.size === 0} style={{ padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.danger[400]}`, background: selected.size ? C.danger[400] : C.n[100], color: selected.size ? "#fff" : C.n[500], fontSize: 12, fontWeight: 500, cursor: selected.size ? "pointer" : "default", fontFamily: font, whiteSpace: "nowrap" }}>
-                🗑 Remove selected{selected.size ? ` (${selected.size})` : ""}
+                <Icon name="trash" size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />Remove selected{selected.size ? ` (${selected.size})` : ""}
               </button>
               <button onClick={exitEdit} style={ghostBtn}>Done</button>
             </>
