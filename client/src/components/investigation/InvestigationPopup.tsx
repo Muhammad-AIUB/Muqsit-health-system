@@ -677,8 +677,8 @@ export default function InvestigationPopup() {
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={invImages[k]} alt="" style={{ width: 22, height: 22, objectFit: "cover", borderRadius: 4, display: "block" }} />
                         </a>
-                        <button onClick={() => untagImageKey(k)} title="Remove this report image from this test"
-                          style={{ width: 15, height: 15, borderRadius: "50%", border: "none", background: C.danger[100], color: C.danger[800], fontSize: 9, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", padding: 0 }}>✕</button>
+                        <button onClick={() => untagImageKey(k)} title="Remove this report image from this test" aria-label="Remove this report image from this test"
+                          style={{ width: 18, height: 18, borderRadius: "50%", border: "none", background: C.danger[100], color: C.danger[800], fontSize: 11, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", padding: 0 }}>✕</button>
                       </span>
                     ))}
                     <button onClick={() => addInvNormal(test.name)} style={btnTonal("sm")}>Normal</button>

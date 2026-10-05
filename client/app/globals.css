@@ -195,6 +195,28 @@ input[type="range"] {
   }
 }
 
+/* ── A small control with a bigger place to press ───────────────
+   The round + beside each clinical field is drawn 20px, in a row that has no
+   room for more — and it is the control pressed most on the whole editor, on
+   the ward's tablet as much as with a mouse. The drawing stays; an invisible
+   margin around it takes the press (about 34 x 31px on screen instead of 22).
+   The margin is the room the row already has and no more: 4px up and down
+   keeps it inside its own 28px row — at 7px, measured, the + of Note and the +
+   of Plan each took presses meant for the other — and 5px sideways stops short
+   of the label and the chip beside it.
+   NOT for a × at the end of a list row: there any margin would reach the row
+   above or the text beside it, and a press meant for one line must never take
+   off its neighbour. */
+.hit-area {
+  position: relative;
+}
+
+.hit-area::after {
+  content: "";
+  position: absolute;
+  inset: -4px -5px;
+}
+
 /* ── A captioned form row (`.form-row`), on a phone ──────────────
    On a wide screen each box keeps the width written on it and the submit
    button stands level with the boxes, under a blank caption. On a phone the

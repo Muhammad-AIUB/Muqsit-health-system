@@ -270,7 +270,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 28 }}>
         <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], cursor: editable ? "pointer" : "default" }} onClick={editable ? handleOpen : undefined}>{label}</span>
         {editable ? (
-          <button aria-label={`Add ${label}`} onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
+          <button className="hit-area" aria-label={`Add ${label}`} onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
         ) : (
