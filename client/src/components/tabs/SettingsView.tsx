@@ -102,7 +102,7 @@ export default function SettingsView() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
                   {s.t}
-                  {dis && <span style={{ fontSize: 10.5, fontWeight: 600, color: C.n[500], background: C.n[100], padding: "1px 7px", borderRadius: 999 }}>Coming soon</span>}
+                  {dis && <span style={{ fontSize: 10.5, fontWeight: 600, color: C.n[500], background: C.n[100], padding: "1px 7px", borderRadius: 999, whiteSpace: "nowrap", flexShrink: 0 }}>Coming soon</span>}
                 </div>
                 <div style={{ fontSize: 11, color: C.n[600] }}>{s.d}</div>
               </div>
