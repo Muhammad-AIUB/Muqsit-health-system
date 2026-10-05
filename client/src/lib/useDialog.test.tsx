@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useRef, useState } from "react";
 import { useDialog } from "./useDialog";
 
 afterEach(cleanup);
@@ -94,5 +95,145 @@ describe("useDialog — Escape closes the popup on top, and only that", () => {
     render(<Popup label="Drug history" onClose={() => {}} />);
     const panel = screen.getByRole("dialog", { name: "Drug history" });
     expect(panel.getAttribute("tabindex")).toBe("-1");
+  });
+});
+
+// ── Tab stays inside, and closing goes back to where the doctor was ──
+describe("useDialog — Tab stays inside the popup", () => {
+  const tab = (shiftKey = false) => fireEvent.keyDown(document.activeElement ?? document.body, { key: "Tab", shiftKey });
+  const Form = ({ label = "Add family member" }: { label?: string }) => (
+    <Popup label={label} onClose={() => {}}>
+      <input aria-label="Name" />
+      <input aria-label="Mobile" />
+      <button type="button" disabled>Skipped</button>
+      <button type="button">Save</button>
+    </Popup>
+  );
+
+  it("⚕️ Tab on the last control comes round to the first, instead of into the page behind", () => {
+    render(<><button type="button">Behind the backdrop</button><Form /></>);
+    screen.getByRole("button", { name: "Save" }).focus();
+    const e = tab();
+    expect(e).toBe(false); // the browser's own move was stopped
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"));
+  });
+
+  it("Shift+Tab on the first control goes to the last — a disabled one is not a stop", () => {
+    render(<Form />);
+    screen.getByLabelText("Name").focus();
+    tab(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save" }));
+  });
+
+  it("in between, Tab is left to the browser and to the popup's own fields", () => {
+    render(<Form />);
+    screen.getByLabelText("Name").focus();
+    expect(tab()).toBe(true); // not prevented
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"));
+  });
+
+  it("with the focus on nothing at all, Tab starts at the first control and Shift+Tab at the last", () => {
+    render(<Form />);
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"));
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save" }));
+  });
+
+  it("a popup with nothing to press keeps the focus on itself", () => {
+    render(<><button type="button">Behind the backdrop</button><Popup label="Notice" onClose={() => {}}>Saved.</Popup></>);
+    const panel = screen.getByRole("dialog", { name: "Notice" });
+    panel.focus();
+    expect(tab()).toBe(false);
+    expect(document.activeElement).toBe(panel);
+  });
+
+  it("⚕️ focus still on the page behind — the button that opened the popup — is brought in, not walked along the page", () => {
+    render(<><button type="button">+ Add</button><Form /></>);
+    const behind = screen.getByRole("button", { name: "+ Add" });
+    behind.focus();
+    expect(tab()).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"));
+    behind.focus();
+    tab(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Save" }));
+  });
+
+  it("⚕️ only the popup on top holds Tab — a question raised over it does", () => {
+    render(
+      <>
+        <Form label="Investigation report findings" />
+        <div role="alertdialog" aria-label="Remove this page?"><button type="button">Cancel</button></div>
+      </>,
+    );
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    cancel.focus();
+    // The popup underneath must not pull the focus back out of the question.
+    expect(tab()).toBe(true);
+    expect(document.activeElement).toBe(cancel);
+  });
+
+  it("an alertdialog counts as the popup on top for Escape too", () => {
+    const closeUnder = vi.fn();
+    render(
+      <>
+        <Popup label="Investigation report findings" onClose={closeUnder} />
+        <div role="alertdialog" aria-label="Remove this page?" />
+      </>,
+    );
+    escape();
+    expect(closeUnder).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDialog — closing puts the focus back where it was", () => {
+  function Opener({ handOn }: { handOn?: boolean }) {
+    const [open, setOpen] = useState(false);
+    const next = useRef<HTMLInputElement>(null);
+    const close = () => { setOpen(false); if (handOn) next.current?.focus(); };
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>+ Add</button>
+        <input aria-label="Next box" ref={next} />
+        {open && <Inner onClose={close} />}
+      </>
+    );
+  }
+  function Inner({ onClose }: { onClose: () => void }) {
+    const dialog = useDialog(true, onClose);
+    // A box that takes the focus for itself as the popup opens.
+    return <div role="dialog" aria-label="Chief complaints" {...dialog}><input aria-label="Entry" autoFocus /><button type="button" onClick={onClose}>Done</button></div>;
+  }
+  const open = () => {
+    const add = screen.getByRole("button", { name: "+ Add" });
+    add.focus();
+    fireEvent.click(add);
+    return add;
+  };
+
+  it("⚕️ after Done, the focus is on the button that opened the popup — not lost on the page", () => {
+    render(<Opener />);
+    const add = open();
+    expect(document.activeElement).toBe(screen.getByLabelText("Entry"));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(add);
+  });
+
+  it("the same after Escape", () => {
+    render(<Opener />);
+    const add = open();
+    escape();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(add);
+  });
+
+  it("a popup that hands the focus on by itself keeps its own choice", () => {
+    render(<Opener handOn />);
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(document.activeElement).toBe(screen.getByLabelText("Next box"));
   });
 });
