@@ -371,7 +371,11 @@ export default function InvestigationPopup() {
   // A test's name and unit are shown as the catalog writes them. Forcing
   // capitals turned g/dL into G/DL, fL into FL and pg into PG — and a unit is a
   // clinical fact, not decoration.
-  const testLbl: CSSProperties = { fontSize: 10.5, fontWeight: 500, color: C.n[600], lineHeight: 1.25, marginBottom: 3 };
+  // Two lines are reserved and the text sits on the lower one, so every box in a
+  // row starts at the same height whether its neighbour's label wrapped or not
+  // ("Neutrophil count (cells/uL)" wraps, "MCV (fL)" does not). Same idea as
+  // `fieldLabel` in theme/styles.ts.
+  const testLbl: CSSProperties = { fontSize: 10.5, fontWeight: 500, color: C.n[600], lineHeight: 1.25, marginBottom: 3, minHeight: 27, display: "flex", alignItems: "flex-end" };
 
   const searchResults: { cat: string; test: string }[] = [];
   if (invSearch) {
@@ -782,7 +786,7 @@ export default function InvestigationPopup() {
                     // Single unit num field
                     return (
                       <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
-                        <div style={testLbl}>{f.l} {f.u1 && <span style={{ color: C.n[500] }}>({f.u1})</span>}</div>
+                        <div style={testLbl}><span>{f.l} {f.u1 && <span style={{ color: C.n[500] }}>({f.u1})</span>}</span></div>
                         <input value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                           placeholder={f.u1 || "Value"} style={inp} />
