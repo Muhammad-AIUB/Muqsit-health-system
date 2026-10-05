@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/api";
 import { useMuqsit } from "@/context/MuqsitContext";
 import Icon from "@/components/common/Icon";
 import EmptyState from "@/components/common/EmptyState";
+import { Loading, LoadError } from "@/components/common/ListState";
 
 // Sentinel for "not one of my wards — let me type it". Not a ward id, so it can
 // never be sent to the server as one.
@@ -25,7 +26,7 @@ const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("default", { month: "short", day: "numeric" });
 
 export default function IpdView() {
-  const { data: admissions = [], isLoading, error } = useIpdList();
+  const { data: admissions = [], isLoading, error, refetch, isFetching } = useIpdList();
   const admit = useAdmitIpd();
   const setStatus = useSetIpdStatus();
   const { loadPatientById, setActiveTab } = useMuqsit();
@@ -236,8 +237,10 @@ export default function IpdView() {
       </div>
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
-        {isLoading && <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Loading ward…</div>}
-        {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the ward. Check your internet connection and try again.</div>}
+        {isLoading && <Loading label="Loading ward…" />}
+        {/* Rows already on screen stay there when a refresh fails — they may be out
+            of date, so the notice sits above them, smaller. */}
+        {Boolean(error) && <LoadError compact={admissions.length > 0} title="Could not load the ward." onRetry={() => refetch()} retrying={isFetching} />}
         {!isLoading && !error && filtered.length === 0 && (
           q
             ? <EmptyState icon="search" title="No admitted patient has this mobile number" hint="Check the number, or clear the search to see the whole ward." />

@@ -7,6 +7,7 @@ import { useSupervisedPatients } from "@/hooks/useChat";
 import { displayAge } from "@/lib/age";
 import PatientChat from "@/components/prescription/PatientChat";
 import EmptyState from "@/components/common/EmptyState";
+import { Loading } from "@/components/common/ListState";
 
 // 4.docx: a supervising doctor's home — the patients other doctors assigned them
 // to supervise. Selecting one opens that patient's team chat (cross-doctor).
@@ -26,7 +27,7 @@ export default function MessageView() {
       </div>
 
       {isLoading ? (
-        <div style={{ padding: 40, textAlign: "center", color: C.n[500], fontSize: 13 }}>Loading…</div>
+        <Loading />
       ) : patients.length === 0 ? (
         <EmptyState icon="userCheck" title="No supervised patients yet" hint="When a doctor adds you as a supervising doctor on a patient, it appears here." />
       ) : (

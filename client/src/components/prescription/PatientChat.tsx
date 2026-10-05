@@ -10,6 +10,7 @@ import { ApiError, uploadImage, type ChatMessage } from "@/lib/api";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { imageUrlIsRenderable } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
+import { Loading } from "@/components/common/ListState";
 
 // 4.docx: a per-patient team chat. Shown under the prescription's Notification
 // area whenever a patient is loaded. Participants — owner, assistants and
@@ -106,7 +107,7 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
 
       <div ref={scrollRef} style={{ background: C.n[50], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 12, maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
         {isLoading && messages.length === 0 ? (
-          <div style={{ fontSize: 12, color: C.n[500], textAlign: "center", padding: 12 }}>Loading…</div>
+          <Loading compact />
         ) : messages.length === 0 ? (
           <div style={{ fontSize: 12, color: C.n[500], textAlign: "center", padding: 12 }}>No messages yet — start the discussion below.</div>
         ) : (

@@ -7,6 +7,7 @@ import { INV_CATS } from "@/data/investigations";
 import { useInvestigationPrefs, useSaveFavourites, useSaveUnitPrefs } from "@/hooks/useInvestigationPrefs";
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
+import { Loading } from "@/components/common/ListState";
 
 // Settings → Favourite & unit settings.
 // Part 1 (this view): pick favourite investigations — they populate the
@@ -114,7 +115,7 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
         {/* Test list with star toggles */}
         <div style={{ flex: 1, border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: 10, maxHeight: 460, overflowY: "auto" }}>
           {!loaded ? (
-            <div style={{ fontSize: 12.5, color: C.n[500], padding: 8 }}>{isLoading ? "Loading…" : "Not available until your favourites load."}</div>
+            isLoading ? <Loading compact /> : <div style={{ fontSize: 12.5, color: C.n[500], padding: 8 }}>Not available until your favourites load.</div>
           ) : (
             tests.map((t) => {
               const fav = isFav(t.name);

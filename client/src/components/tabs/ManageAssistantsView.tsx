@@ -22,6 +22,7 @@ import {
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 import EmptyState from "@/components/common/EmptyState";
+import { Loading, LoadError } from "@/components/common/ListState";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -182,9 +183,11 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {assistantsQuery.isLoading ? (
-          <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>Loading assistants…</div>
+          <div style={{ ...card, padding: 0 }}><Loading label="Loading assistants…" /></div>
         ) : assistantsQuery.isError ? (
-          <div style={{ ...card, textAlign: "center", color: C.danger[800], fontSize: 12 }}>Could not load assistants. Check your internet connection and try again.</div>
+          <div style={{ ...card, padding: 0 }}>
+            <LoadError compact title="Could not load assistants." onRetry={() => assistantsQuery.refetch()} retrying={assistantsQuery.isFetching} />
+          </div>
         ) : assistants.length === 0 ? (
           <div style={{ ...card, padding: 0 }}>
             <EmptyState compact icon="users" title="No assistants yet" hint="Use “+ Add new assistant” to add as many as you want." />

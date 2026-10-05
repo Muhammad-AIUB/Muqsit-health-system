@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { C, font } from "@/theme";
 import { inputSm, btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
 import {
@@ -15,6 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
+import { Loading, LoadError } from "@/components/common/ListState";
 
 // BMDC (registrationNo / registrationCertUrl) and name are intentionally not
 // in the draft — they're shown read-only from the original profile and no
@@ -105,16 +106,19 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError("");
     usersApi
       .me()
       .then((p) => {
         setProfile(p);
         setDraft(fromProfile(p));
       })
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load profile"))
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Check your internet connection and try again."))
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => { load(); }, [load]);
 
   const dirty = useMemo(() => {
     if (!profile || !draft) return false;
@@ -154,9 +158,13 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
   };
 
   if (loading || !draft || !profile) {
+    // The way back stays, so a profile that will not load is not a dead end.
     return (
-      <div style={{ fontFamily: font, padding: 40, color: C.n[500], fontSize: 13 }}>
-        {error || "Loading profile…"}
+      <div style={{ fontFamily: font }}>
+        <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
+        {loading || !error
+          ? <Loading label="Loading profile…" />
+          : <LoadError title="Your profile could not be loaded." detail={error} onRetry={load} />}
       </div>
     );
   }

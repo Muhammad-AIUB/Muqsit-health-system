@@ -5,11 +5,12 @@ import { C, colorOf, font } from "@/theme";
 import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatients } from "@/hooks/usePatients";
-import type { Patient } from "@/lib/api";
+import { ApiError, type Patient } from "@/lib/api";
 import { normaliseSex } from "@/lib/sex";
 import type { PtInfo } from "@/types";
 import Icon, { type IconName } from "@/components/common/Icon";
 import EmptyState from "@/components/common/EmptyState";
+import { Loading, LoadError } from "@/components/common/ListState";
 
 interface RowData {
   id: string;
@@ -65,7 +66,7 @@ export default function PatientsView() {
     activeWorkstationId,
   } = useMuqsit();
 
-  const { data: patients = [], isLoading, isError, error } = usePatients(activeWorkstationId);
+  const { data: patients = [], isLoading, isError, error, refetch, isFetching } = usePatients(activeWorkstationId);
 
   // Surveillance = real `watched` flag from the database.
   const watchedPatients = patients.filter((p) => p.watched);
@@ -136,11 +137,9 @@ export default function PatientsView() {
           action={<button onClick={newPatient} style={btnPrimary("sm")}>+ New patient</button>}
         />
         {isLoading ? (
-          <div style={{ textAlign: "center", padding: "24px 0", color: C.n[500], fontSize: 12 }}>Loading patients…</div>
+          <Loading label="Loading patients…" />
         ) : isError ? (
-          <div style={{ textAlign: "center", padding: "24px 0", color: C.danger[800], fontSize: 12 }}>
-            Couldn&apos;t load patients{error instanceof Error ? ` — ${error.message}` : ""}
-          </div>
+          <LoadError title="Could not load patients." detail={error instanceof ApiError ? error.message : undefined} onRetry={() => refetch()} retrying={isFetching} />
         ) : patients.length === 0 ? (
           <EmptyState icon="folder" title="No patients yet" hint={<>Add your first one with <strong>+ New patient</strong>.</>} />
         ) : (

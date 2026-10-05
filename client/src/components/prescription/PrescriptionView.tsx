@@ -27,6 +27,7 @@ import PatientChat from "./PatientChat";
 import RxAlerts from "./RxAlerts";
 import PrintSheetModal from "./PrintSheetModal";
 import Icon from "@/components/common/Icon";
+import { Loading } from "@/components/common/ListState";
 
 // Only ever emit an href for an http(s) URL. A javascript:/data: payload (e.g. a
 // stored-XSS attempt planted on the shared practice feed) yields undefined so
@@ -362,7 +363,7 @@ function ReportsSection() {
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, maxHeight: 300, overflowY: "auto" }}>
         {isLoading && items.length === 0 ? (
-          <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>Loading…</div>
+          <Loading compact />
         ) : items.length === 0 ? (
           <div style={{ padding: "16px", fontSize: 12, color: C.n[500], textAlign: "center" }}>Nothing yet — adds, saves &amp; chat messages will show here with name, date &amp; time.</div>
         ) : (

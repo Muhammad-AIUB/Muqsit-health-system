@@ -9,6 +9,7 @@ import { useAddSupervisor, useRemoveSupervisor, useSupervisors } from "@/hooks/u
 import { ApiError } from "@/lib/api";
 import Pill from "@/components/common/Pill";
 import Icon from "@/components/common/Icon";
+import { Loading } from "@/components/common/ListState";
 
 // Real "Supervising doctor list" for the loaded patient (4.docx). The owner
 // assigns other registered doctors by email / mobile; they then get access to
@@ -68,7 +69,7 @@ export default function SupervisingDoctors() {
 
         {/* Assigned supervisors */}
         {isLoading ? (
-          <div style={{ fontSize: 12, color: C.n[500], padding: "10px 0" }}>Loading…</div>
+          <Loading compact />
         ) : (
           supervisors.map((d, i) => (
             <div key={d.doctorId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < supervisors.length - 1 ? "0.5px solid " + C.n[200] : "none" }}>

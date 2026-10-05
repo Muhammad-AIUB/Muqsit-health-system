@@ -19,6 +19,7 @@ import {
   MarkedChips, PermissionGrid, btn, card, contactLine, sameSet, toggleInSet,
 } from "./permissionUi";
 import { pressable } from "@/lib/a11y";
+import { Loading, LoadError } from "@/components/common/ListState";
 
 // ⚕️ "Your IPD team" — the second half of the Manage assistants page
 // ("new correction 2.docx" #2).
@@ -94,9 +95,11 @@ export default function IpdTeamSection() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {wardsQuery.isLoading ? (
-          <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>Loading wards…</div>
+          <div style={{ ...card, padding: 0 }}><Loading label="Loading wards…" /></div>
         ) : wardsQuery.isError ? (
-          <div style={{ ...card, textAlign: "center", color: C.danger[800], fontSize: 12 }}>Could not load wards. Check your internet connection and try again.</div>
+          <div style={{ ...card, padding: 0 }}>
+            <LoadError compact title="Could not load wards." onRetry={() => wardsQuery.refetch()} retrying={wardsQuery.isFetching} />
+          </div>
         ) : wards.length === 0 ? (
           <div style={{ ...card, textAlign: "center", color: C.n[500], fontSize: 12 }}>
             No wards yet. Add one, then put your team on it.

@@ -10,6 +10,7 @@ import { normaliseSex, sexLabel } from "@/lib/sex";
 import Pill from "@/components/common/Pill";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 import EmptyState from "@/components/common/EmptyState";
+import { Loading, LoadError } from "@/components/common/ListState";
 
 const typeColor = (type: string) => (type === "Urgent" ? "danger" : type === "Follow-up" ? "pri" : "warn");
 const initials = (name: string) =>
@@ -17,7 +18,7 @@ const initials = (name: string) =>
 
 export default function OpdView() {
   const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId, setPtInfo, resetEditor, loadPatientById } = useMuqsit();
-  const { data: queue = [], isLoading, error } = useOpdQueue();
+  const { data: queue = [], isLoading, error, refetch, isFetching } = useOpdQueue();
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
 
@@ -126,8 +127,10 @@ export default function OpdView() {
       </div>
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
-        {isLoading && <div style={{ padding: "16px 0", fontSize: 12, color: C.n[500] }}>Loading queue…</div>}
-        {Boolean(error) && <div style={{ padding: "16px 0", fontSize: 12, color: C.danger[800] }}>Could not load the OPD queue. Check your internet connection and try again.</div>}
+        {isLoading && <Loading label="Loading queue…" />}
+        {/* Rows already on screen stay there when a refresh fails — they may be out
+            of date, so the notice sits above them, smaller. */}
+        {Boolean(error) && <LoadError compact={queue.length > 0} title="Could not load the OPD queue." onRetry={() => refetch()} retrying={isFetching} />}
         {!isLoading && !error && queue.length === 0 && (
           <EmptyState icon="users" title="No one is in the queue" hint="Add the first patient of the day with “+ Add to queue”." />
         )}
