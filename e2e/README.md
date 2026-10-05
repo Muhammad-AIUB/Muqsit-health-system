@@ -97,5 +97,6 @@ The app has almost no test ids and none were added. Selectors are role, label,
 placeholder and visible text. The brittle ones:
 `[data-rx-row]` (the pad's drag hook), the locked mobile box (found as the input
 beside "New Prescription"), `.sheet` / `.right table` inside the print document,
-and field popups opened by clicking the field's label text (the `+` buttons have
-no accessible name).
+and field popups opened by clicking the field's label text (the `+` buttons had
+no accessible name when these were written; since 2026-10-05 each is named
+`Add <field>`, and the helpers still click the label).

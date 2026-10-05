@@ -82,8 +82,17 @@ CLAUDE.md section before picking one up.
   again. If so: on the name only, never on the unit (`docs/DOMAIN.md`, "A unit
   is shown as it is written").
 - [ ] **Left open by the 2026-10-05/06 design pass** (engineering, not product):
-  dialogs do not close on Escape or trap focus; the Investigation calendar's day
-  cells have no keyboard route (the date box above them does); a `<label>`
-  names its field but is not linked with `htmlFor`, so clicking it does not
-  focus the field; the health-trend chart's SVG axis text is still 8-10px; the
-  admin console was recoloured but only its sign-in screen was looked at.
+  four older popups — the image viewer, the print sheet, special advice and the
+  personal note — close on Escape by themselves but are not on `useDialog`, so
+  they do not hold Tab or return the focus (every other popup does since
+  2026-10-06); the Investigation calendar's day cells have no keyboard route
+  (the date box above them does); a `<label>` names its field but is not linked
+  with `htmlFor`, so clicking it does not focus the field; the health-trend
+  chart's SVG axis text is still 8-10px; the admin console was recoloured but
+  only its sign-in screen was looked at, and it still uses the browser's own
+  `confirm()` / `alert()` boxes.
+- [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
+  2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
+  an ordinary regression test now. Fixing it exposed that `Lock` could leave a
+  just-unlocked section inert until a reload; fixed in the same commit
+  (`client/src/lib/inert.ts`).
