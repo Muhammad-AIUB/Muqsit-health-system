@@ -18,6 +18,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "admin", "run", "dev"],
       "port": 3001
+    },
+    {
+      "name": "api-e2e",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set TEST_DB_NAME=muqsit_e2e_test&& set TEST_PORT=4200&& npm --prefix server run test:serve"],
+      "port": 4200
+    },
+    {
+      "name": "web-e2e",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set NEXT_PUBLIC_API_URL=http://localhost:4200/api&& set NEXT_DIST_DIR=.next-e2e&& cd client&& npx next dev -p 3100"],
+      "port": 3100
     }
   ]
 }
