@@ -22,11 +22,12 @@ export function seed(): Seed {
 // The suite may only ever talk to the test client (3100) and the test API
 // (4200). Anything else — above all the developer's own API on :4000, whose
 // database is production — is aborted and fails the test.
+// Nothing else: the app serves its own font (client/public/fonts), so a request
+// to Google Fonts now means the CDN link came back — which is exactly what
+// broke the UI on a network that blocks Google.
 const ALLOWED_ORIGINS = new Set([
   WEB_URL,
   new URL(API_URL).origin,
-  'https://fonts.googleapis.com', // the app's stylesheet link; read-only
-  'https://fonts.gstatic.com',
 ]);
 const allowed = (url: URL) =>
   ['data:', 'blob:', 'about:'].includes(url.protocol) || ALLOWED_ORIGINS.has(url.origin);

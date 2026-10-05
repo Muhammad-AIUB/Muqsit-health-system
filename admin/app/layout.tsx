@@ -14,9 +14,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* The font is served by this app (globals.css @font-face); nothing is
+            fetched from Google. Preloading the Latin file avoids a flash of the
+            fallback font on first paint. */}
         <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
+          rel="preload"
+          href="/fonts/dm-sans-5.3.0/dm-sans-latin-wght-normal.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
       </head>
       <body>{children}</body>
