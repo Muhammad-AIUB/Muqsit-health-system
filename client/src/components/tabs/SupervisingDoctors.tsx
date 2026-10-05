@@ -7,6 +7,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddSupervisor, useRemoveSupervisor, useSupervisors } from "@/hooks/useChat";
 import { ApiError } from "@/lib/api";
 import Pill from "@/components/common/Pill";
+import Icon from "@/components/common/Icon";
 
 // Real "Supervising doctor list" for the loaded patient (4.docx). The owner
 // assigns other registered doctors by email / mobile; they then get access to
@@ -53,10 +54,10 @@ export default function SupervisingDoctors() {
       <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: 16 }}>
         {/* Owner */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: supervisors.length ? "0.5px solid " + C.n[200] : "none" }}>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.pri[50], color: C.pri[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>★</div>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.pri[50], color: C.pri[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}><Icon name="star" size={15} /></div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 500 }}>{isAssistantMode ? "Owning doctor" : "You"}</div>
-            <div style={{ fontSize: 10, color: C.n[600] }}>Primary — owns {ptName.trim() || "this patient"}</div>
+            <div style={{ fontSize: 11, color: C.n[600] }}>Primary — owns {ptName.trim() || "this patient"}</div>
           </div>
           <Pill bg={C.pri[50]} fg={C.pri[600]}>Primary</Pill>
         </div>
@@ -72,7 +73,7 @@ export default function SupervisingDoctors() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{d.name}</div>
-                <div style={{ fontSize: 10, color: C.n[600] }}>{d.email} · Supervising</div>
+                <div style={{ fontSize: 11, color: C.n[600] }}>{d.email} · Supervising</div>
               </div>
               {canManage && (
                 <button
@@ -111,7 +112,7 @@ export default function SupervisingDoctors() {
               </button>
             </div>
             {err && <div style={{ fontSize: 11, color: C.danger[800] }}>{err}</div>}
-            <div style={{ fontSize: 10.5, color: C.n[500] }}>The doctor must already have a registered account.</div>
+            <div style={{ fontSize: 11, color: C.n[500] }}>The doctor must already have a registered account.</div>
           </div>
         )}
       </div>

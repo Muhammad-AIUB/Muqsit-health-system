@@ -6,6 +6,7 @@ import { btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkstations } from "@/hooks/useWorkstations";
+import Icon from "@/components/common/Icon";
 
 // The "Your workstations" picker. A secondary user works under the doctors they
 // assist; a primary user can also assist others. This left panel lets them
@@ -47,7 +48,7 @@ export default function WorkstationSwitcher() {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: "rgba(248,248,246,0.55)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
         <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.18)", padding: "30px 28px" }}>
-          <div style={{ fontSize: 30, marginBottom: 12 }}>🔒</div>
+          <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", color: C.n[500] }}><Icon name="lock" size={30} /></div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#ED1C24", lineHeight: 1.5 }}>
             You are currently in secondary account holder. You can only use it as assistant under primary account holder. You can also purchase it to use its full potential.
           </div>
@@ -89,7 +90,7 @@ export default function WorkstationSwitcher() {
                   }}
                 >
                   <div style={{ fontSize: 15, fontWeight: 700, color: active ? C.pri[600] : C.n[900], textDecoration: "underline" }}>{w.name}</div>
-                  <div style={{ fontSize: 10, color: C.n[500], marginTop: 5, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <div style={{ fontSize: 11, color: C.n[500], marginTop: 5, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {w.role === "owner" ? "Your workspace" : "Assistant"}
                   </div>
                 </button>
@@ -116,7 +117,7 @@ export function WorkstationIndicator() {
       title="Switch workstation"
       style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 32, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.n[300]}`, background: C.n[0], color: C.n[800], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font, maxWidth: 200 }}
     >
-      <span style={{ fontSize: 12 }}>🏥</span>
+      <Icon name="building" size={15} style={{ color: C.n[600] }} />
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{active?.name ?? "Choose workstation"}</span>
       <span style={{ color: C.n[400], fontSize: 9 }}>▾</span>
     </button>

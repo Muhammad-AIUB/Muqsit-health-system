@@ -10,6 +10,7 @@ import PatientRecordsView from "./prescription/PatientRecordsView";
 import PatientsView from "./tabs/PatientsView";
 import MessageView from "./tabs/MessageView";
 import SettingsView from "./tabs/SettingsView";
+import Icon from "@/components/common/Icon";
 
 // A locked feature reached by deep link (the nav tab is already greyed out).
 // Research companion is gated to a higher account tier — kept here so /research
@@ -18,7 +19,7 @@ import SettingsView from "./tabs/SettingsView";
 function ComingSoon({ title }: { title: string }) {
   return (
     <div style={{ textAlign: "center", padding: "70px 0", color: C.n[500] }}>
-      <div style={{ fontSize: 30, marginBottom: 10 }}>🔒</div>
+      <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><Icon name="lock" size={30} /></div>
       <div style={{ fontSize: 15, fontWeight: 500, color: C.n[800] }}>{title}</div>
       <div style={{ fontSize: 12.5, marginTop: 6 }}>This feature isn’t available on your account yet.</div>
     </div>

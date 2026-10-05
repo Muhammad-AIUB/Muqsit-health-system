@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
+import Icon from "@/components/common/Icon";
 
 // BMDC (registrationNo / registrationCertUrl) and name are intentionally not
 // in the draft — they're shown read-only from the original profile and no
@@ -166,7 +167,7 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
     <div style={{ fontFamily: font, maxWidth: 760 }}>
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-        <button onClick={onBack} style={btnBack}>← Back</button>
+        <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>Profile</div>
       </div>
 
@@ -538,7 +539,7 @@ function ReadOnlyDoc({ value }: { value: string | null }) {
           whiteSpace: "nowrap",
         }}
       >
-        🔒 View certificate
+        <Icon name="lock" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />View certificate
       </a>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={value} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, border: `0.5px solid ${C.n[200]}` }} />
@@ -632,7 +633,7 @@ function CertImageUploader({
         <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPick} disabled={busy} />
       </label>
       {value && (
-        <a href={value} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: C.n[600], textDecoration: "none" }}>
+        <a href={value} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: C.n[600], textDecoration: "none" }}>
           View
         </a>
       )}

@@ -8,6 +8,7 @@ import { ApiError, prescriptionLayoutApi } from "@/lib/api";
 import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
 import { type RxType, type OpdLayout } from "@/lib/rxPrivacy";
 import { useUpdatePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
+import Icon from "@/components/common/Icon";
 
 // Mirrors the "Print Layout Configuration → Prescription pad" wizard:
 // a 5-step header, a live page preview with margin labels, page-type cards
@@ -197,7 +198,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
     <div style={{ fontFamily: font, maxWidth: 980 }}>
       {/* ── Top bar ── */}
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, marginBottom: 16 }}>
-        <button onClick={() => setMode(null)} style={btnBack}>← Back</button>
+        <button onClick={() => setMode(null)} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
         <span style={{ fontSize: 11, fontWeight: 600, color: isOpd ? C.ok[800] : C.info[800], background: isOpd ? C.ok[50] : C.info[50], borderRadius: 6, padding: "4px 10px" }}>
           {isOpd ? "OPD · patient privacy on" : "IPD · full details"}
@@ -271,7 +272,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
               </span>
               <span style={{ overflow: "hidden" }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</div>
-                <div style={{ fontSize: 10, color: active ? "rgba(255,255,255,0.85)" : C.n[500] }}>Prescription</div>
+                <div style={{ fontSize: 11, color: active ? "rgba(255,255,255,0.85)" : C.n[500] }}>Prescription</div>
               </span>
             </button>
           );
@@ -511,7 +512,7 @@ function TypeChooser({
         }}
       >
         {isActive && (
-          <span style={{ position: "absolute", top: 12, right: 12, fontSize: 10, fontWeight: 600, color: C.pri[800], background: C.pri[50], borderRadius: 5, padding: "2px 8px" }}>
+          <span style={{ position: "absolute", top: 12, right: 12, fontSize: 11, fontWeight: 600, color: C.pri[800], background: C.pri[50], borderRadius: 5, padding: "2px 8px" }}>
             Active
           </span>
         )}
@@ -532,7 +533,7 @@ function TypeChooser({
   return (
     <div style={{ fontFamily: font, maxWidth: 900 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-        <button onClick={onBack} style={btnBack}>← Back</button>
+        <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription settings</div>
       </div>
       <div style={{ fontSize: 12, color: C.n[600], marginBottom: 18 }}>
@@ -566,7 +567,7 @@ function TypeChooser({
 
 // ── Page preview with margin labels ─────────────────────────
 function PagePreview({ form, unitShort }: { form: PageForm; unitShort: string }) {
-  const cap: React.CSSProperties = { fontSize: 10, color: C.n[600], whiteSpace: "nowrap" };
+  const cap: React.CSSProperties = { fontSize: 11, color: C.n[600], whiteSpace: "nowrap" };
   const vLabel: React.CSSProperties = { ...cap, writingMode: "vertical-rl" };
   const u = unitShort;
 

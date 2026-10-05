@@ -7,6 +7,7 @@ import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
 import { useTemplates, useSaveTemplate, useDeleteTemplate } from "@/hooks/useTemplates";
+import Icon from "@/components/common/Icon";
 
 const CATEGORIES: { cat: TemplateCategory; desc: string; icon: string }[] = [
   { cat: "opd", desc: "Templates for outdoor / consultation prescriptions.", icon: "▤" },
@@ -53,7 +54,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
     return (
       <div style={{ fontFamily: font, maxWidth: 1000 }}>
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, marginBottom: 18 }}>
-          <button onClick={() => { exitRemove(); setCat(null); }} style={btnBack}>← Back</button>
+          <button onClick={() => { exitRemove(); setCat(null); }} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
           <div style={{ fontSize: 16, fontWeight: 500 }}>{CATEGORY_LABEL[cat]}</div>
 
           {/* Upper-right: enter/leave remove mode */}
@@ -106,7 +107,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
                   style={{ ...tplCard, border: `${isSel ? 2 : 1}px solid ${isSel ? C.danger[400] : C.pri[100]}`, background: isSel ? C.danger[50] : C.pri[50] }}
                 >
                   <span style={{ fontSize: 30, color: isSel ? C.danger[800] : C.pri[600] }}>℞</span>
-                  <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, color: isSel ? C.danger[800] : C.pri[600] }}>{t.items.length} item{t.items.length === 1 ? "" : "s"}</span>
+                  <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 11, color: isSel ? C.danger[800] : C.pri[600] }}>{t.items.length} item{t.items.length === 1 ? "" : "s"}</span>
                   {removeMode && (
                     <span style={{ position: "absolute", top: 8, left: 8, width: 20, height: 20, borderRadius: "50%", border: `2px solid ${isSel ? C.danger[400] : C.n[300]}`, background: isSel ? C.danger[400] : C.n[0], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>
                       {isSel ? "✓" : ""}
@@ -126,7 +127,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
   return (
     <div style={{ fontFamily: font, maxWidth: 900 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-        <button onClick={onBack} style={btnBack}>← Back</button>
+        <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>Prescription templates</div>
       </div>
 
@@ -170,7 +171,7 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
   return (
     <div style={{ fontFamily: font, maxWidth: 1000 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-        <button onClick={onClose} style={btnBack}>← Back</button>
+        <button onClick={onClose} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
         <div style={{ fontSize: 16, fontWeight: 500 }}>{template ? "Edit template" : "New template"}</div>
         <span style={{ fontSize: 12, color: C.n[500], borderLeft: `1px solid ${C.n[200]}`, paddingLeft: 12 }}>{CATEGORY_LABEL[cat]}</span>
       </div>

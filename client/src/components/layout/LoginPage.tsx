@@ -5,6 +5,7 @@ import Link from "next/link";
 import { C, font } from "@/theme";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError } from "@/lib/api";
+import Icon from "@/components/common/Icon";
 
 // Email/phone the user asked us to remember. Only the identifier is stored —
 // never the password (that would be readable by any script; the long-lived
@@ -131,7 +132,7 @@ export default function LoginPage() {
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Email or phone</label>
             <div style={fieldWrap("identifier")}>
-              <span style={{ fontSize: 15, color: C.n[500] }}>👤</span>
+              <Icon name="user" size={17} style={{ color: C.n[500] }} />
               <input
                 type="text"
                 value={identifier}
@@ -152,7 +153,7 @@ export default function LoginPage() {
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Password</label>
             <div style={fieldWrap("password")}>
-              <span style={{ fontSize: 15, color: C.n[500] }}>🔒</span>
+              <Icon name="lock" size={17} style={{ color: C.n[500] }} />
               <input
                 type={showPass ? "text" : "password"}
                 value={password}
@@ -169,10 +170,10 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPass((s) => !s)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.n[500], padding: 0 }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: C.n[500], padding: 4, borderRadius: 6, display: "flex" }}
                 aria-label={showPass ? "Hide password" : "Show password"}
               >
-                {showPass ? "🙈" : "👁️"}
+                <Icon name={showPass ? "eyeOff" : "eye"} size={17} />
               </button>
             </div>
           </div>
@@ -212,7 +213,7 @@ export default function LoginPage() {
                 gap: 8,
               }}
             >
-              <span>⚠️</span>
+              <Icon name="alert" size={16} />
               {error}
             </div>
           )}

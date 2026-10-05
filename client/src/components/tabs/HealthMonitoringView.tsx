@@ -11,6 +11,7 @@ import { type DrugDateMap } from "@/lib/hmDates";
 import { drugMentionRanges } from "@/lib/drugHistorySummary";
 import { symptomMentionRanges } from "@/lib/symptomSummary";
 import HealthTrendsChart from "./HealthTrendsChart";
+import Icon from "@/components/common/Icon";
 
 const dedupe = (xs: string[]) => Array.from(new Set(xs.map((x) => x.trim()).filter(Boolean)));
 
@@ -169,7 +170,7 @@ export default function HealthMonitoringView() {
       {/* ── Symptoms / Lab tests recorded across all visits ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 14, alignItems: "start" }}>
         <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "12px 14px" }}>
-          <div style={panelTitle}>🩺 Symptoms <span style={{ color: C.n[500], fontWeight: 400 }}>· all visits</span></div>
+          <div style={panelTitle}><Icon name="activity" size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />Symptoms <span style={{ color: C.n[500], fontWeight: 400 }}>· all visits</span></div>
           {allSymptoms.length === 0 ? (
             <div style={emptyMsg}>No symptoms recorded for this patient yet.</div>
           ) : (
@@ -182,7 +183,7 @@ export default function HealthMonitoringView() {
         </div>
 
         <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "12px 14px" }}>
-          <div style={panelTitle}>🧪 Lab tests <span style={{ color: C.n[500], fontWeight: 400 }}>· all visits</span></div>
+          <div style={panelTitle}><Icon name="flask" size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />Lab tests <span style={{ color: C.n[500], fontWeight: 400 }}>· all visits</span></div>
           {allTests.length === 0 ? (
             <div style={emptyMsg}>No tests advised for this patient yet.</div>
           ) : (
@@ -199,5 +200,5 @@ export default function HealthMonitoringView() {
   );
 }
 
-const panelTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 };
+const panelTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 };
 const emptyMsg: React.CSSProperties = { fontSize: 11, color: C.n[500], padding: "4px 0" };

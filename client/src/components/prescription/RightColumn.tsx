@@ -16,6 +16,7 @@ import { savedAdviceFor } from "@/lib/rxDrugAdvice";
 import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import type { RxItem } from "@/types";
 import { isInlineEditField } from "@/lib/inlineEditFields";
+import Icon from "@/components/common/Icon";
 
 export default function RightColumn({ mobile }: { mobile?: boolean }) {
   // Assembled here, matched inside RxPadAlerts's error boundary. Shared with
@@ -78,7 +79,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
               key={`${t.name}-${i}`}
               onClick={() => addTemplate(t.items)}
               title={`Add ${t.items.length} item(s) from “${t.name}” to this prescription`}
-              style={{ padding: "4px 12px", borderRadius: 6, fontSize: 10, cursor: "pointer", border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontFamily: font }}
+              style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontFamily: font }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.pri[400]; e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.color = C.pri[600]; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.n[200]; e.currentTarget.style.background = C.n[0]; e.currentTarget.style.color = C.n[600]; }}
             >
@@ -86,7 +87,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             </button>
           ))}
           {shownTemplates.length === 0 && (
-            <span style={{ fontSize: 10, color: C.n[500], padding: "4px 2px" }}>No matching template.</span>
+            <span style={{ fontSize: 11, color: C.n[500], padding: "4px 2px" }}>No matching template.</span>
           )}
         </div>
         <div style={{ position: "relative", flexShrink: 0 }}>
@@ -96,7 +97,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             placeholder="Search templates…"
             style={{ width: 180, padding: "5px 28px 5px 10px", borderRadius: 7, border: `0.5px solid ${C.n[200]}`, fontSize: 11, fontFamily: font, color: C.n[900], background: C.n[0], outline: "none" }}
           />
-          <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: C.n[500], fontSize: 12, pointerEvents: "none" }}>⌕</span>
+          <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: C.n[500], display: "flex", pointerEvents: "none" }}><Icon name="search" size={13} /></span>
         </div>
       </div>
       <div style={{ fontSize: 22, fontWeight: 500, color: C.pri[400], fontStyle: "italic" }}>℞</div>
@@ -165,7 +166,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           </label>
         </div>
         {followUpMandatory && followUpNum && (
-          <div style={{ marginTop: 5, fontSize: 9, color: C.warn[800], background: C.warn[50], padding: "4px 10px", borderRadius: 4, display: "inline-block" }}>
+          <div style={{ marginTop: 5, fontSize: 10.5, color: C.warn[800], background: C.warn[50], padding: "4px 10px", borderRadius: 4, display: "inline-block" }}>
             Reminder will be sent 2 days before follow-up date
           </div>
         )}

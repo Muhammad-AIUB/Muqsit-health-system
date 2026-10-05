@@ -23,6 +23,7 @@ import { ApiError, patientNotesApi, type PatientNoteInfo } from "@/lib/api";
 import { isBlankHtml, sanitizeHtml } from "@/lib/safeHtml";
 import { hasSensitive, sensitiveCss, stripSensitive } from "@/lib/sensitive";
 import RichTextEditor from "@/components/common/RichTextEditor";
+import Icon from "@/components/common/Icon";
 
 const INFO_ROWS: { key: keyof PatientNoteInfo; label: string }[] = [
   { key: "name", label: "Patient Name" },
@@ -89,7 +90,7 @@ export function PersonalNoteSection() {
         title={currentPatientId ? "Only you can see this note" : "Load a saved patient to write a personal note"}
         style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", borderRadius: 8, border: `0.5px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[800], fontSize: 13.5, fontWeight: 600, fontFamily: font, cursor: currentPatientId ? "pointer" : "not-allowed", opacity: currentPatientId ? 1 : 0.55, textAlign: "left" }}
       >
-        <span aria-hidden>🔒</span>
+        <Icon name="lock" size={16} />
         <span style={{ flex: 1 }}>My Personal Note for This Patient</span>
       </button>
       {open && currentPatientId && <PersonalNoteBox patientId={currentPatientId} onClose={() => setOpen(false)} />}
@@ -178,7 +179,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>My Personal Note for This Patient</div>
-            <div style={{ fontSize: 11.5, color: C.n[600], marginTop: 2 }}>🔒 Private — only you can see this note. It is not part of the prescription.</div>
+            <div style={{ fontSize: 11.5, color: C.n[600], marginTop: 2 }}><Icon name="lock" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Private — only you can see this note. It is not part of the prescription.</div>
           </div>
           <button type="button" onClick={requestClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 18, lineHeight: 1, color: C.n[500], cursor: "pointer", padding: "2px 6px" }}>×</button>
         </div>
@@ -244,7 +245,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
             title="Print this personal note only"
             style={btn(false, !q.isSuccess)}
           >
-            🖨 Print
+            <Icon name="printer" size={15} /> Print
           </button>
         </div>
 
@@ -256,7 +257,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
             <div role="dialog" aria-label="Print the note" style={{ width: "min(380px, 100%)", background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.16)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>This note has sensitive information</div>
               <div style={{ fontSize: 12.5, color: C.n[600] }}>How should it be printed?</div>
-              <button type="button" onClick={() => printAs(true)} style={{ ...btn(false), textAlign: "left" }}>🔒 Print with sensitive information</button>
+              <button type="button" onClick={() => printAs(true)} style={{ ...btn(false), justifyContent: "flex-start" }}><Icon name="lock" size={14} /> Print with sensitive information</button>
               <button type="button" onClick={() => printAs(false)} style={{ ...btn(true), textAlign: "left" }}>Print without sensitive information</button>
               <button type="button" onClick={() => setAskPrint(false)} style={{ border: "none", background: "none", color: C.n[600], fontSize: 12.5, cursor: "pointer", fontFamily: font, alignSelf: "flex-end" }}>Cancel</button>
             </div>

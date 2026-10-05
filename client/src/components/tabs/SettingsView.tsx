@@ -8,19 +8,20 @@ import ProfileSettingsView from "./ProfileSettingsView";
 import PrescriptionSettingsView from "./PrescriptionSettingsView";
 import PrescriptionTemplatesView from "./PrescriptionTemplatesView";
 import FavouriteSettingsView from "./FavouriteSettingsView";
+import Icon, { type IconName } from "@/components/common/Icon";
 
 type Section = "home" | "assistants" | "profile" | "prescription-settings" | "prescription-templates" | "favourite-settings";
 
-type SettingsItem = { t: string; d: string; i: string; section?: Section; disabled?: boolean };
+type SettingsItem = { t: string; d: string; i: IconName; section?: Section; disabled?: boolean };
 
 const SETTINGS_ITEMS: SettingsItem[] = [
-  { t: "Profile", d: "Doctor name, specialization, clinic info", i: "◉", section: "profile" },
-  { t: "Your Badges, Ranking, social contributions etc.", d: "Achievements, ranking & community contributions", i: "🏅", disabled: true },
-  { t: "Add Supervisors and Role models", d: "Link supervisors & role models to your profile", i: "👥", disabled: true },
-  { t: "Manage your assistants and IPD team", d: "Role based access control & dynamic permission", i: "⊕", section: "assistants" },
-  { t: "Prescription settings", d: "Set up your prescription paper size, format etc", i: "⚙", section: "prescription-settings" },
-  { t: "Prescription templates", d: "Create, edit, delete medicine templates", i: "℞", section: "prescription-templates" },
-  { t: "Favourite & unit settings", d: "Pick favourite investigations & preferred units", i: "★", section: "favourite-settings" },
+  { t: "Profile", d: "Doctor name, specialization, clinic info", i: "user", section: "profile" },
+  { t: "Your Badges, Ranking, social contributions etc.", d: "Achievements, ranking & community contributions", i: "medal", disabled: true },
+  { t: "Add Supervisors and Role models", d: "Link supervisors & role models to your profile", i: "users", disabled: true },
+  { t: "Manage your assistants and IPD team", d: "Role based access control & dynamic permission", i: "shield", section: "assistants" },
+  { t: "Prescription settings", d: "Set up your prescription paper size, format etc", i: "sliders", section: "prescription-settings" },
+  { t: "Prescription templates", d: "Create, edit, delete medicine templates", i: "fileText", section: "prescription-templates" },
+  { t: "Favourite & unit settings", d: "Pick favourite investigations & preferred units", i: "star", section: "favourite-settings" },
 ];
 
 const SECTION_PATH: Record<Section, string> = {
@@ -95,15 +96,15 @@ export default function SettingsView() {
               title={dis ? "Coming soon" : undefined}
               style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "12px 16px", cursor: dis ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 12, opacity: dis ? 0.6 : 1 }}
             >
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{s.i}</div>
+              <div style={{ width: 34, height: 34, borderRadius: 8, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[700], flexShrink: 0 }}><Icon name={s.i} size={18} /></div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
                   {s.t}
-                  {dis && <span style={{ fontSize: 9.5, fontWeight: 600, color: C.n[500], background: C.n[100], padding: "1px 7px", borderRadius: 999 }}>Coming soon</span>}
+                  {dis && <span style={{ fontSize: 10.5, fontWeight: 600, color: C.n[500], background: C.n[100], padding: "1px 7px", borderRadius: 999 }}>Coming soon</span>}
                 </div>
                 <div style={{ fontSize: 11, color: C.n[600] }}>{s.d}</div>
               </div>
-              <span style={{ color: C.n[500], fontSize: 14 }}>{dis ? "🔒" : "→"}</span>
+              <Icon name={dis ? "lock" : "chevronRight"} size={16} style={{ color: C.n[500] }} />
             </div>
           );
         })}

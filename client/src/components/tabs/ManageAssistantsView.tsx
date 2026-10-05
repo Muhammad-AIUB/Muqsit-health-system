@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C } from "@/theme";
+import { btnSecondary } from "@/theme/styles";
 import { ApiError, type AssistantCandidate, type AssistantRecord } from "@/lib/api";
 import {
   useAddAssistant,
@@ -17,6 +18,7 @@ import IpdTeamSection from "./IpdTeamSection";
 import {
   MarkedChips, PermissionGrid, btn, card, contactLine, sameSet, toggleInSet,
 } from "./permissionUi";
+import Icon from "@/components/common/Icon";
 
 const errMsg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -116,7 +118,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
     <div>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <button onClick={onBack} style={{ ...btn(C.n[100], C.n[800]), padding: "4px 10px" }}>← Back</button>
+        <button onClick={onBack} style={btnSecondary("sm")}><Icon name="arrowLeft" size={14} /> Back</button>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>Manage your assistants and IPD team</div>
           <div style={{ fontSize: 11, color: C.n[600] }}>Role based access control &amp; dynamic permission</div>
@@ -193,7 +195,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>{a.name}</span>
-                      <span style={{ fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: a.status === "active" ? C.ok[50] : C.warn[50], color: a.status === "active" ? C.ok[600] : C.warn[800] }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 7px", borderRadius: 20, background: a.status === "active" ? C.ok[50] : C.warn[50], color: a.status === "active" ? C.ok[600] : C.warn[800] }}>
                         {a.status === "active" ? "Active" : "Suspended"}
                       </span>
                     </div>

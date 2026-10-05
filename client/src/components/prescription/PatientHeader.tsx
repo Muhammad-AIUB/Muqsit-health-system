@@ -2,11 +2,20 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
-import { inputSm, fieldLabel } from "@/theme/styles";
+import { inputSm, fieldLabel, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useUpdatePatient } from "@/hooks/usePatients";
 import DateField from "@/components/common/DateField";
 import MobileLookupField from "./MobileLookupField";
+import Icon from "@/components/common/Icon";
+
+// The three views of one patient. "Selected" is the brand's selected look on
+// all three — it used to be amber on one and blue on the other two, and amber
+// is the colour that means "needs attention".
+const subNav = (active: boolean): CSSProperties => ({
+  ...btnSecondary("sm"),
+  ...(active ? { border: `1px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontWeight: 600 } : { color: C.n[700] }),
+});
 
 export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   const {
@@ -121,7 +130,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={ptInfo.picture} alt="Patient" onError={() => setPhotoError(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
-              <span style={{ fontSize: mobile ? 18 : 22, color: C.n[400] }}>👤</span>
+              <Icon name="user" size={mobile ? 20 : 24} style={{ color: C.n[400] }} />
             )}
           </div>
         </div>
@@ -160,15 +169,15 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           <input value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={lk({ ...inputSm, width: "100%", boxSizing: "border-box" })} readOnly={locked} title={lockTitle} />
         </div>
         <div style={{ flex: mobile ? "1 1 100%" : "1 1 auto", display: "flex", alignItems: "flex-end", gap: 6, rowGap: 6, flexWrap: "wrap", paddingBottom: 1 }}>
-          <button onClick={() => setActiveTab("pt-settings")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "pt-settings" ? C.info[400] : C.n[200]}`, background: activeTab === "pt-settings" ? C.info[50] : C.n[0], color: activeTab === "pt-settings" ? C.info[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
-            <span style={{ fontSize: 13 }}>⊕</span> Patient Settings
+          <button onClick={() => setActiveTab("pt-settings")} aria-current={activeTab === "pt-settings" ? "page" : undefined} style={subNav(activeTab === "pt-settings")}>
+            <Icon name="userEdit" size={15} /> Patient Settings
           </button>
-          <button onClick={() => setActiveTab("idsp")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "idsp" ? C.warn[400] : C.n[200]}`, background: activeTab === "idsp" ? C.warn[50] : C.n[0], color: activeTab === "idsp" ? C.warn[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
-            <span style={{ fontSize: 13 }}>◎</span> Integrated health monitoring and overview
+          <button onClick={() => setActiveTab("idsp")} aria-current={activeTab === "idsp" ? "page" : undefined} style={subNav(activeTab === "idsp")}>
+            <Icon name="activity" size={15} /> Integrated health monitoring and overview
           </button>
           {/* Patient's prescriptions & reports overview */}
-          <button onClick={() => setActiveTab("pt-records")} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: `0.5px solid ${activeTab === "pt-records" ? C.info[400] : C.n[200]}`, background: activeTab === "pt-records" ? C.info[50] : C.n[0], color: activeTab === "pt-records" ? C.info[800] : C.n[600], display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", fontFamily: font }}>
-            <span style={{ fontSize: 13 }}>🗂</span> Patient&apos;s Prescriptions and reports
+          <button onClick={() => setActiveTab("pt-records")} aria-current={activeTab === "pt-records" ? "page" : undefined} style={subNav(activeTab === "pt-records")}>
+            <Icon name="folder" size={15} /> Patient&apos;s Prescriptions and reports
           </button>
           {/* Keep-eye toggle — third, after the two buttons.
               ⚠️ A <button>, NOT a <label> wrapping a hidden checkbox. It was the
@@ -183,9 +192,9 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
               is gone so the trap cannot come back. role="switch" + aria-checked
               also puts the control in the accessibility tree and in the tab
               order, which the display:none checkbox never was. */}
-          <button type="button" role="switch" aria-checked={watchPatient} onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: `0.5px solid ${watchPatient ? "#f59e0b" : C.n[200]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box", fontFamily: font, lineHeight: "normal" }}>
-            <span style={{ fontSize: 16, lineHeight: 1 }}>{watchPatient ? "👁️" : "👁"}</span>
-            <span style={{ fontSize: 11, fontWeight: watchPatient ? 600 : 400, color: watchPatient ? "#b45309" : C.n[600] }}>Keep eye on this patient</span>
+          <button type="button" role="switch" aria-checked={watchPatient} onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", minHeight: 30, padding: "0 12px", borderRadius: 8, border: `1px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box", fontFamily: font, lineHeight: "normal" }}>
+            <Icon name="eye" size={16} style={{ color: watchPatient ? "#b45309" : C.n[600] }} />
+            <span style={{ fontSize: 12, fontWeight: watchPatient ? 600 : 500, color: watchPatient ? "#b45309" : C.n[700] }}>Keep eye on this patient</span>
             <span aria-hidden style={{ marginLeft: 4, width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
           </button>
         </div>

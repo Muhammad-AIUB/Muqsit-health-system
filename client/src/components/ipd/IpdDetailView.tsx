@@ -17,6 +17,7 @@ import { suggestionDB, advisedTestSuggestions } from "@/data/suggestions";
 import { useIpdEvents, useAddIpdEvent, useUpdateIpd, type IpdAdmission } from "@/hooks/useIpd";
 import { useWards } from "@/hooks/useWards";
 import { ApiError, type IpdClinical, type IpdFollowUp, type IpdFollowUpEntry } from "@/lib/api";
+import Icon from "@/components/common/Icon";
 
 const fmtAdmit = (iso: string) =>
   new Date(iso).toLocaleDateString("default", { day: "numeric", month: "short", year: "numeric" });
@@ -315,7 +316,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
               const fp = followUpParts(e);
               return (
                 <div key={e.ts} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "8px 12px", borderRadius: 8, background: C.n[50], borderLeft: `3px solid ${C.pri[400]}` }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 700, color: C.pri[600], letterSpacing: "0.05em", flexShrink: 0 }}>F/U</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: C.pri[600], letterSpacing: "0.05em", flexShrink: 0 }}>F/U</span>
                   <span style={{ fontSize: 11, color: C.n[500], flexShrink: 0, whiteSpace: "nowrap" }}>{fp.time}</span>
                   <span style={{ flex: 1, fontSize: 12.5, color: C.n[800], lineHeight: 1.5 }}>
                     {fp.vitals}{fp.note && <span style={{ color: C.n[600], fontStyle: "italic" }}> — {fp.note}</span>}
@@ -355,7 +356,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     <div style={{ fontFamily: font }}>
       {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-        <button onClick={onBack} style={btnBack}>← Back to ward</button>
+        <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back to ward</button>
         <div style={{ flex: 1 }} />
         {savedMsg && <span style={{ fontSize: 12, color: savedMsg === "Saved!" ? C.ok[600] : C.danger[800] }}>{savedMsg}</span>}
         <button onClick={() => void save()} disabled={update.isPending} style={btnSave}>{update.isPending ? "Saving…" : "Save"}</button>
@@ -444,7 +445,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
                     {idx < events.length - 1 && <div style={{ width: 1.5, flex: 1, background: C.n[200], marginTop: 3 }} />}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10, color: C.n[500], marginBottom: 2 }}>{fmtTs(ev.createdAt)}</div>
+                    <div style={{ fontSize: 11, color: C.n[500], marginBottom: 2 }}>{fmtTs(ev.createdAt)}</div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.n[800], marginBottom: 3 }}>{ev.author}{ev.role ? <span style={{ fontWeight: 400, color: C.n[500] }}> — {ev.role}</span> : ""}</div>
                     <div style={{ fontSize: 12, color: C.n[700], lineHeight: 1.5 }}>{ev.note}</div>
                   </div>
@@ -485,7 +486,7 @@ function Vital({ label, placeholder, value, onChange }: { label: string; placeho
   );
 }
 
-const vLbl: CSSProperties = { fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
+const vLbl: CSSProperties = { fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
 const hInp = (w: number): CSSProperties => ({ padding: "3px 6px", borderRadius: 5, border: `0.5px solid ${C.n[200]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", width: w });
 const btnBack: CSSProperties = btnSecondary("sm");
 const btnSave: CSSProperties = { ...btnPrimary("md"), fontWeight: 600 };

@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { btnPrimary } from "@/theme/styles";
+import { btnPrimary, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { usePatientChat, useSendChat } from "@/hooks/useChat";
 import { uploadImage, type ChatMessage } from "@/lib/api";
 import { formatActivityTime } from "@/lib/activityFormat";
 import { imageUrlIsRenderable } from "@/lib/imageFormats";
+import Icon from "@/components/common/Icon";
 
 // 4.docx: a per-patient team chat. Shown under the prescription's Notification
 // area whenever a patient is loaded. Participants — owner, assistants and
@@ -113,14 +114,14 @@ export default function PatientChat({ patientId: pidProp, patientName }: { patie
 
       {pendingFile && (
         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.n[700], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 8, padding: "6px 10px" }}>
-          <span>📎 {pendingFile.name}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0 }}><Icon name="paperclip" size={13} /> {pendingFile.name}</span>
           <button onClick={() => setPendingFile(null)} style={{ marginLeft: "auto", background: "none", border: "none", color: C.n[500], cursor: "pointer", fontSize: 14 }}>×</button>
         </div>
       )}
 
       <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "flex-end" }}>
         <input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => { onAttach(e.target.files?.[0]); e.target.value = ""; }} />
-        <button onClick={() => fileRef.current?.click()} disabled={uploading} title="Attach image / file" style={{ padding: "9px 12px", borderRadius: 8, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 14, cursor: "pointer" }}>{uploading ? "…" : "📎"}</button>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading} title="Attach image / file" aria-label="Attach image or file" style={{ ...btnSecondary("md"), padding: "0 11px", color: C.n[600] }}>{uploading ? "…" : <Icon name="paperclip" size={16} />}</button>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -140,7 +141,7 @@ function Bubble({ m }: { m: ChatMessage }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
       <div style={{ maxWidth: "80%", background: mine ? C.pri[400] : C.n[0], color: mine ? "#fff" : C.n[900], border: mine ? "none" : `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "7px 11px", fontSize: 12.5, lineHeight: 1.45 }}>
-        {!mine && <div style={{ fontSize: 10.5, fontWeight: 700, color: C.pri[600], marginBottom: 2 }}>{m.authorName}</div>}
+        {!mine && <div style={{ fontSize: 11, fontWeight: 700, color: C.pri[600], marginBottom: 2 }}>{m.authorName}</div>}
         {m.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>}
         {m.attachmentUrl && (() => {
           const href = safeUrl(m.attachmentUrl);
@@ -148,7 +149,7 @@ function Bubble({ m }: { m: ChatMessage }) {
           // as inert text so a javascript:/data: payload can't execute.
           if (!href) {
             return (
-              <div style={{ fontSize: 12, color: mine ? "#fff" : C.n[500], marginTop: m.body ? 4 : 0, wordBreak: "break-word" }}>📎 Attachment</div>
+              <div style={{ fontSize: 12, color: mine ? "#fff" : C.n[500], marginTop: m.body ? 4 : 0, wordBreak: "break-word" }}><Icon name="paperclip" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Attachment</div>
             );
           }
           return isImageUrl(href) ? (
@@ -157,11 +158,11 @@ function Bubble({ m }: { m: ChatMessage }) {
               <img src={href} alt="attachment" style={{ maxWidth: "100%", borderRadius: 6, marginTop: m.body ? 6 : 0, display: "block" }} />
             </a>
           ) : (
-            <a href={href} target="_blank" rel="noreferrer" style={{ color: mine ? "#fff" : C.info[800], textDecoration: "underline", fontSize: 12, display: "inline-block", marginTop: m.body ? 4 : 0 }}>📎 Attachment</a>
+            <a href={href} target="_blank" rel="noreferrer" style={{ color: mine ? "#fff" : C.info[800], textDecoration: "underline", fontSize: 12, display: "inline-block", marginTop: m.body ? 4 : 0 }}><Icon name="paperclip" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Attachment</a>
           );
         })()}
       </div>
-      <div style={{ fontSize: 10, color: C.n[400], marginTop: 2 }}>{formatActivityTime(m.createdAt)}</div>
+      <div style={{ fontSize: 11, color: C.n[400], marginTop: 2 }}>{formatActivityTime(m.createdAt)}</div>
     </div>
   );
 }

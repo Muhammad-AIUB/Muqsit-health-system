@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ApiError, authApi, uploadImage, type Profession, type RegisterInput } from "@/lib/api";
 import { verifyNidNumber, type NidMatch } from "@/lib/ocr";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
+import Icon from "@/components/common/Icon";
 
 // ── Profession metadata (drives conditional fields) ──────────
 const PROFESSIONS: { value: Profession; label: string }[] = [
@@ -345,7 +346,7 @@ export default function SignupPage() {
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
                   <label style={labelStyle}>Email address</label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="doctor@clinic.com" style={fieldStyle} />
-                  <span style={{ fontSize: 10, color: C.n[500] }}>We&apos;ll email a verification code after you submit.</span>
+                  <span style={{ fontSize: 11, color: C.n[500] }}>We&apos;ll email a verification code after you submit.</span>
                 </div>
 
                 <div style={groupStyle}>
@@ -358,7 +359,7 @@ export default function SignupPage() {
                     style={{ ...fieldStyle, borderColor: mobile.length > 0 && mobile.length !== 11 ? C.danger[400] : (inputSm.border as string) }}
                   />
                   {mobile.length > 0 && (
-                    <span style={{ fontSize: 10, color: mobile.length === 11 ? C.ok[600] : C.warn[800] }}>
+                    <span style={{ fontSize: 11, color: mobile.length === 11 ? C.ok[600] : C.warn[800] }}>
                       {mobile.length === 11 ? "✓ Looks good" : `Must be exactly 11 digits (${mobile.length}/11)`}
                     </span>
                   )}
@@ -394,7 +395,7 @@ export default function SignupPage() {
                   {nidOcr !== "idle" && (
                     <span
                       style={{
-                        fontSize: 10,
+                        fontSize: 11,
                         color:
                           nidOcr === "match"
                             ? C.ok[600]
@@ -404,7 +405,7 @@ export default function SignupPage() {
                       }}
                     >
                       {nidOcr === "checking"
-                        ? "🔍 Checking the NID image…"
+                        ? "Checking the NID image…"
                         : nidOcr === "match"
                           ? "✓ This number matches the NID image"
                           : nidOcr === "mismatch"
@@ -431,7 +432,7 @@ export default function SignupPage() {
                   <label style={labelStyle}>Password</label>
                   <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
                   {password.length > 0 && (
-                    <span style={{ fontSize: 10, color: passwordOk ? C.ok[600] : C.warn[800] }}>
+                    <span style={{ fontSize: 11, color: passwordOk ? C.ok[600] : C.warn[800] }}>
                       {passwordOk ? "✓ Strong password" : "Must include uppercase, lowercase, number & special character (min 8)"}
                     </span>
                   )}
@@ -440,7 +441,7 @@ export default function SignupPage() {
                 <div style={groupStyle}>
                   <label style={labelStyle}>Retype password</label>
                   <input type="password" value={retype} onChange={(e) => setRetype(e.target.value)} placeholder="Re-enter password" style={{ ...fieldStyle, borderColor: mismatch ? C.danger[400] : (inputSm.border as string) }} />
-                  {mismatch && <span style={{ fontSize: 10, color: C.danger[800] }}>Passwords do not match</span>}
+                  {mismatch && <span style={{ fontSize: 11, color: C.danger[800] }}>Passwords do not match</span>}
                 </div>
 
               </div>
@@ -465,7 +466,7 @@ export default function SignupPage() {
               <h2 style={{ fontSize: 17, fontWeight: 600, color: C.n[900], margin: "0 0 4px" }}>Verify your email</h2>
               <p style={{ fontSize: 12, color: C.n[600], margin: "0 0 10px" }}>Enter the 6-digit code sent to <b>{email}</b>.</p>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 11.5, color: C.n[600], background: C.n[50], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px", margin: "0 0 18px" }}>
-                <span>📩</span>
+                <Icon name="mail" size={16} style={{ marginTop: 1 }} />
                 <span>Don&apos;t see the email? Check your <b>spam / junk</b> folder — verification emails sometimes end up there.</span>
               </div>
               <div style={groupStyle}>
@@ -566,7 +567,7 @@ function FileField({
           {value ? (
             <img src={value} alt="profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
-            <span style={{ fontSize: 26, color: C.n[500] }}>{busy ? "…" : "📷"}</span>
+            <span style={{ fontSize: 26, color: C.n[500], display: "flex" }}>{busy ? "…" : <Icon name="camera" size={26} />}</span>
           )}
           <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onChange} disabled={busy} />
         </label>

@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { btnSecondary } from "@/theme/styles";
 import { INV_CATS } from "@/data/investigations";
 import { useInvestigationPrefs, useSaveFavourites, useSaveUnitPrefs } from "@/hooks/useInvestigationPrefs";
+import Icon from "@/components/common/Icon";
 
 // Settings → Favourite & unit settings.
 // Part 1 (this view): pick favourite investigations — they populate the
@@ -53,7 +54,7 @@ export default function FavouriteSettingsView({ onBack }: { onBack: () => void }
   return (
     <div style={{ fontFamily: font }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <button onClick={onBack} style={btnBack}>← Back</button>
+        <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back</button>
         <div style={{ fontSize: 16, fontWeight: 600 }}>Favourite &amp; unit settings</div>
       </div>
 

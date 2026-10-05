@@ -13,6 +13,7 @@ import CalcRenderer from "./CalcRenderer";
 import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
+import Icon from "@/components/common/Icon";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -376,7 +377,7 @@ export default function InvestigationPopup() {
   // row starts at the same height whether its neighbour's label wrapped or not
   // ("Neutrophil count (cells/uL)" wraps, "MCV (fL)" does not). Same idea as
   // `fieldLabel` in theme/styles.ts.
-  const testLbl: CSSProperties = { fontSize: 10.5, fontWeight: 500, color: C.n[600], lineHeight: 1.25, marginBottom: 3, minHeight: 27, display: "flex", alignItems: "flex-end" };
+  const testLbl: CSSProperties = { fontSize: 11, fontWeight: 500, color: C.n[600], lineHeight: 1.25, marginBottom: 3, minHeight: 27, display: "flex", alignItems: "flex-end" };
 
   const searchResults: { cat: string; test: string }[] = [];
   if (invSearch) {
@@ -513,7 +514,7 @@ export default function InvestigationPopup() {
               fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
               border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[700], opacity: reportsUploading ? 0.6 : 1,
             }}>
-              {reportsUploading ? "Uploading reports…" : "🖼 Add all reports image"}
+              {reportsUploading ? "Uploading reports…" : <><Icon name="image" size={15} /> Add all reports image</>}
               <input type="file" accept={IMAGE_ACCEPT} multiple disabled={reportsUploading} style={{ display: "none" }}
                 onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
             </label>
@@ -535,7 +536,7 @@ export default function InvestigationPopup() {
             <span style={{ fontSize: 16, fontWeight: 600, color: C.pri[600] }}>{String(calDate.getMonth() + 1).padStart(2, "0")}</span>
             <span style={{ fontSize: 12, color: C.n[500], margin: "0 3px" }}>/</span>
             <span style={{ fontSize: 16, fontWeight: 600, color: C.pri[600] }}>{calDate.getFullYear()}</span>
-            <span style={{ fontSize: 10, color: C.n[500], marginLeft: 8 }}>{calDate.toLocaleDateString("en-US", { weekday: "long" })}</span>
+            <span style={{ fontSize: 11, color: C.n[500], marginLeft: 8 }}>{calDate.toLocaleDateString("en-US", { weekday: "long" })}</span>
           </div>
           {/* Nav row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6, rowGap: 6, marginBottom: 5 }}>
@@ -595,7 +596,7 @@ export default function InvestigationPopup() {
         {/* Search bar */}
         <div style={{ padding: "6px 20px", borderBottom: "0.5px solid " + C.n[200], background: C.n[50] }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 13, color: C.n[500], flexShrink: 0 }}>&#x2315;</span>
+            <Icon name="search" size={15} style={{ color: C.n[500] }} />
             <input value={invSearch} onChange={(e) => setInvSearch(e.target.value)}
               placeholder="Search test name across all categories..."
               style={{ flex: 1, padding: "6px 10px", borderRadius: 6, fontSize: 11, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit" }} />
@@ -603,19 +604,19 @@ export default function InvestigationPopup() {
           </div>
           {invSearch && (
             searchResults.length === 0 ? (
-              <div style={{ fontSize: 10, color: C.n[500], marginTop: 4 }}>No tests found for &quot;{invSearch}&quot;</div>
+              <div style={{ fontSize: 11, color: C.n[500], marginTop: 4 }}>No tests found for &quot;{invSearch}&quot;</div>
             ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
                 {searchResults.slice(0, 12).map((r) => (
                   <button key={r.cat + r.test} onClick={() => jumpToTest(r.cat, r.test)}
-                    style={{ padding: "3px 10px", borderRadius: 5, fontSize: 10, cursor: "pointer", border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[800], fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
+                    style={{ padding: "3px 10px", borderRadius: 5, fontSize: 11, cursor: "pointer", border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[800], fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = C.n[0]; e.currentTarget.style.borderColor = C.n[200]; }}>
                     <span style={{ fontWeight: 500 }}>{r.test}</span>
-                    <span style={{ fontSize: 10, color: C.n[500] }}>{r.cat}</span>
+                    <span style={{ fontSize: 11, color: C.n[500] }}>{r.cat}</span>
                   </button>
                 ))}
-                {searchResults.length > 12 && <span style={{ fontSize: 9, color: C.n[500], alignSelf: "center" }}>+{searchResults.length - 12} more</span>}
+                {searchResults.length > 12 && <span style={{ fontSize: 10.5, color: C.n[500], alignSelf: "center" }}>+{searchResults.length - 12} more</span>}
               </div>
             )
           )}
@@ -681,9 +682,9 @@ export default function InvestigationPopup() {
                           if (tagTestImage(test.name, url)) logInv(`${test.name} report image (${formatCalDate(calDate)})`, url);
                         }}
                         style={{
-                        padding: "4px 12px", borderRadius: 6,
+                        minHeight: 30, padding: "0 12px", borderRadius: 8,
                         border: dropTest === test.name ? "2px dashed #fff" : "none",
-                        background: dropTest === test.name ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 10, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                        background: dropTest === test.name ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                         display: "inline-flex", alignItems: "center", gap: 4,
                       }}>
                         <span>Add report image</span>
@@ -758,7 +759,7 @@ export default function InvestigationPopup() {
                                 }}
                                 onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                                 style={inp} />
-                              <div style={{ fontSize: 10, color: C.n[600], marginTop: 2 }}>{f.u1}</div>
+                              <div style={{ fontSize: 11, color: C.n[600], marginTop: 2 }}>{f.u1}</div>
                             </div>
                             <span style={{ fontSize: 10, color: C.n[400], flexShrink: 0 }}>=</span>
                             <div style={{ flex: 1 }}>
@@ -774,7 +775,7 @@ export default function InvestigationPopup() {
                                   }
                                 }}
                                 style={inp} />
-                              <div style={{ fontSize: 10, color: C.n[600], marginTop: 2 }}>{f.u2}</div>
+                              <div style={{ fontSize: 11, color: C.n[600], marginTop: 2 }}>{f.u2}</div>
                             </div>
                           </div>
                         </div>

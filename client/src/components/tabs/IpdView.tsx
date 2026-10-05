@@ -10,6 +10,7 @@ import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 import { useWards } from "@/hooks/useWards";
 import { ApiError } from "@/lib/api";
 import { useMuqsit } from "@/context/MuqsitContext";
+import Icon from "@/components/common/Icon";
 
 // Sentinel for "not one of my wards — let me type it". Not a ward id, so it can
 // never be sent to the server as one.
@@ -121,7 +122,7 @@ export default function IpdView() {
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8 }}>
           <div style={{ fontSize: 16, fontWeight: 500 }}>IPD ward management</div>
           <button disabled title="Nursing Genie — coming soon" style={{ ...btnSecondary("sm"), ...btnDisabled }}>
-            🧞 Nursing Genie <span style={{ fontSize: 9, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
+            <Icon name="sparkles" size={15} /> Nursing Genie <span style={{ fontSize: 10.5, fontWeight: 600, color: C.n[500], background: C.n[200], borderRadius: 999, padding: "1px 6px" }}>Soon</span>
           </button>
         </div>
         <button onClick={() => { setShowAdd((s) => !s); setAdmitError(""); }} style={btnPrimary("md")}>
@@ -146,7 +147,7 @@ export default function IpdView() {
               placeholder="Mobile (11 digit)"
               inputStyle={{ ...inp, width: "100%", boxSizing: "border-box", borderColor: mobileInvalid ? C.danger[400] : C.n[200] }}
             />
-            {mobileInvalid && <div style={{ fontSize: 9, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}
+            {mobileInvalid && <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}
           </div>
           <input value={hospitalId} onChange={(e) => setHospitalId(e.target.value)} placeholder="Hospital id" style={{ ...inp, flex: "0 0 110px" }} />
           <input value={bed} onChange={(e) => setBed(e.target.value)} placeholder="Bed (e.g. B-3)" style={{ ...inp, flex: "0 0 110px" }} />
@@ -186,20 +187,20 @@ export default function IpdView() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
-        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.n[600] }}>Occupied</div><div style={{ fontSize: 22, fontWeight: 500, color: C.n[900] }}>{occupied}</div></div>
-        <div style={{ background: C.danger[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.danger[800] }}>Critical</div><div style={{ fontSize: 22, fontWeight: 500, color: C.danger[800] }}>{critical}</div></div>
-        <div style={{ background: C.info[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 10, color: C.info[800] }}>Discharge</div><div style={{ fontSize: 22, fontWeight: 500, color: C.info[800] }}>{discharge}</div></div>
+        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.n[600] }}>Occupied</div><div style={{ fontSize: 24, fontWeight: 600, color: C.n[900] }}>{occupied}</div></div>
+        <div style={{ background: C.danger[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.danger[800] }}>Critical</div><div style={{ fontSize: 24, fontWeight: 600, color: C.danger[800] }}>{critical}</div></div>
+        <div style={{ background: C.info[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.info[800] }}>Discharge</div><div style={{ fontSize: 24, fontWeight: 600, color: C.info[800] }}>{discharge}</div></div>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-        <button onClick={() => void openPatientTab("pt-settings")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}>⊕ Patient Settings</button>
-        <button onClick={() => void openPatientTab("idsp")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}>◎ Integrated health monitoring and overview</button>
-        <button onClick={() => void openPatientTab("pt-records")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}>🗂 Patient&apos;s Prescriptions and reports</button>
+        <button onClick={() => void openPatientTab("pt-settings")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}><Icon name="userEdit" size={15} /> Patient Settings</button>
+        <button onClick={() => void openPatientTab("idsp")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}><Icon name="activity" size={15} /> Integrated health monitoring and overview</button>
+        <button onClick={() => void openPatientTab("pt-records")} disabled={!targetPid} title={tabsTitle} style={navBtn(!targetPid)}><Icon name="folder" size={15} /> Patient&apos;s Prescriptions and reports</button>
         {targetPid && <span style={{ fontSize: 11, color: C.n[500], alignSelf: "center" }}>for <b style={{ color: C.n[700] }}>{target?.name}</b></span>}
       </div>
 
       <div style={{ marginBottom: 10 }}>
-        <input value={search} onChange={(e) => setSearch(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="🔍 Search admitted patients by mobile number…" style={{ ...inp, width: "100%" }} />
+        <input value={search} onChange={(e) => setSearch(e.target.value.replace(/\D/g, ""))} inputMode="numeric" aria-label="Search admitted patients by mobile number" placeholder="Search admitted patients by mobile number…" style={{ ...inp, width: "100%" }} />
       </div>
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>

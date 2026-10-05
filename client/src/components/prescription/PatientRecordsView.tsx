@@ -25,6 +25,7 @@ import InvestigationDownload from "./InvestigationDownload";
 import ImageGallery from "@/components/common/ImageGallery";
 import { pdfFileName } from "@/lib/galleryPdf";
 import ImageLightbox from "@/components/common/ImageLightbox";
+import Icon from "@/components/common/Icon";
 
 // A dd/mm/yyyy group heading, flagged when the date sits implausibly far ahead.
 // Findings written before the DDMMYY century fix could only land in 2000-2099,
@@ -359,7 +360,7 @@ export default function PatientRecordsView() {
                 : <button onClick={() => setEditingSummary(true)} style={ghostBtn}>✎ Edit</button>
             )}
             <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ ...btnPrimary("sm"), ...(currentPatientId ? null : btnDisabled) }}>+ Add</button>
-            <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ ...btnSecondary("sm"), color: C.pri[600], ...(allFindings.length ? null : btnDisabled) }}>⬇ Download</button>
+            <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ ...btnSecondary("sm"), color: C.pri[600], ...(allFindings.length ? null : btnDisabled) }}><Icon name="download" size={14} /> Download</button>
           </div>
         </div>
         {summary.length === 0 ? (

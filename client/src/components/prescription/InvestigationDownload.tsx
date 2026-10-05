@@ -8,6 +8,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/lib/investigationSummary";
 import DateField from "@/components/common/DateField";
 import { ddmmyyyyMs } from "@/lib/dateInput";
+import Icon from "@/components/common/Icon";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const todayStr = () => { const d = new Date(); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
@@ -186,8 +187,8 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
         <div style={{ fontSize: 12, color: C.n[500], marginBottom: 14 }}>{filtered.length} finding{filtered.length === 1 ? "" : "s"} in selection.</div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button onClick={downloadPdf} disabled={!filtered.length} style={{ ...btnPrimary("md"), fontWeight: 600, ...(filtered.length ? null : btnDisabled) }}>📄 PDF</button>
-          <button onClick={downloadXlsx} disabled={!filtered.length} style={{ ...btnSecondary("md"), fontWeight: 600, border: `1px solid ${C.pri[400]}`, color: C.pri[600], ...(filtered.length ? null : btnDisabled) }}>📊 Excel</button>
+          <button onClick={downloadPdf} disabled={!filtered.length} style={{ ...btnPrimary("md"), fontWeight: 600, ...(filtered.length ? null : btnDisabled) }}><Icon name="fileText" size={15} /> PDF</button>
+          <button onClick={downloadXlsx} disabled={!filtered.length} style={{ ...btnSecondary("md"), fontWeight: 600, border: `1px solid ${C.pri[400]}`, color: C.pri[600], ...(filtered.length ? null : btnDisabled) }}><Icon name="table" size={15} /> Excel</button>
         </div>
       </div>
     </div>

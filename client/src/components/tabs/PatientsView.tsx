@@ -8,6 +8,7 @@ import { usePatients } from "@/hooks/usePatients";
 import type { Patient } from "@/lib/api";
 import { normaliseSex } from "@/lib/sex";
 import type { PtInfo } from "@/types";
+import Icon, { type IconName } from "@/components/common/Icon";
 
 interface RowData {
   id: string;
@@ -46,11 +47,11 @@ const PatientRow = ({ p, rightSlot }: { p: RowData; rightSlot?: ReactNode }) => 
   </div>
 );
 
-const SectionHeader = ({ icon, title, count, color, action }: { icon: string; title: string; count: number; color: Palette; action?: ReactNode }) => (
+const SectionHeader = ({ icon, title, count, color, action }: { icon: IconName; title: string; count: number; color: Palette; action?: ReactNode }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-    <span style={{ fontSize: 16 }}>{icon}</span>
+    <Icon name={icon} size={18} style={{ color: color[800] }} />
     <span style={{ fontSize: 13, fontWeight: 600, color: C.n[800] }}>{title}</span>
-    <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 10, background: color[50], color: color[800], fontWeight: 600 }}>{count}</span>
+    <span style={{ fontSize: 11, padding: "1px 8px", borderRadius: 10, background: color[50], color: color[800], fontWeight: 600 }}>{count}</span>
     {action && <div style={{ marginLeft: "auto" }}>{action}</div>}
   </div>
 );
@@ -109,7 +110,7 @@ export default function PatientsView() {
 
       {/* ── GROUP 1: Surveillance (watched flag from the API) ── */}
       <div style={{ background: C.n[0], border: `0.5px solid ${C.warn[100]}`, borderRadius: 12, padding: "14px 16px" }}>
-        <SectionHeader icon="👁️" title="Patients on your surveillance" count={watchedPatients.length} color={C.warn} />
+        <SectionHeader icon="eye" title="Patients on your surveillance" count={watchedPatients.length} color={C.warn} />
         {watchedPatients.length === 0 ? (
           <div style={{ textAlign: "center", padding: "20px 0", color: C.n[500], fontSize: 12 }}>
             No patients flagged — tick <strong>&quot;Keep eye on this patient&quot;</strong> in the prescription header to add one here
@@ -120,7 +121,7 @@ export default function PatientsView() {
               <div key={p.id} style={{ borderBottom: i < watchedPatients.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
                 <PatientRow p={{ ...toRow(p), diagnosis: "Under monitoring", color: "warn" }} rightSlot={
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                    <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 10, background: "#fffbeb", color: "#b45309", border: "0.5px solid #fde68a", fontWeight: 600, whiteSpace: "nowrap" }}>👁️ Watching</span>
+                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 10, background: "#fffbeb", color: "#b45309", border: "0.5px solid #fde68a", fontWeight: 600, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="eye" size={13} /> Watching</span>
                     <button onClick={() => openForPrescription(p)} style={smallBtn(true)}>Open</button>
                   </div>
                 } />
@@ -132,7 +133,7 @@ export default function PatientsView() {
 
       {/* ── GROUP 2: All patients (from API) ── */}
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "14px 16px" }}>
-        <SectionHeader icon="🗂️" title="Your patients" count={patients.length} color={C.pri}
+        <SectionHeader icon="folder" title="Your patients" count={patients.length} color={C.pri}
           action={<button onClick={newPatient} style={btnPrimary("sm")}>+ New patient</button>}
         />
         {isLoading ? (

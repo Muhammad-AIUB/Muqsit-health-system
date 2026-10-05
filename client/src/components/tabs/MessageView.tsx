@@ -5,6 +5,7 @@ import { C, font } from "@/theme";
 import { useSupervisedPatients } from "@/hooks/useChat";
 import { displayAge } from "@/lib/age";
 import PatientChat from "@/components/prescription/PatientChat";
+import Icon from "@/components/common/Icon";
 
 // 4.docx: a supervising doctor's home — the patients other doctors assigned them
 // to supervise. Selecting one opens that patient's team chat (cross-doctor).
@@ -27,7 +28,7 @@ export default function MessageView() {
         <div style={{ padding: 40, textAlign: "center", color: C.n[500], fontSize: 13 }}>Loading…</div>
       ) : patients.length === 0 ? (
         <div style={{ padding: 50, textAlign: "center", color: C.n[500] }}>
-          <div style={{ fontSize: 30, marginBottom: 8 }}>◈</div>
+          <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><Icon name="userCheck" size={30} /></div>
           <div style={{ fontSize: 14, fontWeight: 500, color: C.n[800] }}>No supervised patients yet</div>
           <div style={{ fontSize: 12, marginTop: 4 }}>When a doctor adds you as a supervising doctor on a patient, it appears here.</div>
         </div>
@@ -45,7 +46,7 @@ export default function MessageView() {
                 >
                   <div style={{ fontSize: 13, fontWeight: 600, color: on ? C.pri[700] : C.n[900] }}>{p.name}</div>
                   <div style={{ fontSize: 11, color: C.n[500] }}>{meta(p) || "—"}</div>
-                  <div style={{ fontSize: 10.5, color: C.n[400], marginTop: 1 }}>Owner: {p.ownerName || "—"}</div>
+                  <div style={{ fontSize: 11, color: C.n[400], marginTop: 1 }}>Owner: {p.ownerName || "—"}</div>
                 </button>
               );
             })}

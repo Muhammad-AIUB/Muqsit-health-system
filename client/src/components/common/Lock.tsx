@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { C } from "@/theme";
+import Icon from "@/components/common/Icon";
 
 // Renders its children but makes them non-interactive when `locked` — the
 // assistant can SEE the section but can't click or edit it (matches the spec:
@@ -22,7 +23,7 @@ export default function Lock({ locked, children }: { locked: boolean; children: 
           handler is the fallback for a browser without `inert`: anything that
           still receives focus in here gives it straight back. */}
       <div ref={makeInert} aria-disabled="true" onFocusCapture={(e) => (e.target as HTMLElement).blur()} style={{ pointerEvents: "none", userSelect: "none" }}>{children}</div>
-      <span style={{ position: "absolute", top: 0, right: 2, fontSize: 11, color: C.n[400] }}>🔒</span>
+      <span aria-hidden style={{ position: "absolute", top: 0, right: 2, color: C.n[400], display: "flex" }}><Icon name="lock" size={12} /></span>
     </div>
   );
 }
