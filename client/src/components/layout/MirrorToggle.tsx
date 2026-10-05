@@ -25,15 +25,15 @@ export default function MirrorToggle() {
       title="Keep your other logged-in devices on the same page in real time"
       style={{
         display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none",
-        padding: "5px 10px", borderRadius: 7, whiteSpace: "nowrap", fontFamily: font,
-        border: `0.5px solid ${mirrorOn ? C.pri[400] : C.n[200]}`,
+        minHeight: 32, padding: "0 10px", borderRadius: 8, whiteSpace: "nowrap", fontFamily: font,
+        border: `1px solid ${mirrorOn ? C.pri[400] : C.n[300]}`,
         background: mirrorOn ? C.pri[50] : C.n[0],
       }}
     >
       <span style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${mirrorOn ? C.pri[400] : C.n[300]}`, background: mirrorOn ? C.pri[400] : "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 700 }}>
         {mirrorOn ? "✓" : ""}
       </span>
-      <span style={{ fontSize: 11, fontWeight: mirrorOn ? 600 : 400, color: mirrorOn ? C.pri[600] : C.n[600] }}>
+      <span style={{ fontSize: 12, fontWeight: mirrorOn ? 600 : 500, color: mirrorOn ? C.pri[600] : C.n[600] }}>
         Mirror devices
       </span>
     </label>

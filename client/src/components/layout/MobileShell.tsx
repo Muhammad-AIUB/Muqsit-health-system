@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { C } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { TABS, MOBILE_TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
+import TabIcon from "./TabIcon";
 import AccountMenu from "./AccountMenu";
 import { WorkstationIndicator } from "./WorkstationSwitcher";
 import PatientHeader from "@/components/prescription/PatientHeader";
@@ -34,32 +35,32 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
   return (
     <div style={frameStyle}>
       <div style={innerStyle}>
-        {preview && <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 18px", fontSize: 10, color: C.n[600] }}><span style={{ fontWeight: 500 }}>5:04 PM</span><div style={{ display: "flex", gap: 4, alignItems: "center" }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.pri[400] }} /><span>Synced</span></div></div>}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 14px 8px", background: C.n[0], borderBottom: `0.5px solid ${C.n[200]}` }}>
+        {preview && <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 18px", fontSize: 10, color: C.n[600] }}><span style={{ fontWeight: 500 }}>5:04 PM</span><div style={{ display: "flex", gap: 4, alignItems: "center" }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.ok[400] }} /><span>Synced</span></div></div>}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", minHeight: 48, background: C.n[0], borderBottom: `1px solid ${C.n[200]}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: "0 1 auto" }}>
-            <div style={{ width: 26, height: 22, borderRadius: 5, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8, fontWeight: 700, flexShrink: 0 }}>MHS+</div>
-            <span style={{ fontSize: 14, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tabTitle}</span>
+            <div style={{ width: 30, height: 26, borderRadius: 7, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 8.5, fontWeight: 700, flexShrink: 0 }}>MHS+</div>
+            <span style={{ fontSize: 15, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tabTitle}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <WorkstationIndicator />
-            <AccountMenu size={24} />
+            <AccountMenu size={30} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
           {showHeader && <PatientHeader mobile />}
           {activeTab === "prescription" ? <PrescriptionView mobile /> : <TabRouter />}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-around", padding: "6px 0 14px", background: C.n[0], borderTop: `0.5px solid ${C.n[200]}` }}>
+        <nav aria-label="Main" style={{ display: "flex", justifyContent: "space-around", padding: "4px 4px calc(8px + env(safe-area-inset-bottom, 0px))", background: C.n[0], borderTop: `1px solid ${C.n[200]}` }}>
           {MOBILE_TABS.map((t) => {
             const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));
             return (
-              <div key={t.id} onClick={t.disabled ? undefined : () => setActiveTab(t.id)} title={t.disabled ? "Coming soon" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: 44, cursor: t.disabled ? "not-allowed" : "pointer", color: t.disabled ? C.n[300] : active ? C.pri[400] : C.n[500], opacity: t.disabled ? 0.6 : 1 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 5, background: active ? C.pri[400] : C.n[200], color: active ? "#fff" : C.n[600], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{t.icon}</div>
-                <span style={{ fontSize: 10, fontWeight: activeTab === t.id ? 500 : 400 }}>{t.label}</span>
-              </div>
+              <button key={t.id} type="button" onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} aria-current={active ? "page" : undefined} style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: 48, padding: 0, border: "none", background: "none", fontFamily: "inherit", cursor: t.disabled ? "not-allowed" : "pointer", color: t.disabled ? C.n[400] : active ? C.pri[600] : C.n[600] }}>
+                <span style={{ width: 44, height: 24, borderRadius: 12, background: active ? C.pri[50] : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}><TabIcon id={t.id === "settings" ? "more" : t.id} size={18} /></span>
+                <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 500, whiteSpace: "nowrap" }}>{t.label}</span>
+              </button>
             );
           })}
-        </div>
+        </nav>
         <DrugPicker mobile />
         <InvestigationPopup />
         <OePopup />

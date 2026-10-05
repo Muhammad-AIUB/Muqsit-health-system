@@ -47,7 +47,8 @@ export default function PatientSearch() {
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => { if (results.length) setOpen(true); }}
         placeholder="Search by mobile / NID…"
-        style={{ padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${C.n[200]}`, fontSize: 11, width: 190, outline: "none", background: C.n[0], color: C.n[900], fontFamily: font }}
+        aria-label="Search patients by mobile or NID"
+        style={{ minHeight: 32, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.n[300]}`, fontSize: 12.5, width: 210, outline: "none", background: C.n[0], color: C.n[900], fontFamily: font }}
       />
       {open && results.length > 0 && (
         <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, minWidth: 240, zIndex: 60, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.14)", overflow: "hidden" }}>

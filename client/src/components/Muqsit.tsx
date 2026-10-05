@@ -38,21 +38,20 @@ function MuqsitInner() {
 
   return (
     <div style={{ fontFamily: font, color: C.n[900] }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 24, height: 20, borderRadius: 4, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 7, fontWeight: 700 }}>MHS+</div>
-          <span style={{ fontSize: 12, fontWeight: 500 }}>Muqsit Health System</span>
-        </div>
+      {/* A quiet utility strip: sync state and the layout preview. The brand is
+          NOT repeated here — both shells carry it in their own header, and two
+          logos stacked 40px apart read as two different products. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 8, minHeight: 24 }}>
+        <div role="status" style={{ fontSize: 11, color: C.n[600], display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: C.ok[400] }} /> Synced</div>
         {/* Manual preview toggle — only useful on larger screens; a real phone
             gets the mobile layout from its viewport, so hide it there. */}
         {!viewportMobile && (
-          <div style={{ display: "flex", gap: 2, background: C.n[100], borderRadius: 6, padding: 2, marginLeft: 6 }}>
+          <div role="group" aria-label="Layout preview" style={{ display: "flex", gap: 2, background: C.n[200], borderRadius: 8, padding: 2 }}>
             {VIEWS.map((v) => (
-              <button key={v} onClick={() => setView(v)} style={{ padding: "3px 10px", borderRadius: 4, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 500, background: view === v ? "#fff" : "transparent", color: view === v ? C.n[900] : C.n[600], boxShadow: view === v ? "0 1px 2px rgba(0,0,0,0.06)" : "none", fontFamily: font }}>{v === "desktop" ? "Desktop" : "Mobile"}</button>
+              <button key={v} onClick={() => setView(v)} aria-pressed={view === v} style={{ minHeight: 22, padding: "0 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: view === v ? 600 : 500, background: view === v ? C.n[0] : "transparent", color: view === v ? C.n[900] : C.n[600], boxShadow: view === v ? "0 1px 2px rgba(0,0,0,0.08)" : "none", fontFamily: font }}>{v === "desktop" ? "Desktop" : "Mobile"}</button>
             ))}
           </div>
         )}
-        <div style={{ marginLeft: "auto", fontSize: 10, color: C.n[600], display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.pri[400] }} /> Synced</div>
       </div>
 
       {effectiveView === "desktop" && <DesktopShell />}
