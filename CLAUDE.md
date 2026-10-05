@@ -73,6 +73,10 @@ npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.pri
 - We do not retry a flaky test. A test whose outcome varies is a defect; find the cause (clock, order, timeout) with `scripts/test-repeat.mjs`.
 - We do not change a test to make a real defect pass. It stays as `it.failing` / `it.fails` with a `DEFECT-` comment until the code is fixed.
 - We do not colour a status with the brand colour. `C.pri` (blue) is for what can be pressed or is selected; "done / normal / saved / stable" is `C.ok` (green). The brand was green until 2026-10-05 and doubled as "fine" — a normal BMI and a Save button were the same colour.
+- We do not load a font, a script or a stylesheet the UI needs from a third-party CDN. A hospital network that blocks Google turned the whole app to the system font; DM Sans is in `public/fonts` of both apps, and the E2E request guard allows no outside origin.
+- We do not use an emoji as an icon, and we do not turn a text glyph a doctor reads (✎ ⊘ 💊 ★ ↺ ↳ ℞) into one. Chrome icons are `client/src/components/common/Icon.tsx`; the list of glyphs that stay text is in `client/CLAUDE.md`.
+- We do not make a `div` or `span` clickable without `pressable()` (`client/src/lib/a11y.ts`), or ship an icon-only button without an `aria-label`. 26 controls had no keyboard route and 16 buttons had no name.
+- We do not change a colour, size or spacing in `prescriptionDoc.ts` as part of an app restyle. It imports no theme on purpose; its five accent rules were moved to blue once, by the physician's decision, with the whole-document snapshot updated in the same commit.
 - We do not enable the ECC plugin in this repo. Its hooks have not been checked against these safety rules.
 
 ## Read First
