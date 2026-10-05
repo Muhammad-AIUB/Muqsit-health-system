@@ -150,10 +150,13 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
 
   const inp: CSSProperties = {
     width: "100%", padding: "6px 8px", borderRadius: 6, fontSize: 12,
-    border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0],
+    border: "1px solid " + C.n[300], outline: "none", background: C.n[0],
     color: C.n[900], fontFamily: "inherit", boxSizing: "border-box",
   };
-  const lbl: CSSProperties = { fontSize: 9, color: C.n[500], textTransform: "uppercase", marginBottom: 3, display: "block" };
+  // Labels are shown as the calculator defines them — never in forced capitals:
+  // "WBC (×10³/µL)" in capitals reads "ΜL" (µ uppercases to a Greek Mu that
+  // looks like M), and mg/dL becomes MG/DL.
+  const lbl: CSSProperties = { fontSize: 10.5, fontWeight: 500, color: C.n[600], lineHeight: 1.25, marginBottom: 3, display: "block" };
 
   const summaryOf = (r: CalculationResult): string => {
     const score = r.score ?? r.value;
@@ -262,7 +265,7 @@ export default function CalcRenderer({ calcId, onAdd }: { calcId: string; onAdd:
       {/* Vasopressor drug list */}
       {calcId === "vasopressor" && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 9, color: C.n[500], textTransform: "uppercase", marginBottom: 4 }}>Vasoactive agents</div>
+          <div style={{ fontSize: 10.5, fontWeight: 500, color: C.n[600], marginBottom: 4 }}>Vasoactive agents</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {VASO_DRUGS.map((name) => {
               const isVaso = name === "vasopressin";

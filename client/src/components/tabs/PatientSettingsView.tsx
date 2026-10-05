@@ -194,8 +194,8 @@ export default function PatientSettingsView() {
   };
   const piAge = computeAge(pI.dob);
 
-  const piLbl: CSSProperties = { fontSize: 10, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 };
-  const piInp: CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], boxSizing: "border-box", fontFamily: "inherit" };
+  const piLbl: CSSProperties = { fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 };
+  const piInp: CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 13, border: "1px solid " + C.n[300], outline: "none", background: C.n[0], color: C.n[900], boxSizing: "border-box", fontFamily: "inherit" };
   const piSel: CSSProperties = Object.assign({}, piInp, { padding: "8px 6px" });
   const piRow: CSSProperties = { display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" };
   const psTabStyle = (id: string): CSSProperties => ({ padding: "6px 16px", borderRadius: 7, border: "none", cursor: ptSettingsTab === "security" && id === "security" ? "not-allowed" : "pointer", fontSize: 12, background: ptSettingsTab === id ? C.info[50] : "transparent", color: ptSettingsTab === id ? C.info[800] : C.n[600], fontWeight: ptSettingsTab === id ? 500 : 400, fontFamily: "inherit", opacity: id === "security" ? 0.5 : 1 });

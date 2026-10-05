@@ -367,7 +367,11 @@ export default function InvestigationPopup() {
     { l: "+1Y", fn: () => shiftYear(1), c: C.danger },
   ];
 
-  const inp: CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit", boxSizing: "border-box" };
+  const inp: CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 6, fontSize: 12.5, border: "1px solid " + C.n[300], outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit", boxSizing: "border-box" };
+  // A test's name and unit are shown as the catalog writes them. Forcing
+  // capitals turned g/dL into G/DL, fL into FL and pg into PG — and a unit is a
+  // clinical fact, not decoration.
+  const testLbl: CSSProperties = { fontSize: 10.5, fontWeight: 500, color: C.n[600], lineHeight: 1.25, marginBottom: 3 };
 
   const searchResults: { cat: string; test: string }[] = [];
   if (invSearch) {
@@ -532,7 +536,7 @@ export default function InvestigationPopup() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6, rowGap: 6, marginBottom: 5 }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 3, rowGap: 4 }}>
               {navLeft.map((b) => (
-                <button key={b.l} onClick={b.fn} style={{ padding: "2px 7px", borderRadius: 4, border: "1px solid " + b.c[400], background: b.c[50], color: b.c[800] || b.c[600], fontSize: 9, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.02em" }}>{b.l}</button>
+                <button key={b.l} onClick={b.fn} style={{ padding: "2px 7px", borderRadius: 4, border: "1px solid " + b.c[400], background: b.c[50], color: b.c[800] || b.c[600], fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.02em" }}>{b.l}</button>
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -555,17 +559,17 @@ export default function InvestigationPopup() {
               <span onWheel={(e) => { e.preventDefault(); if (e.deltaY < 0) shiftYear(1); else shiftYear(-1); }}
                 style={{ fontSize: 12, fontWeight: 500, color: C.n[900], cursor: "ns-resize", padding: "1px 5px", borderRadius: 4, userSelect: "none" }}
                 title="Scroll to change year">{y}</span>
-              <button onClick={() => { handleCalDateChange(new Date()); setShowMonthPicker(false); }} style={{ padding: "1px 7px", borderRadius: 4, border: "1px solid " + C.pri[400], background: C.pri[400], color: "#fff", fontSize: 8, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Today</button>
+              <button onClick={() => { handleCalDateChange(new Date()); setShowMonthPicker(false); }} style={{ padding: "1px 7px", borderRadius: 4, border: "1px solid " + C.pri[400], background: C.pri[400], color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Today</button>
             </div>
             <div style={{ display: "flex", gap: 3 }}>
               {navRight.map((b) => (
-                <button key={b.l} onClick={b.fn} style={{ padding: "2px 7px", borderRadius: 4, border: "1px solid " + b.c[400], background: b.c[50], color: b.c[800] || b.c[600], fontSize: 9, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.02em" }}>{b.l}</button>
+                <button key={b.l} onClick={b.fn} style={{ padding: "2px 7px", borderRadius: 4, border: "1px solid " + b.c[400], background: b.c[50], color: b.c[800] || b.c[600], fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.02em" }}>{b.l}</button>
               ))}
             </div>
           </div>
           {/* Day headers */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0 }}>
-            {rotatedDays.map((d) => <div key={d} style={{ textAlign: "center", fontSize: 8, fontWeight: 600, color: C.pri[600], padding: "3px 0", background: C.pri[50], borderRadius: 2 }}>{d}</div>)}
+            {rotatedDays.map((d) => <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: C.pri[600], padding: "3px 0", background: C.pri[50], borderRadius: 2 }}>{d}</div>)}
             {cells.map((day, i) => {
               const todayMatch = isToday(day);
               const selected = isSel(day);
@@ -603,7 +607,7 @@ export default function InvestigationPopup() {
                     onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = C.n[0]; e.currentTarget.style.borderColor = C.n[200]; }}>
                     <span style={{ fontWeight: 500 }}>{r.test}</span>
-                    <span style={{ fontSize: 8, color: C.n[500] }}>{r.cat}</span>
+                    <span style={{ fontSize: 10, color: C.n[500] }}>{r.cat}</span>
                   </button>
                 ))}
                 {searchResults.length > 12 && <span style={{ fontSize: 9, color: C.n[500], alignSelf: "center" }}>+{searchResults.length - 12} more</span>}
@@ -709,7 +713,7 @@ export default function InvestigationPopup() {
                     if (f.t === "dd") {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
-                          <div style={{ fontSize: 9, color: C.n[500], textTransform: "uppercase", marginBottom: 3 }}>{f.l}</div>
+                          <div style={testLbl}>{f.l}</div>
                           <select value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             style={{ ...inp, padding: "6px 4px" }}>
                             <option value="">Select</option>
@@ -722,7 +726,7 @@ export default function InvestigationPopup() {
                     if (f.t === "text") {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
-                          <div style={{ fontSize: 9, color: C.n[500], textTransform: "uppercase", marginBottom: 3 }}>{f.l}</div>
+                          <div style={testLbl}>{f.l}</div>
                           <input value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                             placeholder="Enter..." style={inp} />
@@ -736,7 +740,7 @@ export default function InvestigationPopup() {
                       const v2 = invFormData[key2] || "";
                       return (
                         <div key={f.l} style={{ flex: "1 1 200px", minWidth: 0 }}>
-                          <div style={{ fontSize: 9, color: C.n[500], textTransform: "uppercase", marginBottom: 3 }}>{f.l}</div>
+                          <div style={testLbl}>{f.l}</div>
                           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                             <div style={{ flex: 1 }}>
                               <input value={v1} placeholder={f.u1}
@@ -752,7 +756,7 @@ export default function InvestigationPopup() {
                                 }}
                                 onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                                 style={inp} />
-                              <div style={{ fontSize: 8, color: C.n[500], marginTop: 1 }}>{f.u1}</div>
+                              <div style={{ fontSize: 10, color: C.n[600], marginTop: 2 }}>{f.u1}</div>
                             </div>
                             <span style={{ fontSize: 10, color: C.n[400], flexShrink: 0 }}>=</span>
                             <div style={{ flex: 1 }}>
@@ -768,7 +772,7 @@ export default function InvestigationPopup() {
                                   }
                                 }}
                                 style={inp} />
-                              <div style={{ fontSize: 8, color: C.n[500], marginTop: 1 }}>{f.u2}</div>
+                              <div style={{ fontSize: 10, color: C.n[600], marginTop: 2 }}>{f.u2}</div>
                             </div>
                           </div>
                         </div>
@@ -778,7 +782,7 @@ export default function InvestigationPopup() {
                     // Single unit num field
                     return (
                       <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
-                        <div style={{ fontSize: 9, color: C.n[500], textTransform: "uppercase", marginBottom: 3 }}>{f.l} {f.u1 && <span style={{ color: C.n[300] }}>({f.u1})</span>}</div>
+                        <div style={testLbl}>{f.l} {f.u1 && <span style={{ color: C.n[500] }}>({f.u1})</span>}</div>
                         <input value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                           placeholder={f.u1 || "Value"} style={inp} />
@@ -802,7 +806,7 @@ export default function InvestigationPopup() {
                   return (
                     <div style={{ marginTop: 6, borderTop: "0.5px dashed " + C.n[200], paddingTop: 4 }}>
                       {prevEntries.map((entry, ei) => (
-                        <div key={ei} style={{ fontSize: 9, color: C.info[800], background: C.info[50], padding: "2px 8px", borderRadius: 3, marginBottom: 2, fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div key={ei} style={{ fontSize: 11, color: C.info[800], background: C.info[50], padding: "3px 8px", borderRadius: 4, marginBottom: 2, fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           prev: {entry}
                         </div>
                       ))}

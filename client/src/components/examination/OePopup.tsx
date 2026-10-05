@@ -77,8 +77,9 @@ export default function OePopup() {
     setShowOePopup(false);
   };
 
-  const oeLbl: CSSProperties = { fontSize: 9, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
-  const oeInp: CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 6, fontSize: 12, border: "0.5px solid " + C.n[200], outline: "none", background: C.n[0], color: C.n[900], boxSizing: "border-box", fontFamily: "inherit" };
+  // No forced capitals: these labels carry units (cm, kg, b/m, /min).
+  const oeLbl: CSSProperties = { fontSize: 10.5, fontWeight: 600, color: C.n[600], lineHeight: 1.25, marginBottom: 3 };
+  const oeInp: CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 6, fontSize: 12.5, border: "1px solid " + C.n[300], outline: "none", background: C.n[0], color: C.n[900], boxSizing: "border-box", fontFamily: "inherit" };
   const oeSel: CSSProperties = Object.assign({}, oeInp, { padding: "6px 4px" });
   const oeRow: CSSProperties = { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" };
   const oeCalc: CSSProperties = { fontSize: 10, color: C.pri[600], background: C.pri[50], padding: "3px 8px", borderRadius: 4, marginTop: 2 };
