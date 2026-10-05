@@ -58,6 +58,15 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
   again at `:3000` afterwards.
 - `next dev` with `NEXT_DIST_DIR=.next-e2e` rewrites `client/tsconfig.json`.
   Stop the server, then `git checkout -- client/tsconfig.json`. Never commit it.
+- **Close your sandbox tab before running the suite.** The suite re-seeds the
+  database, so a tab left open at `:3100` loses its session and keeps asking
+  the same dev server for pages while the tests need it. Seen 2026-10-06: one
+  test waited 13.5 s for the page's script (the trace showed the dev server
+  compiling `/` again) and its 15 s check ran out as the page appeared. With
+  the tab closed the same suite passed three times, 30% faster. A failure whose
+  page snapshot is an empty `main` under a screenshot of the finished page is
+  this, not the app. After a run, sign in again with the NEW address in
+  `e2e/.seed.json`; the made-up patients are gone too.
 
 ## Journeys
 
