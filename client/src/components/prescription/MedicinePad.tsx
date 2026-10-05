@@ -618,8 +618,15 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 </span>
               )}
 
-              {/* Medicine column: name (or indent) + >>> tapering button */}
-              <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+              {/* Medicine column: name (or indent) + >>> tapering button.
+                  The floor is for the NAME. This column grows from nothing while
+                  dose/food/duration start at 240px, so on a pad around 470px
+                  wide (a 1024px tablet, a split window) the name was left ~80px
+                  and "Tablet. Napa 500 mg" showed as "Tablet. Nap". With a floor
+                  the row wraps instead — the name keeps its line and the doses
+                  drop to the next, exactly as a phone has always done. A pad
+                  wide enough to give the name 190px anyway is unchanged. */}
+              <div style={{ flex: 1, minWidth: 190, position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
                 {isCont ? (
                   <span style={{ flex: 1, color: C.n[400], fontSize: 13, paddingLeft: 6 }}>↳</span>
                 ) : (() => {
