@@ -111,6 +111,11 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
   .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 0 auto; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* The Footer Section the doctor designed, under the signature row — the
+     last thing on every page. Like .head-body: the editor's base size, never
+     written through --k, and part of the foot the fitting script measures. */
+  .foot-body { margin-top: 8px; padding-top: 6px; border-top: 0.5px solid #e5e5e3; font-size: 13px; line-height: 1.6; overflow-wrap: break-word; word-break: normal; }
+  .foot-body img { max-width: 100%; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in
      (the child combinators keep them off the nested Rx table too). */
@@ -364,6 +369,11 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
   .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 0 auto; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* The Footer Section the doctor designed, under the signature row — the
+     last thing on every page. Like .head-body: the editor's base size, never
+     written through --k, and part of the foot the fitting script measures. */
+  .foot-body { margin-top: 8px; padding-top: 6px; border-top: 0.5px solid #e5e5e3; font-size: 13px; line-height: 1.6; overflow-wrap: break-word; word-break: normal; }
+  .foot-body img { max-width: 100%; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in
      (the child combinators keep them off the nested Rx table too). */
@@ -714,6 +724,11 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
   .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 0 auto; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* The Footer Section the doctor designed, under the signature row — the
+     last thing on every page. Like .head-body: the editor's base size, never
+     written through --k, and part of the foot the fitting script measures. */
+  .foot-body { margin-top: 8px; padding-top: 6px; border-top: 0.5px solid #e5e5e3; font-size: 13px; line-height: 1.6; overflow-wrap: break-word; word-break: normal; }
+  .foot-body img { max-width: 100%; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in
      (the child combinators keep them off the nested Rx table too). */

@@ -186,6 +186,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         leftHtml: sanitizeHtml(layout.headerLeftHtml, { images: true }),
         rightHtml: sanitizeHtml(layout.headerRightHtml, { images: true }),
       } : undefined,
+      // Footer section, the header's twin at the foot of the page (2026-10-07).
+      footerHtml: layout ? sanitizeHtml(layout.footerHtml, { images: true }) : undefined,
     });
   };
 

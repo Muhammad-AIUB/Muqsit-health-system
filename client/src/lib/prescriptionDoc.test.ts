@@ -985,6 +985,48 @@ describe("header section — what the doctor designed prints at the top of the p
   });
 });
 
+// ⚕️ Footer Section — the same rule as the header, at the other end of the
+// printable area (physician's decision, 2026-10-07: "footer o print hbe"). It
+// prints in the repeating page foot UNDER the signature row, so the signature
+// stays where it was fixed and the doctor's own strip (chamber, hours,
+// contact) is the last thing on every page.
+describe("footer section — what the doctor designed prints at the foot of the printable area", () => {
+  const base = (): PrescriptionDoc => signedDoc({ extraPrivacyPage: true });
+
+  it("prints byte-identical output when no footer was written", () => {
+    const before = buildPrescriptionHtml(base());
+    for (const f of ["", "<div><br></div>", "<p>&nbsp;</p>", "  "]) {
+      expect(buildPrescriptionHtml({ ...base(), footerHtml: f })).toBe(before);
+    }
+    expect(before).not.toContain('class="foot-body"');
+  });
+
+  it("prints the footer in the page foot, under the signature row, on both pages", () => {
+    const html = buildPrescriptionHtml({ ...base(), footerHtml: "<div><b>Chamber:</b> Popular Diagnostic, Dhanmondi · Sat–Thu 5–9 pm</div>" });
+    const foots = html.match(/<td class="pagefoot">([\s\S]*?)<\/td>/g) ?? [];
+    expect(foots, "one foot per printed page").toHaveLength(2);
+    for (const f of foots) {
+      const sign = f.indexOf('class="sign"');
+      const footer = f.indexOf('<div class="foot-body"><div><b>Chamber:</b> Popular Diagnostic, Dhanmondi · Sat–Thu 5–9 pm</div></div>');
+      expect(sign).toBeGreaterThan(-1);
+      expect(footer).toBeGreaterThan(sign);
+    }
+  });
+
+  it("keeps a footer that is only a picture, bounded to the printable width", () => {
+    const html = buildPrescriptionHtml({ ...base(), footerHtml: '<img src="https://muqsithealthsystem.com/uploads/strip.png">' });
+    expect(html).toContain('<div class="foot-body"><img src="https://muqsithealthsystem.com/uploads/strip.png"></div>');
+    expect(html).toMatch(/\.foot-body img \{[^}]*max-width: 100%/);
+  });
+
+  it("does not grow the footer's type with the page-fill factor", () => {
+    const html = buildPrescriptionHtml({ ...base(), footerHtml: "<b>x</b>" });
+    const rules = html.match(/\.foot-body[^{]*\{[^}]*\}/g) ?? [];
+    expect(rules.length).toBeGreaterThan(0);
+    for (const r of rules) expect(r).not.toContain("var(--k");
+  });
+});
+
 // ⚕️ The signature is FIXED at the foot of the page (physician's decision,
 // 2026-10-07: "name sob somoi nicha fixed thakbe"). It used to hang under the
 // last ℞ line, so on a short prescription the doctor signed in the middle of

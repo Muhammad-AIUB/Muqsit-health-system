@@ -62,6 +62,10 @@ export interface PrescriptionDoc {
   // Header Section from Prescription settings. Absent — or with nothing
   // visible in it — prints exactly as the sheet always has.
   header?: PrescriptionHeader;
+  // Footer Section from Prescription settings, the header's twin at the foot
+  // of the printable area (physician's decision, 2026-10-07: "footer o print
+  // hbe"). Sanitised by the caller, like the header. Absent or blank ⇒ nothing.
+  footerHtml?: string;
 }
 
 /**
@@ -947,7 +951,8 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
           <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
         </div>
         <div class="sign"><span class="line">${esc(d.doctorName || "Signature")}</span></div>
-      </div>
+      </div>${visibleHtml(d.footerHtml) ? `
+      <div class="foot-body">${d.footerHtml}</div>` : ""}
     </td></tr></tfoot></table>
   </div>`;
 }
@@ -1188,6 +1193,11 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
   .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(FOOT_PX)}; color: #333; flex: 0 0 auto; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  /* The Footer Section the doctor designed, under the signature row — the
+     last thing on every page. Like .head-body: the editor's base size, never
+     written through --k, and part of the foot the fitting script measures. */
+  .foot-body { margin-top: 8px; padding-top: 6px; border-top: 0.5px solid #e5e5e3; font-size: 13px; line-height: 1.6; overflow-wrap: break-word; word-break: normal; }
+  .foot-body img { max-width: 100%; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in
      (the child combinators keep them off the nested Rx table too). */

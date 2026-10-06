@@ -390,7 +390,8 @@ Fields: `rxType` (`opd` / `ipd`), `opdLayout` (`single` / `extra`), `unit`
 `headerHeight` / `footerHeight` are shown as **Top margin** / **Bottom margin**
 since 2026-10-07 (the stored names are unchanged). `headerSplit`, `headerAlign`,
 `headerHtml`, `headerLeftHtml` and `headerRightHtml` print at the top of the
-printable area (sanitised on the client); `footerHtml` still prints nowhere.
+printable area and `footerHtml` at its foot, under the signature row (both
+sanitised on the client).
 
 ⚠️ The printed sheet is a legal medical document — test the print preview after
 touching anything here.
