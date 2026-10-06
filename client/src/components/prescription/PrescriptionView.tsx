@@ -7,6 +7,7 @@ import { btnDisabled, btnPrimary, btnSecondary, btnTonal } from "@/theme/styles"
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
+import { sanitizeHtml } from "@/lib/safeHtml";
 import { uploadImage } from "@/lib/api";
 import { usePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
 import { useActivityFeed, useActivityLog } from "@/hooks/useActivity";
@@ -173,6 +174,17 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         leftTopMargin: layout.bodyLeftTopMargin,
         rightTopMargin: layout.bodyRightTopMargin,
         bottomLine: layout.bodyBottomLine,
+      } : undefined,
+      // Header section from Prescription settings, printed at the top of the
+      // printable area (physician's decision, 2026-10-07). Sanitised HERE: the
+      // builder runs without a DOM and prints what it is given. Images are
+      // allowed — a clinic logo — but only from a web address or an upload.
+      header: layout ? {
+        split: layout.headerSplit,
+        align: layout.headerAlign,
+        html: sanitizeHtml(layout.headerHtml, { images: true }),
+        leftHtml: sanitizeHtml(layout.headerLeftHtml, { images: true }),
+        rightHtml: sanitizeHtml(layout.headerRightHtml, { images: true }),
       } : undefined,
     });
   };

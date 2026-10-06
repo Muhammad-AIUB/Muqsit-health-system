@@ -42,8 +42,10 @@ export interface PrescriptionDoc {
   // hidden, so it can be handed to a pharmacy/lab without exposing who/what.
   extraPrivacyPage?: boolean;
   // Page size + margins from Prescription settings (in/cm). When omitted the
-  // sheet falls back to A4. headerHeight/footerHeight reserve the top/bottom
-  // bands (for a pre-printed letterhead pad).
+  // sheet falls back to A4. headerHeight/footerHeight are the TOP and BOTTOM
+  // margins (the settings screen calls them that since 2026-10-07; the field
+  // names are the stored ones) — blank bands outside the printable area, for a
+  // pre-printed pad.
   page?: {
     unit: "in" | "cm";
     width: string;
@@ -57,6 +59,35 @@ export interface PrescriptionDoc {
   // print exactly as the sheet always has, so a doctor who never opens that
   // step sees no change whatsoever.
   body?: PrescriptionBody;
+  // Header Section from Prescription settings. Absent — or with nothing
+  // visible in it — prints exactly as the sheet always has.
+  header?: PrescriptionHeader;
+}
+
+/**
+ * The Header Section of Prescription settings, as it reaches the printed sheet.
+ *
+ * ⚕️ Wired up 2026-10-07 (physician's decision: "header a ja likhbo oita
+ * printable area a print hobe"). The editor's output had been saved since the
+ * wizard was built and printed by nothing; `.head` was deliberately empty
+ * because the band above it was thought of as a pre-printed letterhead. The
+ * physician's call is that the band is a MARGIN (Top margin, blank) and the
+ * header they design prints INSIDE the printable area, above the rule and the
+ * patient details, on every page.
+ *
+ * The HTML arrives ALREADY SANITISED (`sanitizeHtml(…, { images: true })` in
+ * the caller). The builder runs without a DOM — the snapshot tests pin it in
+ * node — so it cannot clean markup itself and must never be handed raw editor
+ * output.
+ */
+export interface PrescriptionHeader {
+  /** Two side-by-side boxes (`leftHtml` / `rightHtml`) instead of one. */
+  split: boolean;
+  /** Alignment of the single box. Anything unknown prints left. */
+  align: "left" | "center" | "right";
+  html: string;
+  leftHtml: string;
+  rightHtml: string;
 }
 
 /**
@@ -823,7 +854,10 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       // The Rx side's own prose: free-typed note rows, the follow-up line and
       // the signature, none of which sit in a measured column. Two entries, not
       // one, because they no longer print at the same size — measuring a note
-      // at FOOT_PX would over-state its width and cap the sheet too low.
+      // at FOOT_PX would over-state its width and cap the sheet too low. The
+      // signature prints in the page foot since 2026-10-07, which is wider than
+      // the ℞ side; it is still measured against the ℞ side, a bound that can
+      // only hand it more room than it needs.
       {
         texts: rxLines.filter((r) => r.isNote).map((r) => r.drug),
         px: MID_PX,
@@ -867,20 +901,23 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   );
   const kMax = Math.max(1, Math.min(lay.maxScale, proseScale));
 
-  // The sheet is a single-cell table so the brand bar can live in <tfoot>:
-  // a tfoot repeats at the bottom of EVERY printed page and the browser reserves
-  // its height in the flow, so it can never overprint a medicine row or the
-  // signature. A `position: fixed` bar would sit lower but is free to overlay
-  // content on a full page — not acceptable on a prescription.
+  // The sheet is a single-cell table so the brand bar AND the signature can
+  // live in <tfoot>: a tfoot repeats at the bottom of EVERY printed page and the
+  // browser reserves its height in the flow, so it can never overprint a
+  // medicine row. A `position: fixed` bar would sit lower but is free to
+  // overlay content on a full page — not acceptable on a prescription.
+  //
+  // ⚕️ The signature is in the foot since 2026-10-07 (physician's decision:
+  // "name sob somoi nicha fixed thakbe"). It used to close the ℞ column, so on
+  // a short prescription the doctor signed halfway down the sheet.
   return `
   <div class="sheet" data-avail-h="${sheetContentPx(d.page)}" data-kmax="${kMax.toFixed(3)}">
     <table class="pagegrid"><tbody><tr><td class="pagebody"><div class="pagecontent">
-    <!-- No printed brand name here (2026-08-16). The top band is reserved for
-         the practice's own pre-printed letterhead (headerHeight in Prescription
-         settings), and a second name printed under it competed with it. What
-         stays is the rule that separates the letterhead from the patient
-         details. The footer brand bar is unaffected. -->
-    <div class="head"></div>
+    <!-- The Header Section the doctor designed in Prescription settings, inside
+         the printable area (2026-10-07). No brand name of the app's own here
+         (2026-08-16). The rule under it separates the header from the patient
+         details and prints whether or not a header was written. -->
+    <div class="head">${headerMarkup(d.header)}</div>
 
     <div class="pt">
       <div><span>Name:</span> <b>${esc(ptName || "—")}</b></div>
@@ -900,17 +937,48 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
         ${adviceBlock}
         ${listBlock("Advised tests / investigation", d.adviceTest)}
         ${d.followUp ? `<div class="followup">Follow-up: <b>${esc(d.followUp)}</b></div>` : ""}
-        <div class="sign"><span class="line">${esc(d.doctorName || "Signature")}</span></div>
       </div>
     </div>
     </div></td></tr></tbody>
     <tfoot><tr><td class="pagefoot">
-      <div class="brandbar">
-        <span class="bb-mhs">MHS</span>
-        <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
+      <div class="foot">
+        <div class="brandbar">
+          <span class="bb-mhs">MHS</span>
+          <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
+        </div>
+        <div class="sign"><span class="line">${esc(d.doctorName || "Signature")}</span></div>
       </div>
     </td></tr></tfoot></table>
   </div>`;
+}
+
+/**
+ * The Header Section as markup for `.head`, or "" when there is nothing
+ * visible to print — so a doctor who never wrote a header gets the sheet
+ * exactly as it always printed (`<div class="head"></div>`, pinned).
+ *
+ * "Visible" is text or an image. The editor leaves `<div><br></div>` and
+ * `&nbsp;` behind when emptied, and neither is a header. A regex strip is
+ * enough here because the input is already sanitised (no attributes can carry
+ * a `>`, no scripts, no comments).
+ */
+function headerMarkup(h: PrescriptionHeader | undefined): string {
+  if (!h) return "";
+  if (h.split) {
+    const l = visibleHtml(h.leftHtml) ? h.leftHtml : "";
+    const r = visibleHtml(h.rightHtml) ? h.rightHtml : "";
+    if (!l && !r) return "";
+    return `<div class="head-split"><div class="head-half">${l}</div><div class="head-half">${r}</div></div>`;
+  }
+  if (!visibleHtml(h.html)) return "";
+  const align = h.align === "center" || h.align === "right" ? h.align : "left";
+  return `<div class="head-body" style="text-align: ${align}">${h.html}</div>`;
+}
+
+function visibleHtml(html: string | undefined): boolean {
+  if (!html) return false;
+  if (/<img\b/i.test(html)) return true;
+  return html.replace(/<[^>]*>/g, "").replace(/&nbsp;|​/g, "").trim() !== "";
 }
 
 // ⚕️ Page fill, decided inside the document.
@@ -1030,9 +1098,19 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      Green (#1d9e75 / #0f6e56) until 2026-10-05, when the physician moved the
      brand to blue and asked for the paper to match. Colour only — no size,
      spacing or text changed. */
-  /* Empty by design — the rule under the (pre-printed) letterhead band. The
-     brand/logo/doctor rules that used to fill it went with the printed name. */
+  /* The Header Section the doctor designed, then the rule under it. The sizes
+     inside are the doctor's own (set in the settings editor) and are NOT
+     written through --k: the header prints as designed whatever the fill
+     factor does to the prescription under it. The base size and line height
+     are the editor surface's (RichTextEditor: 13px / 1.6), so a header looks
+     on paper as it looked while it was typed. */
   .head { border-bottom: 2px solid #1a73e8; }
+  .head-body, .head-split { font-size: 13px; line-height: 1.6; padding-bottom: 6px; overflow-wrap: break-word; word-break: normal; }
+  /* Two UNEQUAL-proof halves: minmax(0, …) for the same reason .body and .pt
+     carry it — a bare fr track floors at its content's min width, so one long
+     word in one half would push the other off the sheet. */
+  .head-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .head img { max-width: 100%; }
   /* Two UNEQUAL halves: the right one (Date / Mobile / Address) starts past the
      middle of the sheet. minmax(0, …) for the same reason .body carries it — a
      bare fr track floors at its content's min width, so one long name or
@@ -1103,7 +1181,12 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .rx-note { font-size: ${SCALE_PX(MID_PX)}; color: #444; font-style: italic; }
   .followup { margin-top: 18px; font-size: ${SCALE_PX(FOOT_PX)}; }
   .followup b { color: #185abc; }
-  .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(FOOT_PX)}; color: #333; }
+  /* ⚕️ The page foot: brand bar at the left, signature at the right, both on
+     the bottom edge of the printable area (2026-10-07). The 56px above the
+     signature line is room to sign in; it is part of the foot's height, so the
+     fitting script reserves it and the ℞ list can never run into it. */
+  .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
+  .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(FOOT_PX)}; color: #333; flex: 0 0 auto; }
   .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
   /* Sheet-as-table so the brand bar can live in <tfoot>. Scoped resets: the
      global table/td rules above belong to the Rx table and must not leak in
@@ -1117,7 +1200,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      no longer splits mid-word or collapses its column. */
   .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
-  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; margin-top: 14px; padding-top: 7px; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 1 auto; min-width: 0; }
   .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1a73e8; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
   .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
   .bb-exhort { height: 19px; width: auto; display: block; }
@@ -1129,12 +1212,20 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   /* On screen a sheet is a full page tall, so stretch the table and let the
      tfoot fall to the bottom of it — that is the bar the doctor sees in Preview.
      Screen only: making .sheet a flex container in print risks breaking how the
-     table fragments across pages, and in print the tfoot repeats per fragment
-     anyway (page bottom on a full page, under the content on a short one). */
+     table fragments across pages. */
   @media screen { .sheet { display: flex; flex-direction: column; } .pagegrid { flex: 1 1 auto; height: 100%; } }
   @media print {
     body { background: #fff; }
     .sheet { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; }
+    /* ⚕️ In print the table is stretched to the printable height too, so the
+       foot — brand bar and SIGNATURE — sits at the bottom of the paper on a
+       short prescription instead of under its last line (physician's decision,
+       2026-10-07). The printable height is the page less the top and bottom
+       margins the @page rule reserves; 4px are taken off so a rounding hair can
+       never push a blank second page out of the printer. On a table a height
+       is a minimum, so a prescription that genuinely needs a second page still
+       fragments as before, with the foot repeated under each part. */
+    .pagegrid { height: calc(${pageH} - ${padT} - ${padB} - 4px); }
     /* ⚕️ The ↳ tapering marker is a SCREEN aid and does not go on paper
        (physician's decision, 2026-09-12). It is on screen — in the print
        preview and in the gallery snapshot — and hidden on the printed sheet.

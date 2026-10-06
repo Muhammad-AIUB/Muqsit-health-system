@@ -904,6 +904,133 @@ describe("body section — the separator actually reaches the paper", () => {
   });
 });
 
+// ⚕️ Header Section — what the doctor designs in Prescription settings prints
+// at the top of the PRINTABLE area (physician's decision, 2026-10-07: "header a
+// ja likhbo oita printable area a print hobe"). Until then the editor's output
+// reached no paper at all; the top band above it is the Top margin and stays
+// blank for a pre-printed pad. The HTML arrives already sanitised — the builder
+// runs without a DOM and must not be trusted to clean it.
+const signedDoc = (over: Partial<PrescriptionDoc> = {}): PrescriptionDoc => ({
+  doctorName: "Dr Test",
+  patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "07/10/2026", phone: "01700000000" },
+  clinical: [], rx: REPORTED, advice: [], adviceTest: [], followUp: "", ...over,
+});
+
+describe("header section — what the doctor designed prints at the top of the printable area", () => {
+  const base = (): PrescriptionDoc => signedDoc({ extraPrivacyPage: true });
+  const header = (over: Partial<NonNullable<PrescriptionDoc["header"]>>): NonNullable<PrescriptionDoc["header"]> =>
+    ({ split: false, align: "left", html: "", leftHtml: "", rightHtml: "", ...over });
+
+  it("prints byte-identical output when no header was written", () => {
+    const before = buildPrescriptionHtml(base());
+    for (const h of [
+      header({}),
+      header({ html: "<div><br></div>" }),
+      header({ html: "<p>&nbsp;</p><div>  </div>" }),
+      header({ split: true, leftHtml: "<div><br></div>", rightHtml: "" }),
+      // Only the half the doctor is NOT using carries text — the split wins.
+      header({ split: true, html: "<b>Dr X</b>" }),
+      header({ split: false, leftHtml: "<b>Dr X</b>", rightHtml: "<b>Y</b>" }),
+    ]) {
+      expect(buildPrescriptionHtml({ ...base(), header: h })).toBe(before);
+    }
+    expect(before).toContain('<div class="head"></div>');
+  });
+
+  it("prints the header inside the sheet, above the rule, on both pages", () => {
+    const html = buildPrescriptionHtml({ ...base(), header: header({ html: "<h3>Dr. A Zubayer Khan</h3><div>MBBS (DMC), FCPS (Hematology)</div>", align: "center" }) });
+    const heads = html.match(/<div class="head">([\s\S]*?)<\/div>\s*<div class="pt">/g) ?? [];
+    expect(heads, "one header per printed page").toHaveLength(2);
+    for (const h of heads) {
+      expect(h).toContain('<div class="head-body" style="text-align: center">');
+      expect(h).toContain("<h3>Dr. A Zubayer Khan</h3><div>MBBS (DMC), FCPS (Hematology)</div>");
+    }
+    // Inside the printable box: the header is part of the page content the
+    // fitting script measures, never a page margin.
+    expect(html.indexOf('<div class="pagecontent">')).toBeLessThan(html.indexOf('<div class="head-body"'));
+    expect(html).not.toContain('<div class="head"></div>');
+  });
+
+  it("prints the two halves of a split header side by side, in their own boxes", () => {
+    const html = buildPrescriptionHtml({ ...base(), header: header({ split: true, leftHtml: "<b>Left clinic</b>", rightHtml: "<i>Right hours</i>" }) });
+    expect(html).toContain('<div class="head-split"><div class="head-half">');
+    expect(html).toContain('<div class="head-half"><b>Left clinic</b></div><div class="head-half"><i>Right hours</i></div>');
+    // One empty half still prints the other.
+    const oneSide = buildPrescriptionHtml({ ...base(), header: header({ split: true, leftHtml: "", rightHtml: "<i>Right hours</i>" }) });
+    expect(oneSide).toContain('<div class="head-half"></div><div class="head-half"><i>Right hours</i></div>');
+    // The grid is two minmax(0, …) tracks, so a long word in one half can never
+    // push the other off the page (the same rule .body and .pt carry).
+    expect(oneSide).toMatch(/\.head-split \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+  });
+
+  it("keeps a header that is only a logo", () => {
+    const html = buildPrescriptionHtml({ ...base(), header: header({ html: '<img src="https://muqsithealthsystem.com/uploads/logo.png" width="120">' }) });
+    expect(html).toContain('<img src="https://muqsithealthsystem.com/uploads/logo.png" width="120">');
+    // …and never lets it run past the printable width.
+    expect(html).toMatch(/\.head img \{[^}]*max-width: 100%/);
+  });
+
+  it("falls back to left alignment for an alignment it does not know", () => {
+    const html = buildPrescriptionHtml({ ...base(), header: header({ html: "<b>Dr X</b>", align: "middle" as unknown as "left" }) });
+    expect(html).toContain('<div class="head-body" style="text-align: left">');
+  });
+
+  it("does not grow the header's type with the page-fill factor", () => {
+    // The sizes in the header are the doctor's own (set in the editor) and
+    // must print as designed, so no --k reaches .head.
+    const html = buildPrescriptionHtml({ ...base(), header: header({ html: "<b>Dr X</b>" }) });
+    const headRules = html.match(/\.head[^{]*\{[^}]*\}/g) ?? [];
+    expect(headRules.length).toBeGreaterThan(0);
+    for (const r of headRules) expect(r).not.toContain("var(--k");
+  });
+});
+
+// ⚕️ The signature is FIXED at the foot of the page (physician's decision,
+// 2026-10-07: "name sob somoi nicha fixed thakbe"). It used to hang under the
+// last ℞ line, so on a short prescription the doctor signed in the middle of
+// the sheet and the space below stayed blank. It now lives in the same
+// repeating <tfoot> as the brand bar, and in print the page grid is stretched
+// to the printable height so that foot sits at the bottom of the paper.
+describe("the signature is fixed at the foot of the page", () => {
+  it("prints the signature in the page foot beside the brand bar, not under the ℞ list", () => {
+    const html = buildPrescriptionHtml(signedDoc({ extraPrivacyPage: true }));
+    const foots = html.match(/<td class="pagefoot">([\s\S]*?)<\/td>/g) ?? [];
+    expect(foots, "one foot per printed page").toHaveLength(2);
+    for (const f of foots) {
+      expect(f).toContain('<div class="foot">');
+      expect(f).toContain('class="bb-mhs"');
+      expect(f).toContain('<div class="sign"><span class="line">Dr Test</span></div>');
+    }
+    // Nothing of it is left on the ℞ side.
+    const rights = html.match(/<div class="right">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div><\/td>/g) ?? [];
+    expect(rights).toHaveLength(2);
+    for (const r of rights) expect(r).not.toContain('class="sign"');
+  });
+
+  it("still prints a line to sign on when the doctor has no name on record", () => {
+    const html = buildPrescriptionHtml(signedDoc({ doctorName: "" }));
+    expect(html).toContain('<div class="sign"><span class="line">Signature</span></div>');
+  });
+
+  it("reserves room above the line to sign in, and lays the foot out brand-left, signature-right", () => {
+    const html = buildPrescriptionHtml(signedDoc());
+    expect(html).toMatch(/\.foot \{[^}]*display: flex;[^}]*align-items: flex-end;[^}]*justify-content: space-between;/);
+    expect(html).toMatch(/\.sign \{[^}]*margin-top: 56px;/);
+  });
+
+  it("stretches the page grid to the printable height in print, less a hair so it can never spill", () => {
+    // A4 with 0.5in bands: 11.69in − 0.5in − 0.5in.
+    const html = buildPrescriptionHtml(signedDoc());
+    expect(html).toMatch(/@media print \{[\s\S]*\.pagegrid \{ height: calc\(11\.69in - 0\.5in - 0\.5in - 4px\); \}/);
+    // …in the doctor's own unit when they chose cm.
+    const cm = buildPrescriptionHtml({
+      ...signedDoc(),
+      page: { unit: "cm", width: "18.5", height: "27", marginLeft: "2", marginRight: "1", headerHeight: "4.5", footerHeight: "3" },
+    });
+    expect(cm).toMatch(/@media print \{[\s\S]*\.pagegrid \{ height: calc\(27cm - 4\.5cm - 3cm - 4px\); \}/);
+  });
+});
+
 // ⚕️ A clinical line prints exactly as the doctor wrote it. A leading "Past:"
 // used to be stripped from EVERY field (a leftover from legacy drug-history
 // entries), so "Past: TB, treated" printed as "TB, treated" — a past illness

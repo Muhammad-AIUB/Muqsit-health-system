@@ -1,10 +1,20 @@
 // Allowlist sanitiser for HTML written in the app's own rich-text editor
-// (the personal patient note). Whatever is stored is rendered back into the
-// page and into a print frame, so it is cleaned on the way OUT, every time:
-// only formatting tags survive, every attribute but a filtered `style` is
-// dropped (no on*, no href/src; the one exception is the personal note's
-// sensitive mark, an <a> whose href is exactly "mhs-sensitive:1"), and a style keeps only plain typographic
-// properties with no url()/expression(). Browser-only (DOMParser).
+// (the personal patient note; the prescription header). Whatever is stored is
+// rendered back into the page and into a print frame, so it is cleaned on the
+// way OUT, every time: only formatting tags survive, every attribute but a
+// filtered `style` is dropped (no on*, no href/src; the one exception is the
+// personal note's sensitive mark, an <a> whose href is exactly
+// "mhs-sensitive:1"), and a style keeps only plain typographic properties with
+// no url()/expression(). Browser-only (DOMParser).
+//
+// `{ images: true }` additionally keeps an <img> whose src is an http(s) URL
+// or an app upload path (`/uploads/…`) — with `width`/`height`/`alt` and
+// nothing else — for the prescription header's clinic logo (2026-10-07). The
+// personal note never asks for it: an upload is a public URL.
+
+export interface SanitizeOptions {
+  images?: boolean;
+}
 
 // Kept literal here (not imported from lib/sensitive.ts, which imports this
 // file) — pinned equal to SENSITIVE_HREF in sensitive.test.ts.
@@ -37,14 +47,34 @@ function cleanStyle(style: string): string {
   return out.join("; ");
 }
 
-function cleanNode(node: Node, doc: Document): Node | null {
+// A picture the header may carry: served over http(s) or from this app's own
+// uploads. Never data:, blob:, javascript: or a bare host-relative path other
+// than /uploads/.
+const IMAGE_SRC = /^(https?:\/\/[^\s"'<>]+|\/uploads\/[^\s"'<>]+)$/i;
+
+function cleanImage(el: Element, doc: Document): Node | null {
+  const src = (el.getAttribute("src") ?? "").trim();
+  if (!IMAGE_SRC.test(src)) return null;
+  const img = doc.createElement("img");
+  img.setAttribute("src", src);
+  for (const attr of ["width", "height"]) {
+    const v = (el.getAttribute(attr) ?? "").trim();
+    if (/^\d{1,4}$/.test(v)) img.setAttribute(attr, v);
+  }
+  const alt = el.getAttribute("alt");
+  if (alt) img.setAttribute("alt", alt);
+  return img;
+}
+
+function cleanNode(node: Node, doc: Document, opts: SanitizeOptions): Node | null {
   // Zero-width spaces are the editor's caret anchors (sensitive typing), not text.
   if (node.nodeType === Node.TEXT_NODE) return doc.createTextNode((node.textContent ?? "").replace(/​/g, ""));
   if (node.nodeType !== Node.ELEMENT_NODE) return null; // comments, etc.
   const el = node as Element;
   const tag = el.tagName.toLowerCase();
+  if (tag === "img" && opts.images) return cleanImage(el, doc);
   if (DROP_WITH_CONTENT.has(tag)) return null;
-  const kids = [...el.childNodes].map((c) => cleanNode(c, doc)).filter((c): c is Node => c !== null);
+  const kids = [...el.childNodes].map((c) => cleanNode(c, doc, opts)).filter((c): c is Node => c !== null);
   // The personal note's "sensitive information" mark (lib/sensitive.ts): a link
   // whose href is EXACTLY this inert value survives, with no other attribute.
   // Every other <a> is unwrapped like any unknown tag, as it always was.
@@ -77,12 +107,12 @@ function cleanNode(node: Node, doc: Document): Node | null {
   return out;
 }
 
-export function sanitizeHtml(html: string): string {
+export function sanitizeHtml(html: string, opts: SanitizeOptions = {}): string {
   if (!html) return "";
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
   const out = doc.createElement("div");
   [...doc.body.childNodes].forEach((c) => {
-    const n = cleanNode(c, doc);
+    const n = cleanNode(c, doc, opts);
     if (n) out.appendChild(n);
   });
   return out.innerHTML;

@@ -289,12 +289,19 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
           <div>
             <SectionTitle right={<UnitToggle unit={unit} onChange={switchUnit} />}>Page Size</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "16px 18px" }}>
+              {/* ⚕️ "Top margin" / "Bottom margin" (physician's wording,
+                  2026-10-07; they read "Header Height" / "Footer Height"
+                  before). The STORED fields keep their names — headerHeight /
+                  footerHeight — because the API, the database and every saved
+                  layout carry them; only the words on screen changed. Both are
+                  blank bands outside the printable area; the header the doctor
+                  designs prints inside it, under the top margin. */}
               <NumField label={`Total Height (${unitWord})`} value={form.totalHeight} onChange={setField("totalHeight")} />
               <NumField label={`Left Margin (${unitWord})`} value={form.leftMargin} onChange={setField("leftMargin")} />
-              <NumField label={`Header Height (${unitWord})`} value={form.headerHeight} onChange={setField("headerHeight")} />
+              <NumField label={`Top margin (${unitWord})`} value={form.headerHeight} onChange={setField("headerHeight")} />
               <NumField label={`Total Width (${unitWord})`} value={form.totalWidth} onChange={setField("totalWidth")} />
               <NumField label={`Right Margin (${unitWord})`} value={form.rightMargin} onChange={setField("rightMargin")} />
-              <NumField label={`Footer Height (${unitWord})`} value={form.footerHeight} onChange={setField("footerHeight")} />
+              <NumField label={`Bottom margin (${unitWord})`} value={form.footerHeight} onChange={setField("footerHeight")} />
             </div>
           </div>
         </div>
@@ -595,7 +602,7 @@ function PagePreview({ form, unitShort }: { form: PageForm; unitShort: string })
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
       <div style={{ ...cap, marginBottom: 4 }}>Total Width: {form.totalWidth || "—"} {u}</div>
-      <div style={{ ...cap, marginBottom: 6 }}>Margin Top: {form.headerHeight || "—"} {u}</div>
+      <div style={{ ...cap, marginBottom: 6 }}>Top margin: {form.headerHeight || "—"} {u}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <div style={{ height: boxH, display: "flex", alignItems: "center" }}>
           <div style={{ ...vLabel, transform: "rotate(180deg)" }}>Total Height: {form.totalHeight || "—"} {u}</div>
@@ -630,7 +637,7 @@ function PagePreview({ form, unitShort }: { form: PageForm; unitShort: string })
           <div style={vLabel}>Margin Right: {form.rightMargin || "—"} {u}</div>
         </div>
       </div>
-      <div style={{ ...cap, marginTop: 6 }}>Margin Bottom: {form.footerHeight || "—"} {u}</div>
+      <div style={{ ...cap, marginTop: 6 }}>Bottom margin: {form.footerHeight || "—"} {u}</div>
     </div>
   );
 }

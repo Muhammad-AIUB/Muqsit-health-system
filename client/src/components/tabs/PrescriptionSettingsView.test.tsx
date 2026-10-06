@@ -87,6 +87,27 @@ describe("Prescription settings — the Save button", () => {
     });
   });
 
+  // ⚕️ The two bands above and below the printable area are "Top margin" and
+  // "Bottom margin" (physician's wording, 2026-10-07). They read "Header
+  // Height" / "Footer Height", which said the header PRINTS there; it prints
+  // inside the printable area, under the top margin. The stored fields keep
+  // their old names, so the value under the new caption is still headerHeight.
+  it("calls the top and bottom bands margins, over the stored headerHeight / footerHeight", async () => {
+    await openOpdWizard();
+    expect(screen.getByText("Top margin (cm)")).toBeTruthy();
+    expect(screen.getByText("Bottom margin (cm)")).toBeTruthy();
+    expect(screen.queryByText(/Header Height/)).toBeNull();
+    expect(screen.queryByText(/Footer Height/)).toBeNull();
+    // The paper miniature names them the same way.
+    expect(screen.getByText(/^Top margin: 4\.5/)).toBeTruthy();
+    expect(screen.getByText(/^Bottom margin: 3/)).toBeTruthy();
+
+    fireEvent.change(screen.getByDisplayValue("4.5"), { target: { value: "2" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0][0]).toMatchObject({ headerHeight: "2", footerHeight: "3" });
+  });
+
   // The button must not be disabled once the settings have loaded — a disabled
   // button was the leading theory for "nothing happens".
   it("is enabled once the settings have loaded", async () => {
