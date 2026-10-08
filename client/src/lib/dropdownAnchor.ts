@@ -62,3 +62,35 @@ export function sameAnchor(a: DropdownAnchor | null, b: DropdownAnchor | null): 
   if (!a || !b) return false;
   return a.left === b.left && a.top === b.top && a.bottom === b.bottom && a.maxHeight === b.maxHeight;
 }
+
+// ── When the page is zoomed ─────────────────────────────────────
+// The app is drawn at `body { zoom: 1.12 }`. A measured rect and
+// `window.innerWidth` are in SCREEN pixels; a fixed box inside the zoomed body
+// is placed in the body's own pixels, each 1.12 screen pixels. Written straight
+// across, the list landed 12% too far from the top-left corner of the screen:
+// with the medicine being typed 433px down the page its list was drawn 52px
+// lower — under the NEXT line of the prescription, not the one being typed —
+// and 50px to the right (measured in Chrome 152, 2026-10-09). Browsers used to
+// report a rect in the element's own pixels, which is why this was measured as
+// "2px under its row" when the anchor was written; they report screen pixels
+// since CSS zoom was standardised.
+//
+// The scale is read off the element itself — how wide it is drawn over how wide
+// it is laid out — so it is exactly 1 wherever the two already agree: an older
+// browser, a page with no zoom, or a test's DOM with no layout at all.
+export function zoomScale(el: { offsetWidth: number; getBoundingClientRect(): { width: number } }): number {
+  const laidOut = el.offsetWidth;
+  if (!laidOut) return 1;
+  const k = el.getBoundingClientRect().width / laidOut;
+  // offsetWidth is a whole number, so the ratio wobbles in its fourth decimal.
+  return Number.isFinite(k) && k > 0 ? Math.round(k * 1000) / 1000 : 1;
+}
+
+// Screen pixels → the pixels a fixed box inside the zoomed page is placed in.
+export function toLayoutPx(rect: AnchorRect, vp: Viewport, scale: number): { rect: AnchorRect; vp: Viewport } {
+  if (scale === 1) return { rect: { top: rect.top, bottom: rect.bottom, left: rect.left }, vp };
+  return {
+    rect: { top: rect.top / scale, bottom: rect.bottom / scale, left: rect.left / scale },
+    vp: { width: vp.width / scale, height: vp.height / scale },
+  };
+}

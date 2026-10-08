@@ -19,7 +19,7 @@ import {
   safeHabitText,
 } from "@/lib/rxHabitRows";
 import { rxDrugIndexByRow } from "@/lib/rxRows";
-import { anchorDropdown, sameAnchor, type DropdownAnchor } from "@/lib/dropdownAnchor";
+import { anchorDropdown, sameAnchor, toLayoutPx, zoomScale, type DropdownAnchor } from "@/lib/dropdownAnchor";
 import RxAlertSign, { RxLineWarning } from "./RxPadAlerts";
 import type { RxAlertInput } from "@/lib/rxAlerts";
 
@@ -331,6 +331,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   };
   const endDrag = () => { drag.current = null; setDragAt(null); };
   const [acPos, setAcPos] = useState<DropdownAnchor | null>(null);
+  // The widest the list may be, in the same pixels it is placed in.
+  const [acMaxW, setAcMaxW] = useState(520);
   const doseRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const foodRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const durRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
@@ -348,9 +350,12 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     const measure = () => {
       const el = rowRefs.current[acRow];
       if (!el) return;
-      const r = el.getBoundingClientRect();
-      const next = anchorDropdown(r, { width: window.innerWidth, height: window.innerHeight });
+      // The page is zoomed: what is measured is in screen pixels, what is
+      // written is in the page's own (see zoomScale in lib/dropdownAnchor.ts).
+      const { rect, vp } = toLayoutPx(el.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight }, zoomScale(el));
+      const next = anchorDropdown(rect, vp);
       setAcPos((prev) => (sameAnchor(prev, next) ? prev : next));
+      setAcMaxW(Math.round(Math.min(520, vp.width * 0.92)));
     };
     // Measured straight away so the list never lags a scroll, then again on the
     // next frame: read mid-scroll, the rect can still be a dozen pixels stale.
@@ -688,7 +693,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 )}
 
                 {!isCont && acRow === idx && (acItems.length > 0 || visibleHabitGroups.length > 0 || (notePhrases.length > 0 && !row.isMedicine) || (looksLikeMedicine(row.drug) && !row.isMedicine)) && (
-                  <div style={{ position: "fixed", top: acPos?.top, bottom: acPos?.bottom, left: acPos?.left ?? 0, visibility: acPos ? "visible" : "hidden", minWidth: 200, maxWidth: "min(520px, 92vw)", background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: acPos?.maxHeight ?? 320, overflowY: "auto" }}>
+                  <div style={{ position: "fixed", top: acPos?.top, bottom: acPos?.bottom, left: acPos?.left ?? 0, visibility: acPos ? "visible" : "hidden", minWidth: 200, maxWidth: acMaxW, background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: acPos?.maxHeight ?? 320, overflowY: "auto" }}>
                     {/* "Your usual" — this doctor's own past instructions for the
                         medicine being typed. Renders NOTHING when there are none:
                         on a clinical screen an empty state and a failed lookup
