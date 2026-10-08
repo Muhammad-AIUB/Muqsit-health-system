@@ -18,13 +18,12 @@ import { useIpdEvents, useAddIpdEvent, useUpdateIpd, type IpdAdmission } from "@
 import { useWards } from "@/hooks/useWards";
 import { ApiError, type IpdClinical, type IpdFollowUp, type IpdFollowUpEntry } from "@/lib/api";
 import Icon from "@/components/common/Icon";
+import { dayMonthYear, stamp } from "@/lib/stamp";
 
-const fmtAdmit = (iso: string) =>
-  new Date(iso).toLocaleDateString("default", { day: "numeric", month: "short", year: "numeric" });
-const fmtTs = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.getDate()} ${d.toLocaleString("default", { month: "short" })} ${d.getFullYear()} · ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
+// `9 Oct 2026` and `9 Oct 2026 · 17:04` — written out in lib/stamp.ts, so the
+// admission date and the entries under it read the same way on every machine.
+const fmtAdmit = dayMonthYear;
+const fmtTs = (iso: string) => stamp(iso);
 const dayOfStay = (iso: string) =>
   Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) + 1);
 

@@ -6,6 +6,7 @@ import { confirmAction } from "@/lib/dialogs";
 import { uploadImage, type IpdAnalogueSheet } from "@/lib/api";
 import ImageGallery from "@/components/common/ImageGallery";
 import ImageLightbox from "@/components/common/ImageLightbox";
+import { stamp } from "@/lib/stamp";
 import {
   checkSheetFiles,
   describeOutcome,
@@ -36,12 +37,8 @@ import {
 //    and the bar says why. A bar that disappears on a write that did not land
 //    tells the doctor a page came back when it did not.
 
-const fmtAdded = (iso: string): string => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const p2 = (n: number) => String(n).padStart(2, "0");
-  return `${d.getDate()} ${d.toLocaleString("default", { month: "short" })} · ${p2(d.getHours())}:${p2(d.getMinutes())}`;
-};
+// `9 Oct · 17:04` (lib/stamp.ts).
+const fmtAdded = (iso: string): string => stamp(iso, { year: false });
 
 export default function AnalogueSheetPanel({
   admissionId,

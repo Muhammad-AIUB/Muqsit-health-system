@@ -24,6 +24,7 @@ import { isBlankHtml, sanitizeHtml } from "@/lib/safeHtml";
 import { hasSensitive, sensitiveCss, stripSensitive } from "@/lib/sensitive";
 import RichTextEditor from "@/components/common/RichTextEditor";
 import Icon from "@/components/common/Icon";
+import { stamp } from "@/lib/stamp";
 
 const INFO_ROWS: { key: keyof PatientNoteInfo; label: string }[] = [
   { key: "name", label: "Patient Name" },
@@ -223,7 +224,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
                   />
                 )}
               </div>
-              {saved && <div style={{ fontSize: 11, color: C.n[500] }}>Last saved {new Date(saved.updatedAt).toLocaleString()}</div>}
+              {saved && <div style={{ fontSize: 11, color: C.n[500] }}>Last saved {stamp(saved.updatedAt)}</div>}
             </>
           )}
         </div>

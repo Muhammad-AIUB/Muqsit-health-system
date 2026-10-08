@@ -13,6 +13,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import Icon from "@/components/common/Icon";
 import EmptyState from "@/components/common/EmptyState";
 import { Loading, LoadError } from "@/components/common/ListState";
+import { dayMonth } from "@/lib/stamp";
 
 // Sentinel for "not one of my wards — let me type it". Not a ward id, so it can
 // never be sent to the server as one.
@@ -22,8 +23,8 @@ const STATUSES = ["Stable", "Observation", "Critical", "Discharge"] as const;
 const statusColor = (s: string) =>
   s === "Critical" ? "danger" : s === "Observation" ? "warn" : s === "Discharge" ? "info" : "ok";
 
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("default", { month: "short", day: "numeric" });
+// `9 Oct` — day first, like every other date on the ward screens (lib/stamp.ts).
+const fmtDate = dayMonth;
 
 export default function IpdView() {
   const { data: admissions = [], isLoading, error, refetch, isFetching } = useIpdList();
