@@ -453,6 +453,7 @@ function OpdOption({
     <div
       onClick={onClick}
       {...pressable()}
+      className="card-press"
       aria-pressed={active}
       style={{
         flex: "1 1 280px",
@@ -510,6 +511,7 @@ function TypeChooser({
       <div
         onClick={opts.disabled || !opts.type ? undefined : () => onChoose(opts.type!)}
         {...pressable(!opts.disabled && Boolean(opts.type))}
+        className="card-press"
         style={{
           flex: "1 1 240px",
           background: C.n[0],

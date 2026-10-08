@@ -140,6 +140,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
             key={c}
             onClick={() => openCategory(c)}
             {...pressable()}
+            className="card-press"
             style={{ flex: "1 1 240px", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 12, padding: 18, cursor: "pointer" }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>

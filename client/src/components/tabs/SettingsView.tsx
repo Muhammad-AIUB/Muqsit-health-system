@@ -96,6 +96,7 @@ export default function SettingsView() {
               key={s.t}
               onClick={dis || !sec ? undefined : () => go(sec)}
               {...pressable(!dis && Boolean(sec))}
+              className="card-press"
               title={dis ? "Coming soon" : undefined}
               style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "12px 16px", cursor: dis ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 12, opacity: dis ? 0.6 : 1 }}
             >

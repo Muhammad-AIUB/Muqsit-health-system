@@ -200,6 +200,23 @@ input[type="range"] {
   }
 }
 
+/* ── A card that can be pressed answers the pointer ─────────────
+   Settings, the prescription types and the template folders are whole cards
+   that open something, and nothing about them changed under the mouse — only
+   the cursor said they could be pressed. The border takes the brand's light
+   blue and the card lifts a little. A card that is switched off does neither,
+   and one that is already chosen keeps the ring it draws for itself (its own
+   inline shadow wins; only the border is forced). */
+@media (hover: hover) {
+  .card-press {
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .card-press:not([aria-disabled="true"]):hover {
+    border-color: var(--pri-300) !important;
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.06), 0 2px 8px rgba(60, 64, 67, 0.08);
+  }
+}
+
 /* ── A form that is being read, not edited ──────────────────────
    Patient information is locked until Edit is pressed. Locked is shown by the
    boxes — grey, like the locked boxes of the patient header — never by fading
