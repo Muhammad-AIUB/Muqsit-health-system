@@ -35,11 +35,16 @@
    src/theme/index.ts (C.pri / C.n) — components are styled inline from that
    file, and a stylesheet cannot import it. Change both together. */
 :root {
+  --pri-50: #e8f0fe;
   --pri-100: #c6dafc;
+  --pri-300: #8ab4f8;
   --pri-400: #1a73e8;
+  --n-50: #f8f9fa;
   --n-100: #f1f3f4;
+  --n-200: #e3e6ea;
   --n-300: #cdd1d6;
   --n-400: #8e949a;
+  --n-900: #202124;
   color-scheme: light;
 }
 
@@ -193,6 +198,37 @@ input[type="range"] {
   .app-root {
     padding: 0;
   }
+}
+
+/* ── A form that is being read, not edited ──────────────────────
+   Patient information is locked until Edit is pressed. Locked is shown by the
+   boxes — grey, like the locked boxes of the patient header — never by fading
+   the patient's own details, which are read from this screen far more often
+   than they are changed. A browser also greys a disabled box's text by itself;
+   `-webkit-text-fill-color` is what puts it back.
+   `!important` because the boxes carry inline styles. */
+fieldset.read-form:disabled :is(input, select, textarea) {
+  background: var(--n-100) !important;
+  border-color: var(--n-200) !important;
+  color: var(--n-900) !important;
+  -webkit-text-fill-color: var(--n-900);
+  opacity: 1;
+  cursor: default;
+}
+
+/* ⚕️ …and an EMPTY locked box must still look empty. The fill colour above
+   paints a placeholder too, so without this "01XXXXXXXXX" and "e.g. 25000"
+   would stand in an empty box in the same ink as a recorded mobile number and
+   a recorded income. */
+fieldset.read-form:disabled :is(input, textarea)::placeholder {
+  color: var(--n-400) !important;
+  -webkit-text-fill-color: var(--n-400);
+  opacity: 1;
+}
+
+/* What cannot be pressed in read mode steps back; what can be read does not. */
+fieldset.read-form:disabled button {
+  opacity: 0.5;
 }
 
 /* ── A small control with a bigger place to press ───────────────

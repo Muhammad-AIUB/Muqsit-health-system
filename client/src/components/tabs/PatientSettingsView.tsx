@@ -18,6 +18,7 @@ import SupervisingDoctors from "./SupervisingDoctors";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { pressable } from "@/lib/a11y";
 import Icon from "@/components/common/Icon";
+import EmptyState from "@/components/common/EmptyState";
 import { useDialog } from "@/lib/useDialog";
 
 const districts = ["Dhaka","Faridpur","Gazipur","Gopalganj","Kishoreganj","Madaripur","Manikganj","Munshiganj","Narayanganj","Narsingdi","Rajbari","Shariatpur","Tangail","Chattogram","Cox's Bazar","Cumilla","Feni","Brahmanbaria","Noakhali","Lakshmipur","Chandpur","Khagrachhari","Rangamati","Bandarban","Rajshahi","Chapai Nawabganj","Naogaon","Natore","Pabna","Bogura","Sirajganj","Joypurhat","Khulna","Jessore","Satkhira","Narail","Chuadanga","Kushtia","Meherpur","Jhenaidah","Bagerhat","Magura","Barishal","Bhola","Jhalokathi","Pirojpur","Patuakhali","Barguna","Sylhet","Moulvibazar","Sunamganj","Habiganj","Rangpur","Dinajpur","Thakurgaon","Panchagarh","Kurigram","Lalmonirhat","Nilphamari","Gaibandha","Mymensingh","Netrokona","Jamalpur","Sherpur"];
@@ -260,7 +261,13 @@ export default function PatientSettingsView() {
             {/* Photo lives OUTSIDE the disabled fieldset so it can be uploaded any
                 time (it saves immediately, independent of the Edit/Save flow). */}
             <PatientPhotoCorner />
-            <fieldset disabled={!editing} style={{ flex: 1, minWidth: 0, border: "none", margin: 0, padding: 0, opacity: editing ? 1 : 0.6 }}>
+            {/* Read mode is "locked", not "faded". The whole form used to sit at 60%
+                opacity until Edit was pressed, which put the patient's own name,
+                mobile and age at about 4.4:1 on the screen they are READ from far
+                more often than they are changed. The boxes go grey like the locked
+                boxes of the patient header and the text stays at full strength
+                (.read-form in globals.css). */}
+            <fieldset disabled={!editing} className="read-form" style={{ flex: 1, minWidth: 0, border: "none", margin: 0, padding: 0 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={piRow}>
                   <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Name *</div><input aria-label="Name" style={piInp} value={pI.name} onChange={(e) => setPi("name", e.target.value)} placeholder="Full name" /></div>
@@ -316,7 +323,7 @@ export default function PatientSettingsView() {
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Financial</div>
             <div style={piRow}>
-              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Patient&apos;s / attendant&apos;s monthly income</div><div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ fontSize: 12, color: C.n[600] }}>৳</span><input style={piInp} value={pI.monthlyIncome || ""} onChange={(e) => setPi("monthlyIncome", e.target.value.replace(/[^0-9]/g, ""))} placeholder="e.g. 25000" /></div></div>
+              <div style={{ flex: "1 1 200px" }}><div style={piLbl}>Patient&apos;s / attendant&apos;s monthly income</div><div style={{ position: "relative" }}><span aria-hidden style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: C.n[500], pointerEvents: "none" }}>৳</span><input aria-label="Monthly income in taka" style={{ ...piInp, paddingLeft: 26 }} value={pI.monthlyIncome || ""} onChange={(e) => setPi("monthlyIncome", e.target.value.replace(/[^0-9]/g, ""))} placeholder="e.g. 25000" /></div></div>
             </div>
 
             <div style={{ fontSize: 11, fontWeight: 500, color: C.n[800], marginBottom: 8, marginTop: 4, paddingBottom: 4, borderBottom: "0.5px solid " + C.n[200] }}>Address</div>
@@ -445,7 +452,7 @@ export default function PatientSettingsView() {
           {/* Family member list */}
           <div style={{ background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 10, padding: familyMembers.length > 0 ? "4px 16px" : 16 }}>
             {familyMembers.length === 0 && (
-              <div style={{ textAlign: "center", padding: "24px 0", color: C.n[500], fontSize: 12 }}>No family members added yet. Use the buttons above to add.</div>
+              <EmptyState compact icon="users" title="No family members added yet" hint="Use the buttons above to add one." />
             )}
             {familyMembers.map((fm, i) => {
               const relColors: Record<string, { bg: string; fg: string }> = {
