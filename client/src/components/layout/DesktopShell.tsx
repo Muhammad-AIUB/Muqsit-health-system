@@ -2,6 +2,7 @@
 
 import { Fragment } from "react";
 import { C, font } from "@/theme";
+import { shadowCard } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import TabIcon from "./TabIcon";
@@ -23,7 +24,7 @@ export default function DesktopShell() {
   const showHeader = HEADER_TABS.includes(activeTab);
 
   return (
-    <div style={{ border: `1px solid ${C.n[200]}`, borderRadius: 12, overflow: "hidden", background: C.n[50], position: "relative", boxShadow: "0 1px 2px rgba(60,64,67,0.06), 0 2px 8px rgba(60,64,67,0.05)" }}>
+    <div style={{ border: `1px solid ${C.n[200]}`, borderRadius: 12, overflow: "hidden", background: C.n[50], position: "relative", boxShadow: shadowCard }}>
       {/* Two rows on purpose. On one row the header needed ~1300px, and with the
           page zoom a 1366px laptop has ~1220 — so it wrapped wherever it happened
           to break. Row 1 says who and where; row 2 is the navigation. */}

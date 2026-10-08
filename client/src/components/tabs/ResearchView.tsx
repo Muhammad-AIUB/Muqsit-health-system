@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary, pageTitle, scrim } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle, scrim, btnDisabled, shadowDialog } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useResearchSearch } from "@/hooks/useResearch";
 
@@ -106,7 +106,7 @@ export default function ResearchView() {
                 {rcSelected.size > 0 && (
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <span style={{ fontSize: 11, color: C.pri[600], fontWeight: 500 }}>{rcSelected.size} selected</span>
-                    <button onClick={() => setShowCompare(true)} disabled={selectedPatients.length < 2} title={selectedPatients.length < 2 ? "Select at least 2 patients to compare" : "Compare selected patients"} style={{ ...btnPrimary("sm"), cursor: selectedPatients.length < 2 ? "not-allowed" : "pointer", opacity: selectedPatients.length < 2 ? 0.5 : 1 }}>Compare</button>
+                    <button onClick={() => setShowCompare(true)} disabled={selectedPatients.length < 2} title={selectedPatients.length < 2 ? "Select at least 2 patients to compare" : "Compare selected patients"} style={{ ...btnPrimary("sm"), ...(selectedPatients.length < 2 ? btnDisabled : null) }}>Compare</button>
                     <button onClick={exportCsv} style={btnSecondary("sm")}>Export CSV</button>
                   </div>
                 )}
@@ -170,7 +170,7 @@ export default function ResearchView() {
       {/* Compare panel — selected patients side by side, with shared diseases/tags */}
       {showCompare && (
         <div onClick={() => setShowCompare(false)} style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, padding: 24 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 16px 50px rgba(0,0,0,0.18)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog }}>
             <div style={{ position: "sticky", top: 0, background: C.n[0], padding: "14px 18px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 15, fontWeight: 600 }}>Comparing {selectedPatients.length} patients</div>
               <button aria-label="Close" onClick={() => setShowCompare(false)} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer" }}>×</button>

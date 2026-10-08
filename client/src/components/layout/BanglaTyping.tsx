@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { C, font } from "@/theme";
+import { shadowMenu } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput";
 
@@ -153,7 +154,7 @@ export function BanglaTyping() {
       position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: "50%", transform: "translateX(-50%)",
       zIndex: 3000, maxWidth: "min(560px, 92vw)", padding: "10px 16px", borderRadius: 10,
       background: C.warn[50], border: `1px solid ${C.warn[400]}`, color: C.warn[800],
-      boxShadow: "0 8px 24px rgba(0,0,0,0.12)", fontFamily: font, fontSize: 12.5, fontWeight: 600, lineHeight: 1.45,
+      boxShadow: shadowMenu, fontFamily: font, fontSize: 12.5, fontWeight: 600, lineHeight: 1.45,
     }}>
       Bangla typing is not allowed in this field
     </div>

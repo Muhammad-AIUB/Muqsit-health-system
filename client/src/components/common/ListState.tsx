@@ -1,5 +1,5 @@
 import { C } from "@/theme";
-import { btnSecondary } from "@/theme/styles";
+import { btnSecondary, btnDisabled } from "@/theme/styles";
 import Icon from "./Icon";
 
 // The two other things a list can be besides full or empty (`EmptyState`):
@@ -42,7 +42,7 @@ export function LoadError({ title, detail, onRetry, retrying, compact }: {
       <div style={{ fontSize: 13.5, fontWeight: 600, color: C.n[800] }}>{title}</div>
       <div style={{ fontSize: 12, color: C.n[600], marginTop: 4, lineHeight: 1.5 }}>{detail || "Check your internet connection and try again."}</div>
       {onRetry && (
-        <button type="button" onClick={onRetry} disabled={retrying} style={{ ...btnSecondary("sm"), marginTop: 12 }}>
+        <button type="button" onClick={onRetry} disabled={retrying} style={{ ...btnSecondary("sm"), marginTop: 12, ...(retrying ? btnDisabled : null) }}>
           {retrying ? "Trying again…" : "Try again"}
         </button>
       )}

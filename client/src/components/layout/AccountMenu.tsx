@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { shadowMenu } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 
 // Avatar button that opens a small account menu (identity + Log out). Replaces
@@ -36,7 +37,7 @@ export default function AccountMenu({ size = 28 }: { size?: number }) {
       >{initials}</button>
 
       {open && (
-        <div role="menu" style={{ position: "absolute", top: size + 8, right: 0, width: 224, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.14)", overflow: "hidden", zIndex: 1000 }}>
+        <div role="menu" style={{ position: "absolute", top: size + 8, right: 0, width: 224, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: shadowMenu, overflow: "hidden", zIndex: 1000 }}>
           {/* Identity */}
           <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, borderBottom: `0.5px solid ${C.n[200]}` }}>
             <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.pri[400], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{initials}</div>

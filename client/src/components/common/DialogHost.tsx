@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useSyncExternalStore } from "react";
 import { C, font } from "@/theme";
-import { btnDanger, btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
+import { btnDanger, btnPrimary, btnSecondary, dialogTitle, scrim, shadowDialog } from "@/theme/styles";
 import { currentDialog, registerDialogHost, settleDialog, subscribeDialogs, type PendingDialog } from "@/lib/dialogs";
 import { useDialog } from "@/lib/useDialog";
 import Icon from "./Icon";
@@ -55,7 +55,7 @@ function DialogBox({ dialog }: { dialog: PendingDialog }) {
         aria-describedby={dialog.body ? bodyId : undefined}
         {...panel}
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(420px, 100%)", background: C.n[0], borderRadius: 12, padding: 20, boxShadow: "0 12px 40px rgba(32,33,36,0.28)", outline: "none" }}
+        style={{ width: "min(420px, 100%)", background: C.n[0], borderRadius: 12, padding: 20, boxShadow: shadowDialog, outline: "none" }}
       >
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
           <div aria-hidden style={{ flex: "0 0 36px", width: 36, height: 36, borderRadius: "50%", background: tint[50], color: tint[800], display: "flex", alignItems: "center", justifyContent: "center" }}>

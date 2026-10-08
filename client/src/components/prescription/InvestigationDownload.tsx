@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { C, font } from "@/theme";
 import { tell } from "@/lib/dialogs";
-import { btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim, shadowDialog } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { type InvFinding, filterByDate, groupByDate, groupByCategory } from "@/lib/investigationSummary";
 import DateField from "@/components/common/DateField";
@@ -140,7 +140,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
   return (
     <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1500, fontFamily: font, padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-label="Download investigation summary" {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 480, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
+      <div role="dialog" aria-modal="true" aria-label="Download investigation summary" {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 480, maxWidth: "100%", boxShadow: shadowDialog }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ ...dialogTitle }}>Download investigation summary</div>
           <button aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: C.n[500], cursor: "pointer" }}>×</button>

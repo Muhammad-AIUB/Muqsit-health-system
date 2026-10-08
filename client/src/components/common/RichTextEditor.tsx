@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { C } from "@/theme";
+import { shadowMenu } from "@/theme/styles";
 import { tell } from "@/lib/dialogs";
 import { ApiError, uploadImage } from "@/lib/api";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
@@ -620,7 +621,7 @@ const panelStyle: React.CSSProperties = {
   background: C.n[0],
   border: `0.5px solid ${C.n[200]}`,
   borderRadius: 10,
-  boxShadow: "0 12px 32px rgba(0,0,0,0.16)",
+  boxShadow: shadowMenu,
   padding: 8,
 };
 

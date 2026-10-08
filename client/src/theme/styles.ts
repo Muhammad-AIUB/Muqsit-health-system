@@ -23,6 +23,17 @@ export const inputMd: CSSProperties = { ...inputSm, minHeight: 36, padding: "0 1
 // greys, so the page behind looked a different distance away each time.
 export const scrim = "rgba(32,33,36,0.45)";
 
+// How far something stands off the page. Three heights and one light: 27
+// places had written 21 different shadows, so two popups side by side looked
+// lit from two rooms. Tinted with the neutral ink, not pure black, so a shadow
+// on the cool grey page does not go muddy.
+//   shadowCard   — a surface resting on the page (the app shell, an Undo bar)
+//   shadowMenu   — a list hung from a field (medicine list, patient lookup, account menu)
+//   shadowDialog — a popup standing over the veil
+export const shadowCard = "0 1px 2px rgba(60,64,67,0.06), 0 2px 8px rgba(60,64,67,0.05)";
+export const shadowMenu = "0 1px 3px rgba(32,33,36,0.10), 0 8px 24px rgba(32,33,36,0.16)";
+export const shadowDialog = "0 2px 6px rgba(32,33,36,0.10), 0 16px 44px rgba(32,33,36,0.22)";
+
 // The name of the screen you are on ("OPD queue management", "Settings").
 // It was 16px/500, lighter than the 13px/600 card headings beneath it.
 export const pageTitle: CSSProperties = { fontSize: 18, fontWeight: 600, color: C.n[900], letterSpacing: "-0.01em", lineHeight: 1.3 };

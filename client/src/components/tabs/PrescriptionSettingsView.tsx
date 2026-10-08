@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
 import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
@@ -422,7 +422,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
             <span style={{ marginRight: 4 }}>‹</span> Previous
           </button>
         )}
-        <button onClick={save} disabled={saving || loading || loadFailed} style={{ ...btnSave, opacity: saving || loading || loadFailed ? 0.6 : 1 }}>
+        <button onClick={save} disabled={saving || loading || loadFailed} style={{ ...btnSave, ...(saving || loading || loadFailed ? btnDisabled : null) }}>
           {saving ? "Saving…" : "Save"}
         </button>
         {stepIndex < STEPS.length - 1 && (

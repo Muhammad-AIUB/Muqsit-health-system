@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
-import { btnDisabled, btnPrimary, btnSecondary, scrim } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, scrim, shadowDialog, shadowMenu } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
 import { patientsApi, uploadImage, type PatientInput } from "@/lib/api";
@@ -325,7 +325,7 @@ export default function PatientSettingsView() {
                 <div style={piLbl}>District (type to search)</div>
                 <input aria-label="District (type to search)" style={piInp} value={pI.district} onChange={(e) => setPi("district", e.target.value)} placeholder="Start typing district..." />
                 {pI.district && pI.district.length > 0 && filteredDistricts.length > 0 && filteredDistricts.length < 10 && !districts.includes(pI.district) && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 6, maxHeight: 150, overflowY: "auto", zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 6, maxHeight: 150, overflowY: "auto", zIndex: 10, boxShadow: shadowMenu }}>
                     {filteredDistricts.map((d) => (
                       <div key={d} onClick={() => setPi("district", d)} {...pressable()} style={{ padding: "6px 10px", fontSize: 11, cursor: "pointer", borderBottom: "0.5px solid " + C.n[100] }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; }}
@@ -479,7 +479,7 @@ export default function PatientSettingsView() {
           {showFamilyForm && (
             <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
               onClick={() => setShowFamilyForm(false)}>
-              <div role="dialog" aria-modal="true" aria-label="Add family member" {...familyDialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: "0 12px 40px rgba(0,0,0,0.12)", overflowX: "hidden", overflowY: "auto" }}>
+              <div role="dialog" aria-modal="true" aria-label="Add family member" {...familyDialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: shadowDialog, overflowX: "hidden", overflowY: "auto" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "0.5px solid " + C.n[200], display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 500 }}>Add {familyRelation.toLowerCase()}</div>

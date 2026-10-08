@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
-import { btnSecondary, btnPrimary } from "@/theme/styles";
+import { btnSecondary, btnPrimary, btnDisabled } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import RxAlerts from "@/components/prescription/RxAlerts";
@@ -305,7 +305,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
               style={{ width: "100%", boxSizing: "border-box", resize: "vertical", borderRadius: 6, border: `1px solid ${C.n[300]}`, padding: "8px 10px", fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", lineHeight: 1.5, background: C.n[0] }} />
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-            <button onClick={saveFollowUp} disabled={!draftHasValue || update.isPending} style={{ ...btnSave, padding: "6px 16px", opacity: draftHasValue ? 1 : 0.5, cursor: draftHasValue ? "pointer" : "default" }}>Save follow up</button>
+            <button onClick={saveFollowUp} disabled={!draftHasValue || update.isPending} style={{ ...btnSave, ...(!draftHasValue || update.isPending ? btnDisabled : null) }}>Save follow up</button>
           </div>
         </div>
 

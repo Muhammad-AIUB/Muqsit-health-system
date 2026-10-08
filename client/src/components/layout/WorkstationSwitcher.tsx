@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { C, font } from "@/theme";
-import { btnSecondary, scrim } from "@/theme/styles";
+import { btnSecondary, scrim, shadowDialog } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkstations } from "@/hooks/useWorkstations";
@@ -47,7 +47,7 @@ export default function WorkstationSwitcher() {
   if (isSuccess && workstations.length === 0 && !isPurchasedTier) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: "rgba(248,248,246,0.55)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
-        <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: "0 18px 50px rgba(0,0,0,0.18)", padding: "30px 28px" }}>
+        <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: shadowDialog, padding: "30px 28px" }}>
           <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", color: C.n[500] }}><Icon name="lock" size={30} /></div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#ED1C24", lineHeight: 1.5 }}>
             You are currently in secondary account holder. You can only use it as assistant under primary account holder. You can also purchase it to use its full potential.

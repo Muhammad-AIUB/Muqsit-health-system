@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, btnTonal, scrim } from "@/theme/styles";
+import { btnPrimary, btnSecondary, btnTonal, scrim, btnDisabled, shadowDialog } from "@/theme/styles";
 import { useInvestigationPrefs, useSaveInvestigationGroups } from "@/hooks/useInvestigationPrefs";
 import { groupTicked, newGroupProblem, toggleGroup } from "@/lib/investigationGroups";
 import InvestigationDirectory from "./InvestigationDirectory";
@@ -105,7 +105,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
         aria-label="Add new group"
         {...dialog}
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(720px, 100%)", maxHeight: "85vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.16)", overflow: "hidden" }}
+        style={{ width: "min(720px, 100%)", maxHeight: "85vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, overflow: "hidden" }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>Add new group</div>
@@ -168,7 +168,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={() => void submit()}
             disabled={save.isPending}
-            style={{ ...btnPrimary("md"), cursor: save.isPending ? "default" : "pointer", opacity: save.isPending ? 0.7 : 1 }}
+            style={{ ...btnPrimary("md"), ...(save.isPending ? btnDisabled : null) }}
           >{save.isPending ? "Saving…" : "Save"}</button>
         </div>
       </div>

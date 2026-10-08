@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { C, font } from "@/theme";
-import { inputSm, btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
+import { inputSm, btnPrimary, btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
 import {
   ApiError,
   usersApi,
@@ -419,10 +419,10 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
 
       {/* ── Footer ── */}
       <div style={{ position: "sticky", bottom: 0, background: C.n[50], padding: "14px 0", marginTop: 18, borderTop: `0.5px solid ${C.n[200]}`, display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button onClick={cancel} disabled={saving || !dirty} style={{ ...btnGhost, padding: "10px 22px", opacity: !dirty ? 0.5 : 1 }}>
+        <button onClick={cancel} disabled={saving || !dirty} style={{ ...btnSecondary("md"), ...(saving || !dirty ? btnDisabled : null) }}>
           Cancel
         </button>
-        <button onClick={save} disabled={saving || !dirty} style={{ ...btnPri, opacity: saving || !dirty ? 0.6 : 1 }}>
+        <button onClick={save} disabled={saving || !dirty} style={{ ...btnPri, ...(saving || !dirty ? btnDisabled : null) }}>
           {saving ? "Saving…" : "Save"}
         </button>
       </div>

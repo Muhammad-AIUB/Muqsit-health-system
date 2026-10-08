@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { C, font } from "@/theme";
-import { inputSm, btnPrimary, btnSecondary } from "@/theme/styles";
+import { inputSm, btnPrimary, btnSecondary, btnDisabled } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, authApi, uploadImage, type Profession, type RegisterInput } from "@/lib/api";
 import { verifyNidNumber, type NidMatch } from "@/lib/ocr";
@@ -451,7 +451,7 @@ export default function SignupPage() {
                 <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px", margin: "14px 0" }}>{error}</div>
               )}
 
-              <button onClick={submit} disabled={loading} style={{ ...btnPrimary("lg"), width: "100%", marginTop: 8, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
+              <button onClick={submit} disabled={loading} style={{ ...btnPrimary("lg"), width: "100%", marginTop: 8, ...(loading ? btnDisabled : null) }}>
                 {loading ? "Submitting…" : "Create account"}
               </button>
 
@@ -485,7 +485,7 @@ export default function SignupPage() {
               </div>
               {otpMsg && <div style={{ fontSize: 11, color: C.pri[600], marginBottom: 10 }}>{otpMsg}</div>}
               {error && <div style={{ fontSize: 11, color: C.danger[800], background: C.danger[50], border: `0.5px solid ${C.danger[100]}`, borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>{error}</div>}
-              <button onClick={verify} disabled={loading || otp.length !== 6 || otpExpired} style={{ ...btnPrimary("lg"), width: "100%", cursor: loading ? "default" : "pointer", opacity: loading || otp.length !== 6 || otpExpired ? 0.6 : 1 }}>
+              <button onClick={verify} disabled={loading || otp.length !== 6 || otpExpired} style={{ ...btnPrimary("lg"), width: "100%", ...(loading || otp.length !== 6 || otpExpired ? btnDisabled : null) }}>
                 {loading ? "Verifying…" : "Verify email"}
               </button>
               <div style={{ textAlign: "center", fontSize: 11, color: C.n[600], marginTop: 16 }}>

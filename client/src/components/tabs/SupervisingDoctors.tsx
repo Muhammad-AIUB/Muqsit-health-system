@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { C } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
-import { btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnPrimary, btnSecondary, btnDisabled } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAddSupervisor, useRemoveSupervisor, useSupervisors } from "@/hooks/useChat";
 import { ApiError } from "@/lib/api";
@@ -115,7 +115,7 @@ export default function SupervisingDoctors() {
                 placeholder="Doctor's email or mobile"
                 style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "1px solid " + C.n[300], fontSize: 12, outline: "none", fontFamily: "inherit" }}
               />
-              <button onClick={submit} disabled={add.isPending} style={{ ...btnPrimary("md"), opacity: add.isPending ? 0.6 : 1 }}>
+              <button onClick={submit} disabled={add.isPending} style={{ ...btnPrimary("md"), ...(add.isPending ? btnDisabled : null) }}>
                 {add.isPending ? "Adding…" : "Add"}
               </button>
               <button onClick={() => { setShowAdd(false); setErr(""); setIdentifier(""); }} style={btnSecondary("md")}>

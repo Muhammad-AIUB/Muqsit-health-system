@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { C, font } from "@/theme";
+import { shadowMenu, shadowCard } from "@/theme/styles";
 import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { useRxHabits } from "@/hooks/useRxHabits";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
@@ -693,7 +694,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                 )}
 
                 {!isCont && acRow === idx && (acItems.length > 0 || visibleHabitGroups.length > 0 || (notePhrases.length > 0 && !row.isMedicine) || (looksLikeMedicine(row.drug) && !row.isMedicine)) && (
-                  <div style={{ position: "fixed", top: acPos?.top, bottom: acPos?.bottom, left: acPos?.left ?? 0, visibility: acPos ? "visible" : "hidden", minWidth: 200, maxWidth: acMaxW, background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.22)", zIndex: 50, maxHeight: acPos?.maxHeight ?? 320, overflowY: "auto" }}>
+                  <div style={{ position: "fixed", top: acPos?.top, bottom: acPos?.bottom, left: acPos?.left ?? 0, visibility: acPos ? "visible" : "hidden", minWidth: 200, maxWidth: acMaxW, background: C.n[0], border: `1px solid ${C.n[300]}`, borderRadius: 10, boxShadow: shadowMenu, zIndex: 50, maxHeight: acPos?.maxHeight ?? 320, overflowY: "auto" }}>
                     {/* "Your usual" — this doctor's own past instructions for the
                         medicine being typed. Renders NOTHING when there are none:
                         on a clinical screen an empty state and a failed lookup
@@ -904,7 +905,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
       {/* Undo for a hidden suggestion. Outside the dropdown, because the
           dropdown closes on the very click that raises this. */}
       {habitUndo && (
-        <div className="habit-undo" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: "0 2px 8px rgba(15,23,32,0.06)" }}>
+        <div className="habit-undo" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: shadowCard }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 9, minWidth: 0 }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

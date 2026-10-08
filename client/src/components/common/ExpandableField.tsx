@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, scrim } from "@/theme/styles";
+import { btnPrimary, btnSecondary, scrim, shadowDialog } from "@/theme/styles";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import type { PhraseSource } from "@/lib/api";
@@ -369,7 +369,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
         }} onClick={cancel}>
           <div role="dialog" aria-modal="true" aria-label={label} {...dialog} onClick={(e) => e.stopPropagation()} style={{
             width: `min(${pd.length > 0 ? 760 : 520}px, 100%)`, maxWidth: "100%", maxHeight: "80vh", background: C.n[0], borderRadius: 14,
-            border: `0.5px solid ${C.n[200]}`, boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
+            border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog,
             display: "flex", flexDirection: "column", overflow: "hidden",
           }}>
             {/* Modal header */}

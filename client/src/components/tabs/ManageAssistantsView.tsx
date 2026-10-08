@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
-import { btnSecondary, pageTitle } from "@/theme/styles";
+import { btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
 import { ApiError, type AssistantCandidate, type AssistantRecord } from "@/lib/api";
 import {
   useAddAssistant,
@@ -224,7 +224,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
                     </div>
                     <PermissionGrid selected={draft} onToggle={toggleInSet(setDraft)} />
                     <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, rowGap: 8, marginTop: 4 }}>
-                      <button onClick={() => saveAccess(a)} disabled={!dirty || updateAssistant.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: !dirty || updateAssistant.isPending ? 0.6 : 1, cursor: !dirty || updateAssistant.isPending ? "default" : "pointer" }}>
+                      <button onClick={() => saveAccess(a)} disabled={!dirty || updateAssistant.isPending} style={{ ...btn(C.pri[400], C.n[0]), ...(!dirty || updateAssistant.isPending ? btnDisabled : null) }}>
                         {updateAssistant.isPending ? "Saving…" : "Save"}
                       </button>
                       <button onClick={() => setEditingId(null)} style={btn(C.n[100], C.n[800])}>Cancel</button>
@@ -261,10 +261,10 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
-          <button onClick={saveDefaults} disabled={!defaultsDirty || updateDefaults.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: defaultsDirty && !updateDefaults.isPending ? 1 : 0.5, cursor: defaultsDirty && !updateDefaults.isPending ? "pointer" : "default" }}>
+          <button onClick={saveDefaults} disabled={!defaultsDirty || updateDefaults.isPending} style={{ ...btn(C.pri[400], C.n[0]), ...(defaultsDirty && !updateDefaults.isPending ? null : btnDisabled) }}>
             {updateDefaults.isPending ? "Saving…" : "Save"}
           </button>
-          <button onClick={() => setDefaultDraft(new Set(defaultPerms))} disabled={!defaultsDirty} style={{ ...btn(C.n[100], C.n[800]), opacity: defaultsDirty ? 1 : 0.5, cursor: defaultsDirty ? "pointer" : "default" }}>Cancel</button>
+          <button onClick={() => setDefaultDraft(new Set(defaultPerms))} disabled={!defaultsDirty} style={{ ...btn(C.n[100], C.n[800]), ...(defaultsDirty ? null : btnDisabled) }}>Cancel</button>
           {!defaultsDirty && defaultPerms.length > 0 && <span style={{ fontSize: 11, color: C.ok[600], marginLeft: 4 }}>Saved</span>}
         </div>
       </div>

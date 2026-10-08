@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { tell } from "@/lib/dialogs";
-import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, shadowCard } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
 import { THUMB_UPLOAD, thumbFor, type ThumbMap } from "@/lib/imageThumbs";
@@ -413,7 +413,7 @@ function UndoBar<T>({ entry, onUndo, onDismiss }: { entry: UndoEntry<T>; onUndo:
   const failed = entry.status === "error";
   const verb = entry.status === "saving" ? "Removing" : entry.status === "restoring" ? "Restoring" : failed ? "Could not remove" : "Removed";
   return (
-    <div className="inv-undo" role={failed || entry.error ? "alert" : undefined} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${failed || entry.error ? C.danger[100] : C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: "0 2px 8px rgba(15,23,32,0.06)" }}>
+    <div className="inv-undo" role={failed || entry.error ? "alert" : undefined} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10, fontSize: 12.5, color: C.n[700], background: C.n[0], border: `1px solid ${failed || entry.error ? C.danger[100] : C.n[200]}`, borderRadius: 10, padding: "10px 14px", boxShadow: shadowCard }}>
       <span style={{ display: "inline-flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger[400], flexShrink: 0 }} />

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { shadowMenu } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { patientsApi, type Patient } from "@/lib/api";
 import { displayAge } from "@/lib/age";
@@ -51,7 +52,7 @@ export default function PatientSearch() {
         style={{ minHeight: 32, padding: "0 12px", borderRadius: 8, border: `1px solid ${C.n[300]}`, fontSize: 12.5, width: 210, outline: "none", background: C.n[0], color: C.n[900], fontFamily: font }}
       />
       {open && results.length > 0 && (
-        <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, minWidth: 240, zIndex: 60, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.14)", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, minWidth: 240, zIndex: 60, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: shadowMenu, overflow: "hidden" }}>
           {results.map((p) => (
             <button
               key={p.id}

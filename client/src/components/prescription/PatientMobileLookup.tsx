@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, font } from "@/theme";
-import { inputSm, fieldLabel, btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
+import { inputSm, fieldLabel, btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, shadowMenu } from "@/theme/styles";
 import { patientsApi, type Patient, type RelativeMatch } from "@/lib/api";
 import { ageFromDob, displayAge } from "@/lib/age";
 import { YEAR_POLICY } from "@/lib/dateInput";
@@ -405,7 +405,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, fontFamily: font, padding: 16 }}
     >
-      <div role="dialog" aria-modal="true" aria-label={title} {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 440, maxWidth: "100%", boxShadow: "0 18px 50px rgba(0,0,0,0.25)" }}>
+      <div role="dialog" aria-modal="true" aria-label={title} {...dialog} style={{ background: C.n[0], borderRadius: 14, padding: 22, width: 440, maxWidth: "100%", boxShadow: shadowDialog }}>
         <div style={{ ...dialogTitle, marginBottom: 16 }}>{title}</div>
         {children}
       </div>
@@ -451,8 +451,8 @@ function RelationRadio({ value, onChange }: { value: string; onChange: (v: strin
 function ModalButtons({ saving, onSave, onClose }: { saving: boolean; onSave: () => void; onClose: () => void }) {
   return (
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-      <button type="button" onClick={onClose} disabled={saving} style={btnSecondary("md")}>Cancel</button>
-      <button type="button" onClick={onSave} disabled={saving} style={{ ...btnPrimary("md"), fontWeight: 600, opacity: saving ? 0.7 : 1, cursor: saving ? "default" : "pointer" }}>{saving ? "Saving…" : "Save"}</button>
+      <button type="button" onClick={onClose} disabled={saving} style={{ ...btnSecondary("md"), ...(saving ? btnDisabled : null) }}>Cancel</button>
+      <button type="button" onClick={onSave} disabled={saving} style={{ ...btnPrimary("md"), fontWeight: 600, ...(saving ? btnDisabled : null) }}>{saving ? "Saving…" : "Save"}</button>
     </div>
   );
 }
@@ -460,7 +460,7 @@ function ModalButtons({ saving, onSave, onClose }: { saving: boolean; onSave: ()
 const dropdown: CSSProperties = {
   position: "absolute", top: "100%", left: 0, minWidth: 230, marginTop: 4, zIndex: 50,
   background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.14)", overflow: "hidden",
+  boxShadow: shadowMenu, overflow: "hidden",
 };
 const rowBtn: CSSProperties = {
   display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, width: "100%",

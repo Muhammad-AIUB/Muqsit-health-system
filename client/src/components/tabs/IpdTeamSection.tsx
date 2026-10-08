@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { C } from "@/theme";
+import { btnDisabled } from "@/theme/styles";
 import { confirmAction } from "@/lib/dialogs";
 import { ApiError, type Ward, type WardCandidate } from "@/lib/api";
 import {
@@ -87,7 +88,7 @@ export default function IpdTeamSection() {
             placeholder="Ward name — e.g. Ward 3, Male Medicine, Cabin block A"
             style={{ flex: "1 1 240px", padding: "8px 12px", borderRadius: 7, border: `0.5px solid ${C.n[300]}`, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
           />
-          <button onClick={submitWard} disabled={createWard.isPending} style={{ ...btn(C.pri[400], C.n[0]), opacity: createWard.isPending ? 0.6 : 1 }}>
+          <button onClick={submitWard} disabled={createWard.isPending} style={{ ...btn(C.pri[400], C.n[0]), ...(createWard.isPending ? btnDisabled : null) }}>
             {createWard.isPending ? "Adding…" : "Add ward"}
           </button>
         </div>
@@ -205,7 +206,7 @@ function WardCard({
             {searchOpen ? "Close" : "+ Add team member"}
           </button>
           <button onClick={() => { setName(ward.name); setRenaming(true); }} disabled={busy} style={btn(C.info[50], C.info[800])}>Rename</button>
-          <button onClick={confirmDelete} disabled={busy} style={btn(C.danger[50], C.danger[800])}>Delete ward</button>
+          <button onClick={confirmDelete} disabled={busy} style={{ ...btn(C.danger[50], C.danger[800]), ...(busy ? btnDisabled : null) }}>Delete ward</button>
         </div>
       </div>
 
@@ -327,7 +328,7 @@ function WardCard({
                       <button
                         onClick={() => savePerms(m.id)}
                         disabled={!dirty || updateMember.isPending}
-                        style={{ ...btn(C.pri[400], C.n[0]), opacity: dirty && !updateMember.isPending ? 1 : 0.5, cursor: dirty && !updateMember.isPending ? "pointer" : "default" }}
+                        style={{ ...btn(C.pri[400], C.n[0]), ...(dirty && !updateMember.isPending ? null : btnDisabled) }}
                       >
                         {updateMember.isPending ? "Saving…" : "Save"}
                       </button>

@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C, font } from "@/theme";
-import { btnPrimary, btnSecondary, dialogTitle, scrim } from "@/theme/styles";
+import { btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, patientNotesApi, type PatientNoteInfo } from "@/lib/api";
@@ -166,7 +166,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
   const today = (() => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`; })();
   const btn = (primary: boolean, disabled = false) => ({
     ...(primary ? btnPrimary("md") : btnSecondary("md")), fontWeight: 600,
-    cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
+    ...(disabled ? btnDisabled : null),
   });
 
   return (
@@ -174,7 +174,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
       style={{ position: "fixed", inset: 0, background: scrim, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
-      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", fontFamily: font }}>
+      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
         <style>{sensitiveCss(".pn-view", { inert: true })}</style>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
@@ -254,7 +254,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
             onMouseDown={(e) => { if (e.target === e.currentTarget) setAskPrint(false); }}
             style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.75)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           >
-            <div role="dialog" aria-label="Print the note" style={{ width: "min(380px, 100%)", background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.16)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div role="dialog" aria-label="Print the note" style={{ width: "min(380px, 100%)", background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: shadowDialog, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>This note has sensitive information</div>
               <div style={{ fontSize: 12.5, color: C.n[600] }}>How should it be printed?</div>
               <button type="button" onClick={() => printAs(true)} style={{ ...btn(false), justifyContent: "flex-start" }}><Icon name="lock" size={14} /> Print with sensitive information</button>

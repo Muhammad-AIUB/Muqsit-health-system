@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { C, font } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
-import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
@@ -199,7 +199,7 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
       {error && <div style={{ fontSize: 12, color: C.danger[800], marginTop: 10 }}>{error}</div>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
-        <button onClick={save} disabled={saveMut.isPending} style={{ ...btnPrimary("md"), fontWeight: 600, opacity: saveMut.isPending ? 0.6 : 1 }}>{saveMut.isPending ? "Saving…" : "Save"}</button>
+        <button onClick={save} disabled={saveMut.isPending} style={{ ...btnPrimary("md"), fontWeight: 600, ...(saveMut.isPending ? btnDisabled : null) }}>{saveMut.isPending ? "Saving…" : "Save"}</button>
         <button onClick={onClose} style={btnSecondary("md")}>Cancel</button>
       </div>
     </div>
