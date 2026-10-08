@@ -16,6 +16,7 @@ import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 import { useDialog } from "@/lib/useDialog";
+import { zoomScale } from "@/lib/dropdownAnchor";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -81,9 +82,16 @@ export default function InvestigationPopup() {
         if (!card || !container) return;
         const cRect = container.getBoundingClientRect();
         const kRect = card.getBoundingClientRect();
-        const delta = (kRect.top - cRect.top) - (container.clientHeight - card.clientHeight) / 2;
+        // The rects are in screen pixels and the scroll is in the page's own
+        // (the page is zoomed — see zoomScale): unconverted, a test 400px down
+        // the list overshot the middle by about 45px.
+        const delta = (kRect.top - cRect.top) / zoomScale(container) - (container.clientHeight - card.clientHeight) / 2;
         container.scrollBy({ top: delta, behavior: "smooth" });
-        card.querySelector<HTMLElement>("input, select, textarea")?.focus({ preventScroll: true });
+        // The first box a doctor can TYPE in. Since each test got its own
+        // "Add report image" button (2026-08-16) the first <input> in a card
+        // is that button's hidden file picker, which cannot take the focus —
+        // so a search landed on the right test and left the caret nowhere.
+        card.querySelector<HTMLElement>('input:not([type="file"]):not([type="hidden"]), select, textarea')?.focus({ preventScroll: true });
       });
     });
     const clear = setTimeout(() => setFlashTest(null), 1600);

@@ -286,8 +286,10 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
       <ExpandableField label="Procedure" items={procedure} setItems={setProc} allFields={allFields}
         itemNotes={procNotes} onItemNote={(item, note) => setProcNotes((prev) => ({ ...prev, [item]: note }))} notePlaceholder="Note / date & time…" />
 
-      {/* Follow Up — structured vitals, saved as a timestamped log */}
-      <div style={{ marginBottom: 12 }}>
+      {/* Follow Up — structured vitals, saved as a timestamped log. The top
+          margin is its own: the field above ends 2px from whatever follows it,
+          which left this heading sitting on the Procedure row. */}
+      <div style={{ marginTop: 14, marginBottom: 12 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600, color: C.n[800], marginBottom: 6 }}>Follow Up</div>
         <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: 12, background: C.n[0] }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
