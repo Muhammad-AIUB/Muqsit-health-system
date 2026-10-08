@@ -22,6 +22,13 @@ const C = {
   blueLight: "#E6F1FB",
 };
 
+// dd/mm/yyyy, hh:mm — the product's date order, whatever the browser's own is.
+// `toLocaleString()` printed "10/9/2026" on this record for the 9th of October
+// in a US-English browser, beside "09/10/2026" for the same account in the list:
+// on a page that is saved as a PDF, a date that reads as the 10th of September.
+const two = (n: number) => String(n).padStart(2, "0");
+const stamp = (d: Date) => `${two(d.getDate())}/${two(d.getMonth() + 1)}/${d.getFullYear()}, ${two(d.getHours())}:${two(d.getMinutes())}`;
+
 const STATUS_BADGE: Record<string, { bg: string; fg: string }> = {
   pending: { bg: "#FAEEDA", fg: "#854F0B" },
   approved: { bg: "#E1F5EE", fg: "#0F6E56" },
@@ -61,7 +68,7 @@ export default function AccountRecordPage({ params }: { params: { id: string } }
     { label: "Specialty", value: reg.specialty },
     { label: "Institution code", value: reg.institutionCode },
     { label: "Account tier", value: reg.accountTier },
-    { label: "Signed up", value: new Date(reg.createdAt).toLocaleString() },
+    { label: "Signed up", value: stamp(new Date(reg.createdAt)) },
   ];
 
   const docs: { label: string; url: string | null }[] = [
@@ -144,7 +151,7 @@ export default function AccountRecordPage({ params }: { params: { id: string } }
         </div>
 
         <div style={{ marginTop: 28, paddingTop: 12, borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.n500 }}>
-          Generated {new Date().toLocaleString()} · Muqsit Health System Admin
+          Generated {stamp(new Date())} · Muqsit Health System Admin
         </div>
       </div>
     </>

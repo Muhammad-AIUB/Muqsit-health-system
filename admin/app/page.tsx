@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   adminApi,
   ApiError,
@@ -83,7 +83,7 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: (u: AuthUser) => void }) {
       }
       onLoggedIn(res.user);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Login failed. Is the API running?");
+      setError(e instanceof ApiError ? e.message : "Sign-in failed. Check your internet connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -289,14 +289,19 @@ function AccountsPage({ mode }: { mode: NavId }) {
 
       {error && <div style={errBox}>{error}</div>}
 
-      <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+      {/* One account, one line of controls. The table had seven columns and the
+          last — four controls, 329px of them — was left 163px, so every row
+          stacked its actions three deep and stood 117px tall: twelve accounts
+          were 1400px of scrolling. Profession now sits under the name and the
+          mobile under the email, which is how the two pairs are read anyway,
+          and the actions keep their own width. Narrower than that, the table
+          scrolls sideways instead of being cut off at the card's edge. */}
+      <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: C.n50, textAlign: "left", color: C.n600 }}>
               <th style={th}>Name</th>
-              <th style={th}>Profession</th>
-              <th style={th}>Email</th>
-              <th style={th}>Mobile</th>
+              <th style={th}>Contact</th>
               <th style={th}>Status</th>
               {trash && <th style={th}>Tier</th>}
               <th style={th}>Signed up</th>
@@ -305,30 +310,34 @@ function AccountsPage({ mode }: { mode: NavId }) {
           </thead>
           <tbody>
             {loading && (
-              <tr><td style={td} colSpan={trash ? 8 : 7}>Loading…</td></tr>
+              <tr><td style={{ ...td, color: C.n600, padding: "22px 14px" }} colSpan={trash ? 6 : 5}><span role="status" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span className="spinner" aria-hidden />Loading accounts…</span></td></tr>
             )}
             {!loading && filtered.length === 0 && (
-              <tr><td style={{ ...td, color: C.n500 }} colSpan={trash ? 8 : 7}>{q ? "No accounts match your search." : trash ? "Trash is empty." : `No ${mode} accounts yet.`}</td></tr>
+              <tr><td style={{ ...td, color: C.n600, textAlign: "center", padding: "30px 14px" }} colSpan={trash ? 6 : 5}>{q ? "No accounts match your search." : trash ? "Trash is empty." : `No ${mode} accounts yet.`}</td></tr>
             )}
             {!loading && filtered.map((r) => {
               const badge = STATUS_BADGE[r.approvalStatus] ?? STATUS_BADGE.pending;
               return (
-                <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                <tr key={r.id} className="acct-row" style={{ borderTop: `1px solid ${C.border}` }}>
                   <td style={td}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       {r.profilePictureUrl ? (
-                        <img src={r.profilePictureUrl} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: `1px solid ${C.border}` }} />
+                        <img src={r.profilePictureUrl} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", border: `1px solid ${C.border}`, flexShrink: 0 }} />
                       ) : (
-                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.priLight, color: C.priDark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600 }}>
+                        <div aria-hidden style={{ width: 32, height: 32, borderRadius: "50%", background: C.priLight, color: C.priDark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 600, flexShrink: 0 }}>
                           {r.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
                         </div>
                       )}
-                      {r.name}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>{r.name}</div>
+                        <div style={tdSub}>{r.profession ? PROFESSION_LABELS[r.profession] ?? r.profession : "—"}</div>
+                      </div>
                     </div>
                   </td>
-                  <td style={td}>{r.profession ? PROFESSION_LABELS[r.profession] ?? r.profession : "—"}</td>
-                  <td style={td}>{r.email}</td>
-                  <td style={td}>{r.mobile ?? "—"}</td>
+                  <td style={td}>
+                    <div style={{ overflowWrap: "anywhere" }}>{r.email}</div>
+                    <div style={{ ...tdSub, fontVariantNumeric: "tabular-nums" }}>{r.mobile ?? "—"}</div>
+                  </td>
                   <td style={td}>
                     <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: badge.bg, color: badge.fg }}>
                       {r.approvalStatus}
@@ -349,7 +358,7 @@ function AccountsPage({ mode }: { mode: NavId }) {
                     </td>
                   )}
                   <td style={{ ...td, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{ddmmyyyy(r.createdAt)}</td>
-                  <td style={td}>
+                  <td style={{ ...td, width: "1%" }}>
                     <RowActions reg={r} mode={mode} onChanged={load} />
                   </td>
                 </tr>
@@ -368,17 +377,31 @@ function AccountsPage({ mode }: { mode: NavId }) {
 // the row is in (see the spec in NAV).
 function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState<(Question & { answer: (ok: boolean) => void }) | null>(null);
+  const [failed, setFailed] = useState("");
 
-  // Run a mutation with an optional confirm, then reload the list. Failures
-  // surface as an alert (this is an internal back-office tool).
-  const run = async (fn: () => Promise<unknown>, confirmMsg?: string) => {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
+  // Run a mutation with an optional confirm, then reload the list.
+  //
+  // The question and a failure are drawn by the page (`Dialog` below), not by
+  // the browser's confirm() / alert(). After a second one of those the browser
+  // offers "Prevent this page from creating additional dialogs"; tick it and
+  // every later confirm() answers NO unseen — Suspend and Delete then do
+  // nothing at all, with no word why — and a failed action says nothing.
+  const run = async (fn: () => Promise<unknown>, question?: Question) => {
+    if (question) {
+      // Back to the control that asked, whatever the answer.
+      const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const ok = await new Promise<boolean>((answer) => setAsk({ ...question, answer }));
+      setAsk(null);
+      opener?.focus();
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       await fn();
       onChanged();
     } catch (e) {
-      window.alert(e instanceof ApiError ? e.message : "Action failed");
+      setFailed(e instanceof ApiError ? e.message : "The change was not made. Check your internet connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -402,7 +425,8 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
     const lockout = tier === "secondary" ? " Secondary accounts cannot open their own practice until they are upgraded again." : "";
     void run(
       () => adminApi.setTier(reg.id, tier),
-      `Move ${reg.name} to ${TIER_LABEL[tier]}? They will be signed out on every device.${lockout}`,
+      // Red only for the move that locks a doctor out of their own practice.
+      { title: `Move ${reg.name} to ${TIER_LABEL[tier]}?`, body: `They will be signed out on every device.${lockout}`, confirm: "Move", danger: tier === "secondary" },
     );
   };
 
@@ -420,7 +444,14 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
   );
 
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+    // A fixed width: the usual four controls (329px) sit on one line, and a row
+    // with more — an account still to approve, or one in Trash — takes a second
+    // line of its own instead of squeezing the name and the email beside it
+    // (measured in Trash at 1280px: the name was left 58px and broke over
+    // three lines, the email mid-word).
+    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", width: 340 }}>
+      {ask && <Dialog title={ask.title} body={ask.body} confirm={ask.confirm} danger={ask.danger} onAnswer={ask.answer} />}
+      {failed && <Dialog title="That did not work" body={failed} onAnswer={() => setFailed("")} />}
       {view}
 
       {/* Any not-yet-approved live account (pending, or suspended — setTier
@@ -432,7 +463,7 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
             // Approving restores from Trash and lifts a suspension/rejection:
             // the account can sign in and reach patient data at once.
             mode === "trash" || reg.approvalStatus === "suspended" || reg.approvalStatus === "rejected"
-              ? `Approve ${reg.name}? ${mode === "trash" ? "This restores the account from Trash and they" : "They"} will be able to sign in right away.`
+              ? { title: `Approve ${reg.name}?`, body: `${mode === "trash" ? "This restores the account from Trash and they" : "They"} will be able to sign in right away.`, confirm: "Approve" }
               : undefined,
           )}
           style={actBtn(C.pri, "#fff")}
@@ -444,7 +475,7 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
       {moveSelect}
       {isLive && reg.approvalStatus !== "suspended" && (
         <button
-          onClick={() => void run(() => adminApi.suspend(reg.id), `Suspend ${reg.name}? They will be signed out on every device right away.`)}
+          onClick={() => void run(() => adminApi.suspend(reg.id), { title: `Suspend ${reg.name}?`, body: "They will be signed out on every device right away.", confirm: "Suspend", danger: true })}
           style={actOutline("#854F0B")}
           disabled={busy}
         >
@@ -452,11 +483,57 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
         </button>
       )}
       {isLive && (
-        <button onClick={() => void run(() => adminApi.softDelete(reg.id), `Move ${reg.name} to Trash? They'll be signed out and can be restored later.`)} style={actOutline(C.dangerDark)} disabled={busy}>Delete</button>
+        <button onClick={() => void run(() => adminApi.softDelete(reg.id), { title: `Move ${reg.name} to Trash?`, body: "They'll be signed out and can be restored later.", confirm: "Move to Trash", danger: true })} style={actOutline(C.dangerDark)} disabled={busy}>Delete</button>
       )}
       {mode === "trash" && (
-        <button onClick={() => void run(() => adminApi.hardDelete(reg.id), `Permanently delete ${reg.name}? This cannot be undone.`)} style={actOutline(C.dangerDark)} disabled={busy}>Delete permanently</button>
+        <button onClick={() => void run(() => adminApi.hardDelete(reg.id), { title: `Permanently delete ${reg.name}?`, body: "This cannot be undone.", confirm: "Delete permanently", danger: true })} style={actOutline(C.dangerDark)} disabled={busy}>Delete permanently</button>
       )}
+    </div>
+  );
+}
+
+// ── "Are you sure?" and "that did not work" ───────────────────
+// `confirm` given: a question — Cancel holds the focus, so a stray Enter keeps
+// what was there; Escape and a click on the backdrop mean no. Without it: a
+// message, which stays until OK and is not dismissed by a click beside it.
+interface Question { title: string; body?: string; confirm: string; danger?: boolean }
+
+function Dialog({ title, body, confirm, danger, onAnswer }: { title: string; body?: string; confirm?: string; danger?: boolean; onAnswer: (ok: boolean) => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const answer = useRef(onAnswer);
+  answer.current = onAnswer;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); answer.current(false); return; }
+      if (e.key !== "Tab") return;
+      // Tab stays on the two buttons instead of walking into the table behind.
+      const stops = Array.from(box.current?.querySelectorAll<HTMLElement>("button") ?? []);
+      if (!stops.length) return;
+      const at = stops.indexOf(document.activeElement as HTMLElement);
+      e.preventDefault();
+      stops[(at + (e.shiftKey ? -1 : 1) + stops.length) % stops.length].focus();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  return (
+    <div onClick={confirm ? () => onAnswer(false) : undefined} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(32,33,36,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, whiteSpace: "normal" }}>
+      <div ref={box} role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} style={{ width: "min(440px, 100%)", background: C.white, borderRadius: 12, padding: 20, boxShadow: "0 2px 6px rgba(32,33,36,0.10), 0 16px 44px rgba(32,33,36,0.22)" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.n900, lineHeight: 1.35, overflowWrap: "anywhere" }}>{title}</div>
+        {body && <div style={{ fontSize: 13, color: C.n600, lineHeight: 1.55, marginTop: 6, overflowWrap: "anywhere" }}>{body}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 20 }}>
+          {confirm ? (
+            <>
+              <button type="button" autoFocus onClick={() => onAnswer(false)} style={{ ...btnGhost, padding: "9px 16px", fontSize: 13 }}>Cancel</button>
+              <button type="button" onClick={() => onAnswer(true)} style={danger ? { ...btnPri, background: C.dangerDark } : btnPri}>{confirm}</button>
+            </>
+          ) : (
+            <button type="button" autoFocus onClick={() => onAnswer(true)} style={btnPri}>OK</button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -493,4 +570,6 @@ const actSelect: React.CSSProperties = { ...actBtn(C.white), padding: "5px 8px",
 const tab: React.CSSProperties ={ padding: "7px 16px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.white, color: C.n600, fontSize: 13, cursor: "pointer" };
 const tabActive: React.CSSProperties = { background: C.priLight, borderColor: C.pri, color: C.priDark, fontWeight: 600 };
 const th: React.CSSProperties = { padding: "11px 14px", fontWeight: 600, fontSize: 12 };
-const td: React.CSSProperties = { padding: "11px 14px", color: C.n900 };
+const td: React.CSSProperties = { padding: "11px 14px", color: C.n900, verticalAlign: "middle" };
+// The second line of a two-line cell: the profession under a name, the mobile under an email.
+const tdSub: React.CSSProperties = { fontSize: 12, color: C.n600, marginTop: 2 };

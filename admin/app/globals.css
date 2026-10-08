@@ -36,6 +36,48 @@ body {
   background: #f1f3f4;
 }
 
+/* A button, a box and a select do not take the page's font by themselves: the
+   browser draws them in its own (Arial here). Until this rule the sidebar, the
+   sign-out button and every action in the table were in one face and the
+   headings and the table's text in another. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* The row under the pointer, so a line of controls is read with its account. */
+@media (hover: hover) {
+  .acct-row:hover {
+    background: #f8f9fa;
+  }
+}
+
+/* A ring that turns while the list is fetched; it holds still under reduced
+   motion, where the words beside it carry the message. */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #c6dafc;
+  border-top-color: #1a73e8;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
 /* Inputs set outline:none inline; this is their visible focus state. */
 input:focus,
 select:focus {

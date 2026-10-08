@@ -30,6 +30,12 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "set NEXT_PUBLIC_API_URL=http://localhost:4200/api&& set NEXT_DIST_DIR=.next-e2e&& cd client&& npx next dev -p 3100"],
       "port": 3100
+    },
+    {
+      "name": "admin-e2e",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set NEXT_PUBLIC_API_URL=http://localhost:4200/api&& cd admin&& npx next dev -p 3100"],
+      "port": 3100
     }
   ]
 }
