@@ -27,7 +27,9 @@ function ComingSoon({ title }: { title: string }) {
 }
 
 // Renders the active non-prescription tab (mirrors the original renderPage switch).
-export default function TabRouter() {
+// `mobile` is set by the phone shell: its bottom bar has no place for Patients,
+// so the "More" page (Settings) is told to offer the way there.
+export default function TabRouter({ mobile = false }: { mobile?: boolean }) {
   const { activeTab } = useMuqsit();
 
   switch (activeTab) {
@@ -39,7 +41,7 @@ export default function TabRouter() {
     case "patients": return <PatientsView />;
     case "message": return <MessageView />;
     case "research": return <ComingSoon title="Research companion" />;
-    case "settings": return <SettingsView />;
+    case "settings": return <SettingsView mobile={mobile} />;
     default: return null;
   }
 }

@@ -52,13 +52,20 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
           {showHeader && <PatientHeader mobile />}
-          {activeTab === "prescription" ? <PrescriptionView mobile /> : <TabRouter />}
+          {activeTab === "prescription" ? <PrescriptionView mobile /> : <TabRouter mobile />}
         </div>
         <nav aria-label="Main" style={{ display: "flex", justifyContent: "space-around", padding: "4px 4px calc(8px + env(safe-area-inset-bottom, 0px))", background: C.n[0], borderTop: `1px solid ${C.n[200]}` }}>
           {MOBILE_TABS.map((t) => {
-            const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));
+            // Patients has no place of its own on this bar; it is reached through
+            // "More", so that is the tab that stays lit while its list is open —
+            // otherwise the bar showed nothing selected and no way back.
+            const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab)) || (t.id === "settings" && activeTab === "patients");
+            // `1 1 auto`, not `1 1 0`: six equal places are 52px each on a 360px
+            // phone and "Supervised" is 56 — it ran into "Research" and the two
+            // read as one label. Starting from each tab's own width shares the
+            // spare room out as equal gaps BETWEEN the labels instead.
             return (
-              <button key={t.id} type="button" onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} aria-current={active ? "page" : undefined} style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: 48, padding: 0, border: "none", background: "none", fontFamily: "inherit", cursor: t.disabled ? "not-allowed" : "pointer", color: t.disabled ? C.n[400] : active ? C.pri[600] : C.n[600] }}>
+              <button key={t.id} type="button" onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} aria-current={active ? "page" : undefined} style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: 48, padding: 0, border: "none", background: "none", fontFamily: "inherit", cursor: t.disabled ? "not-allowed" : "pointer", color: t.disabled ? C.n[400] : active ? C.pri[600] : C.n[600] }}>
                 <span style={{ width: 44, height: 24, borderRadius: 12, background: active ? C.pri[50] : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}><TabIcon id={t.id === "settings" ? "more" : t.id} size={18} /></span>
                 <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 500, whiteSpace: "nowrap" }}>{t.label}</span>
               </button>

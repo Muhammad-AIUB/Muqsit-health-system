@@ -253,7 +253,12 @@ export default function IpdView() {
             .join(" · ");
           return (
             <div key={p.id} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, rowGap: 8, padding: "10px 0", borderBottom: i < filtered.length - 1 ? `0.5px solid ${C.n[200]}` : "none" }}>
-              <div onClick={() => setOpenId(p.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, cursor: "pointer", minWidth: 0 }}>
+              {/* The 220px is what makes the row wrap on a phone. With a bare
+                  `flex: 1` the name gave way before the controls did: it was left
+                  about 50px, and the name, the diagnosis and the room each broke
+                  into a word a line. Now the bed and the name keep the first line
+                  and the status and Open take the second. */}
+              <div onClick={() => setOpenId(p.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 220px", cursor: "pointer", minWidth: 0 }}>
                 <div style={{ width: 40, height: 26, borderRadius: 6, background: C.info[50], color: C.info[800], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{p.bed}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
@@ -268,7 +273,7 @@ export default function IpdView() {
               >
                 {STATUSES.map((s) => <option key={s}>{s}</option>)}
               </select>
-              <button onClick={() => setOpenId(p.id)} style={btnSecondary("sm")}>Open</button>
+              <button onClick={() => setOpenId(p.id)} style={{ ...btnSecondary("sm"), marginLeft: "auto" }}>Open</button>
             </div>
           );
         })}

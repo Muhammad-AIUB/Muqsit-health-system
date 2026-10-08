@@ -137,7 +137,10 @@ export default function OpdView() {
         {queue.map((p, i) => {
           const color = typeColor(p.type);
           return (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
+            // On a phone the row wraps, and `.row-after` (globals.css) sends the
+            // visit pill and the actions to the second line — so the token is
+            // always at the end of the first, beside the name it belongs to.
+            <div key={p.id} className="queue-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
               <div style={{ width: 34, height: 34, borderRadius: "50%", background: colorOf(color).bg, color: colorOf(color).fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{initials(p.name)}</div>
               <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
@@ -145,16 +148,17 @@ export default function OpdView() {
                 <div style={{ fontSize: 11, color: C.n[600] }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{sexLabel(p.gender)}</div>
               </div>
               {p.rxStatus === "incomplete" ? (
-                <Pill bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
+                <Pill className="row-after" bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
               ) : p.rxStatus === "complete" ? (
-                <Pill bg={C.ok[50]} fg={C.ok[600]}>Complete</Pill>
+                <Pill className="row-after" bg={C.ok[50]} fg={C.ok[600]}>Complete</Pill>
               ) : p.type && p.type !== "New" && p.type !== "Rx" ? (
-                <Pill bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
+                <Pill className="row-after" bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
               ) : null}
               <Pill bg={C.n[100]} fg={C.n[800]}>{p.token}</Pill>
               {p.status === "waiting" ? (
                 <>
                   <button
+                    className="row-after"
                     onClick={() => {
                       // A saved patient → full load (restores any incomplete Rx);
                       // otherwise pre-fill the editor from the queue snapshot.
@@ -188,12 +192,12 @@ export default function OpdView() {
                   >
                     Prescribe
                   </button>
-                  <button onClick={() => setStatus.mutate({ id: p.id, status: "done" })} style={btnSecondary("sm")}>
+                  <button className="row-after" onClick={() => setStatus.mutate({ id: p.id, status: "done" })} style={btnSecondary("sm")}>
                     Done
                   </button>
                 </>
               ) : (
-                <Pill bg={C.ok[50]} fg={C.ok[600]}>✓ done</Pill>
+                <Pill className="row-after" bg={C.ok[50]} fg={C.ok[600]}>✓ done</Pill>
               )}
             </div>
           );
