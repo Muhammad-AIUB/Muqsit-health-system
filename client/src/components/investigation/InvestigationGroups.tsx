@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, btnTonal, scrim, btnDisabled, shadowDialog } from "@/theme/styles";
+import { btnPrimary, btnSecondary, btnTonal, scrim, btnDisabled, shadowDialog, btnClose, dialogTitle } from "@/theme/styles";
 import { useInvestigationPrefs, useSaveInvestigationGroups } from "@/hooks/useInvestigationPrefs";
 import { groupTicked, newGroupProblem, toggleGroup } from "@/lib/investigationGroups";
 import InvestigationDirectory from "./InvestigationDirectory";
@@ -107,9 +107,9 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         style={{ width: "min(720px, 100%)", maxHeight: "85vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, overflow: "hidden" }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
-          <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>Add new group</div>
-          <button onClick={onClose} aria-label="Close" style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer" }}>×</button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
+          <div style={{ ...dialogTitle }}>Add new group</div>
+          <button onClick={onClose} aria-label="Close" style={btnClose}>×</button>
         </div>
 
         <div style={{ padding: "16px 20px", overflowY: "auto" }}>

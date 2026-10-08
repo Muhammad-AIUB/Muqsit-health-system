@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, scrim, shadowDialog } from "@/theme/styles";
+import { btnPrimary, btnSecondary, scrim, shadowDialog, btnClose, dialogTitle } from "@/theme/styles";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import type { PhraseSource } from "@/lib/api";
@@ -378,14 +378,10 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
               padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}`,
             }}>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 500, color: C.n[900] }}>{label}</div>
+                <div style={{ ...dialogTitle }}>{label}</div>
                 <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Add items, then press Done to apply</div>
               </div>
-              <button aria-label="Close" onClick={cancel} style={{
-                width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`,
-                background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>×</button>
+              <button aria-label="Close" onClick={cancel} style={btnClose}>×</button>
             </div>
 
             {investigationTabs && (

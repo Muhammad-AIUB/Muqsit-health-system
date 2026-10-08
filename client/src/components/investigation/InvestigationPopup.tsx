@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, btnTonal, dialogTitle, scrim, shadowDialog, shadowMenu } from "@/theme/styles";
+import { btnPrimary, btnSecondary, btnTonal, dialogTitle, scrim, shadowDialog, shadowMenu, btnClose } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { INV_CATS } from "@/data/investigations";
 import type { InvTest } from "@/types";
@@ -539,7 +539,7 @@ export default function InvestigationPopup() {
               <input type="file" accept={IMAGE_ACCEPT} multiple disabled={reportsUploading} style={{ display: "none" }}
                 onChange={(e) => { if (e.target.files && e.target.files.length) { addReportImages(e.target.files); setReportIdx(0); setShowReports(true); } e.target.value = ""; }} />
             </label>
-            <button aria-label="Close" onClick={handleCloseInvPopup} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
+            <button aria-label="Close" onClick={handleCloseInvPopup} style={btnClose}>×</button>
           </div>
         </div>
 

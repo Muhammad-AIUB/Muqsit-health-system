@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary, pageTitle, scrim, btnDisabled, shadowDialog } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle, scrim, btnDisabled, shadowDialog, btnClose } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useResearchSearch } from "@/hooks/useResearch";
 
@@ -173,7 +173,7 @@ export default function ResearchView() {
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(960px, 96vw)", maxHeight: "88vh", overflow: "auto", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog }}>
             <div style={{ position: "sticky", top: 0, background: C.n[0], padding: "14px 18px", borderBottom: `0.5px solid ${C.n[200]}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 15, fontWeight: 600 }}>Comparing {selectedPatients.length} patients</div>
-              <button aria-label="Close" onClick={() => setShowCompare(false)} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer" }}>×</button>
+              <button aria-label="Close" onClick={() => setShowCompare(false)} style={btnClose}>×</button>
             </div>
 
             {(["diseases", "tags"] as const).map((key) => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
-import { btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim, shadowDialog } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim, shadowDialog, btnClose } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { isoToDdmmyyyy, ddmmyyyyMs } from "@/lib/dateInput";
 import { appendBlocks, blocksFromRows, moveSummary, type HistoryBlock } from "@/lib/drugHistorySelect";
@@ -192,12 +192,12 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
         <div style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={close}>
           <div role="dialog" aria-modal="true" aria-label="Drug history" {...dialog} onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "95vw", height: "82vh", maxHeight: "82vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
               <div>
                 <div style={{ ...dialogTitle }}>Drug history</div>
                 <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Today&apos;s ℞ medicines show under <b>Current</b> ({cd}); they move to <b>Distant past</b> automatically on the next visit. Change them on the prescription.</div>
               </div>
-              <button aria-label="Close" onClick={close} style={{ width: 28, height: 28, borderRadius: 6, border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+              <button aria-label="Close" onClick={close} style={btnClose}>×</button>
             </div>
 
             {/* Tabs */}
@@ -331,7 +331,11 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                 )}
                 <span style={{ fontSize: 11, color: C.pri[600] }}>{rxMsg}</span>
               </div>
-              <button onClick={close} style={btnPrimary("md")}>Close</button>
+              {/* One filled button at a time: while medicines can be moved, Move
+                  to Rx is the action and Close steps back to an outline. The auto
+                  margin keeps Close at the right when a phone wraps it to a line
+                  of its own. */}
+              <button onClick={close} style={{ ...(canRx && blocks.length > 0 ? btnSecondary("md") : btnPrimary("md")), marginLeft: "auto" }}>Close</button>
             </div>
           </div>
         </div>

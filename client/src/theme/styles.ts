@@ -97,6 +97,18 @@ export const btnDisabled: CSSProperties = {
   border: `1px solid ${C.n[200]}`, background: C.n[100], color: C.n[400], cursor: "not-allowed",
 };
 
+// The × in the corner of a popup. There were two of them — a boxed one and a
+// bare glyph with no edge — so the same control looked different from one
+// popup to the next, and the bare one was an 18px character to hit. The boxed
+// one also had no `flexShrink: 0`: beside a long subtitle on a phone it was
+// squeezed to a sliver 12px wide.
+export const btnClose: CSSProperties = {
+  width: 30, height: 30, padding: 0, flexShrink: 0,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  borderRadius: 8, border: `1px solid ${C.n[200]}`, background: C.n[0], color: C.n[600],
+  fontSize: 17, lineHeight: 1, fontFamily: font, cursor: "pointer",
+};
+
 export const fieldLabel: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,

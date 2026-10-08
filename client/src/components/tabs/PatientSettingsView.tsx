@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
-import { btnDisabled, btnPrimary, btnSecondary, scrim, shadowDialog, shadowMenu } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, scrim, shadowDialog, shadowMenu, btnClose, dialogTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useCreatePatient, useUpdatePatient } from "@/hooks/usePatients";
 import { patientsApi, uploadImage, type PatientInput } from "@/lib/api";
@@ -486,13 +486,13 @@ export default function PatientSettingsView() {
           {showFamilyForm && (
             <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, padding: 16, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
               onClick={() => setShowFamilyForm(false)}>
-              <div role="dialog" aria-modal="true" aria-label="Add family member" {...familyDialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 92vw)", maxWidth: "92vw", maxHeight: "90vh", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: shadowDialog, overflowX: "hidden", overflowY: "auto" }}>
-                <div style={{ padding: "16px 20px", borderBottom: "0.5px solid " + C.n[200], display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div role="dialog" aria-modal="true" aria-label="Add family member" {...familyDialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(460px, 100%)", maxWidth: "100%", maxHeight: "100%", background: C.n[0], borderRadius: 14, border: "0.5px solid " + C.n[200], boxShadow: shadowDialog, overflowX: "hidden", overflowY: "auto" }}>
+                <div style={{ padding: "16px 20px", borderBottom: "0.5px solid " + C.n[200], display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 500 }}>Add {familyRelation.toLowerCase()}</div>
+                    <div style={{ ...dialogTitle }}>Add {familyRelation.toLowerCase()}</div>
                     <div style={{ fontSize: 11, color: C.n[500], marginTop: 2 }}>Fill in the details below</div>
                   </div>
-                  <button aria-label="Close" onClick={() => setShowFamilyForm(false)} style={{ width: 28, height: 28, borderRadius: 6, border: "0.5px solid " + C.n[200], background: C.n[0], color: C.n[600], fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                  <button aria-label="Close" onClick={() => setShowFamilyForm(false)} style={btnClose}>×</button>
                 </div>
                 <div style={{ padding: "16px 20px" }}>
                   <div style={{ marginBottom: 12 }}>

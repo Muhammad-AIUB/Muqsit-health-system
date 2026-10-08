@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C, font } from "@/theme";
-import { btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog } from "@/theme/styles";
+import { btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, btnClose } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, patientNotesApi, type PatientNoteInfo } from "@/lib/api";
@@ -176,12 +176,12 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
     >
       <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
         <style>{sensitiveCss(".pn-view", { inert: true })}</style>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
             <div style={{ ...dialogTitle }}>My Personal Note for This Patient</div>
             <div style={{ fontSize: 11.5, color: C.n[600], marginTop: 2 }}><Icon name="lock" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Private — only you can see this note. It is not part of the prescription.</div>
           </div>
-          <button type="button" onClick={requestClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 18, lineHeight: 1, color: C.n[500], cursor: "pointer", padding: "2px 6px" }}>×</button>
+          <button type="button" onClick={requestClose} aria-label="Close" style={btnClose}>×</button>
         </div>
 
         <div style={{ padding: "12px 18px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>

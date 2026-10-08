@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { btnTonal, btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog } from "@/theme/styles";
+import { btnTonal, btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, btnClose } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useSaveDrugAdvice } from "@/hooks/useDrugAdvice";
 import { adviceLines, drugKeyOf, offKey, savedAdviceFor, type AdviceScope } from "@/lib/rxDrugAdvice";
@@ -145,9 +145,9 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
     >
       <div role="dialog" aria-modal="true" aria-label="Special advice" style={{ width: "min(520px, 92vw)", maxHeight: "86vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px 10px", borderBottom: `0.5px solid ${C.n[200]}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 18px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ ...dialogTitle }}>Special advice</div>
-          <button type="button" onClick={requestClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 18, lineHeight: 1, color: C.n[500], cursor: "pointer", padding: "2px 6px" }}>×</button>
+          <button type="button" onClick={requestClose} aria-label="Close" style={btnClose}>×</button>
         </div>
 
         <div style={{ padding: "12px 18px", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
