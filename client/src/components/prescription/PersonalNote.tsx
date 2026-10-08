@@ -174,7 +174,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
       style={{ position: "fixed", inset: 0, background: scrim, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
-      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 94vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
+      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 100%)", maxHeight: "100%", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
         <style>{sensitiveCss(".pn-view", { inert: true })}</style>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
@@ -229,12 +229,16 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderTop: `0.5px solid ${C.n[200]}`, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 160, fontSize: 12, color: error || confirmClose ? C.danger[800] : C.n[500] }}>
+          {/* The message keeps room only when there is one. Empty, it used to
+              hold 160px all the same, and on a phone that left Edit alone at the
+              right of one line with Save and Print at the left of the next. Now
+              the three stand together at the right, under the message if any. */}
+          <div style={{ flex: error || confirmClose ? "1 1 240px" : "1 1 0", minWidth: 0, fontSize: 12, color: error || confirmClose ? C.danger[800] : C.n[500] }}>
             {error || (confirmClose ? (
               <span>Unsaved changes. <button type="button" onClick={onClose} style={{ border: "none", background: "none", color: C.danger[800], textDecoration: "underline", cursor: "pointer", padding: 0, fontSize: 12, fontFamily: font }}>Discard them</button> or Save.</span>
             ) : "")}
           </div>
-          <button type="button" onClick={() => setEditing(true)} disabled={editing || !q.isSuccess} style={btn(false, editing || !q.isSuccess)}>Edit</button>
+          <button type="button" onClick={() => setEditing(true)} disabled={editing || !q.isSuccess} style={{ ...btn(false, editing || !q.isSuccess), marginLeft: "auto" }}>Edit</button>
           <button type="button" onClick={() => save.mutate()} disabled={!dirty || save.isPending} style={btn(true, !dirty || save.isPending)}>
             {save.isPending ? "Saving…" : "Save"}
           </button>

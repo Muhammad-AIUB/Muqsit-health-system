@@ -189,8 +189,11 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
 
       {/* Modal */}
       {open && (
-        <div style={{ position: "fixed", inset: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={close}>
-          <div role="dialog" aria-modal="true" aria-label="Drug history" {...dialog} onClick={(e) => e.stopPropagation()} style={{ width: 680, maxWidth: "95vw", height: "82vh", maxHeight: "82vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        // The veil's padding is the popup's margin. Without it, and with a
+        // limit of `95vw` (106% of the screen under the page zoom), the popup
+        // ran edge to edge on a phone with its rounded corners against the glass.
+        <div style={{ position: "fixed", inset: 0, padding: 16, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={close}>
+          <div role="dialog" aria-modal="true" aria-label="Drug history" {...dialog} onClick={(e) => e.stopPropagation()} style={{ width: "min(680px, 100%)", maxWidth: "100%", height: "82vh", maxHeight: "100%", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 20px", borderBottom: `0.5px solid ${C.n[200]}` }}>
               <div>

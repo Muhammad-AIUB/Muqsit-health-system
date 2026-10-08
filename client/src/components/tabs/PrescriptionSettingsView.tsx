@@ -404,7 +404,8 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
         {loadFailed && !loading && (
           <span role="alert" style={{
             position: "absolute", top: "100%", marginTop: 6, left: "50%", transform: "translateX(-50%)",
-            width: "max-content", maxWidth: "min(560px, 92vw)", textAlign: "center",
+            // 82vw, not 92: under the page zoom 92vw is 103% of a phone's screen.
+            width: "max-content", maxWidth: "min(560px, 82vw)", textAlign: "center",
             fontSize: 12, color: C.danger[800], display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 8,
           }}>
             Could not load your saved settings — Save is locked so they are not overwritten.

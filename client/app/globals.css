@@ -97,6 +97,15 @@ textarea {
   outline-offset: 2px;
 }
 
+/* Opting out of the ring above must not leave the BROWSER's ring in its place.
+   A popup's panel takes the focus only so that Tab starts inside it
+   (`useDialog`) — it is not a control. Opened from the keyboard, the browser
+   drew its own ring round the whole popup: a two-tone rectangle on a desktop
+   and a thick amber one on Android, as if the popup itself were an alert. */
+[data-focus-ring="off"]:focus-visible {
+  outline: none;
+}
+
 /* ── Buttons ────────────────────────────────────────────────────
    Buttons carry their colours inline, so a hover cannot swap the background
    from here. Dimming the whole button works whatever colour it is. Scoped to
@@ -309,4 +318,21 @@ fieldset.read-form:disabled button {
 .mobile-shell-fill {
   height: calc(100vh / 1.12);
   height: calc(100dvh / 1.12);
+}
+
+/* ── A page that is the screen (sign in, create account) ─────────
+   Same reason, for a page that only has to be AT LEAST the screen so its card
+   can sit in the middle. Written `min-height: 100vh` it was 112% of the
+   screen: the sign-in page — the first thing a doctor sees — always had a
+   scrollbar, scrolled into nothing, and its card sat 43px below the middle
+   (measured at 768px tall: document 860px, content 118-742).
+   Keep the divisor equal to `zoom` on body above.
+
+   ⚠️ A viewport unit anywhere inside the zoomed body is scaled with the rest:
+   `90vh` is 100.8% of the screen and `92vw` is 103% of it. A popup takes its
+   limit from the veil it stands in (`max-height: 100%`, `max-width: 100%` of a
+   fixed, padded flex box), never from a viewport unit. */
+.screen-fill {
+  min-height: calc(100vh / 1.12);
+  min-height: calc(100dvh / 1.12);
 }

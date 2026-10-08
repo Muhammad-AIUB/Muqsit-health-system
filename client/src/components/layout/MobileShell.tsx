@@ -20,10 +20,13 @@ import OePopup from "@/components/examination/OePopup";
 export default function MobileShell({ preview = false }: { preview?: boolean }) {
   const { activeTab, setActiveTab } = useMuqsit();
   const showHeader = HEADER_TABS.includes(activeTab);
+  // The three patient views are not tabs of their own, so they are named here.
+  // Prescriptions & reports had no name and fell through to the product's.
   const tabTitle =
     activeTab === "pt-settings" ? "Patient Settings"
       : activeTab === "idsp" ? "Health Monitoring"
-        : (TABS.find((t) => t.id === activeTab) || { label: "Muqsit Health System" }).label || "Muqsit Health System";
+        : activeTab === "pt-records" ? "Prescriptions & reports"
+          : (TABS.find((t) => t.id === activeTab) || { label: "Muqsit Health System" }).label || "Muqsit Health System";
 
   const frameStyle: CSSProperties = preview
     ? { width: 375, margin: "0 auto", border: `0.5px solid ${C.n[200]}`, borderRadius: 32, padding: 10, background: C.n[100] }

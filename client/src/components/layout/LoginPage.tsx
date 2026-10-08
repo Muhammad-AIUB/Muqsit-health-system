@@ -77,9 +77,11 @@ export default function LoginPage() {
 
   return (
     <div
+      // The height is `.screen-fill` (globals.css): `100vh` written here is
+      // 112% of the screen under the page zoom, and the sign-in page scrolled.
+      className="screen-fill"
       style={{
         fontFamily: font,
-        minHeight: "100vh",
         position: "relative",
         display: "flex",
         alignItems: "center",
