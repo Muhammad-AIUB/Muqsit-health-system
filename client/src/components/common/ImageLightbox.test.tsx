@@ -127,3 +127,65 @@ describe("ImageLightbox — paging still works with the zoom in place", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
+
+// The whole app is drawn at `zoom: 1.12` (globals.css). A pointer travels in
+// SCREEN px and `translate()` moves in the page's own, so without a division a
+// dragged sheet ran 12% ahead of the finger and could be pulled 12% past its
+// own edge. jsdom has no layout, so the two boxes the pan reads are given by
+// hand: the veil laid out 1000 wide and drawn 1000 × zoom, and a picture
+// fitted at 500 × 700 of the page's own px.
+describe("ImageLightbox — a dragged page stays under the pointer", () => {
+  const layout = (zoom: number) => {
+    const veil = screen.getByTestId("image-lightbox");
+    const img = screen.getByAltText("Order sheet page") as HTMLImageElement;
+    Object.defineProperty(veil, "offsetWidth", { configurable: true, value: 1000 });
+    veil.getBoundingClientRect = () => ({ width: 1000 * zoom }) as DOMRect;
+    // As a browser reports it: fitted size × the picture's own scale × the zoom.
+    img.getBoundingClientRect = () => {
+      const s = Number(/scale\(([\d.]+)\)/.exec(img.style.transform)?.[1] ?? 1);
+      return { width: 500 * s * zoom, height: 700 * s * zoom } as DOMRect;
+    };
+    return img;
+  };
+
+  const panX = (img: HTMLImageElement) => Number(/translate\((-?[\d.]+)px/.exec(img.style.transform)?.[1]);
+
+  const drag = (img: HTMLImageElement, by: number) => {
+    fireEvent.pointerDown(img, { pointerId: 1, clientX: 400, clientY: 300 });
+    fireEvent.pointerMove(img, { pointerId: 1, clientX: 400 + by, clientY: 300 });
+    fireEvent.pointerUp(img, { pointerId: 1 });
+  };
+
+  it("moves the page by the pointer's travel on screen, not 12% further", () => {
+    view();
+    const img = layout(1.12);
+    fireEvent.doubleClick(img); // 2.5×
+    drag(img, 56);
+    // 56px on screen is 50 of the page's own px under a 1.12 zoom — which the
+    // browser then draws as 50 × 1.12 = 56px: exactly with the pointer.
+    expect(panX(img)).toBeCloseTo(50, 5);
+  });
+
+  it("stops at the page's own edge, measured in the page's own px", () => {
+    view();
+    const img = layout(1.12);
+    fireEvent.doubleClick(img); // at 2.5× a 500px page overflows by 750: 375 each way
+    drag(img, 5000);
+    expect(panX(img)).toBeCloseTo(375, 5);
+  });
+
+  it("is unchanged where the page is not zoomed", () => {
+    view();
+    const img = layout(1);
+    fireEvent.doubleClick(img);
+    drag(img, 56);
+    expect(panX(img)).toBeCloseTo(56, 5);
+  });
+
+  it("at fit there is nothing to drag", () => {
+    view();
+    const img = layout(1.12);
+    drag(img, 56);
+    expect(panX(img)).toBe(0);
+  });
+});

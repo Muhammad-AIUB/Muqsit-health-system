@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { C } from "@/theme";
+import { zoomScale } from "@/lib/dropdownAnchor";
 
 // ── Full-screen image viewer ────────────────────────────────────────────────
 //
@@ -86,6 +87,12 @@ export default function ImageLightbox({
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const moved = useRef(false);
 
+  // The page is drawn at `zoom: 1.12` (globals.css). A pointer's travel and a
+  // measured box are in SCREEN px; `translate()` is in the page's own. Without
+  // the division a dragged sheet ran 12% ahead of the finger, and could be
+  // pulled 12% past its own edge. Read off the veil, which is never scaled.
+  const pageZoom = useCallback(() => (overlayRef.current ? zoomScale(overlayRef.current) : 1), []);
+
   // Keep the image overlapping the frame: at scale s it can travel at most half
   // the overflow in each direction. `getBoundingClientRect` reports the SCALED
   // box, so divide it back out to get the fitted size.
@@ -94,13 +101,14 @@ export default function ImageLightbox({
     const el = imgRef.current;
     if (!el) return p;
     const r = el.getBoundingClientRect();
-    const maxX = (r.width / s) * (s - 1) * 0.5;
-    const maxY = (r.height / s) * (s - 1) * 0.5;
+    const k = pageZoom();
+    const maxX = (r.width / s / k) * (s - 1) * 0.5;
+    const maxY = (r.height / s / k) * (s - 1) * 0.5;
     return {
       x: Math.min(Math.max(p.x, -maxX), maxX),
       y: Math.min(Math.max(p.y, -maxY), maxY),
     };
-  }, []);
+  }, [pageZoom]);
 
   const zoomTo = useCallback(
     (next: number) => {
@@ -177,7 +185,8 @@ export default function ImageLightbox({
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
     if (!moved.current && Math.abs(dx) + Math.abs(dy) > 3) moved.current = true;
-    setPan(clampPan({ x: d.px + dx, y: d.py + dy }, scale));
+    const k = pageZoom();
+    setPan(clampPan({ x: d.px + dx / k, y: d.py + dy / k }, scale));
   };
   const endDrag = (e: ReactPointerEvent) => {
     if (drag.current) e.stopPropagation();

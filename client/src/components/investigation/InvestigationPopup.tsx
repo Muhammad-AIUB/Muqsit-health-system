@@ -119,8 +119,11 @@ export default function InvestigationPopup() {
   const onPanMove = (e: React.MouseEvent) => {
     const el = scrollRef.current;
     if (!el || !dragRef.current) return;
-    el.scrollLeft = dragRef.current.sl - (e.clientX - dragRef.current.x);
-    el.scrollTop = dragRef.current.st - (e.clientY - dragRef.current.y);
+    // The pointer travels in screen px, the scroll box counts in the page's own
+    // (`zoom: 1.12`): undivided, the report ran 12% ahead of the hand holding it.
+    const k = zoomScale(el);
+    el.scrollLeft = dragRef.current.sl - (e.clientX - dragRef.current.x) / k;
+    el.scrollTop = dragRef.current.st - (e.clientY - dragRef.current.y) / k;
   };
   const onPanEnd = () => {
     dragRef.current = null;
