@@ -13,9 +13,16 @@ import { pressable } from "@/lib/a11y";
 // The three views of one patient. "Selected" is the brand's selected look on
 // all three — it used to be amber on one and blue on the other two, and amber
 // is the colour that means "needs attention".
-const subNav = (active: boolean): CSSProperties => ({
+// On a phone the three sit one under another, so they are the same width and
+// start at the same edge: three different widths down a column read as a
+// ragged list, not as a set of buttons.
+const subNav = (active: boolean, mobile?: boolean): CSSProperties => ({
   ...btnSecondary("sm"),
   ...(active ? { border: `1px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontWeight: 600 } : { color: C.n[700] }),
+  // …and the longest label may take a second line: held to one, it made the
+  // whole set 10px wider than the boxes above it, out to the edge of the card
+  // (measured at 360px: 286 in a 276px row).
+  ...(mobile ? { flex: "1 1 100%", minWidth: 0, justifyContent: "flex-start", minHeight: 34, padding: "5px 12px", whiteSpace: "normal", textAlign: "left" } : null),
 });
 
 export default function PatientHeader({ mobile }: { mobile?: boolean }) {
@@ -116,6 +123,15 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
     persistIdentity({ sex: v });
   };
 
+  // On a phone Sex, Weight and Date share one line and the address follows
+  // them. With the address between Sex and Weight — a full-width box — Sex was
+  // left alone on a line of its own, and the header took 83% of a 780px screen
+  // before the first clinical field. Same boxes, one line fewer; on a wide
+  // screen the order is unchanged.
+  const address = (
+    <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input aria-label="Address" value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
+  );
+
   return (
     <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: mobile ? 10 : 14, marginBottom: mobile ? 10 : 14 }}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: mobile ? 6 : 10 }}>
@@ -142,7 +158,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         {/* "Sex", not "Gender": same field as Patient Settings and the IPD header,
             same column (`Patient.sex`), and the term the clinical use actually
             wants. Two names for one field is how the two screens drifted apart. */}
-        <div style={{ flex: "0 0 88px" }}><label style={fieldLabel}>Sex</label>
+        <div style={{ flex: mobile ? "0 0 84px" : "0 0 88px" }}><label style={fieldLabel}>Sex</label>
           <select aria-label="Sex"
             value={ptGender}
             onChange={(e) => onGender(e.target.value)}
@@ -156,9 +172,10 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             <option>Other</option>
           </select>
         </div>
-        <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input aria-label="Address" value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
-        <div style={{ flex: "0 0 60px" }}><label style={fieldLabel}>Weight</label><input aria-label="Weight" value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
-        <div style={{ flex: "0 0 130px" }}><label style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
+        {!mobile && address}
+        <div style={{ flex: mobile ? "0 0 54px" : "0 0 60px" }}><label style={fieldLabel}>Weight</label><input aria-label="Weight" value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
+        <div style={{ flex: mobile ? "1 1 110px" : "0 0 130px" }}><label style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
+        {mobile && address}
         <MobileLookupField mobile={mobile} />
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 150px" }}>
           <label style={fieldLabel}>Total monthly approximate cost</label>
@@ -171,15 +188,15 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           <label style={fieldLabel}>Hospital ID</label>
           <input aria-label="Hospital ID" value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={lk({ ...inputSm, width: "100%", boxSizing: "border-box" })} readOnly={locked} title={lockTitle} />
         </div>
-        <div style={{ flex: mobile ? "1 1 100%" : "1 1 auto", display: "flex", alignItems: "flex-end", gap: 6, rowGap: 6, flexWrap: "wrap", paddingBottom: 1 }}>
-          <button onClick={() => setActiveTab("pt-settings")} aria-current={activeTab === "pt-settings" ? "page" : undefined} style={subNav(activeTab === "pt-settings")}>
+        <div style={{ flex: mobile ? "1 1 100%" : "1 1 auto", minWidth: 0, display: "flex", alignItems: "flex-end", gap: 6, rowGap: 6, flexWrap: "wrap", paddingBottom: 1 }}>
+          <button onClick={() => setActiveTab("pt-settings")} aria-current={activeTab === "pt-settings" ? "page" : undefined} style={subNav(activeTab === "pt-settings", mobile)}>
             <Icon name="userEdit" size={15} /> Patient Settings
           </button>
-          <button onClick={() => setActiveTab("idsp")} aria-current={activeTab === "idsp" ? "page" : undefined} style={subNav(activeTab === "idsp")}>
+          <button onClick={() => setActiveTab("idsp")} aria-current={activeTab === "idsp" ? "page" : undefined} style={subNav(activeTab === "idsp", mobile)}>
             <Icon name="activity" size={15} /> Integrated health monitoring and overview
           </button>
           {/* Patient's prescriptions & reports overview */}
-          <button onClick={() => setActiveTab("pt-records")} aria-current={activeTab === "pt-records" ? "page" : undefined} style={subNav(activeTab === "pt-records")}>
+          <button onClick={() => setActiveTab("pt-records")} aria-current={activeTab === "pt-records" ? "page" : undefined} style={subNav(activeTab === "pt-records", mobile)}>
             <Icon name="folder" size={15} /> Patient&apos;s Prescriptions and reports
           </button>
           {/* Keep-eye toggle — third, after the two buttons.
@@ -195,10 +212,10 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
               is gone so the trap cannot come back. role="switch" + aria-checked
               also puts the control in the accessibility tree and in the tab
               order, which the display:none checkbox never was. */}
-          <button type="button" role="switch" aria-checked={watchPatient} onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", minHeight: 30, padding: "0 12px", borderRadius: 8, border: `1px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#fffbeb" : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box", fontFamily: font, lineHeight: "normal" }}>
-            <Icon name="eye" size={16} style={{ color: watchPatient ? "#b45309" : C.n[600] }} />
-            <span style={{ fontSize: 12, fontWeight: watchPatient ? 600 : 500, color: watchPatient ? "#b45309" : C.n[700] }}>Keep eye on this patient</span>
-            <span aria-hidden style={{ marginLeft: 4, width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? "#f59e0b" : C.n[300]}`, background: watchPatient ? "#f59e0b" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: "#fff", fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
+          <button type="button" role="switch" aria-checked={watchPatient} onClick={toggleWatch} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", minHeight: mobile ? 34 : 30, padding: "0 12px", borderRadius: 8, border: `1px solid ${watchPatient ? C.warn[400] : C.n[300]}`, background: watchPatient ? C.warn[50] : C.n[0], userSelect: "none", whiteSpace: "nowrap", boxSizing: "border-box", fontFamily: font, lineHeight: "normal", ...(mobile ? { flex: "1 1 100%", minWidth: 0 } : null) }}>
+            <Icon name="eye" size={16} style={{ color: watchPatient ? C.warn[800] : C.n[600] }} />
+            <span style={{ fontSize: 12, fontWeight: watchPatient ? 600 : 500, color: watchPatient ? C.warn[800] : C.n[700] }}>Keep eye on this patient</span>
+            <span aria-hidden style={{ marginLeft: mobile ? "auto" : 4, width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${watchPatient ? C.warn[600] : C.n[300]}`, background: watchPatient ? C.warn[600] : C.n[0], display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, color: C.n[0], fontWeight: 700 }}>{watchPatient ? "✓" : ""}</span>
           </button>
         </div>
       </div>
