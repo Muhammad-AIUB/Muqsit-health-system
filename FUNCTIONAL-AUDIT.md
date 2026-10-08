@@ -88,9 +88,24 @@ CLAUDE.md section before picking one up.
   2026-10-06); the Investigation calendar's day cells have no keyboard route
   (the date box above them does); a `<label>` names its field but is not linked
   with `htmlFor`, so clicking it does not focus the field; the health-trend
-  chart's SVG axis text is still 8-10px; the admin console was recoloured but
-  only its sign-in screen was looked at, and it still uses the browser's own
-  `confirm()` / `alert()` boxes.
+  chart's SVG axis text is still 8-10px. (The admin console was looked at from
+  the inside on 2026-10-09 and its browser `confirm()` / `alert()` boxes are
+  gone — `admin/CLAUDE.md`.)
+- [ ] **Calculator results follow the browser's language (found 2026-10-09,
+  not changed).** Five calculators write a result with `toLocaleString()` —
+  `ANC 1,500 cells/µL`, blood volume, CCI, iron deficit, plasma dose. In a
+  browser set to German that reads `1.500`, in one set to Bangla the digits
+  and the grouping change. Timestamps were taken off the browser's formatter
+  the same day (`client/src/lib/stamp.ts`); a clinical NUMBER was left alone
+  because how it is grouped is the physician's call: `1,500`, `1500` or
+  `1,50,000`-style. Say which and it is a one-line change per calculator.
+- [ ] **Left open by the 2026-10-09 design pass** (engineering, not product):
+  on a phone the patient list is reached through More, not from a place of
+  its own on the bottom bar — whether it deserves the place "Research" holds
+  while that is switched off is a product call; on a 320px-wide phone the
+  image viewer's arrows touch its zoom bar; a few popups still carry
+  `80vh`-`88vh` limits, which the page zoom brings to 90-99% of the screen —
+  inside it, so they were left.
 - [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
   2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a
