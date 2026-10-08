@@ -84,7 +84,7 @@ export default function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: `radial-gradient(1200px 600px at 50% -10%, ${C.pri[50]} 0%, transparent 60%), linear-gradient(160deg, ${C.n[50]} 0%, #eef6f2 100%)`,
+        background: `radial-gradient(1200px 600px at 50% -10%, ${C.pri[50]} 0%, transparent 60%), linear-gradient(160deg, ${C.n[50]} 0%, ${C.n[100]} 100%)`,
         padding: 24,
       }}
     >

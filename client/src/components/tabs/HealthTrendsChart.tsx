@@ -698,13 +698,13 @@ export default function HealthTrendsChart({
             ))}
             {todayInRange && (
               <>
-                <line x1={toX(today.getTime())} y1={PLOT_TOP} x2={toX(today.getTime())} y2={bodyBottom} stroke="#f87171" strokeWidth={1} strokeDasharray="3,3" />
+                <line x1={toX(today.getTime())} y1={PLOT_TOP} x2={toX(today.getTime())} y2={bodyBottom} stroke={C.danger[400]} strokeWidth={1} strokeDasharray="3,3" />
                 <text
                   x={toX(today.getTime()) + (toX(today.getTime()) > PLOT_R - 30 ? -3 : 3)}
                   y={PLOT_TOP - 4}
                   textAnchor={toX(today.getTime()) > PLOT_R - 30 ? "end" : "start"}
                   fontSize={8}
-                  fill="#f87171"
+                  fill={C.danger[400]}
                 >
                   Today
                 </text>

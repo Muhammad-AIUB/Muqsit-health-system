@@ -49,7 +49,7 @@ export default function WorkstationSwitcher() {
       <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: "rgba(248,248,246,0.55)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
         <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: shadowDialog, padding: "30px 28px" }}>
           <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", color: C.n[500] }}><Icon name="lock" size={30} /></div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#ED1C24", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.danger[800], lineHeight: 1.5 }}>
             You are currently in secondary account holder. You can only use it as assistant under primary account holder. You can also purchase it to use its full potential.
           </div>
           <div style={{ fontSize: 12.5, color: C.n[500], marginTop: 14 }}>

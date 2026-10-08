@@ -1,5 +1,6 @@
 "use client";
 
+import { C } from "@/theme";
 import { useIpdList } from "@/hooks/useIpd";
 
 // A small flashing red emergency beacon shown in the top nav whenever any IPD
@@ -18,12 +19,12 @@ export default function CriticalAlert({ onClick }: { onClick: () => void }) {
         title={`${count} critical patient${count > 1 ? "s" : ""} in IPD — click to view`}
         style={{
           display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 8, padding: "3px 10px",
-          borderRadius: 999, border: "1px solid #F2A6A6", background: "#FCEBEB", cursor: "pointer",
+          borderRadius: 999, border: `1px solid ${C.danger[100]}`, background: C.danger[50], cursor: "pointer",
           fontFamily: "inherit", animation: "mhsBlink 1s infinite",
         }}
       >
-        <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#E24B4A", display: "inline-block", animation: "mhsSiren 0.9s infinite" }} />
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: "#A32D2D", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: C.danger[400], display: "inline-block", animation: "mhsSiren 0.9s infinite" }} />
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: C.danger[800], letterSpacing: "0.03em", whiteSpace: "nowrap" }}>
           CRITICAL{count > 1 ? ` ×${count}` : ""}
         </span>
       </button>

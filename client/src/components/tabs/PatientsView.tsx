@@ -121,7 +121,7 @@ export default function PatientsView() {
               <div key={p.id} style={{ borderBottom: i < watchedPatients.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>
                 <PatientRow p={{ ...toRow(p), diagnosis: "Under monitoring", color: "warn" }} rightSlot={
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 10, background: "#fffbeb", color: "#b45309", border: "0.5px solid #fde68a", fontWeight: 600, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="eye" size={13} /> Watching</span>
+                    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 10, background: C.warn[50], color: C.warn[800], border: `0.5px solid ${C.warn[100]}`, fontWeight: 600, whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="eye" size={13} /> Watching</span>
                     <button onClick={() => openForPrescription(p)} style={smallBtn(true)}>Open</button>
                   </div>
                 } />
