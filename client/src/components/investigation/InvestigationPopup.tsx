@@ -108,6 +108,11 @@ export default function InvestigationPopup() {
 
   // Drag-to-pan the (zoomed) report image: hold left mouse and move.
   const scrollRef = useRef<HTMLDivElement>(null);
+  // The calendar's day buttons by day of the month, and the month's name — so
+  // the arrows can move along the days and a closed month list hands the focus
+  // back to the name it hangs from.
+  const dayRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const monthLabelRef = useRef<HTMLSpanElement>(null);
   const dragRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
   const onPanStart = (e: React.MouseEvent) => {
     const el = scrollRef.current;
@@ -369,6 +374,27 @@ export default function InvestigationPopup() {
   const isToday = (day: number | null) => !!day && today.getFullYear() === y && today.getMonth() === m && today.getDate() === day;
   const isSel = (day: number | null) => !!day && calDate.getDate() === day;
 
+  // ⚕️ The arrows move ALONG the days and choose nothing. Choosing a day files
+  // whatever is half typed under the OLD date first (handleCalDateChange), so
+  // it stays a deliberate press: Enter or Space on the day, the same as a
+  // click. They stop at the ends of the month — another month is its own
+  // button — and they are the calendar's keys, so the list below does not
+  // scroll under them.
+  const onDayKey = (e: React.KeyboardEvent<HTMLButtonElement>, d: number) => {
+    const to =
+      e.key === "ArrowRight" ? d + 1
+        : e.key === "ArrowLeft" ? d - 1
+          : e.key === "ArrowDown" ? d + 7
+            : e.key === "ArrowUp" ? d - 7
+              : e.key === "Home" ? 1
+                : e.key === "End" ? daysInMonth
+                  : null;
+    if (to === null) return;
+    e.preventDefault();
+    if (to >= 1 && to <= daysInMonth) dayRefs.current[to]?.focus();
+  };
+  const closeMonthPicker = () => { setShowMonthPicker(false); monthLabelRef.current?.focus(); };
+
   const navLeft = [
     { l: "-1Y", fn: () => shiftYear(-1), c: C.danger },
     { l: "-6M", fn: () => shiftMonth(-6), c: C.warn },
@@ -572,15 +598,22 @@ export default function InvestigationPopup() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {/* Clickable month with dropdown */}
               <div style={{ position: "relative" }}>
-                <span onClick={() => setShowMonthPicker(!showMonthPicker)} {...pressable()} aria-expanded={showMonthPicker} style={{ fontSize: 12, fontWeight: 500, color: C.pri[600], cursor: "pointer", padding: "1px 5px", borderRadius: 4, background: showMonthPicker ? C.pri[50] : "transparent" }}>{months[m]}</span>
+                <span ref={monthLabelRef} onClick={() => setShowMonthPicker(!showMonthPicker)} {...pressable()} aria-expanded={showMonthPicker} style={{ fontSize: 12, fontWeight: 500, color: C.pri[600], cursor: "pointer", padding: "1px 5px", borderRadius: 4, background: showMonthPicker ? C.pri[50] : "transparent" }}>{months[m]}</span>
                 {showMonthPicker && (
-                  <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", marginTop: 3, background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 8, boxShadow: shadowMenu, zIndex: 20, width: 110, maxHeight: 180, overflowY: "auto" }}>
+                  // Each month is a button: the list could be opened from the
+                  // keyboard, and then none of its months could be chosen.
+                  // Escape closes the LIST — `preventDefault` is what tells the
+                  // popup's own Escape that the key has done its job.
+                  <div
+                    onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); closeMonthPicker(); } }}
+                    style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", marginTop: 3, background: C.n[0], border: "0.5px solid " + C.n[200], borderRadius: 8, boxShadow: shadowMenu, zIndex: 20, width: 110, maxHeight: 180, overflowY: "auto" }}
+                  >
                     {months.map((mn, idx) => (
-                      <div key={mn} onClick={() => { handleCalDateChange(new Date(y, idx, 1)); setShowMonthPicker(false); }}
-                        style={{ padding: "5px 10px", fontSize: 10, cursor: "pointer", fontWeight: idx === m ? 600 : 400, color: idx === m ? C.pri[600] : C.n[800], background: idx === m ? C.pri[50] : "transparent" }}
+                      <button key={mn} type="button" aria-pressed={idx === m} onClick={() => { handleCalDateChange(new Date(y, idx, 1)); closeMonthPicker(); }}
+                        style={{ display: "block", width: "100%", textAlign: "left", border: "none", fontFamily: "inherit", padding: "5px 10px", fontSize: 10, cursor: "pointer", fontWeight: idx === m ? 600 : 400, color: idx === m ? C.pri[600] : C.n[800], background: idx === m ? C.pri[50] : "transparent", outlineOffset: -2 }}
                         onMouseEnter={(e) => { if (idx !== m) e.currentTarget.style.background = C.n[100]; }}
                         onMouseLeave={(e) => { if (idx !== m) e.currentTarget.style.background = "transparent"; }}
-                      >{mn}</div>
+                      >{mn}</button>
                     ))}
                   </div>
                 )}
@@ -603,14 +636,30 @@ export default function InvestigationPopup() {
             {cells.map((day, i) => {
               const todayMatch = isToday(day);
               const selected = isSel(day);
+              if (!day) return <div key={i} />;
+              // A real button, so Enter and Space choose the day as a click does.
+              // ONE Tab stop for the whole calendar — the chosen day — and the
+              // arrows move from there (`onDayKey`); thirty stops would stand
+              // between the date and the first test.
               return (
-                <div key={i} onClick={() => { if (day) handleCalDateChange(new Date(y, m, day)); }}
-                  style={{ textAlign: "center", padding: "3px 0", fontSize: 10, cursor: day ? "pointer" : "default",
-                    color: day ? (todayMatch ? "#fff" : C.n[800]) : "transparent",
-                    background: todayMatch ? C.pri[400] : (selected && !todayMatch ? C.pri[50] : "transparent"),
-                    borderRadius: todayMatch ? 4 : (selected ? 4 : 0),
+                <button
+                  key={i}
+                  type="button"
+                  ref={(el) => { dayRefs.current[day] = el; }}
+                  onClick={() => handleCalDateChange(new Date(y, m, day))}
+                  onKeyDown={(e) => onDayKey(e, day)}
+                  tabIndex={selected ? 0 : -1}
+                  aria-pressed={selected}
+                  aria-current={todayMatch ? "date" : undefined}
+                  aria-label={`${day} ${months[m]} ${y}${todayMatch ? ", today" : ""}`}
+                  style={{ width: "100%", border: "none", fontFamily: "inherit", textAlign: "center", padding: "3px 0", fontSize: 10, cursor: "pointer",
+                    color: todayMatch ? "#fff" : C.n[800],
+                    background: todayMatch ? C.pri[400] : (selected ? C.pri[50] : "transparent"),
+                    borderRadius: todayMatch || selected ? 4 : 0,
                     fontWeight: todayMatch ? 600 : 400,
-                  }}>{day || ""}</div>
+                    // The ring inside the cell: the days stand edge to edge.
+                    outlineOffset: -2,
+                  }}>{day}</button>
               );
             })}
           </div>
