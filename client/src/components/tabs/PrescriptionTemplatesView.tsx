@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { C, font } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
-import { btnPrimary, btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle, btnDisabled, btnDanger } from "@/theme/styles";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
@@ -66,7 +66,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
               <button
                 onClick={deleteSelected}
                 disabled={selected.size === 0}
-                style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: selected.size === 0 ? C.n[200] : C.danger[400], color: selected.size === 0 ? C.n[500] : "#fff", fontSize: 12.5, fontWeight: 600, cursor: selected.size === 0 ? "default" : "pointer", fontFamily: font }}
+                style={{ ...btnDanger("sm"), ...(selected.size === 0 ? btnDisabled : null) }}
               >
                 Delete selected{selected.size > 0 ? ` (${selected.size})` : ""}
               </button>
@@ -74,7 +74,9 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
             {templates.length > 0 && (
               <button
                 onClick={() => (removeMode ? exitRemove() : setRemoveMode(true))}
-                style={{ padding: "7px 16px", borderRadius: 8, border: `1px solid ${removeMode ? C.n[300] : C.danger[400]}`, background: removeMode ? C.n[100] : C.n[0], color: removeMode ? C.n[700] : C.danger[800], fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: font }}
+                // Outlined: entering remove mode takes nothing away yet. The filled red
+                // is kept for the button that does.
+                style={removeMode ? btnSecondary("sm") : { ...btnSecondary("sm"), color: C.danger[800], border: `1px solid ${C.danger[400]}` }}
               >
                 {removeMode ? "Cancel" : "Click to Remove any template"}
               </button>

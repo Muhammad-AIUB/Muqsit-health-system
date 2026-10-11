@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { C, font } from "@/theme";
-import { btnDisabled, btnPrimary, btnSecondary } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, btnDanger } from "@/theme/styles";
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { pressable } from "@/lib/a11y";
 import Icon from "@/components/common/Icon";
@@ -223,14 +223,14 @@ export default function ImageGallery({
               onClick={downloadPdf}
               disabled={pdfState.busy}
               title={`Download all ${items.length} image${items.length === 1 ? "" : "s"} as one PDF, in the order shown`}
-              style={{ ...ghostBtn, color: C.pri[600], border: `0.5px solid ${C.pri[400]}`, cursor: pdfState.busy ? "default" : "pointer", opacity: pdfState.busy ? 0.7 : 1 }}
+              style={{ ...ghostBtn, color: C.pri[600], border: `0.5px solid ${C.pri[400]}`, ...(pdfState.busy ? btnDisabled : null) }}
             >
               {pdfState.busy ? `Preparing PDF… ${pdfState.done}/${pdfState.total}` : "⤓ Download PDF"}
             </button>
           )}
           {canEdit && (editing ? (
             <>
-              <button onClick={removeSelected} disabled={selected.size === 0} style={{ padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${C.danger[400]}`, background: selected.size ? C.danger[400] : C.n[100], color: selected.size ? "#fff" : C.n[500], fontSize: 12, fontWeight: 500, cursor: selected.size ? "pointer" : "default", fontFamily: font, whiteSpace: "nowrap" }}>
+              <button onClick={removeSelected} disabled={selected.size === 0} style={{ ...btnDanger("sm"), ...(selected.size ? null : btnDisabled) }}>
                 <Icon name="trash" size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />Remove selected{selected.size ? ` (${selected.size})` : ""}
               </button>
               <button onClick={exitEdit} style={ghostBtn}>Done</button>
