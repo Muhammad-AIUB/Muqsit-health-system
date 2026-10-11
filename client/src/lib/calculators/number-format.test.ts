@@ -14,9 +14,11 @@ import { calculatePlasmaDosage } from "./plasma-dosage";
 // Bangla; "١٬٥٠٠" in Arabic. Nothing about the patient changed, only the laptop.
 //
 // What is pinned here is NOT a format of anyone's choosing: it is that the text
-// every doctor has been reading on an English-language browser — and that the
+// every doctor has been reading on a US- or UK-English browser — and that the
 // physician has been using — is what every browser now shows. The numbers
-// themselves, the formulas and the wording are untouched.
+// themselves, the formulas and the wording are untouched. (Indian English is
+// in the list below because it is the one English that differed: it groups
+// 100,000 and over the lakh way.)
 
 const real = Number.prototype.toLocaleString;
 

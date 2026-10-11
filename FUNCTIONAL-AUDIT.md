@@ -99,11 +99,32 @@ CLAUDE.md section before picking one up.
   `ANC 1,500 cells/µL` in an English browser was `1.500` in a German one (one
   and a half, to an English reader) and `১,৫০০` in a Bangla one. They name the
   locale now (`grouped()` in `client/src/lib/calculators/format.ts`), so every
-  browser shows what an English one always has. No format was chosen — the
+  browser shows what a US-English one always has. No format was chosen — the
   text the results were written, checked and used with is simply the only
-  one left; for an English-language browser nothing changed. If the physician
+  one left. For a browser set to US, UK or Australian English nothing
+  changed. One set to Indian English grouped 100,000 and over the lakh way
+  (`1,50,000`) and now writes `150,000`; of the five calculators only a very
+  high ANC reaches that. This was about the record too: "Add result" files
+  the calculator's sentence as the finding, and it prints. If the physician
   ever wants another grouping (`1500`, or lakh-style `1,50,000` for the large
   counts), it is one line in that file.
+- [x] **Review before release, 2026-10-12 — what it found in pass 5, fixed the
+  same day.** An independent read of the nine commits found no lost data and
+  no change to the printed sheet, and four things that had to be put right
+  first. (1) Pressing "Mirror devices" also sent the cursor into the patient
+  search: a caption now has to be marked (`data-caption`) and the switch is
+  a real button. (2) Closing the print sheet after "Save & print" left the
+  focus on that button, where Enter or Space saves the visit again: that
+  sheet no longer gives the focus back. (3) On a phone's health-trend chart
+  two strengths of one medicine had the same name: a name takes two lines
+  there and the dosage form gives way. (4) Two tests could not fail: the
+  calendar's is now run with a result half typed, the print sheet's frame is
+  compared with a bare one, and the sheet's keys are run in a real browser
+  (`e2e/tests/print-sheet.spec.ts`). Also put right: the month names on the
+  chart keep one rhythm and the month under way at the left edge is named;
+  Escape with the month list open closes the list from the month's name too;
+  the Investigation popup's number boxes have names; and "Added results" no
+  longer shows `1,500` as `1, 500`.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -116,6 +137,30 @@ CLAUDE.md section before picking one up.
   calendar's steppers, the print sheet's two buttons, the sign-in button) —
   none is an action button, and each is listed in FINDING-048's commit. The
   320px item is closed (FINDING-046).
+- [ ] **A second "Save & print" of an unchanged visit stores a second
+  prescription (found in review, 2026-10-12 — the physician's call).** Every
+  press of Save & print creates a `Prescription` row; the server does not
+  ask whether the visit is the one just saved. A double-press is caught
+  (`savingRef`), an unchanged sheet is not filed in the gallery twice, and
+  since 2026-10-12 the focus is never left on the button — but a doctor who
+  presses it again on purpose, to print again, gets two rows for one
+  consultation. Whether that should be one row (and how "the same visit" is
+  told from "a correction") is a clinical-record decision, not a tidy-up.
+  "Preview PDF" prints the same sheet and saves nothing.
+- [ ] **Left open by the 2026-10-12 review** (engineering, none urgent):
+  the "Your workstations" drawer and the wall a secondary account sees
+  (`WorkstationSwitcher.tsx`) are not on `useDialog` — Tab walks out of them
+  and the drawer does not close on Escape; `useDialog` takes "the popup on
+  top" to be the last one in the document, which is not the one in front
+  when another device opens a popup through device mirroring while the
+  print sheet or the image viewer is up; on a WIDE screen the health-trend
+  chart still cuts a name at 20 characters, so a long dosage form hides the
+  brand (`Capsule (Enteric Co…`) — the phone's two-line rule would fix it and
+  changes the look of the chart, so it waits for the physician; with the
+  keyboard inside the print sheet nothing is drawn to say so; and 46 boxes
+  in 18 files have no name a screen reader can say (20 not even a
+  placeholder: the calculators' inputs, most of Profile settings, the
+  sign-in page).
 - [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
   2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a
