@@ -2,6 +2,8 @@
 // Adults/children ≥25 kg: Nadler formula (Am J Surg 1962)
 // Neonates/children <25 kg: weight-based estimates
 
+import { grouped } from "./format";
+
 export type PatientType = 'preterm' | 'term' | 'infant' | 'child' | 'adult';
 export type Sex = 'male' | 'female';
 
@@ -59,8 +61,8 @@ export function calculateBloodVolume(input: BloodVolumeInput): {
   // Rough assessment — no specific clinical threshold in the formula, just report
   const severity: 'success' | 'warning' | 'danger' = 'success';
 
-  let interpretation = `Total Blood Volume: ${tbvMl.toLocaleString()} mL`;
-  if (rbcMl !== null) interpretation += ` | RBC Volume: ${rbcMl.toLocaleString()} mL | Plasma Volume: ${plasmaMl!.toLocaleString()} mL`;
+  let interpretation = `Total Blood Volume: ${grouped(tbvMl)} mL`;
+  if (rbcMl !== null) interpretation += ` | RBC Volume: ${grouped(rbcMl)} mL | Plasma Volume: ${grouped(plasmaMl!)} mL`;
 
   return {
     tbvMl,

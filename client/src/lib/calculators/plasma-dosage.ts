@@ -1,6 +1,8 @@
 // Plasma Dosage (FFP) Calculator
 // Total plasma dosage (mL) = desired dosage (mL/kg) × weight (kg)
 
+import { grouped } from "./format";
+
 interface PlasmaDosageInput {
   weightKg:     number;
   dosageMlKg:   number;  // mL/kg — typically 10–20
@@ -24,13 +26,13 @@ export function calculatePlasmaDosage(input: PlasmaDosageInput): {
 
   if (dosageMlKg < 10) {
     severity       = 'warning';
-    interpretation = `Total: ${totalMl.toLocaleString()} mL — dosage ${dosageMlKg} mL/kg is below the standard 10 mL/kg`;
+    interpretation = `Total: ${grouped(totalMl)} mL — dosage ${dosageMlKg} mL/kg is below the standard 10 mL/kg`;
   } else if (dosageMlKg <= 20) {
     severity       = 'success';
-    interpretation = `Total: ${totalMl.toLocaleString()} mL (${unitsNeeded} unit${unitsNeeded !== 1 ? 's' : ''} of ${unitVolumeMl} mL) — within recommended range (10–20 mL/kg)`;
+    interpretation = `Total: ${grouped(totalMl)} mL (${unitsNeeded} unit${unitsNeeded !== 1 ? 's' : ''} of ${unitVolumeMl} mL) — within recommended range (10–20 mL/kg)`;
   } else {
     severity       = 'warning';
-    interpretation = `Total: ${totalMl.toLocaleString()} mL — dosage ${dosageMlKg} mL/kg exceeds recommended maximum of 20 mL/kg`;
+    interpretation = `Total: ${grouped(totalMl)} mL — dosage ${dosageMlKg} mL/kg exceeds recommended maximum of 20 mL/kg`;
   }
 
   return {

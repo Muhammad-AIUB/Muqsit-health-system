@@ -1,6 +1,8 @@
 // Absolute Neutrophil Count (ANC)
 // Formula: ANC = 10 × WBC count (×10³/µL) × (% neutrophils + % bands)
 
+import { grouped } from "./format";
+
 interface AncInput {
   neutrophilsPct: number;  // %
   bandsPct:       number;  // %
@@ -23,19 +25,19 @@ export function calculateANC(input: AncInput): {
 
   if (anc >= 1500) {
     severity       = 'success';
-    interpretation = `ANC ${anc.toLocaleString()} cells/µL — Normal. No significant increased risk.`;
+    interpretation = `ANC ${grouped(anc)} cells/µL — Normal. No significant increased risk.`;
   } else if (anc >= 1000) {
     severity       = 'warning';
-    interpretation = `ANC ${anc.toLocaleString()} cells/µL — Mild neutropenia. Usually minimal risk.`;
+    interpretation = `ANC ${grouped(anc)} cells/µL — Mild neutropenia. Usually minimal risk.`;
   } else if (anc >= 500) {
     severity       = 'warning';
-    interpretation = `ANC ${anc.toLocaleString()} cells/µL — Moderate neutropenia. Increased infection risk.`;
+    interpretation = `ANC ${grouped(anc)} cells/µL — Moderate neutropenia. Increased infection risk.`;
   } else if (anc >= 100) {
     severity       = 'danger';
-    interpretation = `ANC ${anc.toLocaleString()} cells/µL — Severe neutropenia. High risk of serious infection.`;
+    interpretation = `ANC ${grouped(anc)} cells/µL — Severe neutropenia. High risk of serious infection.`;
   } else {
     severity       = 'danger';
-    interpretation = `ANC ${anc.toLocaleString()} cells/µL — Profound neutropenia. Very high/life-threatening infection risk.`;
+    interpretation = `ANC ${grouped(anc)} cells/µL — Profound neutropenia. Very high/life-threatening infection risk.`;
   }
 
   return {

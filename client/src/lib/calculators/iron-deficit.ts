@@ -1,6 +1,8 @@
 // Iron Deficit Calculation — Ganzoni Formula
 // Total iron deficit (mg) = Weight (kg) × (Target Hb − Actual Hb) g/dL × 2.4 + Iron stores (mg)
 
+import { grouped } from "./format";
+
 interface IronDeficitInput {
   weightKg:      number;
   targetHbGdl:   number;  // g/dL
@@ -26,13 +28,13 @@ export function calculateIronDeficit(input: IronDeficitInput): {
     interpretation = `No iron deficit — calculated value ${ironDeficitMg} mg (target Hb may already be met)`;
   } else if (ironDeficitMg <= 500) {
     severity       = 'warning';
-    interpretation = `Iron deficit: ${ironDeficitMg.toLocaleString()} mg — mild deficit`;
+    interpretation = `Iron deficit: ${grouped(ironDeficitMg)} mg — mild deficit`;
   } else if (ironDeficitMg <= 1500) {
     severity       = 'warning';
-    interpretation = `Iron deficit: ${ironDeficitMg.toLocaleString()} mg — moderate deficit`;
+    interpretation = `Iron deficit: ${grouped(ironDeficitMg)} mg — moderate deficit`;
   } else {
     severity       = 'danger';
-    interpretation = `Iron deficit: ${ironDeficitMg.toLocaleString()} mg — severe deficit; IV iron therapy likely needed`;
+    interpretation = `Iron deficit: ${grouped(ironDeficitMg)} mg — severe deficit; IV iron therapy likely needed`;
   }
 
   return {

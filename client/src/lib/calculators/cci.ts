@@ -1,6 +1,8 @@
 // Corrected Count Increment (CCI) for Platelet Transfusion
 // CCI = (ΔPlatelet count × 10⁹/L × BSA m²) / (unit content × 10¹¹) × 1000
 
+import { grouped } from "./format";
+
 interface CciInput {
   prePlt:      number;  // × 10⁹/L  (= × 10³/µL — numerically identical)
   postPlt:     number;  // × 10⁹/L
@@ -35,10 +37,10 @@ export function calculateCCI(input: CciInput): {
 
   if (cci >= threshold) {
     severity       = 'success';
-    interpretation = `Adequate platelet response — ${timeLabel} CCI ${cci.toLocaleString()} ≥ ${threshold.toLocaleString()}`;
+    interpretation = `Adequate platelet response — ${timeLabel} CCI ${grouped(cci)} ≥ ${grouped(threshold)}`;
   } else {
     severity       = 'danger';
-    interpretation = `Poor platelet response — ${timeLabel} CCI ${cci.toLocaleString()} < ${threshold.toLocaleString()} (suggests platelet refractoriness)`;
+    interpretation = `Poor platelet response — ${timeLabel} CCI ${grouped(cci)} < ${grouped(threshold)} (suggests platelet refractoriness)`;
   }
 
   return {
