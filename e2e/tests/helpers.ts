@@ -9,7 +9,8 @@ export { API_URL, WEB_URL };
 export type Role =
   | 'authWrong' | 'authSession' | 'authLogout'
   | 'rxGate' | 'rxSave' | 'rxDouble' | 'rxDoubleSync' | 'rxAlert'
-  | 'restore' | 'isoA' | 'isoB' | 'printDefault' | 'printA4' | 'gateKeyboard' | 'probe';
+  | 'restore' | 'isoA' | 'isoB' | 'printDefault' | 'printA4' | 'gateKeyboard' | 'probe'
+  | 'sheetSave' | 'sheetKeys' | 'headerSwitch';
 
 interface Seed { password: string; doctors: Record<Role, { email: string; name: string }> }
 let seedCache: Seed | null = null;

@@ -237,3 +237,63 @@ describe("useDialog — closing puts the focus back where it was", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("Next box"));
   });
 });
+
+// The one opener the focus must NOT go back to: a button that commits. The
+// print sheet is opened by "Save & print"; with the focus returned there,
+// Enter or Space — the key that scrolls a page — files the same consultation a
+// second time, and holding Enter on Close does it without a second press.
+describe("useDialog — a popup opened by a button that saves", () => {
+  function SaveOpener({ returnFocus }: { returnFocus?: boolean }) {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>Save &amp; print</button>
+        {open && <Sheet returnFocus={returnFocus} onClose={() => setOpen(false)} />}
+      </>
+    );
+  }
+  function Sheet({ onClose, returnFocus }: { onClose: () => void; returnFocus?: boolean }) {
+    const dialog = useDialog(true, onClose, { returnFocus });
+    return <div role="dialog" aria-label="Prescription" {...dialog}><button type="button" onClick={onClose}>Close</button></div>;
+  }
+  const openSheet = () => {
+    const save = screen.getByRole("button", { name: "Save & print" });
+    save.focus();
+    fireEvent.click(save);
+    return save;
+  };
+
+  it("⚕️ told not to, closing leaves the focus off the button that opened it", () => {
+    render(<SaveOpener returnFocus={false} />);
+    const save = openSheet();
+    const close = screen.getByRole("button", { name: "Close" });
+    close.focus();
+    fireEvent.click(close);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).not.toBe(save);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("⚕️ the same after Escape", () => {
+    render(<SaveOpener returnFocus={false} />);
+    const save = openSheet();
+    escape();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).not.toBe(save);
+  });
+
+  it("everything else about the popup is unchanged: Escape still closes it and Tab still stays inside", () => {
+    render(<SaveOpener returnFocus={false} />);
+    const save = openSheet();
+    save.focus(); // the focus left on the page behind
+    expect(fireEvent.keyDown(save, { key: "Tab" })).toBe(false);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close" }));
+  });
+
+  it("not told anything, a popup still gives the focus back — that is the rule", () => {
+    render(<SaveOpener />);
+    const save = openSheet();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(document.activeElement).toBe(save);
+  });
+});

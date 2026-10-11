@@ -19,6 +19,7 @@ const ROLES = [
   'authWrong', 'authSession', 'authLogout',
   'rxGate', 'rxSave', 'rxDouble', 'rxDoubleSync', 'rxAlert',
   'restore', 'isoA', 'isoB', 'printDefault', 'printA4', 'gateKeyboard', 'probe',
+  'sheetSave', 'sheetKeys', 'headerSwitch',
 ] as const;
 
 async function main() {

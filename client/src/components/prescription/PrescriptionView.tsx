@@ -84,8 +84,11 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   // `html` is the interval between the doctor's click and the visit being
   // saved — the frame is on screen from the click, so nothing about printing
   // depends on a pop-up allowance any more.
-  const [sheet, setSheet] = useState<{ open: boolean; html: string | null }>({ open: false, html: null });
-  const closeSheet = useCallback(() => setSheet({ open: false, html: null }), []);
+  // `afterSave`: the sheet was opened by "Save & print" and not by "Preview
+  // PDF". Closing it then must not put the focus back on a button that saves
+  // (PrintSheetModal says why).
+  const [sheet, setSheet] = useState<{ open: boolean; html: string | null; afterSave: boolean }>({ open: false, html: null, afterSave: false });
+  const closeSheet = useCallback(() => setSheet({ open: false, html: null, afterSave: false }), []);
   // Assistants need the "Save and print" grant to save a prescription.
   const canSave = m.can("rx.savePrint") && gateOpen;
   // "Save to complete later" parks an unfinished visit. Deliberately NOT permission-gated:
@@ -217,7 +220,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     // check), which refuses to save anyway, so the modal can't flash open and
     // shut for nothing.
     const showing = m.hasRxContent;
-    if (showing) setSheet({ open: true, html: null });
+    if (showing) setSheet({ open: true, html: null, afterSave: true });
 
     // The save runs before anything that could throw. Nothing about rendering
     // the sheet may stand between the doctor's click and the visit being
@@ -246,7 +249,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
 
     // Only fill a frame that is still on screen: a doctor who pressed Close
     // while the save was in flight must not have the sheet reappear on them.
-    setSheet((prev) => (prev.open ? { open: true, html } : prev));
+    setSheet((prev) => (prev.open ? { ...prev, html } : prev));
 
     logActivity("Prescription", `Prescription for ${m.ptName.trim() || "patient"}`, "saved");
     // Snapshot the sheet into the patient's gallery — but only when it is a
@@ -281,7 +284,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
 
   const previewPdf = () => {
     try {
-      setSheet({ open: true, html: buildHtml() });
+      setSheet({ open: true, html: buildHtml(), afterSave: false });
     } catch {
       tell({ title: "The printable sheet could not be built.", body: "Nothing you have written is affected." });
     }
@@ -298,7 +301,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), width: "100%" }}>{saving ? "Saving…" : "Save & print"}</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
-        {sheet.open && <PrintSheetModal html={sheet.html} onClose={closeSheet} />}
+        {sheet.open && <PrintSheetModal html={sheet.html} afterSave={sheet.afterSave} onClose={closeSheet} />}
       </>
     );
   }
@@ -331,7 +334,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       </div>
       {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}
       {gateOpen && <><ReportsSection /><PatientChat /></>}
-      {sheet.open && <PrintSheetModal html={sheet.html} onClose={closeSheet} />}
+      {sheet.open && <PrintSheetModal html={sheet.html} afterSave={sheet.afterSave} onClose={closeSheet} />}
     </>
   );
 }

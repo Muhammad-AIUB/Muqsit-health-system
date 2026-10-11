@@ -36,9 +36,20 @@ import { useEffect, useRef } from "react";
 // Closing puts the focus back on what opened the popup, but only if closing
 // left it nowhere. A popup that hands focus on by itself (pick a patient, land
 // in the next box) keeps its own choice.
+//
+// ⚕️ …unless the popup says not to: `useDialog(open, close, { returnFocus: false })`.
+// Pressing the opener again normally just opens the popup again. ONE opener
+// does more than that — "Save & print" SAVES, and with the focus put back on
+// it Enter or Space (the key that scrolls a page) files the consultation a
+// second time; Enter held down on the sheet's Close does it with no second
+// press at all. The print sheet opened by that button leaves the focus on the
+// page, where it ended before the sheet was a popup like the others. Ask for
+// this only for an opener that commits something.
 
 const DIALOGS = '[role="dialog"], [role="alertdialog"]';
-const TABBABLE = [
+// Exported for the popup contract in src/test/dialogKeyboard.tsx, so the test
+// and the hook cannot disagree about what a Tab stop is.
+export const TABBABLE = [
   "a[href]", "button:not([disabled])", 'input:not([disabled]):not([type="hidden"])',
   "select:not([disabled])", "textarea:not([disabled])", "summary",
   '[tabindex]:not([tabindex="-1"])', '[contenteditable="true"]', '[contenteditable=""]',
@@ -55,10 +66,18 @@ function tabStops(panel: HTMLElement): HTMLElement[] {
   return drawn.length > 0 ? drawn : all;
 }
 
-export function useDialog<T extends HTMLElement = HTMLDivElement>(open: boolean, onClose: () => void) {
+export interface DialogOptions {
+  /** false: closing does NOT put the focus back on what opened the popup. */
+  returnFocus?: boolean;
+}
+
+export function useDialog<T extends HTMLElement = HTMLDivElement>(open: boolean, onClose: () => void, options?: DialogOptions) {
   const ref = useRef<T>(null);
   const close = useRef(onClose);
   close.current = onClose;
+  // Read when the popup closes, so it is whatever the popup last said.
+  const returnFocus = useRef(true);
+  returnFocus.current = options?.returnFocus !== false;
 
   // What had the focus when the popup was asked for. Read while rendering, not
   // in the effect: by then a box inside the popup may already have taken focus
@@ -117,6 +136,12 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(open: boolean,
       // straight after mounting, and the popup is still open after it.
       const back = opener.current;
       const active = document.activeElement;
+      if (!returnFocus.current) {
+        // Not to be handed back — so not to be LEFT there either. A popup closed
+        // before its first frame was drawn never took the focus off its opener.
+        if (back && active === back) back.blur();
+        return;
+      }
       const nowhere = !active || active === document.body;
       if (back && back.isConnected && nowhere) back.focus({ preventScroll: true });
     };

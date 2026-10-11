@@ -86,6 +86,7 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
 | `restore.spec.ts` | typed content is auto-saved and a reload restores the patient and the editor; no prescription row is created by a draft |
 | `isolation.spec.ts` | a second doctor (separate browser context) looking up the first doctor's patient's mobile is offered "Add New" and cannot read the patient or the prescription through the API either |
 | `print-layout.spec.ts` | for A4 and for a new account's default page: the ℞ table does not scroll sideways, no element leaves the sheet sideways (in the in-app sheet and under the print stylesheet), and the printed PDF is one page of the configured size |
+| `print-sheet.spec.ts` | with a real keyboard, which jsdom cannot give: after Save & print, closing the sheet leaves the focus OFF the button that saves, and Space and Enter afterwards store no second row; "Preview PDF" does get its focus back; with the focus INSIDE the sheet's frame Ctrl+P prints the sheet and not the app, Tab goes Print → Close → the sheet → Print and never out to the editor, and Escape closes it; "Mirror devices" is a switch that a press — or Space — turns on and off without sending the cursor into the patient search |
 | `defect-probes.spec.ts` | opt-in (`E2E_PROBES=1`), see below |
 
 No clinical content is invented: medicines are rows of the seeded test

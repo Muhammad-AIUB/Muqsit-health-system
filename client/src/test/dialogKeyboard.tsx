@@ -12,19 +12,20 @@
 //     back there.
 //
 // jsdom has no layout, so "the controls Tab can land on" are simply the enabled
-// ones in the popup, in document order — the same fallback the hook itself uses.
+// ones in the popup, in document order — the same fallback the hook itself
+// uses, from the hook's own list: a stop the hook counts and this file did not
+// (the print sheet's frame, once it became one) would make the two disagree
+// about which control is "the last".
 
 import { useState, type ReactElement } from "react";
 import { expect, it, vi, type Mock } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-
-const STOPS = [
-  "a[href]", "button:not([disabled])", 'input:not([disabled]):not([type="hidden"])',
-  "select:not([disabled])", "textarea:not([disabled])", '[contenteditable="true"]',
-].join(", ");
+import { TABBABLE } from "@/lib/useDialog";
 
 export const tabStopsOf = (panel: HTMLElement) =>
-  Array.from(panel.querySelectorAll<HTMLElement>(STOPS)).filter((el) => el.tabIndex >= 0);
+  Array.from(panel.querySelectorAll<HTMLElement>(TABBABLE)).filter(
+    (el) => el.tabIndex >= 0 && !el.closest('[inert], [aria-hidden="true"]'),
+  );
 
 const tab = (shiftKey = false) => fireEvent.keyDown(document.activeElement ?? document.body, { key: "Tab", shiftKey });
 

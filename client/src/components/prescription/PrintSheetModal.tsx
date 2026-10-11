@@ -23,10 +23,13 @@ const isPrintKey = (e: KeyboardEvent) =>
 export default function PrintSheetModal({
   html,
   onClose,
+  afterSave = false,
 }: {
   /** The built sheet, or null while the visit is still being saved. */
   html: string | null;
   onClose: () => void;
+  /** The sheet was opened by "Save & print" — a button that SAVES (see below). */
+  afterSave?: boolean;
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
@@ -36,10 +39,16 @@ export default function PrintSheetModal({
   // page underneath, and Tab walked on through it. Measured in the browser with
   // the sheet open: three presses of Tab reached the patient chat's message box
   // — where Enter SENDS — and fifteen reached the navigation. The hook brings
-  // the focus in, keeps Tab on Print and Close, closes on Escape (unless a
-  // message has been raised over the sheet) and puts the focus back on the way
-  // out.
-  const dialog = useDialog<HTMLDivElement>(true, onClose);
+  // the focus in, keeps Tab on Print, Close and the sheet itself, closes on
+  // Escape (unless a message has been raised over the sheet) and puts the focus
+  // back on the way out.
+  //
+  // ⚕️ Back on "Preview PDF", that is — never on "Save & print". That button
+  // SAVES: with the focus returned to it, Enter or Space (the key that scrolls
+  // a page) files the same consultation again as a second Prescription row, and
+  // Enter held down on Close does it with no second press. After a save the
+  // focus is left on the page, exactly where it ended before 2026-10-12.
+  const dialog = useDialog<HTMLDivElement>(true, onClose, { returnFocus: !afterSave });
 
   // Print the SHEET, not the app. Focusing the frame first is what makes the
   // browser print the framed document rather than the page around it.
@@ -49,6 +58,12 @@ export default function PrintSheetModal({
     win.focus();
     win.print();
   }, []);
+  // The frame's own key listener reaches Print through this, so the effect that
+  // WRITES the sheet depends on the sheet and on nothing else: written again,
+  // the sheet would lose where the doctor had scrolled to and run its own
+  // fitting a second time.
+  const printRef = useRef(printSheet);
+  printRef.current = printSheet;
 
   // Write the sheet in. `srcDoc` would do it too, but document.write is what
   // the pop-up and the gallery snapshot already use, so all three routes to the
@@ -78,7 +93,7 @@ export default function PrintSheetModal({
       }
       if (isPrintKey(e)) {
         e.preventDefault();
-        printSheet();
+        printRef.current();
         return;
       }
       if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
@@ -90,7 +105,7 @@ export default function PrintSheetModal({
     };
     doc.addEventListener("keydown", onKey);
     return () => doc.removeEventListener("keydown", onKey);
-  }, [html, printSheet]);
+  }, [html]);
 
   // The page behind must not scroll under the overlay.
   //
@@ -141,9 +156,15 @@ export default function PrintSheetModal({
       {/* The frame is mounted from the first render, so the sheet drops into a
           window that is already there — the doctor never sees it appear late. */}
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        {/* A Tab stop of the popup once the sheet is in it (Print → Close → the
+            sheet → Print), so it can be scrolled from the keyboard before it is
+            printed; the popup keeps Tab on the stops it knows, and a frame is
+            not one unless it says so. Not while it is empty and hidden — the
+            browser would skip it and carry on into the page behind. */}
         <iframe
           ref={frameRef}
           title="Prescription"
+          tabIndex={html ? 0 : -1}
           style={{ width: "100%", height: "100%", border: "none", background: "#f0f0f0", visibility: html ? "visible" : "hidden" }}
         />
         {!html && (
