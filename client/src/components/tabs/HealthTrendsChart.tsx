@@ -8,7 +8,7 @@ import type { MentionRange } from "@/lib/drugHistorySummary";
 import type { SymptomMentionRange } from "@/lib/symptomSummary";
 import { cellToDate, type DrugDateMap } from "@/lib/hmDates";
 import { isImplausibleDate, YEAR_POLICY, ddmmyyyyMsStrict } from "@/lib/dateInput";
-import { computeTimeRange, makeToX, monthTicks, isInRange } from "@/lib/timelineGeometry";
+import { computeTimeRange, makeToX, monthTicks, ticksInPlot, isInRange } from "@/lib/timelineGeometry";
 
 interface Props {
   investigationSummary: InvFinding[];
@@ -221,6 +221,28 @@ export default function HealthTrendsChart({
   // Set by Escape so the blur it triggers abandons rather than commits.
   const cancellingRef = useRef(false);
 
+  // ⚕️ How wide the chart's own box is, in the page's px. The drawing is 800
+  // units wide and used to be stretched or SHRUNK to fit: on a phone that is
+  // half size, and a lab value stood 5px tall. Below NARROW_BELOW the drawing
+  // keeps its own size instead and the plot scrolls sideways (see the render).
+  // 0 = not measured yet (the first paint, a test's DOM): drawn as on a wide
+  // screen, exactly as before.
+  const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const [wrapW, setWrapW] = useState(0);
+  useEffect(() => {
+    if (!wrapEl) return;
+    const read = () => setWrapW(wrapEl.clientWidth);
+    read();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", read);
+      return () => window.removeEventListener("resize", read);
+    }
+    const ro = new ResizeObserver(read);
+    ro.observe(wrapEl);
+    return () => ro.disconnect();
+  }, [wrapEl]);
+
   useEffect(() => { setDrugDraft(drugDates); }, [drugDates]);
   useEffect(() => { setSymptomDraft(symptomDates); }, [symptomDates]);
 
@@ -356,6 +378,27 @@ export default function HealthTrendsChart({
   const dataTo = allMs.length ? Math.max(...allMs) : null;
 
   const LW = 150, PR = 16, SVG_W = 800, RH = 28, PB = 30;
+  // Narrow: the box cannot hold the drawing at nine tenths of its size (a
+  // 9-unit value under 8px). There every unit is NARROW_K px — a value is
+  // 9.9px, a name 11 — the plot is as wide as that makes it and scrolls, and
+  // the names get a strip of their own beside it: at most the full 150-unit
+  // column, at least 96px, about a third of a phone.
+  const NARROW_BELOW = SVG_W * 0.9, NARROW_K = 1.1;
+  const narrow = wrapW > 0 && wrapW < NARROW_BELOW;
+  const namesPx = narrow ? Math.round(Math.min(LW * NARROW_K, Math.max(96, wrapW * 0.36))) : 0;
+  const namesUnits = narrow ? namesPx / NARROW_K : LW;
+  // A name is set from the strip's LEFT edge when narrow, so when it is too
+  // long it is the end that gives way — never the start, which is what says
+  // which medicine or which test it is. ~5.4 units a character at size 10.
+  const nameX = narrow ? LW - namesUnits + 6 : LW - 8;
+  const nameAnchor = narrow ? "start" : "end";
+  const nameChars = (cap: number) => (narrow ? Math.max(8, Math.min(cap, Math.floor((namesUnits - 12) / 5.4))) : cap);
+  const cut = (s: string, cap: number) => { const n = nameChars(cap); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+  // The plot opens on the NEWEST readings: they are at the right-hand end, and
+  // they are what is read first. Again whenever what is plotted changes.
+  useEffect(() => {
+    if (narrow && scrollEl) scrollEl.scrollLeft = scrollEl.scrollWidth;
+  }, [narrow, scrollEl, windowKey, lanes.length, tracks.length]);
   const hasPlot = lanes.length > 0;
   const hasGantt = tracks.length > 0;
   // "Nothing ticked" and "ticked, but nothing inside this window" are different
@@ -391,7 +434,12 @@ export default function HealthTrendsChart({
   // exactly the half-cut number the labelling work was meant to rule out.
   const labelHalfW = (s: string) => Math.max(12, s.length * 2.3);
   const toX = makeToX(range, LW, areaW);
-  const months = monthTicks(range, toX);
+  // Only the months that fall INSIDE the plot, their labels set inward at its
+  // two edges (`ticksInPlot`). The first month on the axis starts before the
+  // first reading, so its line and label were drawn to the left of the plot,
+  // through the column of names: "Mar 26" stood under a medicine's name as if
+  // it were that medicine's date.
+  const months = ticksInPlot(monthTicks(range, toX), PLOT_L, PLOT_R);
   const todayInRange = isInRange(today.getTime(), range);
 
   const windowLabel = WINDOW_OPTIONS.find((o) => o.key === windowKey)?.label ?? "";
@@ -667,27 +715,23 @@ export default function HealthTrendsChart({
           Choose a wider window to see this patient&apos;s history.
         </div>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          {/* The plot itself conveys nothing to a screen reader, so it gets one
-              spoken summary. Per-point and per-bar <title> elements below stay
-              readable individually. */}
-          <svg
-            width="100%"
-            viewBox={`0 0 ${SVG_W} ${chartH}`}
-            style={{ display: "block", minWidth: 360 }}
-            role="img"
-            aria-label={
+        <div>
+          {(() => {
+            // The plot itself conveys nothing to a screen reader, so it gets one
+            // spoken summary. Per-point and per-bar <title> elements below stay
+            // readable individually.
+            const spoken =
               `Health trend chart, ${windowKey === "all" ? "all available data" : windowLabel.toLowerCase()}. ` +
               `${lanes.length} lab ${lanes.length === 1 ? "parameter" : "parameters"}, ` +
               `${tracks.filter((t) => t.kind === "drug").length} medication and ` +
               `${tracks.filter((t) => t.kind === "symptom").length} symptom ${tracks.length === 1 ? "bar" : "bars"}` +
-              (dataFrom != null && dataTo != null ? `, spanning ${msToDdmmyyyy(dataFrom)} to ${msToDdmmyyyy(dataTo)}.` : ".")
-            }
-          >
+              (dataFrom != null && dataTo != null ? `, spanning ${msToDdmmyyyy(dataFrom)} to ${msToDdmmyyyy(dataTo)}.` : ".");
+            const drawing = (
+              <>
             {months.map((m, i) => (
               <g key={i}>
                 <line x1={m.x} y1={PLOT_TOP} x2={m.x} y2={bodyBottom} stroke={C.n[200]} strokeWidth={0.5} />
-                {m.showLabel && <text x={m.x} y={chartH - PB + 14} textAnchor="middle" fontSize={9} fill={C.n[500]}>{m.label}</text>}
+                {m.showLabel && <text x={m.x} y={chartH - PB + 14} textAnchor={m.anchor} fontSize={9} fill={C.n[500]}>{m.label}</text>}
               </g>
             ))}
             <line x1={LW} y1={bodyBottom} x2={SVG_W - PR} y2={bodyBottom} stroke={C.n[300]} strokeWidth={0.5} />
@@ -703,7 +747,7 @@ export default function HealthTrendsChart({
                   x={toX(today.getTime()) + (toX(today.getTime()) > PLOT_R - 30 ? -3 : 3)}
                   y={PLOT_TOP - 4}
                   textAnchor={toX(today.getTime()) > PLOT_R - 30 ? "end" : "start"}
-                  fontSize={8}
+                  fontSize={9}
                   fill={C.danger[400]}
                 >
                   Today
@@ -714,7 +758,7 @@ export default function HealthTrendsChart({
             {lanes.map(({ param, points, allPoints }, si) => {
               const color = colorFor(param);
               const laneTop = laneTops[si];
-              const shortLabel = param.label.length > 22 ? param.label.slice(0, 21) + "…" : param.label;
+              const shortLabel = cut(param.label, 22);
 
               // Ticked, but nothing recorded inside this window. Say so on the
               // lane instead of dropping it — a missing lane reads as "never
@@ -723,7 +767,7 @@ export default function HealthTrendsChart({
                 const last = allPoints[allPoints.length - 1];
                 return (
                   <g key={paramKey(param)}>
-                    <text x={LW - 8} y={laneTop + EMPTY_LANE_H / 2 + 3} textAnchor="end" fontSize={10} fontWeight={600} fill={C.n[500]}>
+                    <text x={nameX} y={laneTop + EMPTY_LANE_H / 2 + 3} textAnchor={nameAnchor} fontSize={10} fontWeight={600} fill={C.n[500]}>
                       {shortLabel}
                     </text>
                     <text x={LW + 8} y={laneTop + EMPTY_LANE_H / 2 + 3} fontSize={9} fill={C.n[500]}>
@@ -784,7 +828,7 @@ export default function HealthTrendsChart({
                       </g>
                     );
                   })}
-                  <text x={LW - 8} y={laneTop + LANE_H / 2 + 3} textAnchor="end" fontSize={10} fontWeight={600} fill={color}>
+                  <text x={nameX} y={laneTop + LANE_H / 2 + 3} textAnchor={nameAnchor} fontSize={10} fontWeight={600} fill={color}>
                     {shortLabel}
                   </text>
                 </g>
@@ -819,8 +863,8 @@ export default function HealthTrendsChart({
               return (
                 <g key={`${t.kind}-${t.name}`}>
                   {idx % 2 === 0 && <rect x={LW} y={GANTT_TOP + idx * RH} width={areaW} height={RH} fill={C.n[50]} />}
-                  <text x={LW - 8} y={cy + 4} textAnchor="end" fontSize={10} fill={C.n[700]}>
-                    {t.name.length > 20 ? t.name.slice(0, 19) + "…" : t.name}
+                  <text x={nameX} y={cy + 4} textAnchor={nameAnchor} fontSize={10} fill={C.n[700]}>
+                    {cut(t.name, 20)}
                   </text>
                   <title>{tip}</title>
                   {singleDate ? (
@@ -860,8 +904,51 @@ export default function HealthTrendsChart({
                 </g>
               );
             })}
-          </svg>
+              </>
+            );
+            // Wide (or not measured yet): ONE drawing, filling its box — as it
+            // always was.
+            if (!narrow) {
+              return (
+                <div ref={setWrapEl} data-chart-wrap style={{ overflowX: "auto" }}>
+                  <svg width="100%" viewBox={`0 0 ${SVG_W} ${chartH}`} style={{ display: "block", minWidth: 360 }} role="img" aria-label={spoken}>
+                    {drawing}
+                  </svg>
+                </div>
+              );
+            }
+            // Narrow: the SAME drawing through two windows — the strip of
+            // names, which stays, and the plot, which scrolls. Two windows on
+            // one drawing cannot disagree about where a lane or a bar is; a
+            // second, separately laid-out column of names could.
+            return (
+              <div ref={setWrapEl} data-chart-wrap style={{ display: "flex", alignItems: "flex-start" }}>
+                <svg
+                  aria-hidden
+                  width={namesPx}
+                  height={chartH * NARROW_K}
+                  viewBox={`${LW - namesUnits} 0 ${namesUnits} ${chartH}`}
+                  style={{ display: "block", flexShrink: 0 }}
+                >
+                  {drawing}
+                </svg>
+                <div ref={setScrollEl} data-chart-scroll style={{ overflowX: "auto", flex: 1, minWidth: 0 }}>
+                  <svg
+                    width={(SVG_W - LW) * NARROW_K}
+                    height={chartH * NARROW_K}
+                    viewBox={`${LW} 0 ${SVG_W - LW} ${chartH}`}
+                    style={{ display: "block" }}
+                    role="img"
+                    aria-label={spoken}
+                  >
+                    {drawing}
+                  </svg>
+                </div>
+              </div>
+            );
+          })()}
           <div style={{ fontSize: 10.5, color: C.n[500], textAlign: "right", marginTop: 2 }}>
+            {narrow && "Scroll sideways for earlier dates · "}
             {windowKey === "all"
               ? dataFrom != null && dataTo != null
                 ? `Showing ${msToDdmmyyyy(dataFrom)} – ${msToDdmmyyyy(dataTo)} · hover any point or bar for its date`

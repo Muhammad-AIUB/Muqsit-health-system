@@ -54,6 +54,38 @@ export function monthTicks(range: TimeRange | null, toX: (t: number) => number):
   return raw.map((t, i) => ({ ...t, showLabel: i % stride === 0 }));
 }
 
+export interface PlacedTick extends MonthTick { anchor: "start" | "middle" | "end" }
+
+// The ticks a chart may actually DRAW, out of what `monthTicks` hands back.
+//
+// `monthTicks` gives one tick per calendar month the range touches, and the
+// first of those months starts before the range does — to the left of the
+// plot. Drawn as given, its line and its label ran through whatever stands
+// beside the plot: on the health-trend chart, "Mar 26" under a medicine's name.
+//
+//  • Only ticks inside [left, right] are kept.
+//  • Labels are thinned again FROM THE FIRST TICK THAT IS KEPT, so dropping
+//    the one outside never leaves the start of the axis bare.
+//  • A label is about 2 × `half` wide. Centred on a line within `half` of an
+//    edge it would hang outside the plot, so there it is set inward.
+//  • Two shown labels never touch: their boxes stay `minGap − 2 × half` apart,
+//    which for two centred labels is the same `minGap` between their lines
+//    that `monthTicks` uses.
+export function ticksInPlot(ticks: MonthTick[], left: number, right: number, minGap = 34, half = 14): PlacedTick[] {
+  const out: PlacedTick[] = [];
+  const between = minGap - 2 * half;
+  let lastEnd = -Infinity;
+  for (const t of ticks) {
+    if (t.x < left || t.x > right) continue;
+    const anchor = t.x - half < left ? "start" : t.x + half > right ? "end" : "middle";
+    const from = anchor === "start" ? t.x : anchor === "end" ? t.x - 2 * half : t.x - half;
+    const showLabel = from >= lastEnd + between;
+    if (showLabel) lastEnd = from + 2 * half;
+    out.push({ ...t, showLabel, anchor });
+  }
+  return out;
+}
+
 export function isInRange(t: number, range: TimeRange | null): boolean {
   return Boolean(range && t >= range.lo && t <= range.hi);
 }

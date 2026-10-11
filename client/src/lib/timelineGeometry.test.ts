@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { MONTHS, computeTimeRange, isInRange, makeToX, monthTicks } from "./timelineGeometry";
+import { MONTHS, computeTimeRange, isInRange, makeToX, monthTicks, ticksInPlot } from "./timelineGeometry";
 import { configureProps } from "@/test/fc";
 
 // The time axis of the Health-trend chart. Where a reading is DRAWN is a claim
@@ -139,5 +139,63 @@ describe("isInRange", () => {
     const r = { lo: 10, hi: 20 };
     expect([9, 10, 15, 20, 21].map((t) => isInRange(t, r))).toEqual([false, true, true, true, false]);
     expect(isInRange(15, null)).toBe(false);
+  });
+});
+
+// monthTicks hands back one tick per calendar month the range TOUCHES, and the
+// first of those months starts before the range does — to the left of the plot.
+// Drawn as given, its line and its label ran through the column of names beside
+// the plot: "Mar 26" stood under a medicine's name as if it were that
+// medicine's date.
+describe("ticksInPlot", () => {
+  const tick = (x: number, label = "Jan 26", showLabel = true) => ({ x, label, showLabel });
+
+  it("keeps only the ticks that fall inside the plot", () => {
+    const placed = ticksInPlot([tick(125), tick(150), tick(400), tick(784), tick(790)], 150, 784);
+    expect(placed.map((t) => t.x)).toEqual([150, 400, 784]);
+  });
+
+  it("⚕️ the first month ON the plot is labelled, whatever the thinning had chosen before", () => {
+    // A long range: every third month was labelled, starting from the one that
+    // has just been dropped. The left of the axis must not be left bare.
+    const ticks = [tick(140, "Mar 26", true), tick(160, "Apr 26", false), tick(180, "May 26", false), tick(200, "Jun 26", true)];
+    const placed = ticksInPlot(ticks, 150, 784);
+    expect(placed[0]).toMatchObject({ label: "Apr 26", showLabel: true });
+  });
+
+  it("keeps the labels it shows at least a label's width apart", () => {
+    const ticks = Array.from({ length: 40 }, (_, i) => tick(150 + i * 12, `M${i}`));
+    const shown = ticksInPlot(ticks, 150, 784).filter((t) => t.showLabel);
+    expect(shown.length).toBeGreaterThan(3);
+    for (let i = 1; i < shown.length; i++) expect(shown[i].x - shown[i - 1].x).toBeGreaterThanOrEqual(34);
+  });
+
+  it("still returns every in-plot gridline — only the labels are thinned", () => {
+    const ticks = Array.from({ length: 40 }, (_, i) => tick(150 + i * 12, `M${i}`));
+    expect(ticksInPlot(ticks, 150, 784)).toHaveLength(40);
+  });
+
+  it("sets a label inward when centring it would hang it outside the plot", () => {
+    const [left, mid, right] = ticksInPlot([tick(155), tick(400), tick(780)], 150, 784);
+    expect(left.anchor).toBe("start");
+    expect(mid.anchor).toBe("middle");
+    expect(right.anchor).toBe("end");
+  });
+
+  it("for any real range, every label it shows lies wholly inside the plot", () => {
+    fc.assert(
+      fc.property(epoch, fc.integer({ min: 30, max: 3650 }), (lo, days) => {
+        const r = { lo, hi: lo + days * DAY };
+        const L = 150, R = 784, HALF = 14;
+        for (const t of ticksInPlot(monthTicks(r, makeToX(r, L, R - L)), L, R)) {
+          expect(t.x).toBeGreaterThanOrEqual(L);
+          expect(t.x).toBeLessThanOrEqual(R);
+          if (!t.showLabel) continue;
+          const from = t.anchor === "start" ? t.x : t.anchor === "end" ? t.x - 2 * HALF : t.x - HALF;
+          expect(from).toBeGreaterThanOrEqual(L);
+          expect(from + 2 * HALF).toBeLessThanOrEqual(R);
+        }
+      }),
+    );
   });
 });
