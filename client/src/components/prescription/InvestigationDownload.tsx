@@ -172,7 +172,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
 
         <div style={{ display: "flex", gap: 20, marginBottom: 18, flexWrap: "wrap" }}>
           <div>
-            <label style={lbl}>By category</label>
+            <label data-caption style={lbl}>By category</label>
             <select aria-label="By category" value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inp, cursor: "pointer", minWidth: 170 }}>
               <option value="all">All categories</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}

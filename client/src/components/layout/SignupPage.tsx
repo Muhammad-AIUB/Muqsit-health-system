@@ -340,18 +340,18 @@ export default function SignupPage() {
                 </div>
 
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Name</label>
+                  <label data-caption style={labelStyle}>Name</label>
                   <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Rahman" style={fieldStyle} />
                 </div>
 
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Email address</label>
+                  <label data-caption style={labelStyle}>Email address</label>
                   <input aria-label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="doctor@clinic.com" style={fieldStyle} />
                   <span style={{ fontSize: 11, color: C.n[500] }}>We&apos;ll email a verification code after you submit.</span>
                 </div>
 
                 <div style={groupStyle}>
-                  <label style={labelStyle}>Mobile number</label>
+                  <label data-caption style={labelStyle}>Mobile number</label>
                   <input aria-label="Mobile number"
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 11))}
@@ -367,7 +367,7 @@ export default function SignupPage() {
                 </div>
 
                 <div style={groupStyle}>
-                  <label style={labelStyle}>Are you</label>
+                  <label data-caption style={labelStyle}>Are you</label>
                   <select aria-label="Are you" value={profession} onChange={(e) => setProfession(e.target.value as Profession | "")} style={{ ...fieldStyle, cursor: "pointer" }}>
                     <option value="">Select…</option>
                     {PROFESSIONS.map((p) => (
@@ -378,7 +378,7 @@ export default function SignupPage() {
 
                 {needsRegNo && (
                   <div style={groupStyle}>
-                    <label style={labelStyle}>{regNoLabel(profession)}</label>
+                    <label data-caption style={labelStyle}>{regNoLabel(profession)}</label>
                     <input aria-label={regNoLabel(profession) ?? undefined} value={registrationNo} onChange={(e) => setRegistrationNo(e.target.value)} placeholder={regNoLabel(profession) ?? ""} style={fieldStyle} />
                   </div>
                 )}
@@ -391,7 +391,7 @@ export default function SignupPage() {
                 />
 
                 <div style={{ ...groupStyle, gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>NID number</label>
+                  <label data-caption style={labelStyle}>NID number</label>
                   <input aria-label="NID number" value={nidNo} onChange={(e) => setNidNo(e.target.value)} placeholder="National ID number" style={fieldStyle} />
                   {nidOcr !== "idle" && (
                     <span
@@ -420,17 +420,17 @@ export default function SignupPage() {
                 <FileField label="NID back" value={nidBackUrl} onUploaded={setNidBackUrl} onError={setError} />
 
                 <div style={groupStyle}>
-                  <label style={labelStyle}>Designation</label>
+                  <label data-caption style={labelStyle}>Designation</label>
                   <input aria-label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="e.g. Professor, Medical Officer" style={fieldStyle} />
                 </div>
 
                 <div style={groupStyle}>
-                  <label style={labelStyle}>Specialty</label>
+                  <label data-caption style={labelStyle}>Specialty</label>
                   <input aria-label="Specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Hepatology / General practitioner" style={fieldStyle} />
                 </div>
 
                 <div style={groupStyle}>
-                  <label style={labelStyle}>Password</label>
+                  <label data-caption style={labelStyle}>Password</label>
                   <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" style={fieldStyle} />
                   {password.length > 0 && (
                     <span style={{ fontSize: 11, color: passwordOk ? C.ok[600] : C.warn[800] }}>
@@ -440,7 +440,7 @@ export default function SignupPage() {
                 </div>
 
                 <div style={groupStyle}>
-                  <label style={labelStyle}>Retype password</label>
+                  <label data-caption style={labelStyle}>Retype password</label>
                   <input aria-label="Retype password" type="password" value={retype} onChange={(e) => setRetype(e.target.value)} placeholder="Re-enter password" style={{ ...fieldStyle, borderColor: mismatch ? C.danger[400] : (inputSm.border as string) }} />
                   {mismatch && <span style={{ fontSize: 11, color: C.danger[800] }}>Passwords do not match</span>}
                 </div>
@@ -471,7 +471,7 @@ export default function SignupPage() {
                 <span>Don&apos;t see the email? Check your <b>spam / junk</b> folder — verification emails sometimes end up there.</span>
               </div>
               <div style={groupStyle}>
-                <label style={labelStyle}>Verification code</label>
+                <label data-caption style={labelStyle}>Verification code</label>
                 <input aria-label="Verification code" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="••••••" disabled={otpExpired} style={{ ...fieldStyle, letterSpacing: 8, textAlign: "center", fontSize: 18, opacity: otpExpired ? 0.5 : 1 }} />
                 <div style={{ textAlign: "center", marginTop: 8 }}>
                   {otpExpired ? (
@@ -582,7 +582,7 @@ function FileField({
 
   return (
     <div style={groupStyle}>
-      <label style={labelStyle}>
+      <label data-caption style={labelStyle}>
         {label}
         {optional && <span style={{ color: C.n[500], fontWeight: 400 }}> (optional)</span>}
       </label>

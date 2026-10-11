@@ -184,7 +184,7 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-        <label style={{ fontSize: 13, color: C.n[800], whiteSpace: "nowrap" }}>Name of the template:</label>
+        <label data-caption style={{ fontSize: 13, color: C.n[800], whiteSpace: "nowrap" }}>Name of the template:</label>
         <input aria-label="Name of the template"
           value={name}
           onChange={(e) => { setName(e.target.value); setError(""); }}

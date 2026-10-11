@@ -129,7 +129,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
   // before the first clinical field. Same boxes, one line fewer; on a wide
   // screen the order is unchanged.
   const address = (
-    <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label style={fieldLabel}>Address</label><input aria-label="Address" value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
+    <div style={{ flex: mobile ? "1 1 100%" : "1 1 160px" }}><label data-caption style={fieldLabel}>Address</label><input aria-label="Address" value={ptAddress} onChange={(e) => setPtAddress(e.target.value)} placeholder="Address" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
   );
 
   return (
@@ -137,7 +137,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: mobile ? 6 : 10 }}>
         {/* Patient profile photo — uploaded in Patient Settings, shown here. */}
         <div style={{ flex: "0 0 auto" }}>
-          <label style={fieldLabel}>Photo</label>
+          <label data-caption style={fieldLabel}>Photo</label>
           <div
             onClick={() => setActiveTab("pt-settings")}
             {...pressable()}
@@ -153,12 +153,12 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             )}
           </div>
         </div>
-        <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label style={fieldLabel}>Patient name</label><input aria-label="Patient name" value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
-        <div style={{ flex: "0 0 55px" }}><label style={fieldLabel}>Age</label><input aria-label="Age" value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={ageEditable ? inputSm : lk(inputSm)} readOnly={!ageEditable} title={ageEditable ? (locked ? "Not recorded yet — type it here" : undefined) : lockTitle} /></div>
+        <div style={{ flex: mobile ? "1 1 45%" : "1 1 180px" }}><label data-caption style={fieldLabel}>Patient name</label><input aria-label="Patient name" value={ptName} onChange={(e) => setPtName(e.target.value)} placeholder="Patient name" style={lk(inputSm)} readOnly={locked} title={lockTitle} /></div>
+        <div style={{ flex: "0 0 55px" }}><label data-caption style={fieldLabel}>Age</label><input aria-label="Age" value={ptAge} onChange={(e) => onAge(e.target.value)} inputMode="numeric" placeholder="—" style={ageEditable ? inputSm : lk(inputSm)} readOnly={!ageEditable} title={ageEditable ? (locked ? "Not recorded yet — type it here" : undefined) : lockTitle} /></div>
         {/* "Sex", not "Gender": same field as Patient Settings and the IPD header,
             same column (`Patient.sex`), and the term the clinical use actually
             wants. Two names for one field is how the two screens drifted apart. */}
-        <div style={{ flex: mobile ? "0 0 84px" : "0 0 88px" }}><label style={fieldLabel}>Sex</label>
+        <div style={{ flex: mobile ? "0 0 84px" : "0 0 88px" }}><label data-caption style={fieldLabel}>Sex</label>
           <select aria-label="Sex"
             value={ptGender}
             onChange={(e) => onGender(e.target.value)}
@@ -173,19 +173,19 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           </select>
         </div>
         {!mobile && address}
-        <div style={{ flex: mobile ? "0 0 54px" : "0 0 60px" }}><label style={fieldLabel}>Weight</label><input aria-label="Weight" value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
-        <div style={{ flex: mobile ? "1 1 110px" : "0 0 130px" }}><label style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
+        <div style={{ flex: mobile ? "0 0 54px" : "0 0 60px" }}><label data-caption style={fieldLabel}>Weight</label><input aria-label="Weight" value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
+        <div style={{ flex: mobile ? "1 1 110px" : "0 0 130px" }}><label data-caption style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
         {mobile && address}
         <MobileLookupField mobile={mobile} />
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 150px" }}>
-          <label style={fieldLabel}>Total monthly approximate cost</label>
+          <label data-caption style={fieldLabel}>Total monthly approximate cost</label>
           <div style={{ padding: "6px 10px", borderRadius: 6, fontSize: 13.5, fontWeight: 600, background: monthlyCost > 0 ? C.pri[50] : C.n[100], border: `0.5px solid ${monthlyCost > 0 ? C.pri[100] : C.n[200]}`, color: monthlyCost > 0 ? C.pri[600] : C.n[500], display: "flex", alignItems: "center", gap: 4, height: 29, boxSizing: "border-box" }}>
             <span style={{ fontSize: 11, fontWeight: 400 }}>৳</span>{monthlyCost > 0 ? monthlyCost.toFixed(1) : "0.0"}
           </div>
         </div>
         {/* Hospital ID — a normal inline field, in line with the others */}
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 140px" }}>
-          <label style={fieldLabel}>Hospital ID</label>
+          <label data-caption style={fieldLabel}>Hospital ID</label>
           <input aria-label="Hospital ID" value={ptHospitalId} onChange={(e) => setPtHospitalId(e.target.value)} placeholder="Hospital ID" style={lk({ ...inputSm, width: "100%", boxSizing: "border-box" })} readOnly={locked} title={lockTitle} />
         </div>
         <div style={{ flex: mobile ? "1 1 100%" : "1 1 auto", minWidth: 0, display: "flex", alignItems: "flex-end", gap: 6, rowGap: 6, flexWrap: "wrap", paddingBottom: 1 }}>

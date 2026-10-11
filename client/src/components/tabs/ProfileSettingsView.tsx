@@ -454,7 +454,7 @@ function Row({ children }: { children: React.ReactNode }) {
 
 function Label({ children }: { children: React.ReactNode }) {
   // A <label>, so pressing it puts the cursor in the box under it (lib/captionFocus.ts).
-  return <label style={{ display: "block", fontSize: 12, color: C.n[600], marginBottom: 5 }}>{children}</label>;
+  return <label data-caption style={{ display: "block", fontSize: 12, color: C.n[600], marginBottom: 5 }}>{children}</label>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

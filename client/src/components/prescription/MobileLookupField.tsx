@@ -21,7 +21,7 @@ export default function MobileLookupField({ mobile }: { mobile?: boolean }) {
       // label to sit beside an 11-digit number, and squeezing the mobile input
       // would hide the patient's identifying number. The header row wraps.
       <div style={{ flex: mobile ? "1 1 100%" : "0 0 240px" }}>
-        <label style={fieldLabel}>Mobile</label>
+        <label data-caption style={fieldLabel}>Mobile</label>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input value={ptPhone} readOnly title="Edit from Patient Settings" style={{ ...inputSm, flex: 1, background: C.n[100], color: C.n[600], cursor: "not-allowed" }} />
           <button

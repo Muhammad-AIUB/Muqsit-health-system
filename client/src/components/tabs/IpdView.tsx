@@ -139,7 +139,7 @@ export default function IpdView() {
       {showAdd && (
         <div className="form-row" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 10, rowGap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div style={{ flex: "2 1 200px", minWidth: 0 }}>
-            <label style={fieldLabel}>Patient name *</label>
+            <label data-caption style={fieldLabel}>Patient name *</label>
             <input aria-label="Patient name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, width: "100%" }} />
           </div>
           <div style={{ flex: "0 0 150px" }}>
@@ -159,22 +159,22 @@ export default function IpdView() {
             {mobileInvalid && <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}
           </div>
           <div style={{ flex: "0 0 120px" }}>
-            <label style={fieldLabel}>Hospital ID</label>
+            <label data-caption style={fieldLabel}>Hospital ID</label>
             <input aria-label="Hospital ID" value={hospitalId} onChange={(e) => setHospitalId(e.target.value)} style={{ ...inp, width: "100%" }} />
           </div>
           <div style={{ flex: "0 0 130px" }}>
-            <label style={fieldLabel}>Bed *</label>
+            <label data-caption style={fieldLabel}>Bed *</label>
             <input aria-label="Bed" value={bed} onChange={(e) => setBed(e.target.value)} placeholder="Bed (e.g. B-3)" style={{ ...inp, width: "100%" }} />
           </div>
           <div style={{ flex: "0 0 100px" }}>
-            <label style={fieldLabel}>Room no</label>
+            <label data-caption style={fieldLabel}>Room no</label>
             <input aria-label="Room no" value={roomNo} onChange={(e) => setRoomNo(e.target.value)} style={{ ...inp, width: "100%" }} />
           </div>
           {/* A listed ward carries the team; anything else stays free text, so
               a doctor who has not set wards up yet is never blocked. */}
           {wards.length > 0 && (
             <div style={{ flex: "0 0 160px" }}>
-            <label style={fieldLabel}>Ward</label>
+            <label data-caption style={fieldLabel}>Ward</label>
             <select
               aria-label="Ward"
               value={wardMode === "other" ? OTHER_WARD : wardId}
@@ -196,16 +196,16 @@ export default function IpdView() {
           )}
           {(wards.length === 0 || wardMode === "other") && (
             <div style={{ flex: "0 0 140px" }}>
-              <label style={fieldLabel}>Cabin / ward no</label>
+              <label data-caption style={fieldLabel}>Cabin / ward no</label>
               <input aria-label="Cabin / ward no" value={wardNo} onChange={(e) => { setWardNo(e.target.value); setWardId(""); }} style={{ ...inp, width: "100%" }} />
             </div>
           )}
           <div style={{ flex: "1 1 130px", minWidth: 0 }}>
-            <label style={fieldLabel}>Floor or building</label>
+            <label data-caption style={fieldLabel}>Floor or building</label>
             <input aria-label="Floor or building" value={floorBuilding} onChange={(e) => setFloorBuilding(e.target.value)} style={{ ...inp, width: "100%" }} />
           </div>
           <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-            <label style={fieldLabel}>Diagnosis</label>
+            <label data-caption style={fieldLabel}>Diagnosis</label>
             <input aria-label="Diagnosis" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} style={{ ...inp, width: "100%" }} />
           </div>
           <div className="form-submit">

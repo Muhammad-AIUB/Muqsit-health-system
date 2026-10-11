@@ -104,7 +104,7 @@ export default function PatientMobileLookup({
 
   return (
     <div ref={boxRef} style={{ position: "relative", ...wrapStyle }}>
-      {label && <label style={fieldLabel}>{label}</label>}
+      {label && <label data-caption style={fieldLabel}>{label}</label>}
       <input
         value={value}
         onChange={(e) => onChange(cleanDigits(e.target.value))}
@@ -300,7 +300,7 @@ function AddNewModal({
           </Field>
           <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: "0 0 130px" }}>
-              <label style={fieldLabel}>Their sex</label>
+              <label data-caption style={fieldLabel}>Their sex</label>
               <select aria-label="Their sex" value={ownerSex} onChange={(e) => setOwnerSex(e.target.value)} style={{ ...inputSm, cursor: "pointer" }}>
                 <option value="">—</option>
                 <option>Male</option>
@@ -348,7 +348,7 @@ function IdentityFields({
   return (
     <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
       <div style={{ flex: "0 0 130px" }}>
-        <label style={fieldLabel}>Sex</label>
+        <label data-caption style={fieldLabel}>Sex</label>
         <select aria-label="Sex" value={sex} onChange={(e) => setSex(e.target.value)} style={{ ...inputSm, cursor: "pointer" }}>
           <option value="">—</option>
           <option>Male</option>
@@ -370,7 +370,7 @@ function IdentityFields({
         />
       </div>
       <div style={{ flex: "0 0 100px" }}>
-        <label style={fieldLabel}>Age</label>
+        <label data-caption style={fieldLabel}>Age</label>
         <input aria-label="Age"
           value={fromDob != null ? String(fromDob) : age}
           onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
@@ -416,7 +416,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ marginTop: 4 }}>
-      <label style={fieldLabel}>{label}</label>
+      <label data-caption style={fieldLabel}>{label}</label>
       {children}
     </div>
   );

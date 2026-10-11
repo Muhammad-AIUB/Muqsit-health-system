@@ -789,7 +789,7 @@ export default function InvestigationPopup() {
                     if (f.t === "dd") {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
-                          <label style={testLbl}>{f.l}</label>
+                          <label data-caption style={testLbl}>{f.l}</label>
                           <select aria-label={f.l} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             style={{ ...inp, padding: "6px 4px" }}>
                             <option value="">Select</option>
@@ -802,7 +802,7 @@ export default function InvestigationPopup() {
                     if (f.t === "text") {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
-                          <label style={testLbl}>{f.l}</label>
+                          <label data-caption style={testLbl}>{f.l}</label>
                           <input aria-label={f.l} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                             placeholder="Enter..." style={inp} />
@@ -858,7 +858,7 @@ export default function InvestigationPopup() {
                     // Single unit num field
                     return (
                       <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
-                        <label style={testLbl}><span>{f.l} {f.u1 && <span style={{ color: C.n[500] }}>({f.u1})</span>}</span></label>
+                        <label data-caption style={testLbl}><span>{f.l} {f.u1 && <span style={{ color: C.n[500] }}>({f.u1})</span>}</span></label>
                         <input value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                           placeholder={f.u1 || "Value"} style={inp} />

@@ -132,7 +132,7 @@ export default function LoginPage() {
 
           {/* Email or phone */}
           <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Email or phone</label>
+            <label data-caption style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Email or phone</label>
             <div style={fieldWrap("identifier")}>
               <Icon name="user" size={17} style={{ color: C.n[500] }} />
               <input
@@ -153,7 +153,7 @@ export default function LoginPage() {
 
           {/* Password */}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Password</label>
+            <label data-caption style={{ fontSize: 12, fontWeight: 500, color: C.n[800], display: "block", marginBottom: 7 }}>Password</label>
             <div style={fieldWrap("password")}>
               <Icon name="lock" size={17} style={{ color: C.n[500] }} />
               <input
