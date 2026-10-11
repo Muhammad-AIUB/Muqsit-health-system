@@ -68,7 +68,7 @@ export default function OpdView() {
       {showAdd && (
         <div className="form-row" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 10, rowGap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-            <div style={fieldLabel}>Patient name *</div>
+            <label style={fieldLabel}>Patient name *</label>
             <input aria-label="Patient name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, width: "100%" }} />
           </div>
           <PatientMobileLookup
@@ -89,13 +89,13 @@ export default function OpdView() {
             inputStyle={{ ...inp, width: "100%", boxSizing: "border-box" }}
           />
           <div style={{ flex: "0 0 70px" }}>
-            <div style={fieldLabel}>Age</div>
+            <label style={fieldLabel}>Age</label>
             <input aria-label="Age" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Years" style={{ ...inp, width: "100%" }} />
           </div>
           {/* Same words as the prescription header and Patient Settings, so one
               vocabulary reaches the queue instead of M/F alongside Male/Female. */}
           <div style={{ flex: "0 0 100px" }}>
-            <div style={fieldLabel}>Sex</div>
+            <label style={fieldLabel}>Sex</label>
           <select aria-label="Sex" value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inp, width: "100%" }}>
             <option value="">—</option>
             <option value="Male">Male</option>
@@ -104,7 +104,7 @@ export default function OpdView() {
           </select>
           </div>
           <div style={{ flex: "0 0 120px" }}>
-            <div style={fieldLabel}>Visit type</div>
+            <label style={fieldLabel}>Visit type</label>
           <select aria-label="Visit type" value={type} onChange={(e) => setType(e.target.value)} style={{ ...inp, width: "100%" }}>
             <option>New</option>
             <option>Follow-up</option>

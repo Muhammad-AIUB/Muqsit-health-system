@@ -301,7 +301,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
             <Vital label="Blood sugar level" placeholder="mmol/L" value={draft.bloodSugar ?? ""} onChange={(v) => setFu("bloodSugar", v)} />
           </div>
           <div style={{ marginTop: 10 }}>
-            <div style={vLbl}>Specific Note</div>
+            <label style={vLbl}>Specific Note</label>
             <textarea aria-label="Specific Note" value={draft.note ?? ""} onChange={(e) => setFu("note", e.target.value)} rows={2}
               style={{ width: "100%", boxSizing: "border-box", resize: "vertical", borderRadius: 6, border: `1px solid ${C.n[300]}`, padding: "8px 10px", fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", lineHeight: 1.5, background: C.n[0] }} />
           </div>
@@ -480,14 +480,14 @@ function HField({ label, value, children }: { label: string; value?: string | nu
 function Vital({ label, placeholder, value, onChange }: { label: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
   return (
     <div style={{ flex: "1 1 140px", minWidth: 120 }}>
-      <div style={vLbl}>{label}</div>
+      <label style={vLbl}>{label}</label>
       <input aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
         style={{ width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 6, border: `1px solid ${C.n[300]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", background: C.n[0] }} />
     </div>
   );
 }
 
-const vLbl: CSSProperties = { fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
+const vLbl: CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 3 };
 const hInp = (w: number): CSSProperties => ({ padding: "3px 6px", borderRadius: 5, border: `1px solid ${C.n[300]}`, fontSize: 12.5, fontFamily: font, color: C.n[900], outline: "none", width: w });
 const btnBack: CSSProperties = btnSecondary("sm");
 const btnSave: CSSProperties = { ...btnPrimary("md"), fontWeight: 600 };

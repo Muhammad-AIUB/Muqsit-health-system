@@ -135,7 +135,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
     color: active ? C.pri[600] : C.n[700], fontWeight: active ? 600 : 400,
   });
   const inp: React.CSSProperties = { padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.n[300]}`, fontSize: 12, outline: "none", fontFamily: font };
-  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 6 };
+  const lbl: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 6 };
 
   return (
     <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -172,7 +172,7 @@ export default function InvestigationDownload({ findings, onClose }: { findings:
 
         <div style={{ display: "flex", gap: 20, marginBottom: 18, flexWrap: "wrap" }}>
           <div>
-            <div style={lbl}>By category</div>
+            <label style={lbl}>By category</label>
             <select aria-label="By category" value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inp, cursor: "pointer", minWidth: 170 }}>
               <option value="all">All categories</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
