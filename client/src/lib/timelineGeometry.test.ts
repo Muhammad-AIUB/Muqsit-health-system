@@ -149,53 +149,158 @@ describe("isInRange", () => {
 // medicine's date.
 describe("ticksInPlot", () => {
   const tick = (x: number, label = "Jan 26", showLabel = true) => ({ x, label, showLabel });
+  const L = 150, R = 784, HALF = 14;
+  // Where a label is WRITTEN (lx), which at an edge is not where its line is.
+  const boxOf = (t: { lx: number; anchor: string }) => {
+    const from = t.anchor === "start" ? t.lx : t.anchor === "end" ? t.lx - 2 * HALF : t.lx - HALF;
+    return [from, from + 2 * HALF] as const;
+  };
+  const real = (lo: number, hi: number) => {
+    const r = { lo, hi };
+    return ticksInPlot(monthTicks(r, makeToX(r, L, R - L)), L, R);
+  };
+  /** As the chart draws it: the axis runs a little past its first and last reading. */
+  const charted = (first: number, last: number) => {
+    const r = computeTimeRange([first, last])!;
+    return ticksInPlot(monthTicks(r, makeToX(r, L, R - L)), L, R);
+  };
+  /** Positions, among the gridlines, of the ones that carry a label. */
+  const labelled = (placed: ReturnType<typeof ticksInPlot>) => {
+    const lines = placed.filter((t) => t.line);
+    return lines.map((t, i) => (t.showLabel ? i : -1)).filter((i) => i >= 0);
+  };
 
   it("keeps only the ticks that fall inside the plot", () => {
     const placed = ticksInPlot([tick(125), tick(150), tick(400), tick(784), tick(790)], 150, 784);
     expect(placed.map((t) => t.x)).toEqual([150, 400, 784]);
+    expect(placed.every((t) => t.line)).toBe(true);
   });
 
-  it("⚕️ the first month ON the plot is labelled, whatever the thinning had chosen before", () => {
-    // A long range: every third month was labelled, starting from the one that
-    // has just been dropped. The left of the axis must not be left bare.
-    const ticks = [tick(140, "Mar 26", true), tick(160, "Apr 26", false), tick(180, "May 26", false), tick(200, "Jun 26", true)];
+  it("the left of the axis is not left bare when the tick that carried the first label is dropped", () => {
+    // A long range: every other month was labelled, starting from the one that
+    // is now outside the plot.
+    const ticks = [tick(140, "Mar 26", true), tick(160, "Apr 26", false), tick(180, "May 26", false), tick(200, "Jun 26", true), tick(220, "Jul 26", false)];
     const placed = ticksInPlot(ticks, 150, 784);
-    expect(placed[0]).toMatchObject({ label: "Apr 26", showLabel: true });
+    expect(placed.slice(0, 2).some((t) => t.showLabel)).toBe(true);
   });
 
   it("keeps the labels it shows at least a label's width apart", () => {
-    const ticks = Array.from({ length: 40 }, (_, i) => tick(150 + i * 12, `M${i}`));
+    const ticks = Array.from({ length: 40 }, (_, i) => tick(150 + i * 12, "M" + i));
     const shown = ticksInPlot(ticks, 150, 784).filter((t) => t.showLabel);
     expect(shown.length).toBeGreaterThan(3);
     for (let i = 1; i < shown.length; i++) expect(shown[i].x - shown[i - 1].x).toBeGreaterThanOrEqual(34);
   });
 
   it("still returns every in-plot gridline — only the labels are thinned", () => {
-    const ticks = Array.from({ length: 40 }, (_, i) => tick(150 + i * 12, `M${i}`));
-    expect(ticksInPlot(ticks, 150, 784)).toHaveLength(40);
+    const ticks = Array.from({ length: 40 }, (_, i) => tick(150 + i * 12, "M" + i));
+    expect(ticksInPlot(ticks, 150, 784).filter((t) => t.line)).toHaveLength(40);
   });
 
-  it("sets a label inward when centring it would hang it outside the plot", () => {
+  it("sets a label inward when centring it would hang it outside the plot — no further than the plot's own edge", () => {
     const [left, mid, right] = ticksInPlot([tick(155), tick(400), tick(780)], 150, 784);
-    expect(left.anchor).toBe("start");
-    expect(mid.anchor).toBe("middle");
-    expect(right.anchor).toBe("end");
+    // Written from the edge, so it stays as near its own line as the plot allows.
+    expect(left).toMatchObject({ anchor: "start", lx: 150, x: 155 });
+    expect(mid).toMatchObject({ anchor: "middle", lx: 400, x: 400 });
+    expect(right).toMatchObject({ anchor: "end", lx: 784, x: 780 });
   });
 
-  it("for any real range, every label it shows lies wholly inside the plot", () => {
+  // Thinning the labels one by one, by the gap each happened to leave, gave an
+  // axis that read "May 25 · Jul 25 · Aug 25 … Feb 26 · Apr 26": a month is 28
+  // to 31 days wide, so some neighbours passed the gap and some did not. A
+  // doctor reads the SPACING of a time axis before its words.
+  it("⚕️ the labels keep ONE rhythm: every month, or every 2nd, or every 3rd — never a mix", () => {
+    // 16 months, about 36 units a month: every month has room for its name.
+    // June begins 11 units inside the plot, so its name is set inward — which
+    // used to cost July its own; and February is 2 units narrower than the gap
+    // the names were thinned by, which cost March its.
+    const placed = charted(at(2025, 6, 11), at(2026, 10, 12));
+    expect(placed.filter((t) => t.showLabel).map((t) => t.label)).toEqual([
+      "Jun 25", "Jul 25", "Aug 25", "Sep 25", "Oct 25", "Nov 25", "Dec 25", "Jan 26", "Feb 26",
+      "Mar 26", "Apr 26", "May 26", "Jun 26", "Jul 26", "Aug 26", "Sep 26", "Oct 26",
+    ]);
+    const idx = labelled(placed);
+    for (let i = 1; i < idx.length; i++) expect(idx[i] - idx[i - 1]).toBe(1);
+  });
+
+  it("⚕️ the same on a long axis, for any range: the labelled gridlines are evenly spaced", () => {
     fc.assert(
       fc.property(epoch, fc.integer({ min: 30, max: 3650 }), (lo, days) => {
-        const r = { lo, hi: lo + days * DAY };
-        const L = 150, R = 784, HALF = 14;
-        for (const t of ticksInPlot(monthTicks(r, makeToX(r, L, R - L)), L, R)) {
+        const idx = labelled(real(lo, lo + days * DAY));
+        const steps = idx.slice(1).map((v, i) => v - idx[i]);
+        expect(new Set(steps).size, JSON.stringify(idx)).toBeLessThanOrEqual(1);
+      }),
+    );
+  });
+
+  it("no two labels it shows ever overlap, and none hangs outside the plot", () => {
+    fc.assert(
+      fc.property(epoch, fc.integer({ min: 30, max: 3650 }), (lo, days) => {
+        const shown = real(lo, lo + days * DAY).filter((t) => t.showLabel);
+        for (const t of shown) {
+          const [from, to] = boxOf(t);
+          expect(from).toBeGreaterThanOrEqual(L);
+          expect(to).toBeLessThanOrEqual(R);
+        }
+        for (let i = 1; i < shown.length; i++) expect(boxOf(shown[i])[0]).toBeGreaterThanOrEqual(boxOf(shown[i - 1])[1]);
+      }),
+    );
+  });
+
+  it("for any real range, every gridline lies inside the plot", () => {
+    fc.assert(
+      fc.property(epoch, fc.integer({ min: 30, max: 3650 }), (lo, days) => {
+        for (const t of real(lo, lo + days * DAY)) {
           expect(t.x).toBeGreaterThanOrEqual(L);
           expect(t.x).toBeLessThanOrEqual(R);
-          if (!t.showLabel) continue;
-          const from = t.anchor === "start" ? t.x : t.anchor === "end" ? t.x - 2 * HALF : t.x - HALF;
-          expect(from).toBeGreaterThanOrEqual(L);
-          expect(from + 2 * HALF).toBeLessThanOrEqual(R);
         }
       }),
     );
+  });
+
+  // The month that is already under way where the plot begins has its first day
+  // to the LEFT of the plot, so it has no gridline — and, once labels outside
+  // the plot were no longer drawn, no name either. On a five-week axis that
+  // left September's readings standing beside the one word "Oct".
+  it("⚕️ a month already under way at the left edge is NAMED there", () => {
+    const placed = charted(at(2026, 9, 5), at(2026, 10, 10));
+    expect(placed.filter((t) => t.showLabel).map((t) => t.label)).toEqual(["Sep 26", "Oct 26"]);
+    const [sep, oct] = placed;
+    // A name at the edge and no line: the 1st of September is not on the plot.
+    expect(sep).toMatchObject({ label: "Sep 26", x: L, lx: L, anchor: "start", line: false, showLabel: true });
+    expect(oct).toMatchObject({ label: "Oct 26", line: true, showLabel: true });
+  });
+
+  it("…only where there is room for it before the next month's own line and name", () => {
+    // 29 September: October begins two days in — no room for both names.
+    const placed = real(at(2026, 9, 29), at(2026, 11, 10));
+    expect(placed.every((t) => t.line)).toBe(true);
+    expect(placed.filter((t) => t.showLabel).map((t) => t.label)).toEqual(["Oct 26", "Nov 26"]);
+    // September's name would stand where October's begins, so it is left off.
+    expect(placed[0]).toMatchObject({ label: "Oct 26", line: true, showLabel: true });
+  });
+
+  it("the name at the edge never reaches the first gridline or the name on it", () => {
+    fc.assert(
+      fc.property(epoch, fc.integer({ min: 30, max: 3650 }), (lo, days) => {
+        const placed = real(lo, lo + days * DAY);
+        const lead = placed.find((t) => !t.line);
+        if (!lead) return;
+        expect(placed.indexOf(lead)).toBe(0);
+        const firstLine = placed.find((t) => t.line);
+        const [, leadEnd] = boxOf(lead);
+        if (firstLine) expect(firstLine.x).toBeGreaterThan(leadEnd);
+        const firstShown = placed.find((t) => t.line && t.showLabel);
+        if (firstShown) expect(boxOf(firstShown)[0]).toBeGreaterThan(leadEnd);
+      }),
+    );
+  });
+
+  it("names the month under way even when no month begins on the plot at all", () => {
+    const placed = ticksInPlot([tick(100, "Sep 26")], 150, 784);
+    expect(placed).toEqual([{ label: "Sep 26", x: 150, lx: 150, showLabel: true, anchor: "start", line: false }]);
+  });
+
+  it("with nothing to place, places nothing", () => {
+    expect(ticksInPlot([], 150, 784)).toEqual([]);
   });
 });

@@ -54,7 +54,15 @@ export function monthTicks(range: TimeRange | null, toX: (t: number) => number):
   return raw.map((t, i) => ({ ...t, showLabel: i % stride === 0 }));
 }
 
-export interface PlacedTick extends MonthTick { anchor: "start" | "middle" | "end" }
+export interface PlacedTick extends MonthTick {
+  anchor: "start" | "middle" | "end";
+  /** Where the label is WRITTEN: on its line, or from the plot's edge when
+   *  centring it on a line that close to the edge would hang it outside. */
+  lx: number;
+  /** false: a name with no gridline — the month already under way where the
+   *  plot begins (its first day is to the left of the plot). */
+  line: boolean;
+}
 
 // The ticks a chart may actually DRAW, out of what `monthTicks` hands back.
 //
@@ -63,27 +71,52 @@ export interface PlacedTick extends MonthTick { anchor: "start" | "middle" | "en
 // plot. Drawn as given, its line and its label ran through whatever stands
 // beside the plot: on the health-trend chart, "Mar 26" under a medicine's name.
 //
-//  • Only ticks inside [left, right] are kept.
-//  • Labels are thinned again FROM THE FIRST TICK THAT IS KEPT, so dropping
-//    the one outside never leaves the start of the axis bare.
+//  • Only ticks inside [left, right] keep their line.
+//  • The labels keep ONE rhythm — every month, or every 2nd, or every 3rd —
+//    worked out again from the lines that are kept. Thinning them one at a
+//    time by the gap each happened to leave gave "Jun · Aug · Sep … Feb · Apr":
+//    a month is 28 to 31 days wide, so some neighbours passed and some did not,
+//    and a time axis is read by its spacing before its words.
 //  • A label is about 2 × `half` wide. Centred on a line within `half` of an
-//    edge it would hang outside the plot, so there it is set inward.
-//  • Two shown labels never touch: their boxes stay `minGap − 2 × half` apart,
-//    which for two centred labels is the same `minGap` between their lines
-//    that `monthTicks` uses.
+//    edge it would hang outside the plot, so there it is written from the edge
+//    itself — as near its own line as the plot allows.
+//  • If that pushes it into the next label, the edge one gives way and the
+//    rhythm starts one line later (at the right-hand edge: ends one earlier).
+//  • ⚕️ The month already under way at the left edge is NAMED there, with no
+//    line, when there is room before the next month's own line and name. Its
+//    first day is not on the plot, so it has no gridline — and without this a
+//    five-week axis showed September's readings beside the one word "Oct".
+const LABEL_SPACE = 3; // between two labels' boxes; an ordinary February leaves about this much
+
 export function ticksInPlot(ticks: MonthTick[], left: number, right: number, minGap = 34, half = 14): PlacedTick[] {
-  const out: PlacedTick[] = [];
-  const between = minGap - 2 * half;
-  let lastEnd = -Infinity;
+  const width = 2 * half;
+  const kept: PlacedTick[] = [];
+  let lead: MonthTick | null = null;
   for (const t of ticks) {
-    if (t.x < left || t.x > right) continue;
+    if (t.x < left) { lead = t; continue; }
+    if (t.x > right) continue;
     const anchor = t.x - half < left ? "start" : t.x + half > right ? "end" : "middle";
-    const from = anchor === "start" ? t.x : anchor === "end" ? t.x - 2 * half : t.x - half;
-    const showLabel = from >= lastEnd + between;
-    if (showLabel) lastEnd = from + 2 * half;
-    out.push({ ...t, showLabel, anchor });
+    kept.push({ ...t, showLabel: false, anchor, lx: anchor === "start" ? left : anchor === "end" ? right : t.x, line: true });
   }
-  return out;
+  const from = (t: PlacedTick) => (t.anchor === "start" ? t.lx : t.anchor === "end" ? t.lx - width : t.lx - half);
+  const clear = (a: PlacedTick, b: PlacedTick) => from(a) + width + LABEL_SPACE <= from(b);
+
+  let stride = 1;
+  if (kept.length > 1) {
+    const avgGap = (kept[kept.length - 1].x - kept[0].x) / (kept.length - 1);
+    stride = avgGap > 0 ? Math.max(1, Math.ceil(minGap / avgGap)) : 1;
+  }
+  let first = 0;
+  while (kept[first + stride] && kept[first].anchor === "start" && !clear(kept[first], kept[first + stride])) first++;
+  let last = -1;
+  for (let i = first; i < kept.length; i += stride) { kept[i].showLabel = true; last = i; }
+  if (last - stride >= first && kept[last].anchor === "end" && !clear(kept[last - stride], kept[last])) kept[last].showLabel = false;
+
+  const roomForLead = right - left >= width && (kept.length === 0 || kept[0].x - half >= left + width + LABEL_SPACE);
+  if (lead && roomForLead) {
+    kept.unshift({ label: lead.label, x: left, lx: left, showLabel: true, anchor: "start", line: false });
+  }
+  return kept;
 }
 
 export function isInRange(t: number, range: TimeRange | null): boolean {

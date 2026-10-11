@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { C } from "@/theme";
 import type { InvFinding } from "@/lib/investigationSummary";
 import { chartableParams, numericSeriesFor, type ChartableParam, type NumericPoint } from "@/lib/numericInvSeries";
@@ -9,6 +9,11 @@ import type { SymptomMentionRange } from "@/lib/symptomSummary";
 import { cellToDate, type DrugDateMap } from "@/lib/hmDates";
 import { isImplausibleDate, YEAR_POLICY, ddmmyyyyMsStrict } from "@/lib/dateInput";
 import { computeTimeRange, makeToX, monthTicks, ticksInPlot, isInRange } from "@/lib/timelineGeometry";
+import { nameLines } from "@/lib/timelineLabel";
+
+// A layout effect where there is a layout to read; on the server (where React
+// warns about one) an ordinary effect, which never runs there anyway.
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 interface Props {
   investigationSummary: InvFinding[];
@@ -230,7 +235,9 @@ export default function HealthTrendsChart({
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [wrapW, setWrapW] = useState(0);
-  useEffect(() => {
+  // Before the paint, not after it: measured afterwards, a phone showed the
+  // chart shrunk for one frame every time the tab was opened.
+  useIsoLayoutEffect(() => {
     if (!wrapEl) return;
     const read = () => setWrapW(wrapEl.clientWidth);
     read();
@@ -387,16 +394,40 @@ export default function HealthTrendsChart({
   const narrow = wrapW > 0 && wrapW < NARROW_BELOW;
   const namesPx = narrow ? Math.round(Math.min(LW * NARROW_K, Math.max(96, wrapW * 0.36))) : 0;
   const namesUnits = narrow ? namesPx / NARROW_K : LW;
-  // A name is set from the strip's LEFT edge when narrow, so when it is too
-  // long it is the end that gives way — never the start, which is what says
-  // which medicine or which test it is. ~5.4 units a character at size 10.
+  // A name is set from the strip's LEFT edge when narrow. ~5.4 units a
+  // character at size 10.
   const nameX = narrow ? LW - namesUnits + 6 : LW - 8;
   const nameAnchor = narrow ? "start" : "end";
   const nameChars = (cap: number) => (narrow ? Math.max(8, Math.min(cap, Math.floor((namesUnits - 12) / 5.4))) : cap);
   const cut = (s: string, cap: number) => { const n = nameChars(cap); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+  // The name beside a lane or a bar; `y` is where its one line has always been
+  // written. Wide: that one line, cut at `cap` — unchanged.
+  //
+  // ⚕️ Narrow: the strip holds 12 to 15 characters, and a medicine's label
+  // STARTS with its dosage form — cut at its end, "Tablet. Entaliv 0.5 mg" and
+  // "Tablet. Entaliv 1 mg" were both "Tablet. Enta…", two bars under one name.
+  // So a name that does not fit takes two lines there (`nameLines`): the form
+  // above, quiet, and the brand with its strength under it, whole.
+  const drawName = (name: string, cap: number, kind: "drug" | "text", y: number, fill: string, bold: boolean) => {
+    const line = (text: string, at: number, size: number, color: string) => (
+      <text x={nameX} y={at} textAnchor={nameAnchor} fontSize={size} fontWeight={bold ? 600 : undefined} fill={color}>
+        {text}
+      </text>
+    );
+    if (!narrow) return line(cut(name, cap), y, 10, fill);
+    const lines = nameLines(name, nameChars(cap), kind);
+    if (lines.length < 2) return line(lines[0]?.text ?? "", y, 10, fill);
+    return (
+      <>
+        {line(lines[0].text, y - 6, lines[0].quiet ? 9 : 10, lines[0].quiet ? C.n[500] : fill)}
+        {line(lines[1].text, y + 5, 10, fill)}
+      </>
+    );
+  };
   // The plot opens on the NEWEST readings: they are at the right-hand end, and
-  // they are what is read first. Again whenever what is plotted changes.
-  useEffect(() => {
+  // they are what is read first. Again whenever what is plotted changes. Before
+  // the paint, so it is never seen standing at its oldest end first.
+  useIsoLayoutEffect(() => {
     if (narrow && scrollEl) scrollEl.scrollLeft = scrollEl.scrollWidth;
   }, [narrow, scrollEl, windowKey, lanes.length, tracks.length]);
   const hasPlot = lanes.length > 0;
@@ -434,11 +465,12 @@ export default function HealthTrendsChart({
   // exactly the half-cut number the labelling work was meant to rule out.
   const labelHalfW = (s: string) => Math.max(12, s.length * 2.3);
   const toX = makeToX(range, LW, areaW);
-  // Only the months that fall INSIDE the plot, their labels set inward at its
-  // two edges (`ticksInPlot`). The first month on the axis starts before the
-  // first reading, so its line and label were drawn to the left of the plot,
-  // through the column of names: "Mar 26" stood under a medicine's name as if
-  // it were that medicine's date.
+  // Only the months that fall INSIDE the plot, their labels in one rhythm and
+  // set inward at its two edges (`ticksInPlot`). The first month on the axis
+  // starts before the first reading, so its line and label were drawn to the
+  // left of the plot, through the column of names: "Mar 26" stood under a
+  // medicine's name as if it were that medicine's date. It is NAMED at the
+  // plot's left edge instead, with no line, when there is room.
   const months = ticksInPlot(monthTicks(range, toX), PLOT_L, PLOT_R);
   const todayInRange = isInRange(today.getTime(), range);
 
@@ -730,8 +762,8 @@ export default function HealthTrendsChart({
               <>
             {months.map((m, i) => (
               <g key={i}>
-                <line x1={m.x} y1={PLOT_TOP} x2={m.x} y2={bodyBottom} stroke={C.n[200]} strokeWidth={0.5} />
-                {m.showLabel && <text x={m.x} y={chartH - PB + 14} textAnchor={m.anchor} fontSize={9} fill={C.n[500]}>{m.label}</text>}
+                {m.line && <line x1={m.x} y1={PLOT_TOP} x2={m.x} y2={bodyBottom} stroke={C.n[200]} strokeWidth={0.5} />}
+                {m.showLabel && <text x={m.lx} y={chartH - PB + 14} textAnchor={m.anchor} fontSize={9} fill={C.n[500]}>{m.label}</text>}
               </g>
             ))}
             <line x1={LW} y1={bodyBottom} x2={SVG_W - PR} y2={bodyBottom} stroke={C.n[300]} strokeWidth={0.5} />
@@ -758,7 +790,6 @@ export default function HealthTrendsChart({
             {lanes.map(({ param, points, allPoints }, si) => {
               const color = colorFor(param);
               const laneTop = laneTops[si];
-              const shortLabel = cut(param.label, 22);
 
               // Ticked, but nothing recorded inside this window. Say so on the
               // lane instead of dropping it — a missing lane reads as "never
@@ -767,9 +798,7 @@ export default function HealthTrendsChart({
                 const last = allPoints[allPoints.length - 1];
                 return (
                   <g key={paramKey(param)}>
-                    <text x={nameX} y={laneTop + EMPTY_LANE_H / 2 + 3} textAnchor={nameAnchor} fontSize={10} fontWeight={600} fill={C.n[500]}>
-                      {shortLabel}
-                    </text>
+                    {drawName(param.label, 22, "text", laneTop + EMPTY_LANE_H / 2 + 3, C.n[500], true)}
                     <text x={LW + 8} y={laneTop + EMPTY_LANE_H / 2 + 3} fontSize={9} fill={C.n[500]}>
                       {last
                         ? `No reading in this window · last was ${last.label.length > 28 ? last.label.slice(0, 27) + "…" : last.label} on ${last.date}`
@@ -828,9 +857,7 @@ export default function HealthTrendsChart({
                       </g>
                     );
                   })}
-                  <text x={nameX} y={laneTop + LANE_H / 2 + 3} textAnchor={nameAnchor} fontSize={10} fontWeight={600} fill={color}>
-                    {shortLabel}
-                  </text>
+                  {drawName(param.label, 22, "text", laneTop + LANE_H / 2 + 3, color, true)}
                 </g>
               );
             })}
@@ -863,9 +890,7 @@ export default function HealthTrendsChart({
               return (
                 <g key={`${t.kind}-${t.name}`}>
                   {idx % 2 === 0 && <rect x={LW} y={GANTT_TOP + idx * RH} width={areaW} height={RH} fill={C.n[50]} />}
-                  <text x={nameX} y={cy + 4} textAnchor={nameAnchor} fontSize={10} fill={C.n[700]}>
-                    {cut(t.name, 20)}
-                  </text>
+                  {drawName(t.name, 20, t.kind === "drug" ? "drug" : "text", cy + 4, C.n[700], false)}
                   <title>{tip}</title>
                   {singleDate ? (
                     <circle
