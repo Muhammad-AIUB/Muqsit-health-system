@@ -43,12 +43,35 @@ describe("nameLines — a medicine", () => {
 
   it("on the narrowest phones the strength still shows: the name takes both lines and the form is left off, marked", () => {
     // 13 characters: "Entaliv 0.5 mg" is 14.
-    expect(texts("Tablet. Entaliv 0.5 mg", 13)).toEqual(["…Entaliv 0.5", "mg"]);
+    expect(texts("Tablet. Entaliv 0.5 mg", 13)).toEqual(["…Entaliv", "0.5 mg"]);
     expect(texts("Tablet. Entaliv 1 mg", 13)).toEqual(["Tablet.", "Entaliv 1 mg"]);
   });
 
   it("a name too long even for a line of its own is cut at its end, and its strength keeps the second line", () => {
     expect(texts("Tablet. Sofosbuvir+Velpatasvir 400 mg/100 mg", 15)).toEqual(["…Sofosbuvir+Ve…", "400 mg/100 mg"]);
+  });
+
+  // What tells two bars of one medicine apart is the STRENGTH, and it is at the
+  // end — the part a cut takes first.
+  it("⚕️ when the name is too long for the column it is the NAME that is cut; the strength stays whole", () => {
+    expect(texts("Tablet. Amlodipine + Olmesartan 5 mg + 20 mg", 15)).toEqual(["…Amlodipine +…", "5 mg + 20 mg"]);
+    expect(texts("Tablet. Amlodipine + Olmesartan 5 mg + 40 mg", 15)).toEqual(["…Amlodipine +…", "5 mg + 40 mg"]);
+    // …the same for one typed by hand, with no form in front of it.
+    expect(texts("Amlodipine + Olmesartan 5 mg + 20 mg", 15)).toEqual(["Amlodipine + O…", "5 mg + 20 mg"]);
+    expect(texts("Amlodipine + Olmesartan 5 mg + 40 mg", 15)).toEqual(["Amlodipine + O…", "5 mg + 40 mg"]);
+  });
+
+  // Not every word with a full stop after it is a dosage form. Set aside as
+  // one, "Pot." and "Sod." were both left off behind a "…".
+  it("⚕️ a first word that is not a dosage form is part of the name — potassium is not sodium", () => {
+    expect(texts("Pot. chloride 600 mg SR", 15)).toEqual(["Pot. chloride", "600 mg SR"]);
+    expect(texts("Sod. chloride 600 mg tab", 15)).toEqual(["Sod. chloride", "600 mg tab"]);
+    expect(nameLines("Pot. chloride 600 mg", 15, "drug").some((l) => l.quiet)).toBe(false);
+  });
+
+  it("a dosage form of several words is still a dosage form", () => {
+    expect(texts("SC Injection. Clexane 40 mg", 15)).toEqual(["SC Injection.", "Clexane 40 mg"]);
+    expect(texts("Eye Drops. Optimol 0.5%", 15)).toEqual(["Eye Drops.", "Optimol 0.5%"]);
   });
 
   it("a medicine typed by hand, with no form to set aside, wraps at a word", () => {
@@ -118,6 +141,20 @@ describe("nameLines — for any name", () => {
         // Compared without spaces: a line break stands where a space did (or,
         // in "Tab.Napa", where there was none).
         expect(lines.map((l) => l.text).join("").replace(/\s+/g, "")).toBe(name.replace(/\s+/g, ""));
+      }),
+    );
+  });
+
+  it("⚕️ a medicine's strength is never cut while it fits a line of its own — whatever the name in front of it", () => {
+    const form = fc.constantFrom("", "Tablet. ", "Capsule (Enteric Coated). ", "Pot. ", "IV Infusion. ");
+    const brand = fc.array(fc.stringMatching(/^[A-Z][a-z]{2,11}$/), { minLength: 1, maxLength: 4 }).map((ws) => ws.join(" + "));
+    const strength = fc.constantFrom("5 mg", "0.5 mg", "500 mg", "5 mg + 20 mg", "400 mg/100 mg", "1 gm");
+    fc.assert(
+      fc.property(form, brand, strength, fc.integer({ min: 13, max: 22 }), (f, b, s, max) => {
+        const label = `${f}${b} ${s}`;
+        fc.pre(splitDrugLabel(label).after.trim() === s);
+        const lines = nameLines(label, max, "drug").map((l) => l.text);
+        expect(lines.join(" "), `${label} @${max}`).toContain(s);
       }),
     );
   });

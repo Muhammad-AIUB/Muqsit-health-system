@@ -15,10 +15,20 @@ import { splitDrugLabel } from "./rxShorthand";
 // So a name that does not fit is set on TWO lines (a bar's row has the height
 // for them), and it is the dosage form that gives way:
 //   • form above, quiet; brand + strength below, whole — whenever they fit;
-//   • a brand + strength too long for one line takes both lines, and the form
-//     is left off with a mark (…) where it stood;
-//   • anything else — a symptom, a test's name, a medicine typed by hand with
-//     no form to set aside — wraps at a word, and only its END is cut.
+//   • a brand + strength too long for one line: the form is left off with a
+//     mark (…) where it stood, the brand takes the first line — cut at its end
+//     if it must be — and the STRENGTH keeps the second, whole. Two strengths
+//     of "Amlodipine + Olmesartan" differ in their last few characters, which
+//     is exactly what a cut at the end would take;
+//   • anything else — a symptom, a test's name — wraps at a word, and only its
+//     END is cut.
+//
+// ⚕️ Only a KNOWN dosage form is set aside. `splitDrugLabel` reads any short
+// word with a full stop after it as a form — right for bolding a printed name,
+// wrong for deciding what may be left off: "Pot. chloride 600 mg SR" and
+// "Sod. chloride 600 mg tab" both came out "…chloride 600" (caught in the
+// second review, before release). A first word that is not a dosage form is
+// part of the name and stays in front of it.
 //
 // DISPLAY ONLY, and it only ever takes away: every line is a piece of the name
 // as it was written, in the order it was written, and a "…" stands wherever
@@ -32,6 +42,14 @@ export interface NameLine {
 }
 
 const cutEnd = (s: string, max: number) => (s.length > max ? s.slice(0, Math.max(1, max - 1)).trimEnd() + "…" : s);
+
+// The dosage-form words the app already knows (FORM_RE in lib/rxShorthand.ts —
+// repeated here rather than exported from a module the printed sheet depends
+// on). Anywhere in the head, so "SC Injection." and "Capsule (Enteric Coated)."
+// count; a head with none of them ("Pot.", "IV Infusion.") is simply not set
+// aside, and wraps with the rest of the name.
+const FORM_WORD =
+  /\b(?:tab|tablet|cap|capsule|syp|syr|syrup|inj|injection|susp|suspension|sol|solution|drop|drops|oint|ointment|cream|gel|lotion|spray|supp|suppository|inhaler|powder|sachet)\b/i;
 
 // Whole words on the first line; whatever is left on the second, cut at its end.
 function wrapTwo(text: string, max: number): NameLine[] {
@@ -54,14 +72,22 @@ export function nameLines(name: string, max: number, kind: "drug" | "text"): Nam
   const text = name.trim();
   if (!text) return [];
   if (text.length <= max) return [{ text }];
-  if (kind === "drug") {
-    const { before, name: brand, after } = splitDrugLabel(text);
-    const form = before.trim();
+  if (kind !== "drug") return wrapTwo(text, max);
+
+  const { before, name: brand, after } = splitDrugLabel(text);
+  if (!brand) return wrapTwo(text, max);
+  const strength = after.trim();
+  const form = before.trim();
+  const setAside = form !== "" && FORM_WORD.test(form);
+  if (setAside) {
     const rest = (brand + after).trim();
-    if (form && brand) {
-      if (rest.length <= max) return [{ text: cutEnd(form, max), quiet: true }, { text: rest }];
-      return wrapTwo("…" + rest, max);
-    }
+    if (rest.length <= max) return [{ text: cutEnd(form, max), quiet: true }, { text: rest }];
+    if (strength && strength.length <= max) return [{ text: cutEnd("…" + brand, max) }, { text: strength }];
+    return wrapTwo("…" + rest, max);
   }
-  return wrapTwo(text, max);
+  // No dosage form to set aside: the whole of it is the name.
+  const plain = wrapTwo(text, max);
+  const whole = !plain.some((l) => l.text.includes("…"));
+  if (whole || !strength || strength.length > max) return plain;
+  return [{ text: cutEnd((before + brand).trim(), max) }, { text: strength }];
 }
