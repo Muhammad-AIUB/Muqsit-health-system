@@ -42,7 +42,9 @@ const clampScale = (s: number) => Math.min(Math.max(s, MIN_SCALE), MAX_SCALE);
 // half-way up, the two arrows sat ON the sheet — a white disc over each margin
 // of a handwritten page. There they come down beside the bar, the picture
 // takes the full width, and the bar loses its hint (it was wider than the
-// screen with it, and keys and a wheel are not what a phone has).
+// screen with it, and keys and a wheel are not what a phone has). On the
+// narrowest phones (320px) the arrows and the bar still met, so there the
+// arrows are a size smaller and the bar closes up.
 //
 // A scoped block because inline styles cannot hold a media query; the classes
 // carry `!important` only where they have to beat an inline value.
@@ -53,6 +55,11 @@ const LIGHTBOX_CSS = `
   .lb-img { max-width: 100%; }
   .lb-arrow { top: auto !important; bottom: 18px; transform: none !important; width: 40px !important; height: 40px !important; }
   .lb-hint { display: none; }
+}
+@media (max-width: 340px) {
+  .lb-arrow { width: 34px !important; height: 34px !important; }
+  .lb-bar { gap: 6px !important; padding: 5px 8px !important; }
+  .lb-sep { display: none; }
 }`;
 
 export default function ImageLightbox({
@@ -261,6 +268,7 @@ export default function ImageLightbox({
           tells them both where they are in the pages and how far in they are. */}
       <div
         onClick={(e) => e.stopPropagation()}
+        className="lb-bar"
         style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 10, color: "#fff", fontSize: 13, background: "rgba(0,0,0,0.55)", padding: "5px 12px", borderRadius: 999, zIndex: 2001, maxWidth: "calc(100% - 24px)" }}
       >
         <button onClick={() => zoomTo(scale / STEP)} disabled={scale <= MIN_SCALE} title="Zoom out (−)" aria-label="Zoom out" style={zoomBtn(scale <= MIN_SCALE)}>−</button>
@@ -268,7 +276,7 @@ export default function ImageLightbox({
           {Math.round(scale * 100)}%
         </button>
         <button onClick={() => zoomTo(scale * STEP)} disabled={scale >= MAX_SCALE} title="Zoom in (+)" aria-label="Zoom in" style={zoomBtn(scale >= MAX_SCALE)}>＋</button>
-        <span style={{ opacity: 0.55 }}>|</span>
+        <span className="lb-sep" style={{ opacity: 0.55 }}>|</span>
         <span style={{ whiteSpace: "nowrap" }}>
           {clamped + 1} / {urls.length}<span className="lb-hint"> · {zoomed ? "drag to move · double-click to fit" : "← → keys · scroll or double-click to zoom"}</span>
         </span>

@@ -315,6 +315,20 @@ fieldset.read-form:disabled button {
   }
 }
 
+/* ── The phone's bottom bar on the narrowest phones (320px) ───────
+   Six places in 286px of page: at their usual size the labels need 280, and
+   "Supervised" stood against "Research" with nothing between them. The lit
+   pill behind each icon gives up 8px and the labels half a point, which puts
+   about 4px back between every two. */
+@media (max-width: 340px) {
+  .mnav-pill {
+    width: 36px !important;
+  }
+  .mnav-label {
+    font-size: 10px !important;
+  }
+}
+
 .mobile-shell-fill {
   height: calc(100vh / 1.12);
   height: calc(100dvh / 1.12);

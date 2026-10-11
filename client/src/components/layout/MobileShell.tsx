@@ -69,8 +69,8 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
             // spare room out as equal gaps BETWEEN the labels instead.
             return (
               <button key={t.id} type="button" onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} aria-current={active ? "page" : undefined} style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: 48, padding: 0, border: "none", background: "none", fontFamily: "inherit", cursor: t.disabled ? "not-allowed" : "pointer", color: t.disabled ? C.n[400] : active ? C.pri[600] : C.n[600] }}>
-                <span style={{ width: 44, height: 24, borderRadius: 12, background: active ? C.pri[50] : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}><TabIcon id={t.id === "settings" ? "more" : t.id} size={18} /></span>
-                <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 500, whiteSpace: "nowrap" }}>{t.label}</span>
+                <span className="mnav-pill" style={{ width: 44, height: 24, borderRadius: 12, background: active ? C.pri[50] : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}><TabIcon id={t.id === "settings" ? "more" : t.id} size={18} /></span>
+                <span className="mnav-label" style={{ fontSize: 10.5, fontWeight: active ? 600 : 500, whiteSpace: "nowrap" }}>{t.label}</span>
               </button>
             );
           })}
