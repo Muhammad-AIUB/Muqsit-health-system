@@ -123,8 +123,26 @@ CLAUDE.md section before picking one up.
   (`e2e/tests/print-sheet.spec.ts`). Also put right: the month names on the
   chart keep one rhythm and the month under way at the left edge is named;
   Escape with the month list open closes the list from the month's name too;
-  the Investigation popup's number boxes have names; and "Added results" no
-  longer shows `1,500` as `1, 500`.
+  every result box in the Investigation popup has a name; and "Added
+  results" no longer shows a calculator's `1,500` as `1, 500`.
+- [x] **The fixes were reviewed again, 2026-10-12 — and two of them were not
+  right yet.** (1) The first "Added results" fix kept together whatever
+  looked like a grouped number, and so fused two parts into one: ETT's
+  `METs:10` beside a report beginning `150 bpm` read `METs:10,150 bpm`. It
+  now asks the catalog which values can only be one part (a calculator's
+  sentence, a one-box test, free text) and shows the rest as before; a test
+  over every multi-box test in the catalog holds that no two parts are
+  shown without a space. (2) Escape with the month list open still closed
+  the popup from a result box; it closes the list from anywhere now. Also:
+  on a phone's chart a first word that is not a dosage form (`Pot.`,
+  `Sod.`) stays part of the name and a long name is cut before its strength
+  is; `useDialog` takes "do not give the focus back" when the popup opens;
+  the result boxes' names start with the words on screen; and the worst
+  case of the print-sheet fix — saved from the keyboard, Enter HELD on
+  Close — is run in a real browser (with the fix taken out, the held key
+  presses Save & print again and the sheet comes back up). Of the
+  catalog's 926 tests, 75 are calculators and 794 have one box — those are
+  shown as stored; 57 have several boxes and are shown as before.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -157,10 +175,18 @@ CLAUDE.md section before picking one up.
   chart still cuts a name at 20 characters, so a long dosage form hides the
   brand (`Capsule (Enteric Co…`) — the phone's two-line rule would fix it and
   changes the look of the chart, so it waits for the physician; with the
-  keyboard inside the print sheet nothing is drawn to say so; and 46 boxes
+  keyboard inside the print sheet nothing is drawn to say so; 46 boxes
   in 18 files have no name a screen reader can say (20 not even a
   placeholder: the calculators' inputs, most of Profile settings, the
-  sign-in page).
+  sign-in page; counted before the Investigation popup's were named);
+  **DEFECT-INV-GROUPED** — in a test with several boxes a number typed
+  with its groups (`WBC:12,000`) is still set apart at its commas in the
+  "Added results" panel (`findingParts.test.ts`, `it.fails`; the record,
+  the sidebar and the print are right) — closing it needs the parts
+  stored apart; after a FAILED Save & print the keyboard's place is not
+  put back on the button (it ends on the page, as it does today in
+  production); and the phone layout's print sheet takes the same
+  `afterSave` but has not been run on a phone-sized browser.
 - [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
   2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a
