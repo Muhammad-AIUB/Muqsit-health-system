@@ -81,16 +81,14 @@ CLAUDE.md section before picking one up.
   The physician was told and has not yet said whether names should be capitals
   again. If so: on the name only, never on the unit (`docs/DOMAIN.md`, "A unit
   is shown as it is written").
-- [ ] **Left open by the 2026-10-05/06 design pass** (engineering, not product):
-  four older popups — the image viewer, the print sheet, special advice and the
-  personal note — close on Escape by themselves but are not on `useDialog`, so
-  they do not hold Tab or return the focus (every other popup does since
-  2026-10-06); the Investigation calendar's day cells have no keyboard route
-  (the date box above them does); a `<label>` names its field but is not linked
-  with `htmlFor`, so clicking it does not focus the field; the health-trend
-  chart's SVG axis text is still 8-10px. (The admin console was looked at from
-  the inside on 2026-10-09 and its browser `confirm()` / `alert()` boxes are
-  gone — `admin/CLAUDE.md`.)
+- [x] **Left open by the 2026-10-05/06 design pass — all closed 2026-10-12.** The
+  four older popups (image viewer, print sheet, special advice, personal note)
+  are on `useDialog`; the Investigation calendar is one Tab stop with arrow
+  keys; pressing a caption puts the cursor in its box (`lib/captionFocus.ts`);
+  the health-trend chart keeps its size on a narrow screen instead of
+  shrinking to 5px text. (The admin console was looked at from the inside on
+  2026-10-09 and its browser `confirm()` / `alert()` boxes are gone —
+  `admin/CLAUDE.md`.)
 - [ ] **Calculator results follow the browser's language (found 2026-10-09,
   not changed).** Five calculators write a result with `toLocaleString()` —
   `ANC 1,500 cells/µL`, blood volume, CCI, iron deficit, plasma dose. In a
@@ -99,13 +97,18 @@ CLAUDE.md section before picking one up.
   the same day (`client/src/lib/stamp.ts`); a clinical NUMBER was left alone
   because how it is grouped is the physician's call: `1,500`, `1500` or
   `1,50,000`-style. Say which and it is a one-line change per calculator.
-- [ ] **Left open by the 2026-10-09 design pass** (engineering, not product):
-  on a phone the patient list is reached through More, not from a place of
-  its own on the bottom bar — whether it deserves the place "Research" holds
-  while that is switched off is a product call; on a 320px-wide phone the
-  image viewer's arrows touch its zoom bar; a few popups still carry
-  `80vh`-`88vh` limits, which the page zoom brings to 90-99% of the screen —
-  inside it, so they were left.
+- [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
+  product, the rest engineering): on a phone the patient list is reached
+  through More, not from a place of its own on the bottom bar — whether it
+  deserves the place "Research" holds while that is switched off is a product
+  call; a few popups still carry `80vh`-`88vh` limits, which the page zoom
+  brings to 90-99% of the screen — inside it, so they were left; on a touch
+  screen a point on the health-trend chart cannot show its exact date (it is a
+  hover tooltip, and the line under the chart still says "hover"); about 24
+  one-off controls keep hand-written styles (round × and ! buttons, the
+  calendar's steppers, the print sheet's two buttons, the sign-in button) —
+  none is an action button, and each is listed in FINDING-048's commit. The
+  320px item is closed (FINDING-046).
 - [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
   2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a

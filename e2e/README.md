@@ -58,6 +58,15 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
   again at `:3000` afterwards.
 - `next dev` with `NEXT_DIST_DIR=.next-e2e` rewrites `client/tsconfig.json`.
   Stop the server, then `git checkout -- client/tsconfig.json`. Never commit it.
+- **The sandbox API stores uploads for real** — into `server/uploads/` on this
+  machine (`ALLOW_LOCALHOST_UPLOAD_URLS` in `server/test/support/env.ts`); the
+  `503` above is the Playwright guard's, not the API's. A hand-run "Save &
+  print" files its snapshot there, and its URL names port 4100, so the tile
+  never loads. Afterwards remove what it wrote:
+  `find server/uploads -type f -newermt "<today> 00:00"` lists it. To look at
+  a gallery or the image viewer without writing anything, put a
+  `data:image/svg+xml;base64,…` URL into the made-up patient's `reportImages`
+  with `docker exec -i muqsit-testdb psql -U test -d muqsit_e2e_test`.
 - **Close your sandbox tab before running the suite.** The suite re-seeds the
   database, so a tab left open at `:3100` loses its session and keeps asking
   the same dev server for pages while the tests need it. Seen 2026-10-06: one
