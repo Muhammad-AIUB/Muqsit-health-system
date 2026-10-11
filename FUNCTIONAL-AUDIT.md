@@ -75,12 +75,17 @@ CLAUDE.md section before picking one up.
   that patient were all cleared. Remove the two drugs from Drug history when they
   are no longer wanted.
 
-- [ ] **Lab test names without forced capitals (design pass, 2026-10-05).** The
-  units had to change — capitals turned `g/dL` into `G/DL` and `µL` into `ΜL` —
-  and the test names lost their capitals in the same edit (`RBC (million/uL)`).
-  The physician was told and has not yet said whether names should be capitals
-  again. If so: on the name only, never on the unit (`docs/DOMAIN.md`, "A unit
-  is shown as it is written").
+- [x] **Lab test names stay as the catalog writes them (settled 2026-10-12).**
+  Capitals had turned `g/dL` into `G/DL` and `µL` into `ΜL`, so the forced
+  capitals came off on 2026-10-05, names and units together. The question
+  left for the physician was whether the NAMES should be capitals again;
+  asked three times and handed back as an engineering call, it is closed the
+  safe way: they stay as written, because in the catalog a name's case is
+  part of the name. Forced to capitals `eGFR` (kidney function) reads `EGFR`,
+  which is a different test; `HbA1c` reads `HBA1C` and `HBsAg` reads `HBSAG`.
+  If the physician wants a particular name in capitals, it is written that way
+  in `client/src/data/investigations.ts` — one name, on purpose — never by a
+  style rule over all of them.
 - [x] **Left open by the 2026-10-05/06 design pass — all closed 2026-10-12.** The
   four older popups (image viewer, print sheet, special advice, personal note)
   are on `useDialog`; the Investigation calendar is one Tab stop with arrow
@@ -89,14 +94,16 @@ CLAUDE.md section before picking one up.
   shrinking to 5px text. (The admin console was looked at from the inside on
   2026-10-09 and its browser `confirm()` / `alert()` boxes are gone —
   `admin/CLAUDE.md`.)
-- [ ] **Calculator results follow the browser's language (found 2026-10-09,
-  not changed).** Five calculators write a result with `toLocaleString()` —
-  `ANC 1,500 cells/µL`, blood volume, CCI, iron deficit, plasma dose. In a
-  browser set to German that reads `1.500`, in one set to Bangla the digits
-  and the grouping change. Timestamps were taken off the browser's formatter
-  the same day (`client/src/lib/stamp.ts`); a clinical NUMBER was left alone
-  because how it is grouped is the physician's call: `1,500`, `1500` or
-  `1,50,000`-style. Say which and it is a one-line change per calculator.
+- [x] **Calculator results followed the browser's language — fixed 2026-10-12.**
+  Five calculators wrote a result with `toLocaleString()` and no locale:
+  `ANC 1,500 cells/µL` in an English browser was `1.500` in a German one (one
+  and a half, to an English reader) and `১,৫০০` in a Bangla one. They name the
+  locale now (`grouped()` in `client/src/lib/calculators/format.ts`), so every
+  browser shows what an English one always has. No format was chosen — the
+  text the results were written, checked and used with is simply the only
+  one left; for an English-language browser nothing changed. If the physician
+  ever wants another grouping (`1500`, or lakh-style `1,50,000` for the large
+  counts), it is one line in that file.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
