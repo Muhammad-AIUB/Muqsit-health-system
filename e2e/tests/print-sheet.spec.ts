@@ -1,7 +1,7 @@
 import {
   API_URL, DIAGNOSIS, NAPA, addFieldLine, addMedicine, apiPatientsByMobile, apiPrescriptions,
   createPatient, expect, login, printDialog, printFrame, saveAndOpenSheet, saveAndPrint,
-  settle, test, uniqueMobile,
+  settle, test, uniqueMobile, waitForSheet,
 } from './helpers';
 import type { Page } from '@playwright/test';
 
@@ -152,6 +152,43 @@ test.describe('the print sheet and the keyboard', () => {
     await expect(printDialog(page)).toBeHidden();
 
     expect(saves).toHaveLength(1);
+    await expectOneRow(page, mobile);
+  });
+
+  test('saved and closed from the keyboard, with Enter held down on Close: still one row', async ({ page }) => {
+    // The case the focus rule exists for. Enter on a button presses it on the
+    // way DOWN, and a held key repeats: with the focus handed back to "Save &
+    // print" as the sheet closed, the repeats pressed it again and again.
+    await login(page, 'sheetEnter');
+    const mobile = await writeVisit(page, 'Sheet Enter Patient');
+    const saves = countSaves(page);
+
+    await saveAndPrint(page).focus();
+    await page.keyboard.press('Enter');
+    await waitForSheet(page);
+    expect(saves).toHaveLength(1);
+
+    // The sheet has the keyboard: Tab to Print, Tab to Close.
+    await page.keyboard.press('Tab');
+    await expect(printButton(page)).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(closeButton(page)).toBeFocused();
+
+    // Held: one press, then the repeats a held key sends.
+    await page.keyboard.down('Enter');
+    for (let i = 0; i < 6; i++) await page.keyboard.down('Enter');
+    await page.keyboard.up('Enter');
+    await expect(printDialog(page)).toBeHidden();
+    await expect(saveAndPrint(page)).toBeEnabled();
+    await expect(saveAndPrint(page)).not.toBeFocused();
+
+    // …and a moment later, a few more for good measure.
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Space');
+    await settle(page);
+    await expect(printDialog(page)).toBeHidden();
+
+    expect(saves, 'POST /prescriptions after Enter was held on Close').toHaveLength(1);
     await expectOneRow(page, mobile);
   });
 });

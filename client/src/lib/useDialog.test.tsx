@@ -290,6 +290,31 @@ describe("useDialog — a popup opened by a button that saves", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close" }));
   });
 
+  // A popup that stays mounted and closes by its own flag can drop the option
+  // in the very update that closes it (the print sheet's state goes back to
+  // { open: false, afterSave: false } in one step). What it said when it
+  // OPENED is what counts: that is when the opener was a button that saves.
+  it("⚕️ an option dropped in the closing update does not bring the focus back", () => {
+    function Host() {
+      const [state, setState] = useState({ open: false, afterSave: false });
+      const shut = () => setState({ open: false, afterSave: false });
+      const dialog = useDialog(state.open, shut, { returnFocus: !state.afterSave });
+      return (
+        <>
+          <button type="button" onClick={() => setState({ open: true, afterSave: true })}>Save &amp; print</button>
+          {state.open && <div role="dialog" aria-label="Prescription" {...dialog}><button type="button" onClick={shut}>Close</button></div>}
+        </>
+      );
+    }
+    render(<Host />);
+    const save = openSheet();
+    const close = screen.getByRole("button", { name: "Close" });
+    close.focus();
+    fireEvent.click(close);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).not.toBe(save);
+  });
+
   it("not told anything, a popup still gives the focus back — that is the rule", () => {
     render(<SaveOpener />);
     const save = openSheet();

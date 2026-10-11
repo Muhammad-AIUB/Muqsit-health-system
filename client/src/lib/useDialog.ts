@@ -75,9 +75,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(open: boolean,
   const ref = useRef<T>(null);
   const close = useRef(onClose);
   close.current = onClose;
-  // Read when the popup closes, so it is whatever the popup last said.
   const returnFocus = useRef(true);
-  returnFocus.current = options?.returnFocus !== false;
 
   // What had the focus when the popup was asked for. Read while rendering, not
   // in the effect: by then a box inside the popup may already have taken focus
@@ -87,6 +85,11 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(open: boolean,
   if (open && !wasOpen.current) {
     const active = typeof document === "undefined" ? null : document.activeElement;
     opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    // Taken HERE, with the opener it is about — not read again when the popup
+    // closes. A popup that stays mounted can drop the option in the very update
+    // that closes it (a sheet's state going back to "closed, nothing special"),
+    // and the focus would be handed to the saving button after all.
+    returnFocus.current = options?.returnFocus !== false;
   }
   wasOpen.current = open;
 
