@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { C, font } from "@/theme";
 import Icon from "@/components/common/Icon";
+import { useDialog } from "@/lib/useDialog";
 
 // The printable prescription, shown IN the app instead of a pop-up window
 // (physician's decision, 2026-08-26). "Save & print" used to `window.open` a
@@ -15,6 +16,10 @@ import Icon from "@/components/common/Icon";
 // letting those loose in the app's document would restyle the editor and print
 // the wrong thing. The iframe keeps the printed page byte-identical to what the
 // pop-up printed — only the frame around it changed.
+
+const isPrintKey = (e: KeyboardEvent) =>
+  (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "p";
+
 export default function PrintSheetModal({
   html,
   onClose,
@@ -24,17 +29,17 @@ export default function PrintSheetModal({
   onClose: () => void;
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
 
-  // Write the sheet in. `srcDoc` would do it too, but document.write is what
-  // the pop-up and the gallery snapshot already use, so all three routes to the
-  // sheet stay the same one.
-  useEffect(() => {
-    const doc = frameRef.current?.contentDocument;
-    if (!doc || !html) return;
-    doc.open();
-    doc.write(html);
-    doc.close();
-  }, [html]);
+  // ⚕️ The sheet is a popup like any other (2026-10-12). It covers the whole
+  // screen, and until then the keyboard did not know: the focus was left on the
+  // page underneath, and Tab walked on through it. Measured in the browser with
+  // the sheet open: three presses of Tab reached the patient chat's message box
+  // — where Enter SENDS — and fifteen reached the navigation. The hook brings
+  // the focus in, keeps Tab on Print and Close, closes on Escape (unless a
+  // message has been raised over the sheet) and puts the focus back on the way
+  // out.
+  const dialog = useDialog<HTMLDivElement>(true, onClose);
 
   // Print the SHEET, not the app. Focusing the frame first is what makes the
   // browser print the framed document rather than the page around it.
@@ -45,7 +50,49 @@ export default function PrintSheetModal({
     win.print();
   }, []);
 
-  // Esc closes, and the page behind must not scroll under the overlay.
+  // Write the sheet in. `srcDoc` would do it too, but document.write is what
+  // the pop-up and the gallery snapshot already use, so all three routes to the
+  // sheet stay the same one.
+  //
+  // ⚕️ …and listen for keys INSIDE it. A key pressed while the focus is in the
+  // frame never reaches the app's own document, and after Print the focus is
+  // always in the frame (printing focuses it). There Escape did nothing,
+  // Ctrl+P went to the browser instead of to the sheet's own Print, and Tab
+  // left the frame for whatever lay behind the overlay. The listener is put on after
+  // every write, because `document.open()` drops the ones before it; nothing is
+  // added to the sheet's own HTML, which is still exactly what prints and what
+  // the gallery snapshot pictures.
+  useEffect(() => {
+    const doc = frameRef.current?.contentDocument;
+    if (!doc || !html) return;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Handed to the app's document, so the popup hook applies the same rule
+        // as everywhere: only the popup on top closes.
+        e.preventDefault();
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+        return;
+      }
+      if (isPrintKey(e)) {
+        e.preventDefault();
+        printSheet();
+        return;
+      }
+      if (e.key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const buttons = barRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])");
+        if (!buttons || buttons.length === 0) return;
+        (e.shiftKey ? buttons[buttons.length - 1] : buttons[0]).focus();
+      }
+    };
+    doc.addEventListener("keydown", onKey);
+    return () => doc.removeEventListener("keydown", onKey);
+  }, [html, printSheet]);
+
+  // The page behind must not scroll under the overlay.
   //
   // Ctrl/Cmd+P is caught too, and deliberately: the doctor's habit is to press
   // it, and left alone it prints the APP page with the sheet squeezed into it
@@ -53,8 +100,7 @@ export default function PrintSheetModal({
   // is the only thing on screen worth printing while this is open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { onClose(); return; }
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "p") {
+      if (isPrintKey(e)) {
         e.preventDefault();
         printSheet();
       }
@@ -66,17 +112,17 @@ export default function PrintSheetModal({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose, printSheet]);
-
+  }, [printSheet]);
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Prescription"
+      {...dialog}
       style={{ position: "fixed", inset: 0, zIndex: 2500, display: "flex", flexDirection: "column", background: "#f0f0f0", fontFamily: font }}
     >
-      <div style={{ background: C.pri[400], padding: 10, textAlign: "center", flexShrink: 0 }}>
+      <div ref={barRef} style={{ background: C.pri[400], padding: 10, textAlign: "center", flexShrink: 0 }}>
         <button
           onClick={printSheet}
           disabled={!html}

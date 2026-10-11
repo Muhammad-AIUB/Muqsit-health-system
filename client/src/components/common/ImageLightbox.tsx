@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { C } from "@/theme";
 import { zoomScale } from "@/lib/dropdownAnchor";
+import { useDialog } from "@/lib/useDialog";
 
 // ── Full-screen image viewer ────────────────────────────────────────────────
 //
@@ -81,7 +82,12 @@ export default function ImageLightbox({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  // The viewer is a popup like any other: Escape closes it (only while it is
+  // the one on top), Tab stays on its own buttons, and closing puts the focus
+  // back on the page that was opened. The veil IS the popup, so the hook's ref
+  // is the veil's.
+  const dialog = useDialog<HTMLDivElement>(true, onClose);
+  const overlayRef = dialog.ref;
   // A pan and a click on the backdrop are the same gesture until the mouse
   // moves. Without this, dragging a zoomed page and releasing shut the viewer.
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
@@ -137,13 +143,13 @@ export default function ImageLightbox({
   const currentUrl = urls[clamped];
   useEffect(() => { resetZoom(); }, [currentUrl, resetZoom]);
 
-  // The caption promises ← → keys, so they have to work. Escape closes: this
-  // covers the whole screen, and a doctor who cannot get out of it cannot get
-  // back to the prescription. + − 0 drive the zoom from the keyboard.
+  // The caption promises ← → keys, so they have to work, and + − 0 drive the
+  // zoom from the keyboard. (Escape is `useDialog`'s, above: this covers the
+  // whole screen, and a doctor who cannot get out of it cannot get back to the
+  // prescription.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowRight") step(1);
+      if (e.key === "ArrowRight") step(1);
       else if (e.key === "ArrowLeft") step(-1);
       else if (e.key === "+" || e.key === "=") zoomTo(scale * STEP);
       else if (e.key === "-" || e.key === "_") zoomTo(scale / STEP);
@@ -151,7 +157,7 @@ export default function ImageLightbox({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [step, onClose, zoomTo, resetZoom, scale]);
+  }, [step, zoomTo, resetZoom, scale]);
 
   // Wheel-to-zoom has to be a native listener: React's onWheel is passive, so
   // preventDefault there is ignored and the ward page scrolls away behind the
@@ -196,7 +202,7 @@ export default function ImageLightbox({
 
   return (
     <div
-      ref={overlayRef}
+      {...dialog}
       data-testid="image-lightbox"
       role="dialog"
       aria-modal="true"

@@ -25,6 +25,7 @@ import { hasSensitive, sensitiveCss, stripSensitive } from "@/lib/sensitive";
 import RichTextEditor from "@/components/common/RichTextEditor";
 import Icon from "@/components/common/Icon";
 import { stamp } from "@/lib/stamp";
+import { useDialog } from "@/lib/useDialog";
 
 const INFO_ROWS: { key: keyof PatientNoteInfo; label: string }[] = [
   { key: "name", label: "Patient Name" },
@@ -155,14 +156,11 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
     if (dirty && !confirmClose) { setConfirmClose(true); return; }
     onClose();
   };
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (askPrint) setAskPrint(false); else requestClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+  // Two popups, one inside the other, and the hook gives each the keyboard
+  // while it is the one on top: the "how should it be printed?" question owns
+  // Escape and Tab while it is up, then the note has them back.
+  const dialog = useDialog(true, requestClose);
+  const printQuestion = useDialog(askPrint, () => setAskPrint(false));
 
   const today = (() => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`; })();
   const btn = (primary: boolean, disabled = false) => ({
@@ -175,7 +173,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
       style={{ position: "fixed", inset: 0, background: scrim, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
-      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" style={{ position: "relative", width: "min(720px, 100%)", maxHeight: "100%", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
+      <div role="dialog" aria-modal="true" aria-label="My Personal Note for This Patient" {...dialog} style={{ position: "relative", width: "min(720px, 100%)", maxHeight: "100%", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
         <style>{sensitiveCss(".pn-view", { inert: true })}</style>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ flex: 1 }}>
@@ -207,7 +205,11 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
                 {editing ? (
                   <RichTextEditor
                     value={draft}
-                    onChange={(html) => { setDraft(html); setDirty(true); setConfirmClose(false); }}
+                    // The editor reports its text every time the focus leaves it,
+                    // typed in or not. The same text is not a change — taken as
+                    // one, tabbing through an untouched note made it ask about
+                    // unsaved changes that did not exist.
+                    onChange={(html) => { if (html === draft) return; setDraft(html); setDirty(true); setConfirmClose(false); }}
                     minHeight={220}
                     placeholder="Write your personal note…"
                     allowImages={false}
@@ -259,7 +261,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
             onMouseDown={(e) => { if (e.target === e.currentTarget) setAskPrint(false); }}
             style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.75)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           >
-            <div role="dialog" aria-label="Print the note" style={{ width: "min(380px, 100%)", background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: shadowDialog, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div role="dialog" aria-modal="true" aria-label="Print the note" {...printQuestion} style={{ width: "min(380px, 100%)", background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: shadowDialog, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>This note has sensitive information</div>
               <div style={{ fontSize: 12.5, color: C.n[600] }}>How should it be printed?</div>
               <button type="button" onClick={() => printAs(true)} style={{ ...btn(false), justifyContent: "flex-start" }}><Icon name="lock" size={14} /> Print with sensitive information</button>

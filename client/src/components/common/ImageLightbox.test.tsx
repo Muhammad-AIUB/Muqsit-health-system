@@ -7,6 +7,7 @@ import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import ImageLightbox from "./ImageLightbox";
+import { itKeepsTheKeyboard } from "@/test/dialogKeyboard";
 
 // ⚕️ This viewer is how a doctor reads a photographed paper order sheet. The
 // zoom exists because fitting an A4 page to the screen is not the same as being
@@ -121,7 +122,8 @@ describe("ImageLightbox — paging still works with the zoom in place", () => {
     view({ onClose });
     fireEvent.click(screen.getByLabelText("Zoom in"));
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: "Escape" });
+    // On the body, where a real key press starts (it reaches document and window).
+    fireEvent.keyDown(document.body, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId("image-lightbox"));
     expect(onClose).toHaveBeenCalledTimes(2);
@@ -187,5 +189,15 @@ describe("ImageLightbox — a dragged page stays under the pointer", () => {
     const img = layout(1.12);
     drag(img, 56);
     expect(panX(img)).toBe(0);
+  });
+});
+
+// The viewer covers the whole screen, and until 2026-10-12 Tab walked out from
+// under it: a doctor reading an order sheet could tab onto — and press — the
+// gallery controls behind it ("Remove selected") without seeing them.
+describe("ImageLightbox — the keyboard stays in the viewer", () => {
+  itKeepsTheKeyboard({
+    label: "Image viewer",
+    render: (onClose) => <ImageLightbox urls={urls} index={1} onIndex={() => {}} onClose={onClose} alt="Order sheet page" />,
   });
 });

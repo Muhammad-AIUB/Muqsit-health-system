@@ -26,6 +26,7 @@ import { useSaveDrugAdvice } from "@/hooks/useDrugAdvice";
 import { adviceLines, drugKeyOf, offKey, savedAdviceFor, type AdviceScope } from "@/lib/rxDrugAdvice";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
 import { ApiError } from "@/lib/api";
+import { useDialog } from "@/lib/useDialog";
 
 interface Line { text: string; checked: boolean }
 
@@ -94,11 +95,10 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
     onClose();
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+  // Escape, Tab and the focus on the way in and out are the popup hook's.
+  // Escape goes through `requestClose`, so it asks about unsaved advice
+  // exactly as the × does.
+  const dialog = useDialog(true, requestClose);
 
   const doSave = async () => {
     setError("");
@@ -143,7 +143,7 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
       style={{ position: "fixed", inset: 0, background: scrim, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Special advice" style={{ width: "min(520px, 100%)", maxHeight: "100%", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
+      <div role="dialog" aria-modal="true" aria-label="Special advice" {...dialog} style={{ width: "min(520px, 100%)", maxHeight: "100%", display: "flex", flexDirection: "column", background: C.n[0], borderRadius: 12, boxShadow: shadowDialog, fontFamily: font }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 18px", borderBottom: `0.5px solid ${C.n[200]}` }}>
           <div style={{ ...dialogTitle }}>Special advice</div>
