@@ -10,7 +10,8 @@ export type Role =
   | 'authWrong' | 'authSession' | 'authLogout'
   | 'rxGate' | 'rxSave' | 'rxDouble' | 'rxDoubleSync' | 'rxAlert'
   | 'restore' | 'isoA' | 'isoB' | 'printDefault' | 'printA4' | 'gateKeyboard' | 'probe'
-  | 'sheetSave' | 'sheetKeys' | 'sheetEnter' | 'headerSwitch' | 'noteMirror';
+  | 'sheetSave' | 'sheetKeys' | 'sheetEnter' | 'headerSwitch' | 'noteMirror'
+  | 'invUnits' | 'invUnitsPlain' | 'loginWait';
 
 interface Seed { password: string; doctors: Record<Role, { email: string; name: string }> }
 let seedCache: Seed | null = null;
@@ -99,8 +100,11 @@ export async function fillLogin(page: Page, email: string, password: string) {
 }
 
 // The script of the page the address changes to after sign-in, as the dev
-// server names it: /_next/static/chunks/app/[tab]/page.js.
-const ROUTE_SCRIPT = String.raw`/_next/static/chunks/app/[^/]+/page[^/]*\.js`;
+// server names it: app/[tab]/page.js — asked for with its brackets written
+// %5B / %5D. Named exactly: the first version matched any app/…/page.js, and
+// the sign-in page's own script is one of those — it was there before the
+// address changed, so the wait below was over before it began (fifth review).
+export const ROUTE_SCRIPT = '/_next/static/chunks/app/[tab]/page';
 
 export async function login(page: Page, role: Role) {
   const s = seed();
@@ -115,13 +119,16 @@ export async function login(page: Page, role: Role) {
   // the default 15 s, so a page that has become slow to draw still fails.
   // (One 60 s wait for both hid exactly that — and with the 60 s above it
   // came to the whole 120 s a test is given.)
-  await page.waitForFunction(
-    (pattern) => performance.getEntriesByType('resource').some((e) => new RegExp(pattern).test(e.name)),
-    ROUTE_SCRIPT,
-    { timeout: 30_000 },
-  ).catch(() => { throw new Error(`the page's script (${ROUTE_SCRIPT}) did not arrive within 30 s of the address changing — see e2e/README.md`); });
+  await page.waitForFunction(routeScriptIsHere, ROUTE_SCRIPT, { timeout: 30_000 })
+    .catch(() => { throw new Error(`the page's script (${ROUTE_SCRIPT}) did not arrive within 30 s of the address changing — see e2e/README.md`); });
   await expect(mobileLookup(page)).toBeVisible();
 }
+
+/** Runs in the page: has a script whose address holds `script` finished loading? */
+export const routeScriptIsHere = (script: string) =>
+  performance.getEntriesByType('resource').some((e) => {
+    try { return decodeURIComponent(e.name).includes(script); } catch { return e.name.includes(script); }
+  });
 
 /** Mobile lookup with an unknown number → "Add New" → name only. */
 export async function createPatient(page: Page, mobile: string, name: string) {

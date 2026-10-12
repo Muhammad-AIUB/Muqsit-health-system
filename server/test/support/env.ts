@@ -13,7 +13,11 @@ process.env.JWT_EXPIRES_IN = '15m';
 process.env.COOKIE_SECURE = 'false';
 process.env.COOKIE_SAMESITE = 'lax';
 process.env.COOKIE_DOMAIN = '';
-process.env.CORS_ORIGIN = 'http://localhost:3100';
+// Exactly one origin, and a local one: the test web server. It is on 3100
+// unless the browser suite was moved for a run (e2e/ports.ts).
+const webOrigin = process.env.TEST_WEB_ORIGIN || 'http://localhost:3100';
+if (!/^http:\/\/localhost:\d{4,5}$/.test(webOrigin)) throw new Error(`TEST_WEB_ORIGIN=${webOrigin} is not a local test origin`);
+process.env.CORS_ORIGIN = webOrigin;
 process.env.PUBLIC_URL = 'http://localhost:4100';
 // The test database is genuinely local-only, which is the one case this flag
 // exists for (see upload.service.ts).

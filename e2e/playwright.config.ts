@@ -30,7 +30,9 @@ export default defineConfig({
       // imports test/support/env.ts first, which overrides DATABASE_URL.
       command: 'npm run test:serve',
       cwd: join(__dirname, '..', 'server'),
-      env: { TEST_DB_NAME, TEST_PORT: String(API_PORT) },
+      // TEST_WEB_ORIGIN: the one address the test API lets through CORS — this
+      // run's web server, wherever ports.ts has put it.
+      env: { TEST_DB_NAME, TEST_PORT: String(API_PORT), TEST_WEB_ORIGIN: WEB_URL },
       // 401 without a cookie — which Playwright accepts as "up".
       url: `${API_URL}/auth/me`,
       reuseExistingServer: true,

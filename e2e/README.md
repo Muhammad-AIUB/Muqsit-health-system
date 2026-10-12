@@ -17,8 +17,15 @@ database**. Nothing here may ever reach the developer's own servers: the dev
 seeds one doctor **per test** (`server/test/seed-e2e.ts` → `e2e/.seed.json`,
 gitignored). The ports are in `ports.ts`. Never 3000 / 4000.
 
-- The client must stay on **3100**: `server/test/support/env.ts` allows exactly
-  that origin through CORS.
+- The client is on **3100** and the API on **4200**, and the API lets exactly
+  that one web address through CORS (`server/test/support/env.ts`).
+  **If another program holds one of them, move the pair for the run:**
+  `E2E_WEB_PORT=3110 E2E_API_PORT=4210 npx playwright test`. `ports.ts` reads
+  the two, refuses 3000 / 3001 / 4000, and the config tells the test API which
+  web address to allow. Look first — `reuseExistingServer` takes whatever
+  answers on the port for its own: on 2026-10-12 that was another project's
+  dev server on 3100. (`netstat -ano | grep :3100`; the sandbox entries in
+  `.claude/launch.json` stay on 3100 / 4200.)
 - A process env var beats `client/.env.local` in Next, which is what points the
   browser bundle at the test API. `NEXT_DIST_DIR=.next-e2e` keeps the build out
   of the `.next` a developer's own dev server is using.
@@ -80,7 +87,11 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
   30 s for the page's own script to arrive (`ROUTE_SCRIPT` in
   `tests/helpers.ts` — that wait is the dev server's, which production does
   not have), and then the usual 15 s for the page to be drawn with it — so a
-  page that has become slow to draw still fails. If the suite ever stops at
+  page that has become slow to draw still fails. `ROUTE_SCRIPT` names that
+  one file exactly (`app/[tab]/page`): the sign-in page has a page script of
+  its own, loaded before the address changes, and a pattern loose enough to
+  match it made the wait return at once — which left the 15 s that had
+  already failed (found in review the same day). If the suite ever stops at
   "the page's script" on every test, the dev server has renamed that file:
   look at the Network list of a trace and correct `ROUTE_SCRIPT`. After a run, sign in again with the NEW address in
   `e2e/.seed.json`; the made-up patients are gone too.
@@ -89,13 +100,14 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
 
 | File | What it proves |
 |---|---|
-| `auth.spec.ts` | wrong password → error, still on login, no session; correct login lands in the app and survives a reload; log out ends the session |
+| `auth.spec.ts` | wrong password → error, still on login, no session; correct login lands in the app and survives a reload; log out ends the session; and the sign-in helper every journey uses waits for something real — the app page's script is NOT there on the sign-in page and IS after sign-in |
 | `prescription.spec.ts` | the editor is gated until a patient is chosen; new patient → medicine picked from the dropdown → final diagnosis → Save & print → the in-app sheet shows what was entered and no alert; **the API** holds exactly one prescription row with the item as typed; a double-click and a same-tick double press both store one row; an on-screen prescribing alert is not on the sheet or in the record |
 | `restore.spec.ts` | typed content is auto-saved and a reload restores the patient and the editor; no prescription row is created by a draft |
 | `isolation.spec.ts` | a second doctor (separate browser context) looking up the first doctor's patient's mobile is offered "Add New" and cannot read the patient or the prescription through the API either |
 | `print-layout.spec.ts` | for A4 and for a new account's default page: the ℞ table does not scroll sideways, no element leaves the sheet sideways (in the in-app sheet and under the print stylesheet), and the printed PDF is one page of the configured size |
 | `print-sheet.spec.ts` | with a real keyboard, which jsdom cannot give: after Save & print, closing the sheet leaves the focus OFF the button that saves, and Space and Enter afterwards store no second row; saved from the keyboard with Enter then HELD on Close, still one row; "Preview PDF" does get its focus back; with the focus INSIDE the sheet's frame Ctrl+P prints the sheet and not the app, Tab goes Print → Close → the sheet → Print and never out to the editor, and Escape closes it; "Mirror devices" is a switch that a press — or Space — turns on and off without sending the cursor into the patient search |
 | `personal-note.spec.ts` | TWO browsers signed in as one doctor, "Mirror devices" on: device A types in one patient's personal note, device B picks another patient from the search box and A's editor moves on behind the open note — the note on A stays the first patient's, Save writes the words into THAT patient's note (read back through the API, with her details) and nothing into the other's; closed and opened again, it is the patient now in the editor. Fails on the code before 2026-10-12, where the open box showed the second patient's details over the first one's words |
+| `investigation-units.spec.ts` | a result box with two units (HBV DNA, IU/mL or copies/mL): a viral load typed with its groups in the second unit's box leaves the first unit's box EMPTY, and is shown, printed on the sheet and stored through the API exactly as typed in copies/mL — never as a small number of IU/mL; a plain number is still converted. Fails on the code before 2026-10-12, where the first unit's box read `0.18` |
 | `defect-probes.spec.ts` | opt-in (`E2E_PROBES=1`), see below |
 
 No clinical content is invented: medicines are rows of the seeded test

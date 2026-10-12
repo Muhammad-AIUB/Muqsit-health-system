@@ -20,6 +20,7 @@ const ROLES = [
   'rxGate', 'rxSave', 'rxDouble', 'rxDoubleSync', 'rxAlert',
   'restore', 'isoA', 'isoB', 'printDefault', 'printA4', 'gateKeyboard', 'probe',
   'sheetSave', 'sheetKeys', 'sheetEnter', 'headerSwitch', 'noteMirror',
+  'invUnits', 'invUnitsPlain', 'loginWait',
 ] as const;
 
 async function main() {
