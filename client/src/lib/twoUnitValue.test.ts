@@ -81,8 +81,12 @@ describe("recordedValue — what is recorded for a box", () => {
   it("a box with one unit is recorded as it always was", () => {
     expect(recordedValue(first("12"), null, false)).toEqual({ value: "12", unit: "u-one" });
     expect(recordedValue({ value: "Positive" }, null, false)).toEqual({ value: "Positive", unit: "" });
-    // A preference left over for a box that has one unit changes nothing.
+    // A preference left over for a box that has one unit changes nothing…
     expect(recordedValue(first("12"), null, true)).toEqual({ value: "12", unit: "u-one" });
+    // …not even for a lone space, which a box with one unit has always
+    // recorded (seventh review: with the preference left over it was dropped).
+    expect(recordedValue(first(" "), null, true)).toEqual(recordedValue(first(" "), null, false));
+    expect(recordedValue(first(" "), null, true)).toEqual({ value: " ", unit: "u-one" });
   });
 
   it("nothing typed is nothing recorded", () => {

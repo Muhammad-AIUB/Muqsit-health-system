@@ -51,9 +51,10 @@ export function recordedValue(
   preferSecond: boolean,
 ): { value: string; unit: string } | null {
   const a = { value: first.value ?? "", unit: first.unit ?? "" };
-  const b = { value: second?.value ?? "", unit: second?.unit ?? "" };
-  // (For a box with one unit `b` is empty, so a leftover preference for a
-  // second unit changes nothing: the first is what is found.)
+  // A box with one unit is read as it always was, whatever preference is left
+  // over for a second unit it does not have.
+  if (!second) return a.value ? a : null;
+  const b = { value: second.value ?? "", unit: second.unit ?? "" };
   const [wanted, other] = preferSecond ? [b, a] : [a, b];
   if (wanted.value) return wanted;
   return other.value.trim() ? other : null;
