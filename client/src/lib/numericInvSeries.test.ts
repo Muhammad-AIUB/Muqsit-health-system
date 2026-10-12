@@ -84,6 +84,62 @@ describe("numericSeriesFor — one field of a multi-field test", () => {
   });
 });
 
+// A number typed with a comma in it. The value's parts are joined by commas
+// too, so "WBC:1,200" is stored looking exactly like a WBC of 1 followed by
+// another part, "200". For a field with a unit the cut-off "1" has no unit and
+// was already refused; for a field WITHOUT one it was plotted — a count of
+// 1,200 drawn on the chart as 1 (found in review, 2026-10-12; in production
+// until then).
+describe("numericSeriesFor — a number typed with a comma, in a field with no unit", () => {
+  const count = param({ field: "WBC", label: "Fluid — WBC", unit: "", u2: undefined, c21: undefined, otherFieldLabels: ["Appearance", "Protein", "ADA"] });
+
+  it("⚕️ is never plotted as its first group: 1,200 is not 1", () => {
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:1,200")], count)).toEqual([]);
+    expect(numericSeriesFor([finding("01/09/2026", "Appearance:Cloudy,WBC:1,200,ADA:Positive")], count)).toEqual([]);
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:1,50,000")], count)).toEqual([]);
+  });
+
+  it("nor a decimal typed with a comma: 1,2 is not 1", () => {
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:1,2")], count)).toEqual([]);
+  });
+
+  it("the same number typed without the comma is plotted, as it always was", () => {
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:1200")], count)).toEqual([{ date: "01/09/2026", value: 1200, label: "1200" }]);
+    expect(numericSeriesFor([finding("01/09/2026", "Appearance:Cloudy,WBC:1200,ADA:Positive")], count).map((p) => p.value)).toEqual([1200]);
+  });
+
+  it("a value followed by ANOTHER box's own part is plotted, as it always was", () => {
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:350,Protein:2.5g/dL")], count).map((p) => p.value)).toEqual([350]);
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:350,ADA:Positive")], count).map((p) => p.value)).toEqual([350]);
+  });
+
+  it("…and so is one followed by words — a report that begins with a number is not the rest of this one", () => {
+    const mets = param({ field: "METs", label: "Stress test — METs", unit: "", u2: undefined, c21: undefined, otherFieldLabels: ["Result", "Report"] });
+    expect(numericSeriesFor([finding("01/09/2026", "Positive,METs:10,150 bpm at peak")], mets).map((p) => p.value)).toEqual([10]);
+    // A report that is nothing but a number cannot be told from the rest of the value: not plotted.
+    expect(numericSeriesFor([finding("01/09/2026", "Positive,METs:10,150")], mets)).toEqual([]);
+  });
+
+  it("the real catalog's one count with no unit — Ascites Fluid, WBC — is read this way", () => {
+    const p = chartableParams().find((x) => x.test === "Ascites Fluid" && x.field === "WBC") as ChartableParam;
+    expect(p.unit).toBe("");
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:1,200", "Ascites Fluid")], p)).toEqual([]);
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:1200", "Ascites Fluid")], p).map((x) => x.value)).toEqual([1200]);
+  });
+});
+
+// DEFECT-HM-GROUPED (open; in production): a number typed with its groups is
+// not plotted at all — "WBC:12,000cells/uL", "PLT:1,50,000/cmm" give no point,
+// and the lane reads as if nothing had been recorded. Not plotting it is the
+// safe half (above); reading 12,000 as twelve thousand is the other half, and
+// what a typed comma means is the physician's to say. See FUNCTIONAL-AUDIT.md.
+describe("numericSeriesFor — DEFECT-HM-GROUPED", () => {
+  it.fails("a count typed with its groups is plotted as the number it is", () => {
+    const wbc = param({ field: "WBC", label: "Panel — WBC", unit: "cells/uL", u2: undefined, c21: undefined, otherFieldLabels: ["Hb"] });
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:12,000cells/uL")], wbc).map((p) => p.value)).toEqual([12000]);
+  });
+});
+
 describe("numericSeriesFor — the series", () => {
   it("is ordered oldest first by dd/mm/yyyy, whatever order the findings were stored in", () => {
     const pts = numericSeriesFor([finding("25/07/2026", "3u-one"), finding("03/06/2026", "1u-one"), finding("24/01/2025", "2u-one")], param());

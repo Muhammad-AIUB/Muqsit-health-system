@@ -65,8 +65,25 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 function isolateRaw(value: string, param: ChartableParam): string | null {
   const parts = value.split(",").map((p) => p.trim());
   const prefix = param.field + ":";
-  const direct = parts.find((p) => p.startsWith(prefix));
-  if (direct) return direct.slice(prefix.length).trim();
+  const at = parts.findIndex((p) => p.startsWith(prefix));
+  if (at !== -1) {
+    const mine = parts[at].slice(prefix.length).trim();
+    // ⚕️ A number typed with a comma in it. The parts of a value are joined by
+    // commas too, so "WBC:1,200" is stored looking exactly like a WBC of 1
+    // followed by another part, "200". Where the field has a unit, the cut-off
+    // "1" has none and is refused below; where it has NONE, the 1 was plotted —
+    // a count of 1,200 drawn on the chart as 1 (in production until
+    // 2026-10-12). A bare number followed by another bare number that no other
+    // box of this test claims cannot be read with confidence: it is the rest
+    // of this value, or a value typed into an unlabelled box, and nothing here
+    // can tell which. Not plotted — never guessed. (Words after it are another
+    // box's text: "METs:10,150 bpm at peak" is still METs 10.)
+    const next = parts[at + 1];
+    const BARE_NUMBER = /^\d+(?:\.\d+)?$/;
+    const claimed = (p: string) => p.startsWith(prefix) || param.otherFieldLabels.some((l) => p.startsWith(l + ":"));
+    if (BARE_NUMBER.test(mine) && next !== undefined && !claimed(next) && BARE_NUMBER.test(next)) return null;
+    return mine;
+  }
   if (!VALUE_LABELS.includes(param.field)) return null;
   // Bare-value fallback (only reached for VALUE_LABELS fields, e.g. a plain
   // "Value"/"Result" field). Accept only if exactly one part is unclaimed by
