@@ -9,8 +9,9 @@ import {
 // The conversion read only the START of what was typed. A viral load typed
 // with its groups, "1,20,000" copies/mL, was converted from "1": the record
 // and the printed prescription said "HBV DNA: 0.18IU/mL" (found in review,
-// 2026-10-12; in production until then). What cannot be converted is now
-// recorded exactly as typed, in the unit of the box it was typed in.
+// 2026-10-12; in production until the release that carried this). What cannot
+// be converted is now recorded exactly as typed, in the unit of the box it was
+// typed in.
 //
 // The number is made up; the test and its units are the catalog's own.
 

@@ -9,7 +9,8 @@
 // as "HBV DNA: 0.18IU/mL". "120,000" became 21.48 IU/mL, "1.2 x 10^5" became
 // 0.21, a creatinine typed "1,2" mg/dL became 88.42 umol/L. The number in the
 // record was not the number typed, and nothing on the screen said so (found
-// in the fifth review; in production until 2026-10-12).
+// in the fifth review, 2026-10-12; in production until the release that
+// carried this).
 //
 // Two rules, and neither reads a comma — what a typed comma MEANS is still
 // the physician's to say (FUNCTIONAL-AUDIT.md):
@@ -37,6 +38,12 @@ export function otherUnit(typed: string, factor: number | undefined): string {
  * that box holds one, otherwise what stands in the other box, with ITS unit.
  * Null when nothing was typed in either. (`second` is absent for a box with
  * one unit.)
+ *
+ * The other box counts only when something is typed in it: a stray space
+ * there was recorded as a result with a unit and no value ("S. Creatinine:
+ * umol/L") where, before this rule, nothing was (sixth review, before
+ * release). The preferred box is read as it always was, like a box with one
+ * unit.
  */
 export function recordedValue(
   first: { value?: string; unit?: string },
@@ -49,5 +56,5 @@ export function recordedValue(
   // second unit changes nothing: the first is what is found.)
   const [wanted, other] = preferSecond ? [b, a] : [a, b];
   if (wanted.value) return wanted;
-  return other.value ? other : null;
+  return other.value.trim() ? other : null;
 }

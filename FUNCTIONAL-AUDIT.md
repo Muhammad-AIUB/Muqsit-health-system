@@ -330,17 +330,38 @@ CLAUDE.md section before picking one up.
   put back on the button (it ends on the page, as it does today in
   production); and the phone layout's print sheet takes the same
   `afterSave` but has not been run on a phone-sized browser.
-- [ ] **⚕️ Results recorded through a two-unit box before 2026-10-12 may be
-  wrong, and the record cannot say which (found in the fifth review — the
-  physician should know).** If a number was typed WITH A COMMA, a power of
-  ten or a remark into the box of the unit that was not the preferred one —
-  most likely a viral load in copies/mL (`1,20,000`), with IU/mL recorded —
-  the value stored, shown and printed is the conversion of the part before
-  the comma: a perfectly formed, far too small number in the other unit
-  (`0.18IU/mL`). Nothing marks such a value, so no repair can be scripted;
-  a viral load that looks implausibly low against the patient's course is
-  worth checking against the paper report. Typed plainly (`120000`), values
-  were always converted correctly. Fixed going forward (`twoUnitValue.ts`).
+- [ ] **⚕️ Results recorded through a two-unit box before this release may be
+  wrong or missing, and the record cannot say which (found in the fifth
+  review — the physician should know).** Forty boxes take a value in either
+  of two units. Until the fix, what was typed into the box of the unit that
+  was NOT the doctor's preferred one was read only as far as it looked like
+  a number. (a) **Wrong:** a number typed with a comma, a power of ten or a
+  remark was stored, shown and printed as the conversion of the part before
+  it — a perfectly formed number in the other unit. Usually it is far too
+  small: a viral load of `1,20,000` copies/mL became `0.18IU/mL`. But a
+  decimal typed with a comma gives a PLAUSIBLE wrong value: a creatinine
+  typed `1,2` mg/dL, with umol/L preferred, became `88.42umol/L` — the
+  conversion of 1, where 1.2 is 106.1. (b) **Missing:** a value that did not
+  begin with a number at all (`>2000`, `<20`, `Not detected`) was not
+  recorded: the popup closed without it and said nothing. Nothing marks
+  either kind, so no repair can be scripted; a result that looks out of line
+  with the patient's course, or is absent from a visit where it was typed,
+  is worth checking against the paper report. Typed plainly (`120000`),
+  values were always converted correctly. Fixed going forward
+  (`twoUnitValue.ts`).
+- [ ] **⚕️ Fibrinogen's second unit does not agree with its factor (found in
+  the sixth review, 2026-10-13; in production — the physician's to
+  settle).** The catalog gives the Fibrinogen box in `g/L` and `mg/L` with
+  a factor of 100: 3 g/L fills in 300, which is 300 mg/dL (3 g/L is 3000
+  mg/L). A doctor whose preferred unit is the second one records
+  `300mg/L`. Either the unit should read `mg/dL` or the factor should be
+  1000; which was meant is a clinical fact, so nothing was changed
+  (`client/src/data/investigations.ts`). The factors of the other
+  thirty-nine two-unit boxes were read against their units in the same
+  sitting and none stood out, but that was a reading from memory of the
+  usual published factors, not a check against a source — and whether two
+  decimal places are enough for every one of them is also the physician's
+  (a C-peptide of 0.01 ng/mL fills in `0` nmol/L; in production, unchanged).
 - [ ] **Found in the fourth and fifth reviews and left open (2026-10-12).** (1) **The
   health-trend chart reads no number with a sign — the physician's call.**
   A DEXA T-score of `-2.5` gives no point, and its lane says there is no

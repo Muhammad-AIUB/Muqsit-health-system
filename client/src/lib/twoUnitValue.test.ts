@@ -91,11 +91,25 @@ describe("recordedValue — what is recorded for a box", () => {
     expect(recordedValue(first(undefined), null, false)).toBeNull();
   });
 
+  // A stray space in the box of the unit that is NOT preferred was recorded —
+  // and printed — as a result with a unit and no value ("S. Creatinine:
+  // umol/L"), where before the two-unit rule nothing was (sixth review, before
+  // release). The preferred box is as it always was, like a box with one unit.
+  it("⚕️ a box that holds only spaces is not what is recorded in place of an empty preferred box", () => {
+    expect(recordedValue(first(""), second(" "), false)).toBeNull();
+    expect(recordedValue(first("   "), second(""), true)).toBeNull();
+    expect(recordedValue(first(undefined), second("\t"), false)).toBeNull();
+    // …while a value typed with spaces round it is still recorded as typed.
+    expect(recordedValue(first(""), second(" >2000 "), false)).toEqual({ value: " >2000 ", unit: "u-two" });
+  });
+
   it("⚕️ what is recorded is always one of the two texts as typed, whole — for any two texts", () => {
+    const typed = fc.oneof(fc.string({ maxLength: 10 }), fc.constantFrom("", " ", "   ", "\t", " 5", "5 "));
     fc.assert(
-      fc.property(fc.string({ maxLength: 10 }), fc.string({ maxLength: 10 }), fc.boolean(), (a, b, prefer) => {
+      fc.property(typed, typed, fc.boolean(), (a, b, prefer) => {
         const got = recordedValue(first(a), second(b), prefer);
-        if (!a && !b) { expect(got).toBeNull(); return; }
+        // Nothing in the preferred box, and nothing but spaces in the other.
+        if (!(prefer ? b : a) && !(prefer ? a : b).trim()) { expect(got).toBeNull(); return; }
         expect(got).not.toBeNull();
         // One of the two texts, whole, with the unit of the box it stood in…
         expect((got!.value === a && got!.unit === "u-one") || (got!.value === b && got!.unit === "u-two")).toBe(true);

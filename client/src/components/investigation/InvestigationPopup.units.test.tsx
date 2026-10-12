@@ -12,9 +12,10 @@
 // was converted from its first group: 1 copy/mL, recorded and printed as
 // "HBV DNA: 0.18IU/mL". "120,000" was recorded as 21.48 IU/mL; "1.2 x 10^5" as
 // 0.21. The number on the prescription was not the number typed, and nothing
-// on the screen said so (found in the fifth review; in production until
-// 2026-10-12). Now only a whole, plain number is converted — and anything else
-// is recorded exactly as it was typed, in the unit of the box it was typed in.
+// on the screen said so (found in the fifth review, 2026-10-12; in production
+// until the release that carried this). Now only a whole, plain number is
+// converted — and anything else is recorded exactly as it was typed, in the
+// unit of the box it was typed in.
 //
 // Every conversion factor here is the catalog's own (`c12` / `c21` in
 // data/investigations.ts), read from it — none is written into this file.
@@ -177,5 +178,18 @@ describe("a two-unit result box — what is recorded", () => {
     const f = field(HBV.cat, HBV.test);
     expect(record(HBV.cat, HBV.test, f.u1, { "HBV DNA__Value": "", "HBV DNA__Value_u2": "" })).toEqual([]);
     expect(record(HBV.cat, HBV.test, f.u1, {})).toEqual([]);
+  });
+
+  // "S. Creatinine: umol/L" — a unit and no value — was recorded, and would
+  // have been printed, where nothing was before (sixth review, before release).
+  it("⚕️ a stray space in the box of the unit that is not preferred is not recorded as a result", () => {
+    const g = field(CREAT.cat, CREAT.test);
+    ctx = open(CREAT.cat);
+    render(<InvestigationPopup />);
+    typeInto(box(CREAT.test, g.u2), " ");
+    const typed = applied<Record<string, string>>("setInvFormData", {});
+    cleanup();
+    expect(typed).toEqual({ "S. Creatinine__Value_u2": " ", "S. Creatinine__Value": "" });
+    expect(record(CREAT.cat, CREAT.test, g.u1, typed)).toEqual([]);
   });
 });
