@@ -103,7 +103,12 @@ export function PersonalNoteSection() {
   // and not saved are lost, as they always were (FUNCTIONAL-AUDIT.md).
   const [openFor, setOpenFor] = useState<OpenNote | null>(null);
   const open = () => {
-    if (!currentPatientId) return;
+    // Not while a note is open. This button stays in the page behind the note:
+    // a mouse cannot reach it and Tab does not leave the note, but a screen
+    // reader or a voice command can press it — and pressed with another
+    // patient in the editor, it would hand the open box, typed words and all,
+    // to that patient.
+    if (!currentPatientId || openFor) return;
     setOpenFor({
       patientId: currentPatientId,
       details: { name: ptName.trim(), age: ptAge.trim(), sex: ptGender.trim(), address: ptAddress.trim(), mobile: ptPhone.trim() },
@@ -186,6 +191,7 @@ function PersonalNoteBox({ patientId, details, onClose }: OpenNote & { onClose: 
       if (editedNow.current !== sent) return;
       setTyped(null);
       setEditing(false);
+      setConfirmClose(false); // nothing is unsaved any more: the line that said so goes
     },
     onError: (e) => setError(e instanceof ApiError ? `Note NOT saved: ${e.message}` : "Note NOT saved. Is the connection up?"),
   });

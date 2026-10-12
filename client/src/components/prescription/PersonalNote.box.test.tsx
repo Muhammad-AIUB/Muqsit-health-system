@@ -129,6 +129,18 @@ describe("PersonalNote — what Print prints", () => {
     expect(pages[0].details).toEqual(["Test Patient Alpha", "45", "Male", "House 1", "01700000031"]);
   });
 
+  // The patient's details are filled in at the first save and kept as they
+  // were then; the header may say something else by now.
+  it("⚕️ a saved note shows and prints its OWN details — as they were at its first save — not the header's of today", async () => {
+    app.notes.p1 = { ...noteOf(ALPHA, "<p>Prefers evening appointments.</p>"), patientInfo: { ...infoOf(ALPHA), address: "The address at the first save", age: "44" } };
+    mount();
+    const panel = await openNote();
+    expect(panel.textContent).toContain("The address at the first save");
+    expect(panel.textContent).not.toContain("House 1");
+    fireEvent.click(button(/Print$/));
+    expect(printed()[0].details).toEqual(["Test Patient Alpha", "44", "Male", "The address at the first save", "01700000031"]);
+  });
+
   describe("a note with sensitive text", () => {
     const askHowToPrint = async () => {
       app.notes.p1 = noteOf(ALPHA, `<p>Family history: ${sensitive("confidential detail")}</p>`);
@@ -268,6 +280,35 @@ describe("PersonalNote — typing while a save is on its way", () => {
     expect(printed()[0].note).toBe("Prefers evening appointments. x made-up private words");
   });
 
+  it("⚕️ Save cannot be pressed a second time while the first is on its way", async () => {
+    await startASave("<p>Prefers mornings now.</p>");
+    expect(button(/Saving|Save/).disabled).toBe(true);
+    fireEvent.click(button(/Saving|Save/));
+    await settle();
+    expect(app.saves).toHaveLength(1);
+    await theSaveComesBack();
+    expect(app.saves).toHaveLength(1);
+  });
+
+  // Close pressed once asks about the unsaved words; Save pressed then saves
+  // them — and the line that says they are unsaved must not stay.
+  it("the question about unsaved changes goes when they have been saved", async () => {
+    app.notes.p1 = noteOf(ALPHA, SAVED);
+    mount();
+    const panel = await openNote();
+    fireEvent.click(button("Edit"));
+    type(panel, "<p>Prefers mornings now.</p>");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.getByText(/Unsaved changes/)).toBeTruthy();
+    fireEvent.click(button("Save"));
+    await settle();
+    expect(screen.queryByText(/Unsaved changes/)).toBeNull();
+    expect(screen.queryByRole("dialog", { name: LABEL })).not.toBeNull();
+    // …and Close now closes.
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: LABEL })).toBeNull();
+  });
+
   it("a save that fails keeps the text, the editor and the message", async () => {
     app.notes.p1 = noteOf(ALPHA, SAVED);
     const api = await import("@/lib/api");
@@ -336,6 +377,25 @@ describe("PersonalNote — the editor moves on to another patient while the note
     expect(shownIn(screen.getByRole("dialog", { name: LABEL }))).toBe("Made-up words about Alpha.");
     await app_.editorMovesTo(BETA);
     expect(shownIn(screen.getByRole("dialog", { name: LABEL }))).toBe("Made-up words about Alpha.");
+  });
+
+  // The button that opens the note stays in the page behind it. A mouse cannot
+  // reach it and Tab does not leave the note — but a screen reader or a voice
+  // command can press it, and it has the same name as the note itself. Pressed
+  // again with another patient in the editor, it used to re-point the OPEN box
+  // at that patient, typed words and all (fifth review, before release).
+  it("⚕️ the button behind the note, pressed again, does not hand the open note to the patient now in the editor", async () => {
+    const app_ = mount();
+    const panel = await openNote(); // no note yet: straight into writing
+    type(panel, "<p>Made-up words about Alpha.</p>");
+    await app_.editorMovesTo(BETA);
+    fireEvent.click(screen.getAllByRole("button", { name: LABEL })[0]);
+    await settle();
+    expect(panel.textContent).toContain("Test Patient Alpha");
+    expect(panel.textContent).not.toContain("Test Patient Beta");
+    fireEvent.click(button("Save"));
+    await settle();
+    expect(app.saves).toEqual([{ patientId: "p1", html: "<p>Made-up words about Alpha.</p>", patientInfo: infoOf(ALPHA) }]);
   });
 
   it("closed and opened again, it is the patient now in the editor", async () => {
