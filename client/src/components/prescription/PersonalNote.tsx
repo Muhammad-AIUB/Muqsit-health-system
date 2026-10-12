@@ -12,8 +12,10 @@
 //    the first time, then kept exactly as they were at that first save.
 //  • Edit, Save (not optimistic — the box stays open with the text if the save
 //    fails) and Print, which prints this note alone.
+//  • The box is opened FOR a patient and is that patient's until it is closed,
+//    whatever the editor behind it moves on to (2026-10-12).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { C, font } from "@/theme";
 import { btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, btnClose } from "@/theme/styles";
@@ -80,29 +82,38 @@ function printHtml(html: string) {
   }, 150);
 }
 
-/**
- * The note's text as it stands right now: what was typed once anything has
- * been, and until then the SAVED text.
- *
- * Not simply `draft`. A note that has just loaded reaches the draft one render
- * late (an effect copies it in), and for that instant the box is "loaded" with
- * an empty draft. Print read the draft: pressed in that instant it printed an
- * empty note and skipped the question a note with sensitive text must ask. It
- * could not leak anything — there was nothing in the draft — and no hand is
- * that fast; a test is, and the flaky-test detector named three (2026-10-12).
- */
-export function noteTextNow(dirty: boolean, draft: string, savedHtml: string | null | undefined): string {
-  return dirty ? draft : (savedHtml ?? draft);
-}
+/** Whose note is open, and the details the header showed when it was opened. */
+interface OpenNote { patientId: string; details: PatientNoteInfo }
 
 export function PersonalNoteSection() {
-  const { currentPatientId } = useMuqsit();
-  const [open, setOpen] = useState(false);
+  const { currentPatientId, ptName, ptAge, ptGender, ptAddress, ptPhone } = useMuqsit();
+  // ⚕️ The note is opened FOR a patient, and it is that patient's until it is
+  // closed. It used to be handed `currentPatientId` on every render, and that
+  // can change under an open note: another device picks the next patient from
+  // the search box (device mirroring), or a patient chosen from the OPD queue
+  // finishes loading after the note was opened. The box then held one
+  // patient's typed words over the other's details — and Save wrote them into
+  // the other's note; a print question asked about one note printed the other
+  // (fourth review, 2026-10-12; e2e/tests/personal-note.spec.ts runs it with
+  // two browsers).
+  //
+  // What this does NOT cover: the editor being CLEARED, or left for another
+  // tab, from the other device. `PatientGate` and the tab router redraw the
+  // editor then, and this section with it — the note closes, and words typed
+  // and not saved are lost, as they always were (FUNCTIONAL-AUDIT.md).
+  const [openFor, setOpenFor] = useState<OpenNote | null>(null);
+  const open = () => {
+    if (!currentPatientId) return;
+    setOpenFor({
+      patientId: currentPatientId,
+      details: { name: ptName.trim(), age: ptAge.trim(), sex: ptGender.trim(), address: ptAddress.trim(), mobile: ptPhone.trim() },
+    });
+  };
   return (
     <div style={{ marginTop: 18, paddingTop: 12, borderTop: `0.5px dashed ${C.n[300]}` }}>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={open}
         disabled={!currentPatientId}
         title={currentPatientId ? "Only you can see this note" : "Load a saved patient to write a personal note"}
         style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", borderRadius: 8, border: `0.5px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[800], fontSize: 13.5, fontWeight: 600, fontFamily: font, cursor: currentPatientId ? "pointer" : "not-allowed", opacity: currentPatientId ? 1 : 0.55, textAlign: "left" }}
@@ -110,13 +121,13 @@ export function PersonalNoteSection() {
         <Icon name="lock" size={16} />
         <span style={{ flex: 1 }}>My Personal Note for This Patient</span>
       </button>
-      {open && currentPatientId && <PersonalNoteBox patientId={currentPatientId} onClose={() => setOpen(false)} />}
+      {openFor && <PersonalNoteBox {...openFor} onClose={() => setOpenFor(null)} />}
     </div>
   );
 }
 
-function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: () => void }) {
-  const { ptName, ptAge, ptGender, ptAddress, ptPhone, activeWorkstation } = useMuqsit();
+function PersonalNoteBox({ patientId, details, onClose }: OpenNote & { onClose: () => void }) {
+  const { activeWorkstation } = useMuqsit();
   const { user } = useAuth();
   const qc = useQueryClient();
   // Keyed by the signed-in user too, so switching account never serves another
@@ -124,24 +135,30 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
   const key = ["patient-note", user?.id ?? "", activeWorkstation?.doctorId ?? "", patientId];
   const q = useQuery({ queryKey: key, queryFn: () => patientNotesApi.get(patientId), staleTime: 0 });
 
-  const liveInfo: PatientNoteInfo = useMemo(
-    () => ({ name: ptName.trim(), age: ptAge.trim(), sex: ptGender.trim(), address: ptAddress.trim(), mobile: ptPhone.trim() }),
-    [ptName, ptAge, ptGender, ptAddress, ptPhone],
-  );
   const saved = q.data ?? null;
-  const info = saved?.patientInfo ?? liveInfo;
+  const info = saved?.patientInfo ?? details;
+
+  // ⚕️ The note has ONE text: what has been typed since it was loaded or last
+  // saved, and until something is, the saved note. The box shows it, Save
+  // sends it and Print prints it — nothing reads anything else.
+  //
+  // It used to be a `draft` that an effect copied the loaded note into, with a
+  // separate "changed" flag beside it. The copy arrived one render late (Print
+  // pressed in that instant printed an empty note and skipped its question —
+  // three tests of it failed one run in four), and the flag could say "saved"
+  // over text that was not: see `save` below.
+  const [edited, setEdited] = useState<string | null>(null);
+  const editedNow = useRef<string | null>(null); // the same, for a save that comes back later
+  const setTyped = (html: string | null) => { editedNow.current = html; setEdited(html); };
+  const text = edited ?? saved?.html ?? "";
+  const dirty = edited !== null;
 
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
   const [confirmClose, setConfirmClose] = useState(false);
   const [askPrint, setAskPrint] = useState(false);
 
   // A note with sensitive text asks how to print it; any other prints at once.
-  // What is printed — and asked about — is the note as it stands NOW
-  // (`noteTextNow`), never a draft that has not caught up with a loaded note.
-  const text = noteTextNow(dirty, draft, saved?.html);
   const onPrint = () => {
     if (hasSensitive(text)) { setAskPrint(true); return; }
     printHtml(personalNoteHtml(info, text, today));
@@ -151,21 +168,24 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
     printHtml(personalNoteHtml(info, text, today, { sensitive }));
   };
 
-  // Once loaded: a note that does not exist yet opens straight into writing.
-  useEffect(() => {
-    if (!q.isSuccess || dirty) return;
-    setDraft(saved?.html ?? "");
-    if (!saved) setEditing(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.isSuccess, saved?.html]);
+  // A note that does not exist yet opens straight into writing.
+  const noNoteYet = q.isSuccess && !saved;
+  useEffect(() => { if (noNoteYet) setEditing(true); }, [noNoteYet]);
 
   const save = useMutation({
-    mutationFn: () => patientNotesApi.save(patientId, { html: draft, patientInfo: liveInfo }),
-    onSuccess: (note) => {
+    mutationFn: (html: string) => patientNotesApi.save(patientId, { html, patientInfo: details }),
+    onSuccess: (note, sent) => {
       qc.setQueryData(key, note);
-      setDirty(false);
-      setEditing(false);
       setError("");
+      // ⚕️ Only what was SENT has been saved. The box stays open for writing
+      // while the request is on its way, and whatever was typed in that time
+      // is still unsaved: it stays, the editor stays, and Save can be pressed
+      // again. Marked saved with the rest, it was either thrown away when the
+      // saved note was copied back in, or — when the text sent was the text
+      // already saved — left on the screen looking saved, to be lost on Close.
+      if (editedNow.current !== sent) return;
+      setTyped(null);
+      setEditing(false);
     },
     onError: (e) => setError(e instanceof ApiError ? `Note NOT saved: ${e.message}` : "Note NOT saved. Is the connection up?"),
   });
@@ -222,25 +242,25 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Note</div>
                 {editing ? (
                   <RichTextEditor
-                    value={draft}
+                    value={text}
                     // The editor reports its text every time the focus leaves it,
                     // typed in or not. The same text is not a change — taken as
                     // one, tabbing through an untouched note made it ask about
                     // unsaved changes that did not exist.
-                    onChange={(html) => { if (html === draft) return; setDraft(html); setDirty(true); setConfirmClose(false); }}
+                    onChange={(html) => { if (html === text) return; setTyped(html); setConfirmClose(false); }}
                     minHeight={220}
                     placeholder="Write your personal note…"
                     allowImages={false}
                     highlight
                     sensitive
                   />
-                ) : isBlankHtml(draft) ? (
+                ) : isBlankHtml(text) ? (
                   <div style={{ fontSize: 13, color: C.n[500], padding: "10px 0" }}>No note yet. Press Edit to write one.</div>
                 ) : (
                   <div
                     className="pn-view"
                     style={{ fontSize: 13.5, color: C.n[900], lineHeight: 1.5, border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "10px 12px", overflowWrap: "anywhere" }}
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(draft) }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(text) }}
                   />
                 )}
               </div>
@@ -260,7 +280,7 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
             ) : "")}
           </div>
           <button type="button" onClick={() => setEditing(true)} disabled={editing || !q.isSuccess} style={{ ...btn(false, editing || !q.isSuccess), marginLeft: "auto" }}>Edit</button>
-          <button type="button" onClick={() => save.mutate()} disabled={!dirty || save.isPending} style={btn(true, !dirty || save.isPending)}>
+          <button type="button" onClick={() => save.mutate(text)} disabled={!dirty || save.isPending} style={btn(true, !dirty || save.isPending)}>
             {save.isPending ? "Saving…" : "Save"}
           </button>
           <button

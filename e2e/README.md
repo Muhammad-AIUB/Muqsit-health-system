@@ -95,6 +95,7 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
 
 No clinical content is invented: medicines are rows of the seeded test
 `medicines` table, the diagnosis is the placeholder `Test diagnosis`, and the
+| `personal-note.spec.ts` | TWO browsers signed in as one doctor, "Mirror devices" on: device A types in one patient's personal note, device B picks another patient from the search box and A's editor moves on behind the open note — the note on A stays the first patient's, Save writes the words into THAT patient's note (read back through the API, with her details) and nothing into the other's; closed and opened again, it is the patient now in the editor. Fails on the code before 2026-10-12, where the open box showed the second patient's details over the first one's words |
 one alert the suite needs is raised with a seeded medicine plus one of the app's
 own Associated-illness quick-picks — its text is read from the screen.
 
