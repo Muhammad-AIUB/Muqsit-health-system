@@ -74,7 +74,11 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
   compiling `/` again) and its 15 s check ran out as the page appeared. With
   the tab closed the same suite passed three times, 30% faster. A failure whose
   page snapshot is an empty `main` under a screenshot of the finished page is
-  this, not the app. After a run, sign in again with the NEW address in
+  this, not the app. Seen again 2026-10-12 with the tab closed and a code
+  review typechecking on the same machine: 13.1 s for the same script, in the
+  sign-out journey. Since then `login()` waits for the first paint as long as
+  it waits for the address (60 s) — the wait is for the dev server, which
+  production does not have. After a run, sign in again with the NEW address in
   `e2e/.seed.json`; the made-up patients are gone too.
 
 ## Journeys

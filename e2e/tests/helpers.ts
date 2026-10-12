@@ -102,7 +102,13 @@ export async function login(page: Page, role: Role) {
   const s = seed();
   await fillLogin(page, s.doctors[role].email, s.password);
   await expect(page).toHaveURL(/\/prescription$/, { timeout: 60_000 });
-  await expect(mobileLookup(page)).toBeVisible();
+  // The address changes before the page is drawn: the dev server may still be
+  // handing over the page's own script. With anything else heavy on the
+  // machine that one request has taken 13 s (the trace's network list shows
+  // it, twice now — e2e/README.md), and the default 15 s ran out as the page
+  // appeared. The same allowance as the address above; a page that never
+  // draws still fails.
+  await expect(mobileLookup(page)).toBeVisible({ timeout: 60_000 });
 }
 
 /** Mobile lookup with an unknown number → "Add New" → name only. */
