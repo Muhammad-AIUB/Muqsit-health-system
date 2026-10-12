@@ -76,7 +76,10 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 //   • a ferritin typed ">2,000", stored ">2,000ng/mL", as 0: the part AFTER
 //     the comma, "000ng/mL", was taken for a value of its own (fifth review).
 // A comma followed by a SPACE is punctuation ("350, repeat next week"), and
-// the number before it stands, as it always did.
+// the number before it stands, as it does in production. That is right for a
+// remark and wrong for a number typed with a space inside it — "1, 200/cmm"
+// is still read as 1 — and the string does not say which it has: written down
+// as DEFECT-HM-SPACED in the tests, and the physician's to settle.
 const BARE_NUMBER = /^\d+(?:\.\d+)?$/;
 // `before` and `after` are the pieces on the two sides of one comma, as stored.
 const insideANumber = (before: string, after: string) => /\d$/.test(before) && /^\d/.test(after);

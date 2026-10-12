@@ -163,7 +163,7 @@ describe("numericSeriesFor — a comma inside a number", () => {
 
   // The space is what a doctor types after a comma that ends a thought, and
   // what nothing in the app ever puts between the parts of a value.
-  it("⚕️ a comma followed by a space is punctuation: the number before it stands, as it always did", () => {
+  it("⚕️ a comma followed by a space is punctuation: the number before it stands, as in production", () => {
     expect(read("WBC:350, repeat next week", count)).toEqual([350]);
     expect(read("WBC:350, 80% lymphocytes", count)).toEqual([350]);
     expect(read("Appearance:Cloudy,WBC:350, repeat,ADA:Positive", count)).toEqual([350]);
@@ -251,9 +251,35 @@ describe("numericSeriesFor — every chartable box of the catalog", () => {
     expect(series(ferritin, stored(ferritin, "2000"))).toEqual([2000]);
   });
 
-  it("a remark after a comma and a space keeps its reading, as on every version before", () => {
+  // (The fourth round's rule had stopped drawing these; the fifth put them back.)
+  it("a remark after a comma and a space keeps its reading, as in production", () => {
     expect(series(real("Prothrombin Time", "INR"), "INR:2.5, 3 days after dose change")).toEqual([2.5]);
     expect(series(real("Ascites Fluid", "WBC"), "WBC:350, 80% lymphocytes")).toEqual([350]);
+  });
+
+  // DEFECT-HM-SPACED (open; in production). "A comma followed by a space is
+  // punctuation" is right for a remark and wrong for a NUMBER typed with a
+  // space inside it — and the string does not say which it has. Such a number
+  // is still drawn as a piece of itself. Telling "1, 200/cmm" from "2.5, 3 days
+  // after dose change" is reading what a comma MEANS, which is the physician's
+  // to say, like the groups below. See FUNCTIONAL-AUDIT.md.
+  const SPACED = ["1, 200/cmm", "> 2, 000", "approx 1, 200", ",5"];
+  it.fails("DEFECT-HM-SPACED: a number typed with a comma and a space inside it is not drawn as a piece of itself — in any box", () => {
+    for (const p of params) for (const typed of SPACED) expect(series(p, stored(p, typed)), `${p.label} ← ${typed}`).toEqual([]);
+  });
+
+  // What is drawn today, written down so that a change to it is seen: the part
+  // in FRONT of the comma where the box writes its name and has no unit, and
+  // the part AFTER it where the box writes no name and the number does not
+  // begin its text.
+  it("…what is drawn today: 1 for \"1, 200/cmm\" in a named box with no unit; 0, 200 and 5 in a box that writes no name", () => {
+    expect(series(real("Ascites Fluid", "WBC"), "WBC:1, 200/cmm")).toEqual([1]);
+    const ferritin = params.find((p) => /ferritin/i.test(p.test)) as ChartableParam;
+    expect(series(ferritin, stored(ferritin, "> 2, 000"))).toEqual([0]);
+    expect(series(ferritin, stored(ferritin, "approx 1, 200"))).toEqual([200]);
+    expect(series(ferritin, stored(ferritin, ",5"))).toEqual([5]);
+    // …and nothing where the number does begin the text of a box that writes no name.
+    expect(series(ferritin, stored(ferritin, "1, 200"))).toEqual([]);
   });
 
   it("ETT's METs is not read when the report after it begins with a number", () => {

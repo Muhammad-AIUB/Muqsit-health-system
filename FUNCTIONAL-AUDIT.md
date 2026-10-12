@@ -299,7 +299,15 @@ CLAUDE.md section before picking one up.
   (`it.fails`). The same blind spot shows a typed `12,000` as `12, 000` in
   the Investigation popup's "Added results" for a test with several boxes
   (`DEFECT-INV-GROUPED`). Both go away if a result's parts are stored
-  apart.
+  apart. **And a number typed with a comma AND a space inside it is still
+  drawn as a piece of itself (`DEFECT-HM-SPACED`, found in the sixth
+  review; production draws the same):** `WBC:1, 200/cmm` as 1, in a box
+  that writes its name and has no unit; `> 2, 000` as 0, `approx 1, 200`
+  as 200 and a decimal typed `,5` as 5, in a box stored with no name. The
+  chart takes a comma followed by a space for punctuation — right for
+  `350, 80% lymphocytes` and `2.5, 3 days after dose change`, which keep
+  their point — and nothing in the string tells that from a number typed
+  with a space in it. It is the same question: what a typed comma means.
 - [ ] **Two names stand twice in the investigation catalog** (found
   2026-10-12): `Beta-HCG` (Tumor Markers and Reproductive) and `ECG`
   (Imaging, field "Report"; ECG / Drug, field "Result"). `client/CLAUDE.md`
