@@ -4,9 +4,35 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ({}) }));
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 
-import { personalNoteHtml } from "./PersonalNote";
+import { noteTextNow, personalNoteHtml } from "./PersonalNote";
 
 const info = { name: "Rahim <Uddin>", age: "42", sex: "Male", address: "Mirpur, Dhaka", mobile: "01712345678" };
+
+// The note box holds a `draft`, and a note that has just loaded reaches it one
+// render late: for that instant the box says "loaded" with an empty draft. Print
+// reads the draft — so Print pressed in that instant printed an EMPTY note, and
+// skipped the question a note with sensitive text must ask. (It could not leak:
+// there was nothing in the draft to print.) No hand is that fast; a test is,
+// and three tests of the print question failed one run in four until the
+// flaky-test detector named them (2026-10-12).
+describe("the note's text as it stands right now", () => {
+  const SAVED = '<p>Family history: <a href="mhs-sensitive:1">confidential detail</a></p>';
+
+  it("⚕️ a note that has just loaded is its SAVED text — though the draft has not caught up yet", () => {
+    expect(noteTextNow(false, "", SAVED)).toBe(SAVED);
+  });
+
+  it("once something has been typed, it is what was typed", () => {
+    expect(noteTextNow(true, "<p>typed</p>", SAVED)).toBe("<p>typed</p>");
+    expect(noteTextNow(true, "", SAVED)).toBe(""); // everything deleted is a change too
+  });
+
+  it("with no note saved yet, it is the draft", () => {
+    expect(noteTextNow(false, "", null)).toBe("");
+    expect(noteTextNow(false, "", undefined)).toBe("");
+    expect(noteTextNow(true, "<p>first words</p>", null)).toBe("<p>first words</p>");
+  });
+});
 
 describe("the printed personal note", () => {
   it("prints the patient details and the note, and nothing from the prescription", () => {

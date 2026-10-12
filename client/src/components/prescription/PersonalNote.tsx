@@ -80,6 +80,21 @@ function printHtml(html: string) {
   }, 150);
 }
 
+/**
+ * The note's text as it stands right now: what was typed once anything has
+ * been, and until then the SAVED text.
+ *
+ * Not simply `draft`. A note that has just loaded reaches the draft one render
+ * late (an effect copies it in), and for that instant the box is "loaded" with
+ * an empty draft. Print read the draft: pressed in that instant it printed an
+ * empty note and skipped the question a note with sensitive text must ask. It
+ * could not leak anything — there was nothing in the draft — and no hand is
+ * that fast; a test is, and the flaky-test detector named three (2026-10-12).
+ */
+export function noteTextNow(dirty: boolean, draft: string, savedHtml: string | null | undefined): string {
+  return dirty ? draft : (savedHtml ?? draft);
+}
+
 export function PersonalNoteSection() {
   const { currentPatientId } = useMuqsit();
   const [open, setOpen] = useState(false);
@@ -124,13 +139,16 @@ function PersonalNoteBox({ patientId, onClose }: { patientId: string; onClose: (
   const [askPrint, setAskPrint] = useState(false);
 
   // A note with sensitive text asks how to print it; any other prints at once.
+  // What is printed — and asked about — is the note as it stands NOW
+  // (`noteTextNow`), never a draft that has not caught up with a loaded note.
+  const text = noteTextNow(dirty, draft, saved?.html);
   const onPrint = () => {
-    if (hasSensitive(draft)) { setAskPrint(true); return; }
-    printHtml(personalNoteHtml(info, draft, today));
+    if (hasSensitive(text)) { setAskPrint(true); return; }
+    printHtml(personalNoteHtml(info, text, today));
   };
   const printAs = (sensitive: boolean) => {
     setAskPrint(false);
-    printHtml(personalNoteHtml(info, draft, today, { sensitive }));
+    printHtml(personalNoteHtml(info, text, today, { sensitive }));
   };
 
   // Once loaded: a note that does not exist yet opens straight into writing.
