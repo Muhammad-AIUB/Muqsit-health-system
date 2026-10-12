@@ -5,18 +5,24 @@ import { splitDrugLabel } from "./rxShorthand";
 //
 // ⚕️ It used to be one line cut at its end, on the reasoning that the START of
 // a name is what says which medicine it is. In this app it is not: a medicine's
-// label starts with its dosage form. On a phone the column holds 12 to 15
-// characters, so "Tablet. Entaliv 0.5 mg" and "Tablet. Entaliv 1 mg" both read
-// "Tablet. Enta…", and "Capsule (Enteric Coated). Sergel 40 mg" read
-// "Capsule (Ente…" with the medicine itself gone — two bars under one name, and
-// a dose change that could not be read off the timeline (found in review,
-// before release).
+// label starts with its dosage form. On a phone the column holds 13 to 15
+// characters (up to 20 on a narrow tablet), so "Tablet. Entaliv 0.5 mg" and
+// "Tablet. Entaliv 1 mg" both read "Tablet. Enta…", and "Capsule (Enteric
+// Coated). Sergel 40 mg" read "Capsule (Ente…" with the medicine itself gone —
+// two bars under one name, and a dose change that could not be read off the
+// timeline (found in review, before release).
 //
-// The rule every branch below serves: TWO MEDICINES THAT ARE DIFFERENT ARE
-// NEVER DRAWN UNDER THE SAME NAME. What tells two bars apart is the brand and
-// the strength — and, when the first word is not a dosage form at all, that
-// word too. So a name that does not fit takes TWO lines (a bar's row has the
-// height for them), and what gives way, in this order, is:
+// What the chart needs: TWO NAMES THAT ARE DIFFERENT ARE NOT DRAWN THE SAME.
+// It takes two steps, because no rule for ONE name can promise it — two lines
+// of thirteen letters do not hold every label, and whatever a rule leaves off,
+// some pair of medicines differs in exactly that:
+//   • `nameLines` lays ONE name out, keeping what most often tells two bars
+//     apart: the brand and the strength;
+//   • `namesApart` lays out the names of one CHART, and any that came out the
+//     same are laid out again so that what they differ in is what is shown.
+//
+// One name that does not fit takes TWO lines (a bar's row has the height for
+// them), and what gives way, in this order, is:
 //   1. the dosage form — to a quiet line of its own above the brand and
 //      strength when they fit the second line whole;
 //   2. the END of the brand — when brand and strength are too long for one
@@ -32,7 +38,9 @@ import { splitDrugLabel } from "./rxShorthand";
 // deciding what may be LEFT OFF it is three different things, each of them
 // found the hard way, in review, before release:
 //   • a form the app knows by name ("Tablet.", "inj") can be left off behind a
-//     "…" when there is no room: every tablet shares it;
+//     "…" when there is no room for it beside the brand: every tablet shares
+//     it. (Where two bars differ in nothing else — a tablet and an injection
+//     of one medicine — `namesApart` brings it back.)
 //   • a short first word it does NOT know ("Pot.", "Sod.", "Vit.") is part of
 //     the name — left off, potassium chloride and sodium chloride were one
 //     name — and stays in front of it;
@@ -46,7 +54,9 @@ import { splitDrugLabel } from "./rxShorthand";
 // as it was written, in the order it was written, and a "…" stands wherever
 // something was left off. The bar's tooltip and the list under the chart still
 // carry the name in full. Known limit: a strength too long for a line by itself
-// ("5 mg + 160 mg + 12.5 mg" in thirteen characters) is cut at its end.
+// ("5 mg + 160 mg + 12.5 mg" in thirteen characters) is cut at its end — on a
+// chart where another strength of it differs only in that end, `namesApart`
+// shows the end instead.
 
 export interface NameLine {
   text: string;
@@ -114,10 +124,102 @@ export function nameLines(name: string, max: number, kind: "drug" | "text"): Nam
   const rest = (brand + after).trim();
   if (rest.length <= max) return [{ text: cutEnd(head, max), quiet: true }, { text: rest }];
   if (knownForm) {
-    if (strength && strength.length <= max) return [{ text: cutEnd("…" + brand, max) }, { text: strength }];
+    if (strength && strength.length <= max) {
+      // Left off only when there is no room for it beside the brand: where
+      // there is, the whole name fits the two lines.
+      const written = (before + brand).trim();
+      return [{ text: written.length <= max ? written : cutEnd("…" + brand, max) }, { text: strength }];
+    }
     return wrapTwo("…" + rest, max);
   }
   // Reads as a form, but not one the app knows by name: shortened, never left off.
   if (strength && strength.length <= max) return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: strength }];
   return [{ text: cutEnd(head, max), quiet: true }, { text: cutEnd(rest, max) }];
+}
+
+/** One name on the chart, and what it is: a medicine's label, or any other text. */
+export interface ChartName { name: string; kind: "drug" | "text" }
+
+const shown = (lines: NameLine[]) => lines.map((l) => l.text).join("\n");
+
+// A medicine with its form KEPT — shortened if it must be — on one line with
+// the brand, and the strength under them. What tells a tablet from an
+// injection of the same medicine and strength.
+function formKept(text: string, max: number): NameLine[] | null {
+  const { before, name: brand, after } = splitDrugLabel(text);
+  const head = before.trim();
+  const strength = after.trim();
+  if (!brand || !head || !strength || strength.length > max) return null;
+  return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: strength }];
+}
+
+// Two lines read from the place where a name stops being the same as the names
+// it was taken for: what they share, cut at its end, and under it the word
+// they part at — or the very letter, when that word runs on for longer than a
+// line could show the difference in. `same` is how many letters they share.
+// Null for a name that ENDS there: it has nothing to go on with, and keeps the
+// lines it had.
+function fromDifference(text: string, same: number, max: number): NameLine[] | null {
+  const word = text.slice(0, same).search(/\S*$/);
+  const start = same - word <= max - 3 ? word : same;
+  if (start === 0) return wrapTwo(text, max);
+  const rest = text.slice(start).trimStart();
+  if (!rest) return null;
+  return [{ text: cutEnd(text.slice(0, start).trimEnd(), max) }, { text: cutEnd((start === word ? "" : "…") + rest, max) }];
+}
+
+// More rounds than a real chart can need: each one either tells a group of
+// names apart or moves on to a later letter of them.
+const ROUNDS = 6;
+
+/**
+ * The names of ONE chart, each over at most two lines of at most `max`
+ * characters, in the order given.
+ *
+ * Each is what `nameLines` writes for it alone — until two names that are
+ * different come out the same. Those are laid out again, together:
+ *   • medicines that differ in their dosage form get it back, shortened, with
+ *     the strength still under it ("Tab… Ondanse…" / "Inj… Ondanse…");
+ *   • anything else is read from the word the names part at, under what they
+ *     share ("Tablet. Amlodi…" over "Atenolol 5 mg…" / "Losartan 5 mg…").
+ * A name is written the same wherever it stands in the list, and a chart whose
+ * names are already different is not touched.
+ *
+ * ⚕️ What is held (timelineLabel.test.ts): any TWO different names are written
+ * differently, whatever they are; and so is every pair on a chart of names
+ * built to be mistaken for one another. What is not promised: more than two
+ * names that agree for longer than two lines can show, in different places —
+ * after ROUNDS tries they are left as they are.
+ */
+export function namesApart(names: ChartName[], max: number): NameLine[][] {
+  const texts = names.map((n) => n.name.trim());
+  const lines = names.map((n) => nameLines(n.name, max, n.kind));
+  for (let round = 0; round < ROUNDS; round++) {
+    // Names written the same: grouped by what is shown, and only where the
+    // group holds more than one NAME (the same name twice is one name).
+    const byShown = new Map<string, number[]>();
+    lines.forEach((l, i) => byShown.set(shown(l), [...(byShown.get(shown(l)) ?? []), i]));
+    const groups = [...byShown.values()].filter((g) => new Set(g.map((i) => texts[i])).size > 1);
+    if (groups.length === 0) break;
+    for (const g of groups) {
+      const kept = g.map((i) => (names[i].kind === "drug" ? formKept(texts[i], max) : null));
+      const told = new Map<string, string>(); // what is shown → the name it stands for
+      const apart = kept.every((l, k) => {
+        if (!l) return false;
+        const was = told.get(shown(l));
+        told.set(shown(l), texts[g[k]]);
+        return was === undefined || was === texts[g[k]];
+      });
+      if (apart) { g.forEach((i, k) => { lines[i] = kept[k] as NameLine[]; }); continue; }
+      const first = texts[g[0]];
+      let same = first.length;
+      for (const i of g) {
+        let n = 0;
+        while (n < same && n < texts[i].length && texts[i][n] === first[n]) n++;
+        same = n;
+      }
+      for (const i of g) lines[i] = fromDifference(texts[i], same, max) ?? lines[i];
+    }
+  }
+  return lines;
 }

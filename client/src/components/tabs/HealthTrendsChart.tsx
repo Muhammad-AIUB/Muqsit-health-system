@@ -9,7 +9,7 @@ import type { SymptomMentionRange } from "@/lib/symptomSummary";
 import { cellToDate, type DrugDateMap } from "@/lib/hmDates";
 import { isImplausibleDate, YEAR_POLICY, ddmmyyyyMsStrict } from "@/lib/dateInput";
 import { computeTimeRange, makeToX, monthTicks, ticksInPlot, isInRange } from "@/lib/timelineGeometry";
-import { nameLines } from "@/lib/timelineLabel";
+import { namesApart, type NameLine } from "@/lib/timelineLabel";
 
 // A layout effect where there is a layout to read; on the server (where React
 // warns about one) an ordinary effect, which never runs there anyway.
@@ -403,19 +403,28 @@ export default function HealthTrendsChart({
   // The name beside a lane or a bar; `y` is where its one line has always been
   // written. Wide: that one line, cut at `cap` — unchanged.
   //
-  // ⚕️ Narrow: the strip holds 12 to 15 characters, and a medicine's label
-  // STARTS with its dosage form — cut at its end, "Tablet. Entaliv 0.5 mg" and
-  // "Tablet. Entaliv 1 mg" were both "Tablet. Enta…", two bars under one name.
-  // So a name that does not fit takes two lines there (`nameLines`): the form
-  // above, quiet, and the brand with its strength under it, whole.
-  const drawName = (name: string, cap: number, kind: "drug" | "text", y: number, fill: string, bold: boolean) => {
+  // ⚕️ Narrow: the strip holds 13 to 15 characters on a phone (20 at most), and
+  // a medicine's label STARTS with its dosage form — cut at its end, "Tablet.
+  // Entaliv 0.5 mg" and "Tablet. Entaliv 1 mg" were both "Tablet. Enta…", two
+  // bars under one name. So a name that does not fit takes two lines there: the
+  // form above, quiet, and the brand with its strength under it, whole.
+  //
+  // The names are laid out TOGETHER (`namesApart`), the bars as one list and
+  // the lanes as another: two lines cannot hold every label, and whatever is
+  // left off, some two of them differ in exactly that. A tablet and an
+  // injection of one medicine and strength were both "…Ondansetron" over
+  // "8 mg"; four parameters of Hb electrophoresis were four lanes named
+  // "Hb / Electrophores…". Any two that come out the same are laid out again
+  // from where they differ.
+  const laneNames = narrow ? namesApart(lanes.map(({ param }) => ({ name: param.label, kind: "text" as const })), nameChars(22)) : [];
+  const trackNames = narrow ? namesApart(tracks.map((t) => ({ name: t.name, kind: t.kind === "drug" ? ("drug" as const) : ("text" as const) })), nameChars(20)) : [];
+  const drawName = (name: string, cap: number, lines: NameLine[] | undefined, y: number, fill: string, bold: boolean) => {
     const line = (text: string, at: number, size: number, color: string) => (
       <text x={nameX} y={at} textAnchor={nameAnchor} fontSize={size} fontWeight={bold ? 600 : undefined} fill={color}>
         {text}
       </text>
     );
-    if (!narrow) return line(cut(name, cap), y, 10, fill);
-    const lines = nameLines(name, nameChars(cap), kind);
+    if (!lines) return line(cut(name, cap), y, 10, fill); // wide: no lines are laid out
     if (lines.length < 2) return line(lines[0]?.text ?? "", y, 10, fill);
     return (
       <>
@@ -798,7 +807,7 @@ export default function HealthTrendsChart({
                 const last = allPoints[allPoints.length - 1];
                 return (
                   <g key={paramKey(param)}>
-                    {drawName(param.label, 22, "text", laneTop + EMPTY_LANE_H / 2 + 3, C.n[500], true)}
+                    {drawName(param.label, 22, laneNames[si], laneTop + EMPTY_LANE_H / 2 + 3, C.n[500], true)}
                     <text x={LW + 8} y={laneTop + EMPTY_LANE_H / 2 + 3} fontSize={9} fill={C.n[500]}>
                       {last
                         ? `No reading in this window · last was ${last.label.length > 28 ? last.label.slice(0, 27) + "…" : last.label} on ${last.date}`
@@ -857,7 +866,7 @@ export default function HealthTrendsChart({
                       </g>
                     );
                   })}
-                  {drawName(param.label, 22, "text", laneTop + LANE_H / 2 + 3, color, true)}
+                  {drawName(param.label, 22, laneNames[si], laneTop + LANE_H / 2 + 3, color, true)}
                 </g>
               );
             })}
@@ -890,7 +899,7 @@ export default function HealthTrendsChart({
               return (
                 <g key={`${t.kind}-${t.name}`}>
                   {idx % 2 === 0 && <rect x={LW} y={GANTT_TOP + idx * RH} width={areaW} height={RH} fill={C.n[50]} />}
-                  {drawName(t.name, 20, t.kind === "drug" ? "drug" : "text", cy + 4, C.n[700], false)}
+                  {drawName(t.name, 20, trackNames[idx], cy + 4, C.n[700], false)}
                   <title>{tip}</title>
                   {singleDate ? (
                     <circle

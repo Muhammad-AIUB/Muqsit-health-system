@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { nameLines } from "./timelineLabel";
+import { nameLines, namesApart, type ChartName } from "./timelineLabel";
 import { splitDrugLabel } from "./rxShorthand";
 import { configureProps } from "@/test/fc";
 
 // The name written beside a bar or a lane of the Health-trend chart, in a
 // column too narrow for the whole of it.
 //
-// ⚕️ It used to be one line, cut at its end. On a phone that column holds 12 to
+// ⚕️ It used to be one line, cut at its end. On a phone that column holds 13 to
 // 15 characters, and in this app a medicine's label STARTS with its dosage
 // form: "Tablet. Entaliv 0.5 mg" and "Tablet. Entaliv 1 mg" both read
 // "Tablet. Enta…", and "Capsule (Enteric Coated). Sergel 40 mg" read
@@ -101,6 +101,249 @@ describe("nameLines — a medicine", () => {
   it("the abbreviated forms doctors type are forms too", () => {
     expect(texts("inj Ceftriaxone 1 gm", 16)).toEqual(["inj", "Ceftriaxone 1 gm"]);
   });
+
+  // The form is left off only when there is no room for it. Where it fits
+  // beside the brand, with the strength under them, the whole name fits two
+  // lines and nothing is left off at all.
+  it("⚕️ a form that fits beside the brand is not left off", () => {
+    expect(texts("Syrup. Napa 120 mg/5 ml", 13)).toEqual(["Syrup. Napa", "120 mg/5 ml"]);
+    expect(texts("Cream. Betnovate-N 0.1% + 0.5%", 20)).toEqual(["Cream. Betnovate-N", "0.1% + 0.5%"]);
+    // No room beside the brand: left off, and marked.
+    expect(texts("Suspension. Napa 120 mg/5 ml", 13)).toEqual(["…Napa", "120 mg/5 ml"]);
+  });
+});
+
+// One name at a time cannot promise what the chart needs: two lines of
+// thirteen letters cannot hold every medicine's label, and whatever one rule
+// leaves off, some pair of medicines differs in exactly that. The fourth
+// review found them with real labels, each pair under ONE name: a tablet and
+// an injection of the same medicine and strength, two salts of calcium, two
+// combinations that begin with the same ingredient.
+//
+// So the names of one chart are laid out TOGETHER (`namesApart`): each as
+// `nameLines` writes it, and any that came out the same are laid out again so
+// that what they differ in is what is shown.
+describe("namesApart — the names of one chart, together", () => {
+  const drugs = (...names: string[]): ChartName[] => names.map((name) => ({ name, kind: "drug" }));
+  const apart = (names: ChartName[], max: number) => namesApart(names, max).map((lines) => lines.map((l) => l.text));
+
+  it("names that do not come out the same are left exactly as they are written one at a time", () => {
+    const chart = drugs("Tablet. Entaliv 0.5 mg", "Tablet. Entaliv 1 mg", "Capsule (Enteric Coated). Sergel 40 mg", "Pot. chloride 600 mg SR");
+    expect(namesApart(chart, 15)).toEqual(chart.map((n) => nameLines(n.name, 15, "drug")));
+  });
+
+  it("⚕️ the same medicine and strength in two forms: the form comes back, shortened, and the strength stays", () => {
+    expect(apart(drugs("Tablet. Ondansetron 8 mg", "Injection. Ondansetron 8 mg"), 13)).toEqual([
+      ["Tab… Ondanse…", "8 mg"],
+      ["Inj… Ondanse…", "8 mg"],
+    ]);
+    expect(apart(drugs("Cream. Betnovate-N 0.1% + 0.5%", "Ointment. Betnovate-N 0.1% + 0.5%"), 13)).toEqual([
+      ["Cre… Betnova…", "0.1% + 0.5%"],
+      ["Oin… Betnova…", "0.1% + 0.5%"],
+    ]);
+  });
+
+  it("…and only for those two: a third strength of it on the same chart keeps its own name", () => {
+    expect(apart(drugs("Tablet. Ondansetron 8 mg", "Tablet. Ondansetron 4 mg", "Injection. Ondansetron 8 mg"), 13)).toEqual([
+      ["Tab… Ondanse…", "8 mg"],
+      ["…Ondansetron", "4 mg"],
+      ["Inj… Ondanse…", "8 mg"],
+    ]);
+  });
+
+  it("⚕️ two names that part inside a first word the app does not know are read from the word they part at", () => {
+    expect(apart(drugs("Calcium Carb. + Vit. D3 500 mg", "Calcium Citr. + Vit. D3 500 mg"), 13)).toEqual([
+      ["Calcium", "Carb. + Vit.…"],
+      ["Calcium", "Citr. + Vit.…"],
+    ]);
+    expect(apart(drugs("Eye Drops. Moxifloxacin 0.5%", "Eye Ointment. Moxifloxacin 0.5%"), 13)).toEqual([
+      ["Eye", "Drops. Moxif…"],
+      ["Eye", "Ointment. Mo…"],
+    ]);
+  });
+
+  it("⚕️ two combinations that begin with the same ingredient show the one they differ in", () => {
+    expect(apart(drugs("Tablet. Amlodipine + Atenolol 5 mg + 50 mg", "Tablet. Amlodipine + Losartan 5 mg + 50 mg"), 15)).toEqual([
+      ["Tablet. Amlodi…", "Atenolol 5 mg…"],
+      ["Tablet. Amlodi…", "Losartan 5 mg…"],
+    ]);
+  });
+
+  it("⚕️ two strengths too long for a line, that differ only at their end, show that end", () => {
+    expect(apart(drugs("Tablet. Exforge HCT 5 mg + 160 mg + 12.5 mg", "Tablet. Exforge HCT 5 mg + 160 mg + 25 mg"), 13)).toEqual([
+      ["Tablet. Exfo…", "12.5 mg"],
+      ["Tablet. Exfo…", "25 mg"],
+    ]);
+  });
+
+  it("a symptom or a test's name is told from its neighbour the same way", () => {
+    const chart: ChartName[] = [
+      { name: "Pain in the left knee since last Friday, worse on stairs", kind: "text" },
+      { name: "Pain in the left knee since last Friday, worse at night", kind: "text" },
+    ];
+    expect(apart(chart, 15)).toEqual([
+      ["Pain in the le…", "on stairs"],
+      ["Pain in the le…", "at night"],
+    ]);
+  });
+
+  it("the same name twice is the same name: nothing to tell apart", () => {
+    expect(apart(drugs("Tablet. Ondansetron 8 mg", "Tablet. Ondansetron 8 mg"), 13)).toEqual([
+      ["…Ondansetron", "8 mg"],
+      ["…Ondansetron", "8 mg"],
+    ]);
+  });
+
+  it("a name that ends where another goes on keeps its lines, and the other shows what it goes on with", () => {
+    const short = "Amlodipine + Olmesartan + Hydrochlorothiazide";
+    expect(apart([{ name: short, kind: "text" }, { name: `${short} Forte`, kind: "text" }], 13)).toEqual([
+      ["Amlodipine +", "Olmesartan +…"],
+      ["Amlodipine +…", "…Forte"],
+    ]);
+  });
+
+  // Three that all begin alike, two of which go on alike for longer still: the
+  // first reading tells the third from the pair, the second the pair from
+  // each other.
+  it("three names, two of them alike for longer than the third, are told apart in two steps", () => {
+    const start = "Tablet. Amlodipine + Olmesartan + Hydrochlorothiazide";
+    const longer = `${start} + Bisoprolol + Aspirin + Clopidogrel`;
+    const chart = drugs(`${start} + Atenolol 5 mg`, `${longer} + Rosuvastatin 5 mg`, `${longer} + Atorvastatin 5 mg`);
+    // Alone, each of the three is "…Amlodipine…" over "5 mg".
+    expect(chart.map((n) => texts(n.name, 13))).toEqual([["…Amlodipine…", "5 mg"], ["…Amlodipine…", "5 mg"], ["…Amlodipine…", "5 mg"]]);
+    expect(apart(chart, 13)).toEqual([
+      ["Tablet. Amlo…", "Atenolol 5 mg"],
+      ["Tablet. Amlo…", "Rosuvastatin…"],
+      ["Tablet. Amlo…", "Atorvastatin…"],
+    ]);
+  });
+
+  // A dosage form is only looked for in a MEDICINE. A symptom that happens to
+  // have a full stop after its first word is read from where it differs, like
+  // any other text — not shortened to "Fev… With ch…" as if "Fever." were a form.
+  it("a symptom is not taken apart as a medicine to be told from another", () => {
+    const chart: ChartName[] = ["3 days", "5 days"].map((d) => ({ name: `Fever. With chills and rigor for the last ${d}`, kind: "text" }));
+    expect(apart(chart, 13)).toEqual([
+      ["Fever. With…", "3 days"],
+      ["Fever. With…", "5 days"],
+    ]);
+  });
+
+  describe("for any names", () => {
+    const word = fc.stringMatching(/^[A-Za-z0-9.+/()%-]{1,14}$/);
+    const words = (min: number, max: number) => fc.array(word, { minLength: min, maxLength: max }).map((ws) => ws.join(" "));
+    const kind = fc.constantFrom<"drug" | "text">("drug", "text");
+    const width = fc.integer({ min: 8, max: 24 });
+    // Two names made to be mistaken for each other: the same beginning and the
+    // same end, as long as you like, and one place in between where they differ
+    // — a word, a letter inside a word, or one simply going on after the other.
+    const lookalikes = fc.oneof(
+      fc.tuple(words(0, 6), word, word, words(0, 5)).map(([head, a, b, tail]) => [[head, a, tail], [head, b, tail]].map((p) => p.filter(Boolean).join(" "))),
+      fc.tuple(words(0, 4), word, fc.stringMatching(/^[a-z0-9]{1,3}$/), fc.stringMatching(/^[a-z0-9]{1,3}$/), words(0, 4))
+        .map(([head, stem, a, b, tail]) => [[head, stem + a, tail], [head, stem + b, tail]].map((p) => p.filter(Boolean).join(" "))),
+      fc.tuple(words(1, 8), words(1, 3)).map(([base, more]) => [base, `${base} ${more}`]),
+      fc.tuple(words(1, 8), words(1, 8)),
+    );
+
+    it("⚕️ TWO NAMES THAT ARE DIFFERENT ARE NEVER WRITTEN THE SAME", () => {
+      fc.assert(
+        fc.property(lookalikes, kind, kind, width, ([a, b], ka, kb, max) => {
+          fc.pre(a.trim() !== b.trim());
+          const [one, two] = apart([{ name: a, kind: ka }, { name: b, kind: kb }], max);
+          expect(one, `"${a}" / "${b}" @${max}`).not.toEqual(two);
+        }),
+        { numRuns: 20000 },
+      );
+    });
+
+    // A chart: a handful of medicines made of a few forms, a few brands that
+    // begin alike, and a few strengths — every one of them confusable with
+    // another — and two symptoms.
+    const FORMS = ["", "Tablet. ", "Injection. ", "Syrup. ", "Suspension. ", "Capsule (Enteric Coated). ", "IV Infusion. ", "Oral Suspension. ", "Oral Solution. ", "Eye Drops. ", "Eye Ointment. ", "Pot. ", "Sod. "];
+    const BRANDS = ["Napa", "Ondansetron", "Amlodipine + Atenolol", "Amlodipine + Losartan", "Amlodipine + Olmesartan + Hydrochlorothiazide", "Amlodipine + Olmesartan", "Calcium Carb. + Vit. D3", "Calcium Citr. + Vit. D3", "chloride"];
+    const STRENGTHS = ["8 mg", "4 mg", "5 mg + 50 mg", "5 mg + 20 mg", "5 mg + 160 mg + 12.5 mg", "5 mg + 160 mg + 25 mg", "120 mg/5 ml"];
+    const medicine = fc.tuple(fc.constantFrom(...FORMS), fc.constantFrom(...BRANDS), fc.constantFrom(...STRENGTHS)).map(([f, b, s]): ChartName => ({ name: `${f}${b} ${s}`, kind: "drug" }));
+    const symptom = fc.constantFrom("Pain in the left knee since last Friday, worse on stairs", "Pain in the left knee since last Friday, worse at night", "Fever").map((name): ChartName => ({ name, kind: "text" }));
+    const chart = fc.array(fc.oneof({ weight: 5, arbitrary: medicine }, { weight: 1, arbitrary: symptom }), { minLength: 2, maxLength: 9 });
+
+    it("⚕️ …on a whole chart of names that are easily mistaken for one another", () => {
+      fc.assert(
+        fc.property(chart, fc.integer({ min: 13, max: 20 }), (names, max) => {
+          const shown = apart(names, max).map((l) => l.join("\n"));
+          for (let i = 0; i < names.length; i++) {
+            for (let j = i + 1; j < names.length; j++) {
+              if (names[i].name === names[j].name) continue;
+              expect(shown[i], `"${names[i].name}" / "${names[j].name}" @${max}`).not.toBe(shown[j]);
+            }
+          }
+        }),
+        { numRuns: 5000 },
+      );
+    });
+
+    it("never more than two lines, and none longer than the column", () => {
+      fc.assert(
+        fc.property(chart, width, (names, max) => {
+          for (const lines of apart(names, max)) {
+            expect(lines.length).toBeGreaterThanOrEqual(1);
+            expect(lines.length).toBeLessThanOrEqual(2);
+            for (const l of lines) expect(l.length).toBeLessThanOrEqual(max);
+          }
+        }),
+      );
+    });
+
+    it("⚕️ still invents nothing and reorders nothing: every line is pieces of its own name, in the order they were written", () => {
+      fc.assert(
+        fc.property(fc.oneof(chart, lookalikes.map((pair) => pair.map((name): ChartName => ({ name, kind: "drug" })))), width, (names, max) => {
+          apart(names, max).forEach((lines, i) => {
+            let from = 0;
+            for (const line of lines) {
+              for (const piece of line.split("…").map((p) => p.trim()).filter(Boolean)) {
+                const at = names[i].name.indexOf(piece, from);
+                expect(at, `"${piece}" of "${line}" in "${names[i].name}"`).toBeGreaterThanOrEqual(0);
+                from = at + piece.length;
+              }
+            }
+          });
+        }),
+        { numRuns: 5000 },
+      );
+    });
+
+    it("a name shown without a mark (…) is the whole name", () => {
+      fc.assert(
+        fc.property(fc.oneof(chart, lookalikes.map((pair) => pair.map((name): ChartName => ({ name, kind: "text" })))), width, (names, max) => {
+          apart(names, max).forEach((lines, i) => {
+            if (lines.some((l) => l.includes("…"))) return;
+            expect(lines.join("").replace(/\s+/g, "")).toBe(names[i].name.replace(/\s+/g, ""));
+          });
+        }),
+        { numRuns: 3000 },
+      );
+    });
+
+    it("a name is written the same whatever order the chart lists its names in", () => {
+      fc.assert(
+        fc.property(chart, fc.integer({ min: 13, max: 20 }), (names, max) => {
+          const there = apart(names, max);
+          const back = apart([...names].reverse(), max).reverse();
+          expect(back).toEqual(there);
+        }),
+      );
+    });
+
+    it("a chart whose names are already different is left alone", () => {
+      fc.assert(
+        fc.property(chart, fc.integer({ min: 13, max: 20 }), (names, max) => {
+          const alone = names.map((n) => nameLines(n.name, max, n.kind));
+          const shown = alone.map((l) => l.map((x) => x.text).join("\n"));
+          fc.pre(names.every((a, i) => names.every((b, j) => i === j || a.name === b.name || shown[i] !== shown[j])));
+          expect(namesApart(names, max)).toEqual(alone);
+        }),
+      );
+    });
+  });
 });
 
 describe("nameLines — free text (a symptom, a test's name)", () => {
@@ -187,8 +430,11 @@ describe("nameLines — for any name", () => {
     );
   });
 
-  // What the three reviews kept finding, as one rule: two medicines that are
-  // different must not be drawn under the same name.
+  // What the rule for ONE name keeps, by itself, of "two medicines that are
+  // different are not drawn under the same name" — and it is not all of it:
+  // the first of these three leaves out brands that begin alike (`fc.pre`),
+  // because a line of thirteen letters cuts them to the same thing. The whole
+  // promise is `namesApart`'s, above, which sees the chart's names together.
   const HEADS = ["", "Tablet. ", "Capsule (Enteric Coated). ", "IV Infusion. ", "Oral Saline. ", "Mouthwash. ", "Pot. ", "inj "];
   const STRENGTHS = ["5 mg", "0.5 mg", "500 mg", "5 mg + 20 mg", "400 mg/100 mg", "1 gm/100 ml"];
   const brandWord = fc.stringMatching(/^[A-Z][a-z]{2,10}$/);

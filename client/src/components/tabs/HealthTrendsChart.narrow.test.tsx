@@ -41,14 +41,16 @@ const daysAgo = (n: number) => {
 
 const LONG_NAME = "Capsule (Enteric Coated). Sergel 40 mg";
 
-const draw = (drugs: string[] = [LONG_NAME]) =>
+const HB = [
+  { date: daysAgo(180), category: "Hematology", test: "CBC", value: "Hb:9.8g/dL" },
+  { date: daysAgo(90), category: "Hematology", test: "CBC", value: "Hb:10.6g/dL" },
+  { date: daysAgo(10), category: "Hematology", test: "CBC", value: "Hb:12.1g/dL" },
+];
+
+const draw = (drugs: string[] = [LONG_NAME], findings = HB) =>
   render(
     <HealthTrendsChart
-      investigationSummary={[
-        { date: daysAgo(180), category: "Hematology", test: "CBC", value: "Hb:9.8g/dL" },
-        { date: daysAgo(90), category: "Hematology", test: "CBC", value: "Hb:10.6g/dL" },
-        { date: daysAgo(10), category: "Hematology", test: "CBC", value: "Hb:12.1g/dL" },
-      ]}
+      investigationSummary={findings}
       drugRanges={drugs.map((name, i) => ({ name, start: daysAgo(180 - i * 40), end: daysAgo(10 + i * 5) }))}
       symptomRanges={[]}
       drugDates={{}}
@@ -189,6 +191,45 @@ describe("HealthTrendsChart — on a phone", () => {
     expect(texts).toContain("Entaliv 1 mg");
     // …where one line cut at its end gave "Tablet. Entali…" twice.
     expect(texts.filter((t) => t.startsWith("Tablet. Enta"))).toEqual([]);
+  });
+
+  // Two lines of fourteen letters do not hold every label, so one name at a
+  // time cannot promise that two bars are told apart: a tablet and an injection
+  // of the same medicine and strength were both "…Ondansetron" over "8 mg"
+  // (fourth review). The chart lays its names out together (`namesApart`).
+  const namesOfBars = (names: SVGSVGElement) =>
+    Array.from(names.querySelectorAll("rect[rx]")).map((bar) => Array.from((bar.parentElement as Element).querySelectorAll("text")).map((t) => (t.textContent ?? "").trim()));
+
+  it("⚕️ two bars that would be written the same are told apart — here by the form, which comes back", () => {
+    giveBox(280);
+    const { container } = draw(["Tablet. Ondansetron 8 mg", "Injection. Ondansetron 8 mg"]);
+    expect(namesOfBars(namesOf(container))).toEqual([
+      ["Tab… Ondanset…", "8 mg"],
+      ["Inj… Ondanset…", "8 mg"],
+    ]);
+  });
+
+  it("⚕️ …and two combinations that begin with the same ingredient, by the one they differ in", () => {
+    giveBox(280);
+    const { container } = draw(["Tablet. Amlodipine + Atenolol 5 mg + 50 mg", "Tablet. Amlodipine + Losartan 5 mg + 50 mg"]);
+    const bars = namesOfBars(namesOf(container));
+    expect(bars.map((b) => b[1])).toEqual(["Atenolol 5 mg…", "Losartan 5 mg…"]);
+    expect(new Set(bars.map((b) => b.join("|"))).size).toBe(2);
+  });
+
+  // The same for the lab lanes. Four parameters of one test were four lanes
+  // all named "Hb / Electrophores…" — told apart only by their colour and the
+  // legend above. (The numbers are made up.)
+  it("⚕️ four parameters of one long-named test are four different lane names", () => {
+    giveBox(280);
+    const electrophoresis = [180, 20].map((ago, i) => ({
+      date: daysAgo(ago), category: "Hematology", test: "Hb Electrophoresis",
+      value: `HbA:${90 + i}%,HbA2:${3 + i}%,HbF:${1 + i}%,HbS:${5 + i}%`,
+    }));
+    const { container } = draw([], electrophoresis);
+    const texts = written(namesOf(container));
+    expect(texts.filter((t) => /^Hb[A-Z]\d?$/.test(t)).sort()).toEqual(["HbA", "HbA2", "HbF", "HbS"]);
+    expect(texts.filter((t) => t === "Hb Electropho…")).toHaveLength(4);
   });
 
   it("the two lines of a name stand in their own row: the form above, quieter, the name under it", () => {
