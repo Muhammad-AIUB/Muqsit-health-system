@@ -19,6 +19,7 @@ import { useDialog } from "@/lib/useDialog";
 import { zoomScale } from "@/lib/dropdownAnchor";
 import { readFinding } from "@/lib/findingParts";
 import { resultBoxName } from "@/lib/resultBoxName";
+import { otherUnit, recordedValue } from "@/lib/twoUnitValue";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
@@ -274,16 +275,22 @@ export default function InvestigationPopup() {
   // Collect a test's filled-in fields into display parts, e.g.
   // ["Hb:13.5g/dL", "12000"]. Returns [] when nothing was entered. For dual-unit
   // fields, the doctor's preferred unit (Settings → Favourite & unit settings)
-  // decides which value/label is recorded.
+  // decides which value/label is recorded — when that box holds a value.
+  // ⚕️ When it does not, what was typed in the other box is recorded as typed,
+  // in its own unit (lib/twoUnitValue.ts): a number typed with a comma is not
+  // converted, and must not be recorded as a conversion of its first group.
   const collectTestParts = (test: InvTest): string[] =>
     (test.fields || [])
       .map((f) => {
-        const preferU2 = f.u2 ? unitPrefs[test.name + "__" + f.l] === "u2" : false;
-        const val = invFormData[test.name + "__" + f.l + (preferU2 ? "_u2" : "")];
-        if (!val) return null;
-        const unit = preferU2 ? (f.u2 ?? "") : (f.u1 ?? "");
+        const key = test.name + "__" + f.l;
+        const got = recordedValue(
+          { value: invFormData[key], unit: f.u1 },
+          f.u2 ? { value: invFormData[key + "_u2"], unit: f.u2 } : null,
+          unitPrefs[key] === "u2",
+        );
+        if (!got) return null;
         const label = VALUE_LABELS.includes(f.l) ? "" : f.l + ":";
-        return label + val + unit;
+        return label + got.value + got.unit;
       })
       .filter((p): p is string => Boolean(p));
 
@@ -849,12 +856,7 @@ export default function InvestigationPopup() {
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   handleInvFieldChange(test.name, f.l, val);
-                                  const num = parseFloat(val);
-                                  if (!isNaN(num) && f.c12) {
-                                    handleInvFieldChange(test.name, f.l + "_u2", (Math.round(num * f.c12 * 100) / 100).toString());
-                                  } else {
-                                    handleInvFieldChange(test.name, f.l + "_u2", "");
-                                  }
+                                  handleInvFieldChange(test.name, f.l + "_u2", otherUnit(val, f.c12));
                                 }}
                                 onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                                 style={inp} />
@@ -866,12 +868,7 @@ export default function InvestigationPopup() {
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   handleInvFieldChange(test.name, f.l + "_u2", val);
-                                  const num = parseFloat(val);
-                                  if (!isNaN(num) && f.c21) {
-                                    handleInvFieldChange(test.name, f.l, (Math.round(num * f.c21 * 100) / 100).toString());
-                                  } else {
-                                    handleInvFieldChange(test.name, f.l, "");
-                                  }
+                                  handleInvFieldChange(test.name, f.l, otherUnit(val, f.c21));
                                 }}
                                 style={inp} />
                               <div style={{ fontSize: 11, color: C.n[600], marginTop: 2 }}>{f.u2}</div>
