@@ -26,6 +26,8 @@ let ctx: Record<string, unknown>;
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
 
 import InvestigationPopup from "./InvestigationPopup";
+import { INV_CATS } from "@/data/investigations";
+import { resultBoxName } from "@/lib/resultBoxName";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -61,6 +63,7 @@ const mock = (name: string) => ctx[name] as ReturnType<typeof vi.fn>;
 // field are the catalog's own (data/investigations.ts), the number is a
 // stand-in for whatever the doctor was in the middle of typing.
 const HALF_TYPED = { CBC__Hb: "12.5" };
+const HB = "Hb (g/dL) — CBC";
 /** What a state setter was asked to do, applied to `before`. */
 const applied = <T,>(setter: string, before: T): T => {
   let v = before;
@@ -224,7 +227,7 @@ describe("Investigation calendar — the month list from the keyboard", () => {
   it("⚕️ Escape closes the open list from anywhere in the popup — a result box too — and the cursor stays in the box", () => {
     ctx = fresh({ showMonthPicker: true, invFormData: HALF_TYPED });
     render(<InvestigationPopup />);
-    const hb = box("Hb (g/dL)") as HTMLInputElement;
+    const hb = box(HB) as HTMLInputElement;
     hb.focus();
     expect(fireEvent.keyDown(hb, { key: "Escape" })).toBe(false);
     expect(ctx.setShowMonthPicker).toHaveBeenCalledWith(false);
@@ -280,37 +283,36 @@ describe("Investigation calendar — the month list from the keyboard", () => {
 // "g/dL, edit text" to a screen reader, on a card of sixteen boxes — and the
 // placeholder goes the moment a digit is typed. The words are the catalog's.
 describe("Investigation popup — a result box says which value it takes", () => {
-  it("a box with one unit is named by its field and unit", () => {
+  it("a box is named by its field and unit, then its test", () => {
     ctx = fresh();
     render(<InvestigationPopup />);
-    expect(box("Hb (g/dL)")?.placeholder).toBe("g/dL");
-    expect(box("RBC (million/uL)")?.placeholder).toBe("million/uL");
+    expect(box(HB)?.placeholder).toBe("g/dL");
+    expect(box("RBC (million/uL) — CBC")?.placeholder).toBe("million/uL");
   });
 
   // The words on screen come FIRST in the name (someone speaking to the
-  // computer says what they can see), and the test is added where the caption
-  // alone says nothing: twenty-four boxes all called "Value" name nothing.
-  it("a box whose field is only called 'Value' adds its test, once for each unit", () => {
+  // computer says what they can see), and the test comes after them — the
+  // caption alone often says nothing: 671 boxes in the catalog are called
+  // "Result", and "Organism" stands in six different cultures.
+  it("a box whose field is only called 'Value' is told apart by its test, once for each unit", () => {
     ctx = fresh();
     render(<InvestigationPopup />);
     // Fibrinogen: one value, two units, converted as it is typed.
     expect(box("Value (g/L) — Fibrinogen")?.placeholder).toBe("g/L");
+    expect(box("Value (g/L)")).toBeNull();
     expect(box("Value (mg/L) — Fibrinogen")?.placeholder).toBe("mg/L");
   });
 
-  it("the same for a list or a text box the catalog calls only 'Result'", () => {
+  it("every result box on the page — number, list or text — carries the name the rule gives it, and no two the same", () => {
     ctx = fresh();
     render(<InvestigationPopup />);
-    const generic = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] select[aria-label], [role="dialog"] input[aria-label]'))
-      .map((el) => el.getAttribute("aria-label") as string)
-      .filter((n) => /^(Value|Result|Report|Finding|Score|Status|Grade)\b/.test(n));
-    expect(generic.length).toBeGreaterThan(3);
-    for (const n of generic) expect(n, n).toMatch(/^(Value|Result|Report|Finding|Score|Status|Grade)( \([^)]*\))? — .+/);
-    // …so no two boxes on the page are called the same thing.
-    const all = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] select[aria-label], [role="dialog"] input[aria-label]'))
-      .map((el) => el.getAttribute("aria-label") as string)
-      .filter((n) => / — /.test(n));
-    expect(new Set(all).size).toBe(all.length);
+    const shown = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] .invBody select, [role="dialog"] .invBody input:not([type="file"]):not([type="checkbox"])'))
+      .filter((el) => !/Type any investigation finding/.test((el as HTMLInputElement).placeholder ?? ""))
+      .map((el) => el.getAttribute("aria-label") ?? "");
+    const hematology = INV_CATS.find((c) => c.cat === "Hematology")!.tests.filter((t) => !t.calc);
+    const expected = hematology.flatMap((t) => t.fields.flatMap((f) => (f.u2 ? [resultBoxName(t.name, f.l, f.u1), resultBoxName(t.name, f.l, f.u2)] : [resultBoxName(t.name, f.l, f.t === "num" ? f.u1 : undefined)])));
+    expect(shown).toEqual(expected);
+    expect(new Set(shown).size).toBe(shown.length);
   });
 
   it("no result box on the page is left without a name", () => {

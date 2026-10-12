@@ -17,11 +17,10 @@ import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 import { useDialog } from "@/lib/useDialog";
 import { zoomScale } from "@/lib/dropdownAnchor";
-import { isOneValue, shownValue } from "@/lib/findingParts";
+import { readFinding } from "@/lib/findingParts";
+import { resultBoxName } from "@/lib/resultBoxName";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
-// Names are unique across the catalog's categories (client/CLAUDE.md).
-const TEST_BY_NAME = new Map(INV_CATS.flatMap((c) => c.tests).map((t) => [t.name, t]));
 
 export default function InvestigationPopup() {
   const {
@@ -321,13 +320,9 @@ export default function InvestigationPopup() {
     return savedAny;
   };
 
-  // What a result box is called, for a screen reader and for someone speaking
-  // to the computer: the words on screen first — its field and unit, as the
-  // catalog writes them, "Hb (g/dL)" — and, where the catalog calls the field
-  // only "Value" or "Result", its test after them ("Value (mg/dL) —
-  // S. Creatinine"): twenty-four boxes all announced as "Value" name nothing.
-  const boxName = (test: InvTest, fLabel: string, unit?: string) =>
-    fLabel + (unit ? ` (${unit})` : "") + (VALUE_LABELS.includes(fLabel) ? ` — ${test.name}` : "");
+  // What a result box is called (lib/resultBoxName.ts): its field and unit as
+  // the catalog writes them, then its test — "Hb (g/dL) — CBC".
+  const boxName = (test: InvTest, fLabel: string, unit?: string) => resultBoxName(test.name, fLabel, unit);
 
   const handleInvFieldChange = (testName: string, fLabel: string, value: string) => {
     const key = testName + "__" + fLabel;
@@ -365,14 +360,20 @@ export default function InvestigationPopup() {
     setShowMonthPicker(false);
     setShowInvPopup(false);
   };
+  // …and when the popup is closed from somewhere else. Another device, through
+  // device mirroring, sets `showInvPopup` directly and none of the above runs.
+  useEffect(() => {
+    if (!showInvPopup && showMonthPicker) setShowMonthPicker(false);
+  }, [showInvPopup, showMonthPicker, setShowMonthPicker]);
 
   // ⚕️ Escape closes ONE thing, and while the month list is open that is the
-  // list — wherever the focus happens to be. The list has no other way of
-  // closing than choosing a month, so it stays open while the doctor types a
-  // result; Escape from that box went to the popup, which closed and filed the
-  // half-typed result on its way out. (A box that uses Escape for itself has
-  // already said so, and this is never reached.) The focus goes back to the
-  // month's name only if it was on the list, which is about to go.
+  // list — wherever the focus happens to be. Nothing closes the list but
+  // choosing a month, pressing its name again or Today, so it stays open while
+  // the doctor types a result; Escape from that box went to the popup, which
+  // closed and filed the half-typed result on its way out. (A box that uses
+  // Escape for itself has already said so, and this is never reached.) The
+  // focus goes back to the month's name only if it was on the list, which is
+  // about to go.
   const monthWrapRef = useRef<HTMLDivElement | null>(null);
   const handleEscape = () => {
     if (!showMonthPicker) { handleCloseInvPopup(); return; }
@@ -951,14 +952,11 @@ export default function InvestigationPopup() {
               <div style={{ fontSize: 11, fontWeight: 600, color: C.n[700], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Added results ({textResults.length})</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {textResults.map((item, idx) => {
-                  const parts = item.split(":");
-                  const date = parts[0] || "";
-                  const test = parts.length >= 3 ? parts[1] : "";
-                  const rawValue = parts.length >= 3 ? parts.slice(2).join(":") : parts.slice(1).join(":");
-                  // Room between the parts of a test that has several boxes;
-                  // a value that can only be one part is shown as it is stored
-                  // ("ANC 1,500 cells/µL", a count typed "1,50,000").
-                  const displayValue = shownValue(rawValue, isOneValue(test, TEST_BY_NAME.get(test)));
+                  // ONE function takes a stored finding apart and says how its
+                  // value is shown (lib/findingParts.ts): room between the parts
+                  // of a test with several boxes, and a value that can only be
+                  // one part exactly as it is stored ("ANC 1,500 cells/µL").
+                  const { date, test, raw: rawValue, shown: displayValue } = readFinding(item);
                   const editing = editItem === item;
                   const commitEdit = () => {
                     const v = editVal.trim();
