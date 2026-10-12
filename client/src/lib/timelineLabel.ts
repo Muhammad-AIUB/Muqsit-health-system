@@ -78,36 +78,77 @@ export interface NameLine {
 // before release). So a cut backs off to where the amount begins, and the
 // word two names part at begins there too.
 //
-// A number written inside a word is part of the word ("HbA2", "B12", "D3"),
-// and a ratio may be cut at its stroke ("100 mcg/…"). An amount too long for a
-// line to hold between two marks cannot be kept whole by any rule, and is not
-// looked for: on a phone that is one of twelve characters or more. (One that
-// begins with a decimal point needs a character more: see `pointFirst`.)
-const AMOUNT = /\p{Nd}+(?:[.,\/\-–]\p{Nd}+)*(?:\s?(?:[\p{L}\p{M}]{1,5}(?![\p{L}\p{M}])|%))?/gu;
-const LETTER = /[\p{L}\p{M}]/u;
-const LETTER_OR_DIGIT = /[\p{L}\p{M}\p{Nd}]/u;
+// What is held, from the number outwards:
+//   • a NUMBER is never shown in part — wherever it stands, also glued to a
+//     word ("B12", "Ciprofloxacin500mg");
+//   • no mark stands between a number and its unit, and what follows a mark
+//     never begins inside an amount: a unit is not shown without its number,
+//     nor beside another's;
+//   • an amount too long for a line to hold between two marks (eleven
+//     characters in a line of thirteen: "1,200,000 IU" is twelve) keeps its
+//     NUMBER whole and may lose its unit behind the mark; a run of numbers
+//     that long ("150/75/400/275") is cut at one of its strokes; and a single
+//     number that long is cut where it stands, as a long word is — no line
+//     could hold it.
+// A number glued to a word is still part of that WORD where two names are told
+// apart ("HbA2" beside "HbA", "FT3" beside "FT4"), and a ratio may be cut at
+// its stroke ("100 mcg/…").
+//
+// Written without `\p{…}` classes and `matchAll`: either would have been the
+// first in this app, and a browser that lacks one cannot load the page that
+// holds it at all (Firefox before 78). The digits and letters known are the
+// Latin and the Bangla ones.
+const DIGITS = "0-9\\u09E6-\\u09EF";
+const LETTERS = "A-Za-z\\u00B5\\u03BC\\u0980-\\u09E5\\u09F0-\\u09FF";
+const UNIT = `(?:\\s*(?:[${LETTERS}]{1,5}(?![${LETTERS}])|%))?`;
+const ONE_NUMBER = `[${DIGITS}]+(?:[.,][${DIGITS}]+)*`;
+// A number, or a run of them joined by a stroke or a hyphen (30/70, 5-10), and its unit.
+const AMOUNT = new RegExp(`(${ONE_NUMBER}(?:[/\\-\\u2013]${ONE_NUMBER})*)${UNIT}`, "g");
+const PLAIN_AMOUNT = new RegExp(`(${ONE_NUMBER})${UNIT}`, "g");
+const LETTER = new RegExp(`[${LETTERS}]`);
+const LETTER_OR_DIGIT = new RegExp(`[${LETTERS}${DIGITS}]`);
 
-interface Span { a: number; b: number }
-function amountsIn(text: string, max: number): Span[] {
-  const out: Span[] = [];
-  for (const m of text.matchAll(AMOUNT)) {
-    let a = m.index ?? 0;
-    const b = a + m[0].length;
-    if (a > 0 && LETTER.test(text[a - 1])) continue;
-    if (text[a - 1] === "." && !(a > 1 && LETTER_OR_DIGIT.test(text[a - 2]))) a -= 1; // ".5 mg" is half a milligram
-    if (b - a <= max - 2 - (text[a] === "." ? 1 : 0)) out.push({ a, b });
-  }
+/** `a`…`b` in the text; its number ends at `n`. */
+interface Amount {
+  a: number; n: number; b: number;
+  /** Glued to the letters before it ("B12"): cut like any amount, but part of its word. */
+  inWord: boolean;
+  /** Too long to keep whole: a mark may stand at `n`, after the number. */
+  loose: boolean;
+}
+function amountsIn(text: string, max: number): Amount[] {
+  const out: Amount[] = [];
+  const read = (pattern: RegExp, from: number, to: number, split: boolean) => {
+    pattern.lastIndex = from;
+    for (let m = pattern.exec(text); m && m.index < to; m = pattern.exec(text)) {
+      let a = m.index;
+      const n = a + m[1].length;
+      const b = a + m[0].length;
+      const inWord = a > 0 && LETTER.test(text[a - 1]);
+      if (text[a - 1] === "." && !(a > 1 && LETTER_OR_DIGIT.test(text[a - 2]))) a -= 1; // ".5 mg" is half a milligram
+      const limit = max - 2 - (text[a] === "." ? 1 : 0);
+      if (n - a <= limit) out.push({ a, n, b, inWord, loose: b - a > limit });
+      // A run too long for a line is read again as the numbers it is made of.
+      else if (split) { read(PLAIN_AMOUNT, m.index, b, false); pattern.lastIndex = b; }
+    }
+  };
+  read(AMOUNT, 0, text.length, true);
   return out;
 }
-// Is `p` — a place between two letters — strictly inside one of them?
-const cutsInto = (amounts: Span[], p: number) => amounts.some(({ a, b }) => a < p && p < b);
+// May what is shown END at `p` — a place between two letters? Not inside an
+// amount; except after the number of one too long to keep whole.
+const endsInside = (amounts: Amount[], p: number) => amounts.some(({ a, n, b, loose }) => a < p && p < b && !(loose && p === n));
+// May what is shown BEGIN at `p`, or a line turn there? Never inside an amount.
+const startsInside = (amounts: Amount[], p: number) => amounts.find(({ a, b }) => a < p && p < b);
 
-// `s` cut at its end to fit `max`, with a mark — never inside an amount.
-function cutEnd(s: string, max: number): string {
-  if (s.length <= max) return s;
+// `s` cut at its end to fit `room`, with a mark — never inside an amount.
+// (`max` is the line's width, which decides how long an amount can be kept
+// whole; it is the room itself unless the line holds something else too.)
+function cutEnd(s: string, room: number, max = room): string {
+  if (s.length <= room) return s;
   const amounts = amountsIn(s, max);
-  let p = Math.max(1, max - 1);
-  while (p > 1 && cutsInto(amounts, p)) p--;
+  let p = Math.max(1, room - 1);
+  while (p > 0 && endsInside(amounts, p)) p--; // (to nothing but the mark, where the room is less than its first amount)
   return s.slice(0, p).trimEnd() + "…";
 }
 
@@ -121,10 +162,11 @@ const KNOWN_FORM =
 //
 // ⚕️ The line does not turn between a number and its unit where the name can
 // be shown as well with the turn before them ("Calbo-D" over "500 mg+200 IU",
-// not "Calbo-D 500" over "mg+200 IU"). Where the WHOLE name only fits with the
-// turn there, it is shown whole — nothing is left off, so nothing can be
-// misread. And where something has to be left off, the turn is never there:
-// "…Exforge HCT 5" over "mg+160 mg+12.…" is how a 5 lost its unit.
+// not "Calbo-D 500" over "mg+200 IU"). Where the rest of the name only fits
+// with the turn there, it is shown so — nothing after the turn is left off, so
+// the number and its unit are both there to be read. And where something has
+// to be left off after it, the turn is never there: "…Exforge HCT 5" over
+// "mg+160 mg+12.…" is how a 5 lost its unit.
 function wrapTwo(text: string, max: number): NameLine[] {
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
@@ -134,8 +176,7 @@ function wrapTwo(text: string, max: number): NameLine[] {
   if (head !== words[0]) {
     // What follows it takes the second line — from the END of an amount whose
     // number the cut has hidden: its unit would stand there by itself.
-    const after = words[0].length + 1;
-    const hidden = amounts.find(({ a, b }) => a < after && after < b);
+    const hidden = startsInside(amounts, words[0].length + 1);
     const rest = hidden ? joined.slice(hidden.b).trimStart() : words.slice(1).join(" ");
     return rest ? [{ text: head }, { text: cutEnd(hidden ? (pointFirst(rest) ? "… " : "…") + rest : rest, max) }] : [{ text: head }];
   }
@@ -144,7 +185,7 @@ function wrapTwo(text: string, max: number): NameLine[] {
   const turnAfter = (n: number) => ({ first: words.slice(0, n).join(" "), rest: words.slice(n).join(" ") });
   const turn = turnAfter(i);
   if (!turn.rest) return [{ text: turn.first }];
-  const clean = (n: number) => !cutsInto(amounts, turnAfter(n).first.length);
+  const clean = (n: number) => !startsInside(amounts, turnAfter(n).first.length);
   if (clean(i)) return [{ text: turn.first }, { text: cutEnd(turn.rest, max) }];
   let j = i - 1;
   while (j >= 1 && !clean(j)) j--;
@@ -175,9 +216,18 @@ function formAndBrand(form: string, brand: string, written: string, max: number)
 // as five, its point left on the line above, behind the mark when that line
 // was cut (found by the property that no mark stands inside an amount, sixth
 // review). A full stop with a digit straight after it ends no form.
+//
+// And it looks for the strength at the first word that begins with a DIGIT, so
+// ".5 mg" was no strength at all: the brand was "Rivotril .5 mg", and where
+// that did not fit a line the strength was left off whole. A word that begins
+// with a decimal point begins the strength too.
+const DIGIT_FIRST = new RegExp(`^[${DIGITS}]`);
+const POINT_WORD = new RegExp(`\\s(?=\\.[${DIGITS}])`);
 function labelParts(text: string): { before: string; name: string; after: string } {
   const parts = splitDrugLabel(text);
-  if (parts.before.endsWith(".") && /^\p{Nd}/u.test(parts.name)) return { before: text, name: "", after: "" };
+  if (parts.before.endsWith(".") && DIGIT_FIRST.test(parts.name)) return { before: text, name: "", after: "" };
+  const point = parts.after ? null : POINT_WORD.exec(parts.name);
+  if (point && point.index > 0) return { before: parts.before, name: parts.name.slice(0, point.index), after: parts.name.slice(point.index) };
   return parts;
 }
 
@@ -218,8 +268,11 @@ export function nameLines(name: string, max: number, kind: "drug" | "text"): Nam
     }
     return wrapTwo("…" + rest, max);
   }
-  // Reads as a form, but not one the app knows by name: shortened, never left off.
-  if (strength && strength.length <= max) return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: strength }];
+  // Reads as a form, but not one the app knows by name: shortened, never left
+  // off — and the strength has the line under it, cut at its end if it must
+  // be. (With the form above and the rest under it, a strength too long for a
+  // line was not shown at all: "Capsule (Ent…" over "Edeloss…".)
+  if (strength) return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: cutEnd(strength, max) }];
   return [{ text: cutEnd(head, max), quiet: true }, { text: cutEnd(rest, max) }];
 }
 
@@ -228,20 +281,105 @@ export interface ChartName { name: string; kind: "drug" | "text" }
 
 const shown = (lines: NameLine[]) => lines.map((l) => l.text).join("\n");
 
-// ── Three ways of writing a name again, so that the place where it differs
+// ── Four ways of writing a name again, so that the place where it differs
 //    from the names it was taken for is in sight. Each gives null for a name it
 //    has nothing to offer (that name keeps the lines it has).
 
+// A part that begins with a decimal point, set straight after a mark, is four
+// dots in a row — "….5 mg" — and the point is lost among them: half a
+// milligram read as five. A space sets it apart: "… .5 mg".
+const POINT_FIRST = new RegExp(`^\\.[${DIGITS}]`);
+const pointFirst = (s: string) => POINT_FIRST.test(s);
+
+// A strength in the parts a combination is written in: "10 mg", "160 mg", "25 mg".
+interface Part { text: string; start: number; end: number }
+function plusParts(strength: string): Part[] {
+  const out: Part[] = [];
+  let from = 0;
+  for (const piece of strength.split("+")) {
+    const text = piece.trim();
+    const start = from + (piece.length - piece.trimStart().length);
+    if (text) out.push({ text, start, end: start + text.length });
+    from += piece.length + 1;
+  }
+  return out;
+}
+
+// A medicine's strength in `room` letters of a line. Whole when it fits. When
+// it does not, what is kept is what tells it from the OTHER strengths of the
+// same medicine on the chart: the two are compared part by part, and a part
+// they differ in is not the one left off — "10 mg…25 mg" beside "10 mg…12.5
+// mg", "…500 mg" beside "…1000 mg". With no other strength to be told from,
+// or where the parts that differ are in sight anyway, it is cut at its end.
+//
+// ⚕️ Cut at its end whatever the chart held, a tablet and an injection of one
+// medicine in two strengths were left with one pair under one name, and — the
+// form brought back over the cut strength — a dose change was shown as
+// "10 mg+160 mg+…" twice (seventh review, before release).
+function strengthFor(strength: string, others: string[], room: number, max: number): string {
+  if (strength.length <= room) return strength;
+  const cut = cutEnd(strength, room, max);
+  const parts = plusParts(strength);
+  const theirs = others.map(plusParts);
+  // The parts another strength has differently.
+  const wanted = parts.flatMap((p, k) => (theirs.some((t) => (t[k]?.text ?? "") !== p.text) ? [k] : []));
+  if (wanted.length === 0) return cut;
+  const cutShows = (k: number) => parts[k].end <= cut.length - 1;
+  const last = parts.length - 1;
+  const write = (keep: number[]) => {
+    let s = keep[0] > 0 ? "…" : "";
+    keep.forEach((k, i) => {
+      if (i > 0) s += k === keep[i - 1] + 1 ? strength.slice(parts[keep[i - 1]].end, parts[k].start) : "…";
+      s += s.endsWith("…") && pointFirst(parts[k].text) ? " " + parts[k].text : parts[k].text;
+    });
+    return keep[keep.length - 1] < last ? s + "…" : s;
+  };
+  const from = (k: number) => parts.slice(k).map((_, i) => k + i);
+  // Besides its end cut: its first part and its last; all from the first part
+  // that differs; that part alone. The first of them that shows more of what
+  // differs than the one before it did.
+  const ways = [[0, last], from(wanted[0]), [wanted[0]]];
+  let best = cut;
+  let bestShown = wanted.filter(cutShows).length;
+  for (const way of ways) {
+    const keep = way.filter((k, i) => way.indexOf(k) === i);
+    const written = write(keep);
+    if (written.length > room) continue;
+    const shownOfWanted = wanted.filter((k) => keep.includes(k)).length;
+    if (shownOfWanted > bestShown) { best = written; bestShown = shownOfWanted; }
+  }
+  return best;
+}
+
 // 1. A medicine with its form KEPT — shortened if it must be — on one line with
-// the brand, and the strength under them (cut at its end, between its parts,
-// where it is longer than a line). What tells a tablet from an injection of
-// the same medicine and strength.
-function formKept(text: string, max: number): NameLine[] | null {
+// the brand, and the strength under them. What tells a tablet from an
+// injection of the same medicine and strength.
+function formKept(text: string, others: string[], max: number): NameLine[] | null {
   const { before, name: brand, after } = labelParts(text);
   const head = before.trim();
   const strength = after.trim();
   if (!brand || !head || !strength) return null;
-  return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: cutEnd(strength, max) }];
+  return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: strengthFor(strength, others, max, max) }];
+}
+
+// 2. A medicine with its form on a line of its OWN, cut at its end, and under
+// it the brand with the strength: whole where they fit, otherwise the start of
+// the brand, a mark, and the strength. What tells "Tablet (Delayed Release)."
+// from "Tablet (Extended Release).", two forms that BEGIN alike: shortened to
+// make room for the brand, both were "Tab…". (The form's line is not the quiet
+// one here: it is what tells the two bars apart.)
+function formAbove(text: string, others: string[], max: number): NameLine[] | null {
+  const { before, name: brand, after } = labelParts(text);
+  const head = before.trim();
+  const strength = after.trim();
+  if (!brand || !head) return null;
+  const rest = (brand + after).trim();
+  const form: NameLine = { text: cutEnd(head, max) };
+  if (rest.length <= max || !strength) return [form, { text: cutEnd(rest, max) }];
+  // The strength has the first claim on the line; the brand keeps its first few letters.
+  const tail = strengthFor(strength, others, max - 1 - START_KEPT, max).replace(/^…\s?/, "");
+  const gap = pointFirst(tail) ? " " : "";
+  return [form, { text: frontOf(brand, max - 1 - gap.length - tail.length, max) + "…" + gap + tail }];
 }
 
 // Where each line's pieces stand in the name — from the first letter the line
@@ -272,10 +410,10 @@ function frontOf(s: string, room: number, max: number): string {
   if (room <= 0) return "";
   const amounts = amountsIn(s, max);
   for (let p = room; p > 0; p--) {
-    if ((/\s/.test(s[p]) || s[p] === "+") && !cutsInto(amounts, p)) return s.slice(0, p).trimEnd();
+    if ((/\s/.test(s[p]) || s[p] === "+") && !endsInside(amounts, p)) return s.slice(0, p).trimEnd();
   }
   const cut = s.slice(0, room);
-  return cutsInto(amounts, room) || /^…?\d/.test(cut) ? "" : cut;
+  return endsInside(amounts, room) || /^…?\d/.test(cut) ? "" : cut;
 }
 
 // The same for what is brought into view after the mark: cut at its END if it
@@ -286,21 +424,22 @@ function upTo(s: string, room: number, max: number): string | null {
   return kept ? kept + "…" : null;
 }
 
-// A part that begins with a decimal point, set straight after a mark, is four
-// dots in a row — "….5 mg" — and the point is lost among them: half a
-// milligram read as five. A space sets it apart: "… .5 mg".
-const pointFirst = (s: string) => /^\.\p{Nd}/u.test(s);
-
-// Where the word that holds place `p` begins: the amount it is in ("25 mg",
-// from its first digit — also when `p` is in its unit); otherwise back to the
-// nearest space, plus, or end of an amount.
-function wordStart(text: string, p: number, max: number): { at: number; amount: boolean } {
+// Where what is shown of `text` from the place `same` begins — the place two
+// names part at. The whole word that holds it, where a line has `room` for the
+// word up to there: an amount from its first digit ("25 mg", also when the
+// place is in its unit), any other word from the last space, plus or end of an
+// amount before it — a number glued to a word is part of that word ("FT3"),
+// where the word fits as far as the number's end. Otherwise the place itself;
+// but never from inside an amount, whose start it then is.
+function partStart(text: string, same: number, room: number, max: number): { at: number; word: number } {
   const amounts = amountsIn(text, max);
-  const within = amounts.find(({ a, b }) => a <= p && p < b);
-  if (within) return { at: within.a, amount: true };
-  let q = p;
-  while (q > 0 && !/\s/.test(text[q - 1]) && text[q - 1] !== "+" && !amounts.some(({ b }) => b === q)) q--;
-  return { at: q, amount: false };
+  const holds = amounts.find(({ a, b }) => a <= same && same < b);
+  let word = same;
+  if (holds && !holds.inWord) word = holds.a;
+  else while (word > 0 && !/\s/.test(text[word - 1]) && text[word - 1] !== "+" && !amounts.some(({ b, inWord }) => !inWord && b === word)) word--;
+  const wordFits = same - word <= room && (!holds || holds.b - word <= room + 1);
+  const at = wordFits ? word : same;
+  return { at: startsInside(amounts, at)?.a ?? at, word };
 }
 
 // 2. The lines the name already has, with the one that was CUT made to show
@@ -321,9 +460,8 @@ function bothEnds(group: { text: string; lines: NameLine[] }[], same: number, ma
     // comes after what it shows and before what the next line shows.
     const k = lines.findIndex((l, i) => l.text.endsWith("…") && same >= at[i].end && same < (i + 1 < lines.length ? at[i + 1].start : text.length));
     if (k < 0) return null;
-    const word = wordStart(text, same, max);
-    // The whole word they part at: an amount always, any other word unless it is longer than a line.
-    const from = word.amount || same - word.at <= max - START_KEPT ? word.at : same;
+    // The whole word they part at, unless it is longer than a line.
+    const from = partStart(text, same, max - START_KEPT, max).at;
     const hidden = text.slice(from, k + 1 < lines.length ? at[k + 1].start : text.length).trim();
     if (!hidden) return null;
     // What the line showed, up to that word (the cut may have fallen inside it).
@@ -349,14 +487,12 @@ function bothEnds(group: { text: string; lines: NameLine[] }[], same: number, ma
 // the second line wherever something was left out before it, so that what
 // stands there is never taken for the whole ("…12.5 mg", not "12.5 mg").
 function fromDifference(text: string, same: number, max: number): NameLine[] | null {
-  const word = wordStart(text, same, max);
-  // (An amount is never longer than a line less two, so it is always "the word".)
-  const start = same - word.at <= max - 3 ? word.at : same;
+  const { at: start, word } = partStart(text, same, max - 3, max);
   if (start === 0) return wrapTwo(text, max);
   const rest = text.slice(start).trimStart();
   if (!rest) return null;
   const head = cutEnd(text.slice(0, start).trimEnd(), max);
-  const mark = start !== word.at || head.endsWith("…") ? "…" : "";
+  const mark = start !== word || head.endsWith("…") ? "…" : "";
   return [{ text: head }, { text: cutEnd(mark && pointFirst(rest) ? mark + " " + rest : mark + rest, max) }];
 }
 
@@ -405,6 +541,15 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
     for (let i = 0; i < as.length; i++) for (let j = i + 1; j < as.length; j++) if (texts[i] !== texts[j] && as[i] === as[j]) pairs++;
     return pairs;
   };
+  // A medicine's three parts, and the OTHER strengths on the chart of the same
+  // medicine (whatever its form) — what its own strength has to be told from.
+  const parts = names.map((n, i) => (n.kind === "drug" ? labelParts(texts[i]) : null));
+  const others = (i: number) => {
+    const mine = parts[i];
+    if (!mine?.name) return [];
+    const strengths = parts.flatMap((p) => (p && p.name === mine.name && p.after.trim() !== mine.after.trim() ? [p.after.trim()] : []));
+    return strengths.filter((s, k) => strengths.indexOf(s) === k);
+  };
   let lines = alone;
   for (;;) {
     // Names written the same: grouped by what is shown, and only where the
@@ -423,9 +568,14 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
         while (n < same && n < texts[i].length && texts[i][n] === one[n]) n++;
         same = n;
       }
+      // The two ways that bring a medicine's form back are for names that
+      // DIFFER in it: where every name has the same form, it is not the form
+      // that tells them apart, and the room is the brand's.
+      const formsDiffer = new Set(g.map((i) => parts[i]?.before.trim() ?? "")).size > 1;
       // Each way answers for the whole group, in the group's order.
       const ways: (() => (NameLine[] | null)[])[] = [
-        () => g.map((i) => (names[i].kind === "drug" ? formKept(texts[i], max) : null)),
+        () => g.map((i) => (formsDiffer && parts[i] ? formKept(texts[i], others(i), max) : null)),
+        () => g.map((i) => (formsDiffer && parts[i] ? formAbove(texts[i], others(i), max) : null)),
         () => bothEnds(g.map((i) => ({ text: texts[i], lines: alone[i] })), same, max),
         () => g.map((i) => fromDifference(texts[i], same, max)),
       ];
