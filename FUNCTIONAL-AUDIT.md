@@ -147,10 +147,11 @@ CLAUDE.md section before picking one up.
   printed sheet; three things in the fixes again. (1) On a phone's chart a
   dosage form the app does not know by name (`IV Infusion.`, `Oral Saline.`)
   took the whole first line and the brand was cut: it is shortened now and
-  the brand stays in sight (`IV Infu… Napa`). The rule is written as what it
-  is for — two different medicines never drawn under one name — and held
-  by property tests over thousands of names, which found two more slips
-  than the examples had. (2) Free text with a colon (`Platelet: 1,50,000`)
+  the brand stays in sight (`IV Infu… Napa`). The rule was written as what
+  it is for — two different medicines not drawn under one name — and put
+  under property tests over thousands of names, which found two more slips
+  than the examples had. (That it "never" happens was claimed here; it was
+  not true — the fourth review, below.) (2) Free text with a colon (`Platelet: 1,50,000`)
   was still shown `1, 50, 000`: a name the catalog does not have is one
   value now, on the evidence of every revision of the catalog (no test
   with several boxes was ever removed or renamed; GCS and Child-Pugh became
@@ -165,15 +166,57 @@ CLAUDE.md section before picking one up.
   was in the note, not the tests: a note that has just loaded reaches its
   `draft` one render late, and Print pressed in that instant printed an
   empty note and skipped the sensitive-text question. Nothing could leak —
-  the draft was empty — and no hand is that fast. Print reads the note as it
-  stands now (`noteTextNow`); 25 runs of those tests, none failed (3 of 12
-  before).
+  the draft was empty — and no hand is that fast. Print read the note as it
+  stood (25 runs of those tests, none failed; 3 of 12 before) — and the
+  `draft` itself went the same day, in the fourth review below.
 - [x] **A count typed `1,200` was drawn on the health-trend chart as 1 — found
   in that review, in production until 2026-10-12.** Only in a box with no
-  unit (in the catalog the one count is Ascites Fluid › WBC; the other
-  seven are INR, A/G ratio, SAAG, TC/HDL, T-score, Z-score and METs).
-  Such a value is no longer plotted at all. The record, the sidebar and the
-  printed sheet always held `1,200`.
+  unit (eight in the catalog: Ascites Fluid › WBC, the one count; INR, A/G
+  ratio, SAAG, TC/HDL, T-score, Z-score and METs). The first fix refused
+  `1,200` only with nothing typed after it; the fourth review, below, found
+  `1,200/cmm` still drawn as 1. The record, the sidebar and the printed
+  sheet always held what was typed.
+- [x] **…and a fourth time, 2026-10-12 — one finding was a defect already in
+  production.** (1) **The personal note followed the editor's patient while
+  it stood open.** When another device picked the next patient from the
+  search box (device mirroring), or a patient chosen from the OPD queue
+  finished loading after the note was opened, words typed for one patient
+  were saved into the NEXT patient's private note, under that patient's
+  details, and a print question asked about one note printed the other.
+  Reproduced with two browsers before it was fixed: the open box read
+  "Patient Name: Note Patient Beta" over the words typed for Alpha
+  (`e2e/tests/personal-note.spec.ts`, which now holds it). The note is
+  opened FOR a patient and is theirs until it is closed. **Seen by the
+  user: an open note no longer follows the editor to the next patient** — it
+  is closed and opened again. (2) **What was typed while a save was on its way was marked
+  saved with the rest** — thrown away when the answer came, or left on the
+  screen looking saved and lost on Close without a question. Also in
+  production; only what was SENT is saved now, and the rest stays, open and
+  unsaved. (3) **`1,200/cmm` was still drawn as 1** on the chart (and
+  `2,5 (target 2-3)` as an INR of 2): the guard above only knew a bare
+  number after the comma. A digit after the comma is the rest of the number
+  now, whatever follows it; ETT's METs, whose next box writes no name of its
+  own, keeps the narrower rule. (4) **"Two different medicines are never
+  drawn under one name" was not true**, and three documents said it. On a
+  phone a tablet and an injection of one medicine and strength had one
+  name, so had two salts of calcium, two amlodipine combinations at the
+  same strengths, and four parameters of Hb electrophoresis (four lanes all
+  `Hb / Electrophores…`). No rule for one name can promise it; the names of
+  a chart are laid out together now and any that come out the same are
+  written again from where they differ. Held for any TWO names (20,000
+  look-alike pairs a run); not promised for more than two that agree for
+  longer than two lines can show, in different places. (5) Nothing tested
+  what Print prints: the note's tests now press the real buttons and read
+  the print frame, and the round's tests were checked by breaking the code:
+  34 deliberate breaks across its five files, 32 caught. The two that were
+  not change nothing that can be seen — one was a condition that could
+  never matter, and was taken out; the other swaps a line for one that
+  cannot differ from it.
+  Also: a known dosage form is no longer left off where it fits beside the
+  brand (`Syrup. Napa` over `120 mg/5 ml`); the month list's "closed from
+  another device" test could not fail and now can; the sign-in helper of
+  the browser tests waits for the page's script and for the page
+  separately.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -229,7 +272,8 @@ CLAUDE.md section before picking one up.
   keyboard inside the print sheet nothing is drawn to say so; 46 boxes
   in 18 files have no name a screen reader can say (20 not even a
   placeholder: the calculators' inputs, most of Profile settings, the
-  sign-in page; counted before the Investigation popup's were named);
+  sign-in page; the Investigation popup's result boxes are not among them —
+  they have names now);
   **DEFECT-INV-GROUPED** — in a test with several boxes a number typed
   with its groups (`WBC:12,000`) is still set apart at its commas in the
   "Added results" panel (`findingParts.test.ts`, `it.fails`; the record,
@@ -238,6 +282,39 @@ CLAUDE.md section before picking one up.
   put back on the button (it ends on the page, as it does today in
   production); and the phone layout's print sheet takes the same
   `afterSave` but has not been run on a phone-sized browser.
+- [ ] **Found in the fourth review and left open (2026-10-12).** (1) **The
+  health-trend chart reads no number with a sign — the physician's call.**
+  A DEXA T-score of `-2.5` gives no point, and its lane says there is no
+  reading; T-score and Z-score are the two boxes in the catalog whose usual
+  value is negative. A test has always pinned that a value beginning with a
+  minus is dropped (`numericInvSeries.test.ts`), so reading it is a
+  decision, not a slip. (2) On the chart ETT's `METs:10,150 bpm at peak` is
+  read as METs 10 and a report — right unless the words were typed into the
+  METs box itself. (3) An open personal note stays on its own patient when
+  another device moves the editor on, and nothing in the box SAYS the
+  editor has moved; the patient's details shown in the box are its own.
+  (4) The first save of a personal note takes the patient's details as the
+  header showed them when the note was OPENED, no longer as it shows them at
+  the moment of saving — on one device they cannot differ (the box covers
+  the header); they can if another device edits the header in between.
+  (5) On a WIDE screen the chart's names are still one line cut at 20
+  characters, and the lay-out-together rule is not applied there: two names
+  alike in their first 19 letters are one name on a desktop, as they are in
+  production. (6) **Words typed into a personal note and not yet saved are
+  lost when another device clears the editor or changes tab** (device
+  mirroring: New Prescription, that device's own Save & print, or a move to
+  OPD). This device's editor is redrawn (`PatientGate`, the tab router) and
+  the open note closes with it, without a question. As in production; seen
+  while writing the two-browser test. Keeping the note through it means
+  holding the note above the editor — a change of its own. (7) **A second
+  sign-in of the same doctor empties the draft the first device is working
+  in** (`MuqsitContext`: a fresh sign-in starts blank AND clears the stored
+  draft). The first device writes it again at its next edit; if it is
+  reloaded before that, the visit comes back empty. And on the dev server
+  the second sign-in sometimes opens with the first device's patient
+  instead of blank — the editor's start-up runs twice under React's
+  development checks and the second run no longer sees "just signed in";
+  whether a production build can do the same was not checked.
 - [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
   2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a
