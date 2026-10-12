@@ -76,9 +76,13 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
   page snapshot is an empty `main` under a screenshot of the finished page is
   this, not the app. Seen again 2026-10-12 with the tab closed and a code
   review typechecking on the same machine: 13.1 s for the same script, in the
-  sign-out journey. Since then `login()` waits for the first paint as long as
-  it waits for the address (60 s) — the wait is for the dev server, which
-  production does not have. After a run, sign in again with the NEW address in
+  sign-out journey. Since then `login()` waits for two things apart: up to
+  30 s for the page's own script to arrive (`ROUTE_SCRIPT` in
+  `tests/helpers.ts` — that wait is the dev server's, which production does
+  not have), and then the usual 15 s for the page to be drawn with it — so a
+  page that has become slow to draw still fails. If the suite ever stops at
+  "the page's script" on every test, the dev server has renamed that file:
+  look at the Network list of a trace and correct `ROUTE_SCRIPT`. After a run, sign in again with the NEW address in
   `e2e/.seed.json`; the made-up patients are gone too.
 
 ## Journeys
@@ -91,11 +95,11 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
 | `isolation.spec.ts` | a second doctor (separate browser context) looking up the first doctor's patient's mobile is offered "Add New" and cannot read the patient or the prescription through the API either |
 | `print-layout.spec.ts` | for A4 and for a new account's default page: the ℞ table does not scroll sideways, no element leaves the sheet sideways (in the in-app sheet and under the print stylesheet), and the printed PDF is one page of the configured size |
 | `print-sheet.spec.ts` | with a real keyboard, which jsdom cannot give: after Save & print, closing the sheet leaves the focus OFF the button that saves, and Space and Enter afterwards store no second row; saved from the keyboard with Enter then HELD on Close, still one row; "Preview PDF" does get its focus back; with the focus INSIDE the sheet's frame Ctrl+P prints the sheet and not the app, Tab goes Print → Close → the sheet → Print and never out to the editor, and Escape closes it; "Mirror devices" is a switch that a press — or Space — turns on and off without sending the cursor into the patient search |
+| `personal-note.spec.ts` | TWO browsers signed in as one doctor, "Mirror devices" on: device A types in one patient's personal note, device B picks another patient from the search box and A's editor moves on behind the open note — the note on A stays the first patient's, Save writes the words into THAT patient's note (read back through the API, with her details) and nothing into the other's; closed and opened again, it is the patient now in the editor. Fails on the code before 2026-10-12, where the open box showed the second patient's details over the first one's words |
 | `defect-probes.spec.ts` | opt-in (`E2E_PROBES=1`), see below |
 
 No clinical content is invented: medicines are rows of the seeded test
 `medicines` table, the diagnosis is the placeholder `Test diagnosis`, and the
-| `personal-note.spec.ts` | TWO browsers signed in as one doctor, "Mirror devices" on: device A types in one patient's personal note, device B picks another patient from the search box and A's editor moves on behind the open note — the note on A stays the first patient's, Save writes the words into THAT patient's note (read back through the API, with her details) and nothing into the other's; closed and opened again, it is the patient now in the editor. Fails on the code before 2026-10-12, where the open box showed the second patient's details over the first one's words |
 one alert the suite needs is raised with a seeded medicine plus one of the app's
 own Associated-illness quick-picks — its text is read from the screen.
 

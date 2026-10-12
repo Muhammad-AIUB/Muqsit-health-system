@@ -108,4 +108,13 @@ describe("Investigation popup — closed from somewhere else", () => {
     render(<InvestigationPopup />);
     expect(ctx.setShowMonthPicker).not.toHaveBeenCalled();
   });
+
+  // The other half of the same rule, without which the two above pass for a
+  // popup that closes its month list every time it is drawn (fourth review).
+  it("⚕️ a list that is open in an OPEN popup is left open", () => {
+    ctx = withFindings([], { showInvPopup: true, showMonthPicker: true });
+    render(<InvestigationPopup />);
+    expect(ctx.setShowMonthPicker).not.toHaveBeenCalled();
+    expect(document.querySelector('[aria-expanded="true"]')).not.toBeNull();
+  });
 });

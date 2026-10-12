@@ -98,6 +98,10 @@ export async function fillLogin(page: Page, email: string, password: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
+// The script of the page the address changes to after sign-in, as the dev
+// server names it: /_next/static/chunks/app/[tab]/page.js.
+const ROUTE_SCRIPT = String.raw`/_next/static/chunks/app/[^/]+/page[^/]*\.js`;
+
 export async function login(page: Page, role: Role) {
   const s = seed();
   await fillLogin(page, s.doctors[role].email, s.password);
@@ -106,9 +110,17 @@ export async function login(page: Page, role: Role) {
   // handing over the page's own script. With anything else heavy on the
   // machine that one request has taken 13 s (the trace's network list shows
   // it, twice now — e2e/README.md), and the default 15 s ran out as the page
-  // appeared. The same allowance as the address above; a page that never
-  // draws still fails.
-  await expect(mobileLookup(page)).toBeVisible({ timeout: 60_000 });
+  // appeared. THAT wait is the dev server's and gets its own allowance; the
+  // page being drawn once its script is here is the app's own work and keeps
+  // the default 15 s, so a page that has become slow to draw still fails.
+  // (One 60 s wait for both hid exactly that — and with the 60 s above it
+  // came to the whole 120 s a test is given.)
+  await page.waitForFunction(
+    (pattern) => performance.getEntriesByType('resource').some((e) => new RegExp(pattern).test(e.name)),
+    ROUTE_SCRIPT,
+    { timeout: 30_000 },
+  ).catch(() => { throw new Error(`the page's script (${ROUTE_SCRIPT}) did not arrive within 30 s of the address changing — see e2e/README.md`); });
+  await expect(mobileLookup(page)).toBeVisible();
 }
 
 /** Mobile lookup with an unknown number → "Add New" → name only. */
