@@ -52,6 +52,7 @@ const day = (n: number) => {
   return el;
 };
 const box = (name: string) => document.querySelector<HTMLInputElement>(`[role="dialog"] input[aria-label="${name}"]`);
+const monthName = () => screen.getAllByRole("button", { name: "September" }).find((b) => b.hasAttribute("aria-expanded")) as HTMLElement;
 const press = (key: string) => fireEvent.keyDown(document.activeElement as Element, { key });
 const chosen = () => (ctx.setCalDate as ReturnType<typeof vi.fn>).mock.calls.map((c) => (c[0] as Date).getDate());
 const mock = (name: string) => ctx[name] as ReturnType<typeof vi.fn>;
@@ -217,6 +218,47 @@ describe("Investigation calendar — the month list from the keyboard", () => {
     expect(ctx.setInvestigation).not.toHaveBeenCalled();
   });
 
+  // The list has no other way of closing than choosing a month, so it stays
+  // open while the doctor works elsewhere in the popup. From THERE Escape still
+  // went to the popup, which closed and filed the half-typed result.
+  it("⚕️ Escape closes the open list from anywhere in the popup — a result box too — and the cursor stays in the box", () => {
+    ctx = fresh({ showMonthPicker: true, invFormData: HALF_TYPED });
+    render(<InvestigationPopup />);
+    const hb = box("Hb (g/dL)") as HTMLInputElement;
+    hb.focus();
+    expect(fireEvent.keyDown(hb, { key: "Escape" })).toBe(false);
+    expect(ctx.setShowMonthPicker).toHaveBeenCalledWith(false);
+    expect(ctx.setShowInvPopup).not.toHaveBeenCalled();
+    expect(ctx.setInvestigation).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(hb);
+  });
+
+  it("…and with the focus on nothing in particular", () => {
+    ctx = fresh({ showMonthPicker: true, invFormData: HALF_TYPED });
+    render(<InvestigationPopup />);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(ctx.setShowMonthPicker).toHaveBeenCalledWith(false);
+    expect(ctx.setShowInvPopup).not.toHaveBeenCalled();
+    expect(ctx.setInvestigation).not.toHaveBeenCalled();
+  });
+
+  it("from a month in the list, the focus goes back to the month's name — not lost with the list", () => {
+    ctx = fresh({ showMonthPicker: true });
+    render(<InvestigationPopup />);
+    const march = screen.getByRole("button", { name: "March" });
+    march.focus();
+    fireEvent.keyDown(march, { key: "Escape" });
+    expect(document.activeElement).toBe(monthName());
+  });
+
+  it("closing the popup closes the list with it, so it is not standing open the next time", () => {
+    ctx = fresh({ showMonthPicker: false });
+    render(<InvestigationPopup />);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(ctx.setShowInvPopup).toHaveBeenCalledWith(false);
+    expect(ctx.setShowMonthPicker).toHaveBeenCalledWith(false);
+  });
+
   it("with the list closed, Escape on the month's name is the popup's own again", () => {
     ctx = fresh({ showMonthPicker: false });
     render(<InvestigationPopup />);
@@ -245,12 +287,30 @@ describe("Investigation popup — a result box says which value it takes", () =>
     expect(box("RBC (million/uL)")?.placeholder).toBe("million/uL");
   });
 
-  it("a box whose field is only called 'Value' is named by its test, once for each unit", () => {
+  // The words on screen come FIRST in the name (someone speaking to the
+  // computer says what they can see), and the test is added where the caption
+  // alone says nothing: twenty-four boxes all called "Value" name nothing.
+  it("a box whose field is only called 'Value' adds its test, once for each unit", () => {
     ctx = fresh();
     render(<InvestigationPopup />);
     // Fibrinogen: one value, two units, converted as it is typed.
-    expect(box("Fibrinogen (g/L)")?.placeholder).toBe("g/L");
-    expect(box("Fibrinogen (mg/L)")?.placeholder).toBe("mg/L");
+    expect(box("Value (g/L) — Fibrinogen")?.placeholder).toBe("g/L");
+    expect(box("Value (mg/L) — Fibrinogen")?.placeholder).toBe("mg/L");
+  });
+
+  it("the same for a list or a text box the catalog calls only 'Result'", () => {
+    ctx = fresh();
+    render(<InvestigationPopup />);
+    const generic = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] select[aria-label], [role="dialog"] input[aria-label]'))
+      .map((el) => el.getAttribute("aria-label") as string)
+      .filter((n) => /^(Value|Result|Report|Finding|Score|Status|Grade)\b/.test(n));
+    expect(generic.length).toBeGreaterThan(3);
+    for (const n of generic) expect(n, n).toMatch(/^(Value|Result|Report|Finding|Score|Status|Grade)( \([^)]*\))? — .+/);
+    // …so no two boxes on the page are called the same thing.
+    const all = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"] select[aria-label], [role="dialog"] input[aria-label]'))
+      .map((el) => el.getAttribute("aria-label") as string)
+      .filter((n) => / — /.test(n));
+    expect(new Set(all).size).toBe(all.length);
   });
 
   it("no result box on the page is left without a name", () => {

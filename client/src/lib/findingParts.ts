@@ -1,50 +1,49 @@
+import type { InvTest } from "@/types";
+
 // A stored result, shown with room between its parts.
 //
 // A finding is stored as its parts joined by commas with no space
 // ("Hb:13.5g/dL,WBC:12000" — the storage protocol in client/CLAUDE.md), and
 // the Investigation popup's "Added results" panel shows it with a space after
-// each of those commas, to be read.
+// each comma, to be read.
 //
 // ⚕️ It used to put that space after EVERY comma, the one inside a number too.
 // A calculator's "ANC 1,500 cells/µL" was shown as "ANC 1, 500 cells/µL", and a
 // platelet count typed the way it is written here — "1,50,000" — as
 // "1, 50, 000": one number the doctor entered, shown as three. A value on this
-// screen is shown exactly as it was typed (client/CLAUDE.md), so a number
-// WRITTEN as a grouped number keeps its commas as they are:
-//   • groups of three after the first — 1,500 · 12,000 · 1,234,567
-//   • or the lakh way — 1,50,000 · 12,34,567
-// Nothing else between two digits counts. "BIRADS:4,2 cm mass" and
-// "METs:10,3 mm" are two PARTS that happen to meet at digits, and without the
-// space they would read as 4,2 and 10,3.
+// screen is shown exactly as it was typed (client/CLAUDE.md).
 //
-// DISPLAY ONLY, and it only ever adds a space: the stored string is untouched,
-// and so is the sidebar and the printed sheet, which never had this rule.
+// The string alone cannot say which comma is which. The first attempt kept
+// together whatever LOOKED like a grouped number — and so fused two parts into
+// one: ETT's "METs:10" beside a report beginning "150 bpm" read
+// "METs:10,150 bpm", and G6PD's two boxes "100,150U/g Hb" (caught in the
+// second review, before release). A guess that is right for one test is wrong
+// for another, so there is no guess here. The CATALOG says which values can
+// only ever be one part:
+//   • a calculator's result — one sentence, with its own punctuation;
+//   • a test with one box — one value, whatever commas the doctor typed in it;
+//   • free text with no test — the doctor's own words.
+// Those are shown exactly as stored. A test with several boxes keeps the space
+// after every comma, as it always has: there the comma between two boxes must
+// never be lost, and a number typed with its groups is still set apart at them
+// (DEFECT-INV-GROUPED in the test file; closing it needs the parts stored
+// apart, not a cleverer reading of the string).
 //
-// Written without a look-behind on purpose: Safari before 16.4 cannot parse
-// one, and a script that does not parse takes the whole app down with it.
+// DISPLAY ONLY: the stored string is untouched, and so are the sidebar and the
+// printed sheet, which never had the rule.
 
-const GROUPED = /\d{1,3}(?:,\d{2,3})*,\d{3}(?!\d)/y;
-const isDigit = (ch: string) => ch >= "0" && ch <= "9";
+/**
+ * Can a stored value of this test only ever be ONE part?
+ * `testName` is "" for free text; `test` is the catalog's entry, if it has one.
+ */
+export function isOneValue(testName: string, test: Pick<InvTest, "calc" | "fields"> | null | undefined): boolean {
+  if (!testName) return true;
+  if (!test) return false; // a name the catalog does not have: unknown, so shown as it always was
+  if (test.calc) return true;
+  return (test.fields?.length ?? 0) <= 1;
+}
 
-export function spacedParts(raw: string): string {
-  let out = "";
-  let i = 0;
-  while (i < raw.length) {
-    const ch = raw[i];
-    const prev = i > 0 ? raw[i - 1] : "";
-    // A number starts here — not the middle of one, and not its decimals.
-    if (isDigit(ch) && !isDigit(prev) && prev !== ".") {
-      GROUPED.lastIndex = i;
-      const grouped = GROUPED.exec(raw);
-      if (grouped) {
-        out += grouped[0];
-        i += grouped[0].length;
-        continue;
-      }
-    }
-    out += ch;
-    if (ch === "," && i + 1 < raw.length && !/\s/.test(raw[i + 1])) out += " ";
-    i += 1;
-  }
-  return out;
+/** `raw` as the panel shows it: untouched when it is one value, else a space after each comma. */
+export function shownValue(raw: string, oneValue: boolean): string {
+  return oneValue ? raw : raw.replace(/,(?=\S)/g, ", ");
 }

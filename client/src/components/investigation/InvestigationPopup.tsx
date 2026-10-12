@@ -17,9 +17,11 @@ import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 import { useDialog } from "@/lib/useDialog";
 import { zoomScale } from "@/lib/dropdownAnchor";
-import { spacedParts } from "@/lib/findingParts";
+import { isOneValue, shownValue } from "@/lib/findingParts";
 
 const VALUE_LABELS = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
+// Names are unique across the catalog's categories (client/CLAUDE.md).
+const TEST_BY_NAME = new Map(INV_CATS.flatMap((c) => c.tests).map((t) => [t.name, t]));
 
 export default function InvestigationPopup() {
   const {
@@ -319,12 +321,13 @@ export default function InvestigationPopup() {
     return savedAny;
   };
 
-  // What a result box is called, for a screen reader: its field and unit, as
-  // the catalog writes them — "Hb (g/dL)". A field the catalog only calls
-  // "Value" or "Result" is named by its test instead ("S. Creatinine (mg/dL)"):
-  // twenty-four boxes all announced as "Value" name nothing.
+  // What a result box is called, for a screen reader and for someone speaking
+  // to the computer: the words on screen first — its field and unit, as the
+  // catalog writes them, "Hb (g/dL)" — and, where the catalog calls the field
+  // only "Value" or "Result", its test after them ("Value (mg/dL) —
+  // S. Creatinine"): twenty-four boxes all announced as "Value" name nothing.
   const boxName = (test: InvTest, fLabel: string, unit?: string) =>
-    (VALUE_LABELS.includes(fLabel) ? test.name : fLabel) + (unit ? ` (${unit})` : "");
+    fLabel + (unit ? ` (${unit})` : "") + (VALUE_LABELS.includes(fLabel) ? ` — ${test.name}` : "");
 
   const handleInvFieldChange = (testName: string, fLabel: string, value: string) => {
     const key = testName + "__" + fLabel;
@@ -355,13 +358,29 @@ export default function InvestigationPopup() {
     commitResult(formatCalDate(calDate) + ":" + testName + ":normal", testName + ": normal");
   };
 
-  // Auto-save when popup closes
+  // Auto-save when popup closes. The month list goes with it: its open flag
+  // lives in the store, and the list was standing open the next time.
   const handleCloseInvPopup = () => {
     autoSaveInvData();
+    setShowMonthPicker(false);
     setShowInvPopup(false);
   };
 
-  const dialog = useDialog(showInvPopup, handleCloseInvPopup);
+  // ⚕️ Escape closes ONE thing, and while the month list is open that is the
+  // list — wherever the focus happens to be. The list has no other way of
+  // closing than choosing a month, so it stays open while the doctor types a
+  // result; Escape from that box went to the popup, which closed and filed the
+  // half-typed result on its way out. (A box that uses Escape for itself has
+  // already said so, and this is never reached.) The focus goes back to the
+  // month's name only if it was on the list, which is about to go.
+  const monthWrapRef = useRef<HTMLDivElement | null>(null);
+  const handleEscape = () => {
+    if (!showMonthPicker) { handleCloseInvPopup(); return; }
+    const onTheList = !!monthWrapRef.current?.contains(document.activeElement);
+    setShowMonthPicker(false);
+    if (onTheList) monthLabelRef.current?.focus();
+  };
+  const dialog = useDialog(showInvPopup, handleEscape);
 
   if (!showInvPopup) return null;
 
@@ -604,17 +623,9 @@ export default function InvestigationPopup() {
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {/* Clickable month with dropdown.
-                  Escape closes the LIST while it is open — `preventDefault`
-                  is what tells the popup's own Escape that the key has done
-                  its job. Listened for HERE, round the name and the list both:
-                  Enter on the name opens the list and leaves the focus on the
-                  name, and from there Escape went straight to the popup, which
-                  closed — filing whatever was half typed on its way out. */}
-              <div
-                style={{ position: "relative" }}
-                onKeyDown={(e) => { if (showMonthPicker && e.key === "Escape") { e.preventDefault(); closeMonthPicker(); } }}
-              >
+              {/* Clickable month with dropdown. Escape with the list open is
+                  `handleEscape`, above: it closes the list, from anywhere. */}
+              <div ref={monthWrapRef} style={{ position: "relative" }}>
                 <span ref={monthLabelRef} onClick={() => setShowMonthPicker(!showMonthPicker)} {...pressable()} aria-expanded={showMonthPicker} style={{ fontSize: 12, fontWeight: 500, color: C.pri[600], cursor: "pointer", padding: "1px 5px", borderRadius: 4, background: showMonthPicker ? C.pri[50] : "transparent" }}>{months[m]}</span>
                 {showMonthPicker && (
                   // Each month is a button: the list could be opened from the
@@ -804,7 +815,7 @@ export default function InvestigationPopup() {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
                           <label data-caption style={testLbl}>{f.l}</label>
-                          <select aria-label={f.l} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
+                          <select aria-label={boxName(test, f.l)} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             style={{ ...inp, padding: "6px 4px" }}>
                             <option value="">Select</option>
                             {(f.opts || []).map((o) => <option key={o} value={o}>{o}</option>)}
@@ -817,7 +828,7 @@ export default function InvestigationPopup() {
                       return (
                         <div key={f.l} style={{ flex: fieldW, minWidth: 0 }}>
                           <label data-caption style={testLbl}>{f.l}</label>
-                          <input aria-label={f.l} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
+                          <input aria-label={boxName(test, f.l)} value={invFormData[key1] || ""} onChange={(e) => handleInvFieldChange(test.name, f.l, e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") addInvResult(test.name); }}
                             placeholder="Enter..." style={inp} />
                         </div>
@@ -944,8 +955,10 @@ export default function InvestigationPopup() {
                   const date = parts[0] || "";
                   const test = parts.length >= 3 ? parts[1] : "";
                   const rawValue = parts.length >= 3 ? parts.slice(2).join(":") : parts.slice(1).join(":");
-                  // Room between the parts — never inside a number ("1,500").
-                  const displayValue = spacedParts(rawValue);
+                  // Room between the parts of a test that has several boxes;
+                  // a value that can only be one part is shown as it is stored
+                  // ("ANC 1,500 cells/µL", a count typed "1,50,000").
+                  const displayValue = shownValue(rawValue, isOneValue(test, TEST_BY_NAME.get(test)));
                   const editing = editItem === item;
                   const commitEdit = () => {
                     const v = editVal.trim();
