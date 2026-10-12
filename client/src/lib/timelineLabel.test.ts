@@ -69,6 +69,26 @@ describe("nameLines — a medicine", () => {
     expect(nameLines("Pot. chloride 600 mg", 15, "drug").some((l) => l.quiet)).toBe(false);
   });
 
+  // A dosage form the app does not know by name ("IV Infusion.", "Oral
+  // Saline.") is neither left off nor allowed to take the line: it is
+  // shortened, and the brand stays in sight. Treated as part of the name, it
+  // took the whole first line — "IV Infusion.…" over "1 gm/100 ml" for two
+  // different medicines (third review, before release).
+  it("⚕️ a dosage form it does not know by name is shortened — the brand is never the part that goes", () => {
+    expect(texts("IV Infusion. Napa 1 gm/100 ml", 13)).toEqual(["IV Infu… Napa", "1 gm/100 ml"]);
+    expect(texts("IV Infusion. Ace 1 gm/100 ml", 13)).toEqual(["IV Infus… Ace", "1 gm/100 ml"]);
+    expect(texts("Oral Saline. Tasty Saline 10.25 gm", 13)).toEqual(["Ora… Tasty S…", "10.25 gm"]);
+    expect(texts("Oral Saline. SMC Orsaline 10.25 gm", 13)).toEqual(["Ora… SMC Ors…", "10.25 gm"]);
+    // With room for the brand and its strength under it, it is a quiet line
+    // above them, like any other form.
+    expect(nameLines("IV Infusion. Napa 1 gm", 15, "drug")).toEqual([{ text: "IV Infusion.", quiet: true }, { text: "Napa 1 gm" }]);
+  });
+
+  it("a medicine's own name typed before an abbreviated form is not left off either", () => {
+    expect(texts("Napa tab. 500 mg twice daily", 15)).toEqual(["Napa tab.", "500 mg twice d…"]);
+    expect(texts("Ace tab. 500 mg twice daily", 15)).toEqual(["Ace tab.", "500 mg twice d…"]);
+  });
+
   it("a dosage form of several words is still a dosage form", () => {
     expect(texts("SC Injection. Clexane 40 mg", 15)).toEqual(["SC Injection.", "Clexane 40 mg"]);
     expect(texts("Eye Drops. Optimol 0.5%", 15)).toEqual(["Eye Drops.", "Optimol 0.5%"]);
@@ -119,17 +139,25 @@ describe("nameLines — for any name", () => {
     );
   });
 
-  it("⚕️ invents nothing and reorders nothing: each line is a piece of the name, in the order it was written", () => {
+  // A line may carry two marks — a shortened form AND a cut brand, "Ora… Tasty
+  // S…" — so a line is one or more pieces, each standing where something was
+  // left off after it.
+  it("⚕️ invents nothing and reorders nothing: every line is pieces of the name, in the order they were written", () => {
     fc.assert(
       fc.property(anyName, fc.integer({ min: 8, max: 24 }), fc.constantFrom<"drug" | "text">("drug", "text"), (name, max, kind) => {
         let from = 0;
         for (const l of nameLines(name, max, kind)) {
-          const piece = strip(l.text);
-          const at = name.indexOf(piece, from);
-          expect(at, `"${l.text}" in "${name}"`).toBeGreaterThanOrEqual(0);
-          from = at + piece.length;
+          for (const piece of l.text.split("…").map((p) => p.trim()).filter(Boolean)) {
+            const at = name.indexOf(piece, from);
+            expect(at, `"${piece}" of "${l.text}" in "${name}"`).toBeGreaterThanOrEqual(0);
+            from = at + piece.length;
+          }
         }
       }),
+      // Many more cases than the rest: the one slip this found — a space put
+      // between a form and a brand that were typed without one — showed up in
+      // two runs out of three at the usual number.
+      { numRuns: 5000 },
     );
   });
 
@@ -146,7 +174,7 @@ describe("nameLines — for any name", () => {
   });
 
   it("⚕️ a medicine's strength is never cut while it fits a line of its own — whatever the name in front of it", () => {
-    const form = fc.constantFrom("", "Tablet. ", "Capsule (Enteric Coated). ", "Pot. ", "IV Infusion. ");
+    const form = fc.constantFrom("", "Tablet. ", "Capsule (Enteric Coated). ", "Pot. ", "IV Infusion. ", "Oral Saline. ", "Mouthwash. ");
     const brand = fc.array(fc.stringMatching(/^[A-Z][a-z]{2,11}$/), { minLength: 1, maxLength: 4 }).map((ws) => ws.join(" + "));
     const strength = fc.constantFrom("5 mg", "0.5 mg", "500 mg", "5 mg + 20 mg", "400 mg/100 mg", "1 gm");
     fc.assert(
@@ -156,6 +184,48 @@ describe("nameLines — for any name", () => {
         const lines = nameLines(label, max, "drug").map((l) => l.text);
         expect(lines.join(" "), `${label} @${max}`).toContain(s);
       }),
+    );
+  });
+
+  // What the three reviews kept finding, as one rule: two medicines that are
+  // different must not be drawn under the same name.
+  const HEADS = ["", "Tablet. ", "Capsule (Enteric Coated). ", "IV Infusion. ", "Oral Saline. ", "Mouthwash. ", "Pot. ", "inj "];
+  const STRENGTHS = ["5 mg", "0.5 mg", "500 mg", "5 mg + 20 mg", "400 mg/100 mg", "1 gm/100 ml"];
+  const brandWord = fc.stringMatching(/^[A-Z][a-z]{2,10}$/);
+
+  it("⚕️ two medicines that differ only in their BRAND never get the same name", () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...HEADS), brandWord, brandWord, fc.constantFrom(...STRENGTHS), fc.integer({ min: 13, max: 22 }), (head, a, b, s, max) => {
+        fc.pre(a.slice(0, 3) !== b.slice(0, 3));
+        const one = nameLines(`${head}${a} ${s}`, max, "drug").map((l) => l.text);
+        const two = nameLines(`${head}${b} ${s}`, max, "drug").map((l) => l.text);
+        expect(one, `${head}${a} / ${b} ${s} @${max}`).not.toEqual(two);
+      }),
+      { numRuns: 3000 },
+    );
+  });
+
+  it("⚕️ …nor two that differ only in their STRENGTH", () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...HEADS), brandWord, fc.constantFrom(...STRENGTHS), fc.constantFrom(...STRENGTHS), fc.integer({ min: 13, max: 22 }), (head, b, s1, s2, max) => {
+        fc.pre(s1 !== s2);
+        const one = nameLines(`${head}${b} ${s1}`, max, "drug").map((l) => l.text);
+        const two = nameLines(`${head}${b} ${s2}`, max, "drug").map((l) => l.text);
+        expect(one, `${head}${b} ${s1} / ${s2} @${max}`).not.toEqual(two);
+      }),
+      { numRuns: 3000 },
+    );
+  });
+
+  it("⚕️ …nor two that differ only in a short first word that is part of the name (Pot. / Sod.)", () => {
+    fc.assert(
+      fc.property(fc.constantFrom("Pot", "Sod", "Cal", "Vit", "Mag", "Fe"), fc.constantFrom("Pot", "Sod", "Cal", "Vit", "Mag", "Fe"), brandWord, fc.constantFrom(...STRENGTHS), fc.integer({ min: 13, max: 22 }), (h1, h2, b, s, max) => {
+        fc.pre(h1 !== h2);
+        const one = nameLines(`${h1}. ${b.toLowerCase()} ${s}`, max, "drug").map((l) => l.text);
+        const two = nameLines(`${h2}. ${b.toLowerCase()} ${s}`, max, "drug").map((l) => l.text);
+        expect(one).not.toEqual(two);
+      }),
+      { numRuns: 3000 },
     );
   });
 
