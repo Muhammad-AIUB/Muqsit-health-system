@@ -16,9 +16,12 @@ import type { InvFinding } from "./investigationSummary";
 
 const param = (over: Partial<ChartableParam> = {}): ChartableParam => ({
   test: "Synthetic", field: "Value", label: "Synthetic", category: "Test",
-  unit: "u-one", u2: "u-two", c21: 10, otherFieldLabels: [], ...over,
+  unit: "u-one", u2: "u-two", c21: 10, otherFieldLabels: [], unlabelledAfter: false, ...over,
 });
 const finding = (date: string, value: string, test = "Synthetic"): InvFinding => ({ date, category: "Test", test, value });
+// The boxes whose value is stored with no name in front of it (VALUE_LABELS in
+// the popup and in the module under test).
+const UNNAMED = ["Value", "Result", "Report", "Finding", "Score", "Status", "Grade"];
 
 describe("numericSeriesFor — single-value field", () => {
   it("plots a value recorded in the field's own unit, label verbatim", () => {
@@ -113,18 +116,113 @@ describe("numericSeriesFor — a number typed with a comma, in a field with no u
     expect(numericSeriesFor([finding("01/09/2026", "WBC:350,ADA:Positive")], count).map((p) => p.value)).toEqual([350]);
   });
 
-  it("…and so is one followed by words — a report that begins with a number is not the rest of this one", () => {
-    const mets = param({ field: "METs", label: "Stress test — METs", unit: "", u2: undefined, c21: undefined, otherFieldLabels: ["Result", "Report"] });
+  // The first guard (2026-10-12) refused only a bare number followed by ANOTHER
+  // bare number, so anything typed after the number let its first group
+  // through: "WBC:1,200/cmm" was still drawn as 1 (fourth review, before
+  // release). Every box that comes after WBC in this test writes its own name
+  // in front of its value, so a part with no name on it straight after WBC's
+  // can only be the rest of what was typed into WBC's own box.
+  it("⚕️ …whatever is typed after the number: a unit, a word, a bracket", () => {
+    for (const typed of ["1,200/cmm", "1,200 cells/cmm", "1,200 (N 80%)", "1,50,000/cmm", "1,2 approx", "1, 200"]) {
+      expect(numericSeriesFor([finding("01/09/2026", `WBC:${typed}`)], count), typed).toEqual([]);
+      expect(numericSeriesFor([finding("01/09/2026", `Appearance:Cloudy,WBC:${typed},ADA:Positive`)], count), typed).toEqual([]);
+    }
+  });
+
+  // A number's own comma is followed by a digit. Words after one are a remark
+  // typed into the same box, and the number in front of them is whole.
+  it("words typed after the number, behind a comma, leave it readable — as they always did", () => {
+    expect(numericSeriesFor([finding("01/09/2026", "WBC:350, repeat next week")], count).map((p) => p.value)).toEqual([350]);
+    expect(numericSeriesFor([finding("01/09/2026", "Appearance:Cloudy,WBC:350, repeat,ADA:Positive")], count).map((p) => p.value)).toEqual([350]);
+  });
+
+  it("a part that begins with a digit is another box's when it carries that box's name (OGTT's \"1 hr\", \"2 hr\")", () => {
+    const fasting = param({ field: "Fasting", label: "Load — Fasting", unit: "", u2: undefined, c21: undefined, otherFieldLabels: ["1 hr", "2 hr"] });
+    expect(numericSeriesFor([finding("01/09/2026", "Fasting:5,1 hr:9,2 hr:7")], fasting).map((p) => p.value)).toEqual([5]);
+    expect(numericSeriesFor([finding("01/09/2026", "Fasting:5,1 hrs later 9")], fasting)).toEqual([]);
+  });
+
+  // ETT is the one test where a box with no unit (METs) is followed by a box
+  // that writes NO name in front of its text (Report). There a part with no
+  // name on it may be the report, so words after the number are the report's —
+  // and only a bare number, which could be either, is refused.
+  it("…but where the NEXT box writes no name of its own, words after the number are that box's text", () => {
+    const mets = param({ field: "METs", label: "Stress test — METs", unit: "", u2: undefined, c21: undefined, otherFieldLabels: ["Result", "Report"], unlabelledAfter: true });
     expect(numericSeriesFor([finding("01/09/2026", "Positive,METs:10,150 bpm at peak")], mets).map((p) => p.value)).toEqual([10]);
+    expect(numericSeriesFor([finding("01/09/2026", "Positive,METs:10,Stopped for fatigue")], mets).map((p) => p.value)).toEqual([10]);
     // A report that is nothing but a number cannot be told from the rest of the value: not plotted.
     expect(numericSeriesFor([finding("01/09/2026", "Positive,METs:10,150")], mets)).toEqual([]);
   });
 
-  it("the real catalog's one count with no unit — Ascites Fluid, WBC — is read this way", () => {
-    const p = chartableParams().find((x) => x.test === "Ascites Fluid" && x.field === "WBC") as ChartableParam;
-    expect(p.unit).toBe("");
-    expect(numericSeriesFor([finding("01/09/2026", "WBC:1,200", "Ascites Fluid")], p)).toEqual([]);
-    expect(numericSeriesFor([finding("01/09/2026", "WBC:1200", "Ascites Fluid")], p).map((x) => x.value)).toEqual([1200]);
+  it("a number that carries its unit is closed by it — what follows cannot be the rest of the number", () => {
+    const hb = param({ field: "Hb", label: "Panel — Hb", unit: "u-one", u2: undefined, c21: undefined, otherFieldLabels: ["RBC"] });
+    expect(numericSeriesFor([finding("01/09/2026", "Hb:11.2u-one, repeated")], hb).map((p) => p.value)).toEqual([11.2]);
+    // …and one cut off before its unit was never plotted.
+    expect(numericSeriesFor([finding("01/09/2026", "Hb:11,2u-one")], hb)).toEqual([]);
+  });
+});
+
+// The same, against the catalog itself: the boxes whose number has no unit to
+// close it. What is typed here is made up; only the catalog's shape is read.
+describe("numericSeriesFor — the catalog's own boxes with no unit", () => {
+  const params = chartableParams();
+  const real = (test: string, field: string) => params.find((p) => p.test === test && p.field === field) as ChartableParam;
+  const series = (p: ChartableParam, value: string) => numericSeriesFor([finding("01/09/2026", value, p.test)], p).map((x) => x.value);
+  // The boxes that come after this one in its test and write their own name.
+  const namedAfter = (p: ChartableParam) => {
+    const fields = INV_CATS.find((c) => c.cat === p.category)!.tests.find((t) => t.name === p.test)!.fields;
+    return fields.slice(fields.findIndex((f) => f.l === p.field) + 1).map((f) => f.l).filter((l) => !UNNAMED.includes(l));
+  };
+
+  it("they are these eight, and no other", () => {
+    expect(params.filter((p) => p.unit === "").map((p) => `${p.test} › ${p.field}`)).toEqual([
+      "Prothrombin Time › INR", "A/G Ratio › Value", "Ascites Fluid › SAAG", "Ascites Fluid › WBC",
+      "Lipid Profile › TC/HDL", "DEXA Scan › T-score", "DEXA Scan › Z-score", "ETT (Treadmill) › METs",
+    ]);
+  });
+
+  it("⚕️ only two numbers in the catalog are followed by a box that writes no name of its own", () => {
+    // A new one is a new place where a part with no name may be someone
+    // else's: look at how it reads before adding it here.
+    expect(params.filter((p) => p.unlabelledAfter).map((p) => `${p.test} › ${p.field}`)).toEqual(["Echo › EF", "ETT (Treadmill) › METs"]);
+  });
+
+  it("⚕️ what the fourth review typed is not drawn as its first group", () => {
+    const wbc = real("Ascites Fluid", "WBC");
+    expect(series(wbc, "WBC:1,200")).toEqual([]);
+    expect(series(wbc, "WBC:1,200/cmm")).toEqual([]);
+    expect(series(wbc, "WBC:1,200 cells/cmm")).toEqual([]);
+    expect(series(wbc, "WBC:1,200 (N 80%)")).toEqual([]);
+    expect(series(real("Prothrombin Time", "INR"), "INR:2,5 (target 2-3)")).toEqual([]);
+    expect(series(real("Ascites Fluid", "SAAG"), "SAAG:1,3 g/dL")).toEqual([]);
+  });
+
+  it("ETT's METs, with its report after it, is read as METs and a report", () => {
+    const mets = real("ETT (Treadmill)", "METs");
+    expect(series(mets, "Positive,METs:10,150 bpm at peak")).toEqual([10]);
+    expect(series(mets, "Positive,METs:10,150")).toEqual([]);
+  });
+
+  it("⚕️ for every one of them: a number typed with a comma is never drawn as the part before it", () => {
+    for (const p of params.filter((x) => x.unit === "" && x.field !== "Value")) {
+      for (const typed of ["1,200", "1,200/cmm", "1,2 approx", "2,5 (target 2-3)", "12,5"]) {
+        const got = series(p, `${p.field}:${typed}`);
+        // METs may be followed by its report, so words after it are read as the report's.
+        if (p.unlabelledAfter && !/^\d+,\d+$/.test(typed)) continue;
+        expect(got, `${p.label} ← ${typed}`).toEqual([]);
+      }
+    }
+    // The one box of the eight that writes no name: a single value, two numbers in it.
+    const ag = real("A/G Ratio", "Value");
+    for (const typed of ["1,2", "1,200", "1,2 approx"]) expect(series(ag, typed), typed).toEqual([]);
+  });
+
+  it("…and the same number typed plainly is drawn, alone or with the boxes after it filled in", () => {
+    for (const p of params.filter((x) => x.unit === "" && x.field !== "Value")) {
+      expect(series(p, `${p.field}:1200`), p.label).toEqual([1200]);
+      for (const next of namedAfter(p)) expect(series(p, `${p.field}:1200,${next}:x`), `${p.label} then ${next}`).toEqual([1200]);
+    }
+    expect(series(real("A/G Ratio", "Value"), "1.2")).toEqual([1.2]);
   });
 });
 

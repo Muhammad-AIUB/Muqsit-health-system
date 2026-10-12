@@ -20,6 +20,7 @@ export interface ChartableParam {
   u2?: string;
   c21?: number;                      // u2 -> u1 conversion factor
   otherFieldLabels: string[];         // sibling field labels in the same test (any type)
+  unlabelledAfter: boolean;            // a LATER box of the test is stored with no "Label:" of its own
 }
 
 // Every numeric field in the investigation catalog, flattened to one
@@ -30,7 +31,7 @@ export function chartableParams(): ChartableParam[] {
   for (const cat of INV_CATS) {
     for (const test of cat.tests) {
       const multiField = test.fields.length > 1;
-      for (const f of test.fields) {
+      for (const [i, f] of test.fields.entries()) {
         if (f.t !== "num") continue;
         out.push({
           test: test.name,
@@ -41,6 +42,7 @@ export function chartableParams(): ChartableParam[] {
           u2: f.u2,
           c21: f.c21,
           otherFieldLabels: test.fields.filter((g) => g !== f).map((g) => g.l),
+          unlabelledAfter: test.fields.slice(i + 1).some((g) => VALUE_LABELS.includes(g.l)),
         });
       }
     }
@@ -73,15 +75,27 @@ function isolateRaw(value: string, param: ChartableParam): string | null {
     // followed by another part, "200". Where the field has a unit, the cut-off
     // "1" has none and is refused below; where it has NONE, the 1 was plotted —
     // a count of 1,200 drawn on the chart as 1 (in production until
-    // 2026-10-12). A bare number followed by another bare number that no other
-    // box of this test claims cannot be read with confidence: it is the rest
-    // of this value, or a value typed into an unlabelled box, and nothing here
-    // can tell which. Not plotted — never guessed. (Words after it are another
-    // box's text: "METs:10,150 bpm at peak" is still METs 10.)
+    // 2026-10-12).
+    //
+    // So: a bare number, and straight after it a part that no other box of the
+    // test has its name on. Whose is that part?
+    //   • Almost always this box's own — every later box writes "Label:" in
+    //     front of its value. Then a DIGIT at its start is the rest of the
+    //     number ("1,200", "1,200/cmm", "2,5 (target 2-3)"): not plotted,
+    //     never guessed. Words there are a remark typed after a whole number
+    //     ("350, repeat next week"), and the number stands.
+    //   • Where a later box writes NO name (`unlabelledAfter` — in the catalog,
+    //     the report under ETT's METs), the part may be that box's text:
+    //     "METs:10,150 bpm at peak" is METs 10 and a report. Only a part that
+    //     is nothing but a number could be either, and is refused.
+    // The first guard asked for a bare number in every case, and "1,200/cmm"
+    // went through it as 1 (fourth review, before release).
     const next = parts[at + 1];
     const BARE_NUMBER = /^\d+(?:\.\d+)?$/;
-    const claimed = (p: string) => p.startsWith(prefix) || param.otherFieldLabels.some((l) => p.startsWith(l + ":"));
-    if (BARE_NUMBER.test(mine) && next !== undefined && !claimed(next) && BARE_NUMBER.test(next)) return null;
+    const anothers = next !== undefined && param.otherFieldLabels.some((l) => next.startsWith(l + ":"));
+    if (BARE_NUMBER.test(mine) && next !== undefined && !anothers) {
+      if (param.unlabelledAfter ? BARE_NUMBER.test(next) : /^\d/.test(next)) return null;
+    }
     return mine;
   }
   if (!VALUE_LABELS.includes(param.field)) return null;
