@@ -226,11 +226,34 @@ describe("HealthTrendsChart — on a phone", () => {
     const { container } = draw(strengths.map((s) => `Tablet. Exforge HCT ${s}`));
     const bars = namesOfBars(namesOf(container));
     expect(bars).toEqual([
-      ["…Exforge HCT 5", "mg +…12.5 mg"],
-      ["…Exforge HCT 5", "mg +…25 mg"],
+      ["…Exforge HCT", "5 mg +…12.5 mg"],
+      ["…Exforge HCT", "5 mg +…25 mg"],
       ["…Exforge HCT", "10 mg…12.5 mg"],
       ["…Exforge HCT", "10 mg…25 mg"],
     ]);
+  });
+
+  // …and the same four as the medicines table writes them, with no space round
+  // the plus: "10…mg+25 mg" read as a tablet of 10 mg + 25 mg (sixth review).
+  it("⚕️ …written with no space round the plus, no unit stands beside a number it does not belong to", () => {
+    giveBox(280);
+    const strengths = ["5 mg+160 mg+12.5 mg", "5 mg+160 mg+25 mg", "10 mg+160 mg+12.5 mg", "10 mg+160 mg+25 mg"];
+    const { container } = draw(strengths.map((s) => `Tablet. Exforge HCT ${s}`));
+    expect(namesOfBars(namesOf(container))).toEqual([
+      ["…Exforge HCT", "5 mg…12.5 mg"],
+      ["…Exforge HCT", "5 mg…25 mg"],
+      ["…Exforge HCT", "10 mg…12.5 mg"],
+      ["…Exforge HCT", "10 mg…25 mg"],
+    ]);
+  });
+
+  // A lab lane's name has two letters more room than a bar's (22 against 20),
+  // where the strip is at its widest: "Prothrombin Time — INR" is exactly 22.
+  it("a lane name of twenty-two letters is one line where the strip is at its widest", () => {
+    giveBox(600);
+    const inr = [200, 100, 10].map((ago, i) => ({ date: daysAgo(ago), category: "Hematology", test: "Prothrombin Time", value: `INR:${1 + i / 10}` }));
+    const { container } = draw([], inr);
+    expect(written(namesOf(container))).toContain("Prothrombin Time — INR");
   });
 
   // The same for the lab lanes. Four parameters of one test were four lanes
