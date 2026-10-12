@@ -143,6 +143,37 @@ CLAUDE.md section before picking one up.
   presses Save & print again and the sheet comes back up). Of the
   catalog's 926 tests, 75 are calculators and 794 have one box — those are
   shown as stored; 57 have several boxes and are shown as before.
+- [x] **…and a third time, 2026-10-12.** Nothing that touches a record or the
+  printed sheet; three things in the fixes again. (1) On a phone's chart a
+  dosage form the app does not know by name (`IV Infusion.`, `Oral Saline.`)
+  took the whole first line and the brand was cut: it is shortened now and
+  the brand stays in sight (`IV Infu… Napa`). The rule is written as what it
+  is for — two different medicines never drawn under one name — and held
+  by property tests over thousands of names, which found two more slips
+  than the examples had. (2) Free text with a colon (`Platelet: 1,50,000`)
+  was still shown `1, 50, 000`: a name the catalog does not have is one
+  value now, on the evidence of every revision of the catalog (no test
+  with several boxes was ever removed or renamed; GCS and Child-Pugh became
+  calculators and are listed by name). (3) The rule was tested beside the
+  line that applies it: one function reads a stored finding now, and a test
+  renders the real panel. Also: every result box says its field AND its
+  test (36 shared a name inside one category); the month list closes when
+  another device closes the popup.
+- [x] **A test that failed one run in four was right (2026-10-12).** The
+  flaky-test detector (`scripts/test-repeat.mjs`, the whole client suite four
+  times) named three tests of the personal note's print question. The cause
+  was in the note, not the tests: a note that has just loaded reaches its
+  `draft` one render late, and Print pressed in that instant printed an
+  empty note and skipped the sensitive-text question. Nothing could leak —
+  the draft was empty — and no hand is that fast. Print reads the note as it
+  stands now (`noteTextNow`); 25 runs of those tests, none failed (3 of 12
+  before).
+- [x] **A count typed `1,200` was drawn on the health-trend chart as 1 — found
+  in that review, in production until 2026-10-12.** Only in a box with no
+  unit (in the catalog the one count is Ascites Fluid › WBC; the other
+  seven are INR, A/G ratio, SAAG, TC/HDL, T-score, Z-score and METs).
+  Such a value is no longer plotted at all. The record, the sidebar and the
+  printed sheet always held `1,200`.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -165,6 +196,26 @@ CLAUDE.md section before picking one up.
   consultation. Whether that should be one row (and how "the same visit" is
   told from "a correction") is a clinical-record decision, not a tidy-up.
   "Preview PDF" prints the same sheet and saves nothing.
+- [ ] **A number typed with a comma is not plotted on the health-trend chart
+  (`DEFECT-HM-GROUPED`, found 2026-10-12 — the physician's call).** A
+  result's boxes are stored joined by commas, so `WBC:12,000cells/uL` and
+  `PLT:1,50,000/cmm` cannot be told from two parts and give NO point: the
+  lane reads as if nothing had been recorded, while the record and the
+  print are right. Plotting `12,000` as twelve thousand is the obvious
+  reading, but it is a reading of what the doctor typed — decide it, and
+  whether a comma can ever be a decimal comma here, and it is a small
+  change in `client/src/lib/numericInvSeries.ts` with its test waiting
+  (`it.fails`). The same blind spot shows a typed `12,000` as `12, 000` in
+  the Investigation popup's "Added results" for a test with several boxes
+  (`DEFECT-INV-GROUPED`). Both go away if a result's parts are stored
+  apart.
+- [ ] **Two names stand twice in the investigation catalog** (found
+  2026-10-12): `Beta-HCG` (Tumor Markers and Reproductive) and `ECG`
+  (Imaging, field "Report"; ECG / Drug, field "Result"). `client/CLAUDE.md`
+  says names are unique. Stored and shown correctly either way, but in the
+  ECG / Drug category Enter or Add on ECG files nothing until the popup
+  closes — the lookup finds the Imaging one first. Which to keep, or what
+  to call the second, is the physician's.
 - [ ] **Left open by the 2026-10-12 review** (engineering, none urgent):
   the "Your workstations" drawer and the wall a secondary account sees
   (`WorkstationSwitcher.tsx`) are not on `useDialog` — Tab walks out of them
