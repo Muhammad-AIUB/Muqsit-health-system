@@ -11,8 +11,9 @@ import {
 // moved the first device's editor on behind the open note — and what had been
 // typed for one patient was saved into the next patient's private note, under
 // the next patient's details (found by reading, in the fourth review,
-// 2026-10-12; in production until then). Two real browsers and the real mirror
-// stream are the only way to see it happen, so this is where it is held.
+// 2026-10-12; in production until the release that carried this). Two real
+// browsers and the real mirror stream are the only way to see it happen, so
+// this is where it is held.
 //
 // Every name and every word typed here is made up.
 

@@ -170,7 +170,7 @@ CLAUDE.md section before picking one up.
   stood (25 runs of those tests, none failed; 3 of 12 before) — and the
   `draft` itself went the same day, in the fourth review below.
 - [x] **A count typed `1,200` was drawn on the health-trend chart as 1 — found
-  in that review, in production until 2026-10-12.** Only in a box with no
+  in that review, in production until the release that carried this.** Only in a box with no
   unit (eight in the catalog: Ascites Fluid › WBC, the one count; INR, A/G
   ratio, SAAG, TC/HDL, T-score, Z-score and METs). The first fix refused
   `1,200` only with nothing typed after it; the fourth review, below, found
@@ -265,6 +265,55 @@ CLAUDE.md section before picking one up.
   browser: the two-unit box from the keys to the printed sheet and the
   stored record (it reads `0.18` on the old code), and the note between two
   devices.
+- [x] **…and a sixth time, 2026-10-13 — nothing that stored or drew a wrong
+  number, and one thing every example had hidden.** (1) **On a phone's
+  chart a strength could be shown with a unit beside the wrong number.**
+  A combination picked from the medicines list has no space round its plus
+  — `10 mg+160 mg+25 mg` — and every example in the code, its tests and
+  three documents had spaces. (Known from the labels in the tests that came
+  from real sheets, `Edeloss 20 mg+50 mg`; the production table was not
+  read for this, and the rule now holds for both ways of writing one.) The word a strength parts at was looked for
+  between spaces, so of that tablet the chart showed `10…mg+25 mg`, which
+  reads as 10 mg + 25 mg: the `mg` beside the 10 was the hidden 160's.
+  And a cut fell wherever the line ran out: `12.5 mg + 500 mg` was
+  `12.5 mg + 50…`, a 12.5 was `12.…`. Never in production — the two-line
+  names are new in this release. Now an AMOUNT, a number with the short
+  word after it, is never cut into: a cut backs off to where it begins,
+  the part two strengths differ in is shown whole (`10 mg…25 mg` beside
+  `10 mg…12.5 mg`; `…500 mg` beside `…1000 mg`), and the line does not
+  turn inside one where anything is left off. It is held for any chart by a
+  property that finds the amounts with a scan of its own, 20,000 charts a
+  run — and on its first runs that property found two more: a hand-typed
+  `Tab Rivotril .5 mg` had its decimal point read as the full stop of a
+  dosage form and was named `5 mg`, half a milligram shown as five; and a
+  part beginning `.5`, set straight after a mark, was four dots in a row
+  (`….5 mg`, now `… .5 mg`). (2) **One medicine in two forms and two
+  long strengths** could be left with one pair under one name, and the
+  other with no strength shown, where the round before had told all four
+  apart: the dosage form now comes back over a strength longer than a line
+  too, cut between its parts. One case of the kind is left and written down
+  (`DEFECT-HM-NAMES`, open list). (3) **A stray space in a two-unit box**,
+  in the box of the unit that is not the preferred one, was recorded as a
+  result with a unit and no value (`S. Creatinine: umol/L`), where before
+  this release's rule nothing was. Closed. (4) **What the documents said
+  that was not so**, each corrected where it stood: "no step is ever
+  undone" (a step is taken only if fewer pairs are alike after it — a pair
+  once apart may still be put together again by a later one); "a strength
+  cut at its end shows the end where another differs only there" (not at
+  16 and 17 letters, until now); that a remark after a comma and a space
+  was drawn "as on every version before" (the fourth round had stopped
+  drawing those); "Add did nothing" in a two-unit box (it is Enter — a
+  test's boxes have no Add); "every one-box test" for the 108 boxes stored
+  with no name (nearly every); and the note for the physician in the open
+  list, which called every wrong value "far too small" and left out that a
+  value could be MISSING. (5) **Listed and left:** a number typed with a
+  comma AND a space inside it is still drawn as a piece of itself
+  (`DEFECT-HM-SPACED`, as in production); the second unit of the
+  fibrinogen box, which is the physician's (open list); and on a WIDE
+  screen a name is still one line cut at twenty characters wherever that
+  falls — also inside a number (`Tablet. Metformin 5…` for 500 mg) — as
+  in production: the phone's two-line rule would close it, and changes the
+  look of the chart the physician knows. Checked by breaking the code: 34 deliberate breaks in the rule for the chart's names, 27 caught at once. Of the other seven, five had no test — one was written for each, and they are caught now; one pointed at a guard that could never fire, which was taken out; and one changes nothing that can be seen (the same name twice always moves together).
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -323,8 +372,9 @@ CLAUDE.md section before picking one up.
   when another device opens a popup through device mirroring while the
   print sheet or the image viewer is up; on a WIDE screen the health-trend
   chart still cuts a name at 20 characters, so a long dosage form hides the
-  brand (`Capsule (Enteric Co…`) — the phone's two-line rule would fix it and
-  changes the look of the chart, so it waits for the physician; with the
+  brand (`Capsule (Enteric Co…`) and the cut can fall inside a number
+  (`Tablet. Metformin 5…` for 500 mg) — the phone's two-line rule would fix
+  both and changes the look of the chart, so it waits for the physician; with the
   keyboard inside the print sheet nothing is drawn to say so; 46 boxes
   in 18 files have no name a screen reader can say (20 not even a
   placeholder: the calculators' inputs, most of Profile settings, the
@@ -409,11 +459,18 @@ CLAUDE.md section before picking one up.
   places than two short lines can show.** Each is still written differently
   where a way is left, but a name may then not say every difference (of
   five strengths of one tablet, two pairs no longer say whether their
-  middle part is 5 or 10), and of eight strengths differing in three places
-  one pair is left under one name at thirteen letters (`it.fails` in
-  `timelineLabel.test.ts`). The tooltip and the list under the chart carry
-  every name in full; a third line, or a wider strip, would close it and
-  changes the look of the chart. (9) A personal note's save that FAILS after
+  middle part is 5 or 10), and two cases are known where one pair is left
+  under one name at thirteen letters (`it.fails`, twice, in
+  `timelineLabel.test.ts`): eight strengths of one tablet differing in three
+  places; and — found in the sixth review — two dosage forms the app does
+  not know by name that begin alike (`Tablet (Delayed Release).`,
+  `Tablet (Extended Release).`) of one medicine in two strengths, where the
+  first pair takes the only two names that way of telling them apart has. A
+  name told apart from the place it differs in may also not show its brand
+  (`Tablet` over `(Delayed Rel…`). The tooltip and the list under the chart
+  carry every name in full; a third line, a wider strip, or laying a name
+  out round EVERY place it differs in would close it, and each changes the
+  look of the chart. (9) A personal note's save that FAILS after
   the note was closed says nothing (Close with "Discard" while the request
   was still on its way): the words are gone and no message is shown. As in
   production. (10) In the client suite's log, two older test files
@@ -428,6 +485,20 @@ CLAUDE.md section before picking one up.
   no word is lost and nothing unsafe comes out; the second cleaning is
   stable. Cleaning until nothing changes would close it; it is a change to
   the sanitiser and was not made in a release it did not belong to.
+  (12) **A result box that holds only a space is recorded as a result**
+  with its unit and no value (`S. Creatinine: mg/dL`), and prints — in the
+  preferred box of a two-unit pair and in every box with one unit. As in
+  production (the sixth review closed it only for the box this release had
+  newly opened it in). One `trim()` where a test's boxes are gathered
+  closes it for all. (13) **The Investigation popup's boxes are not emptied
+  when the editor is** (`resetEditor` leaves `invFormData`): in production,
+  a value typed in the second box of a two-unit pair and not recorded
+  stayed in that box for the next patient. Since this release a value typed
+  in either box of a pair is filed when the popup closes or its date
+  changes, and the test's boxes are emptied, so it no longer comes about on
+  one device; a device still on the older build can mirror such a state in. And emptying the converted box of a
+  two-unit pair empties the one that was typed in, as it always has —
+  visible, and nothing is then recorded.
 - [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
   2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a
