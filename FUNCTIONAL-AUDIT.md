@@ -175,9 +175,11 @@ CLAUDE.md section before picking one up.
   ratio, SAAG, TC/HDL, T-score, Z-score and METs). The first fix refused
   `1,200` only with nothing typed after it; the fourth review, below, found
   `1,200/cmm` still drawn as 1. The record, the sidebar and the printed
-  sheet always held what was typed.
-- [x] **…and a fourth time, 2026-10-12 — one finding was a defect already in
-  production.** (1) **The personal note followed the editor's patient while
+  sheet held what was typed — except through a two-unit box (the fifth
+  review, below).
+- [x] **…and a fourth time, 2026-10-12 — three of its findings were defects
+  already in production** (the two in the personal note, and `1,200/cmm`).
+  (1) **The personal note followed the editor's patient while
   it stood open.** When another device picked the next patient from the
   search box (device mirroring), or a patient chosen from the OPD queue
   finished loading after the note was opened, words typed for one patient
@@ -216,7 +218,53 @@ CLAUDE.md section before picking one up.
   brand (`Syrup. Napa` over `120 mg/5 ml`); the month list's "closed from
   another device" test could not fail and now can; the sign-in helper of
   the browser tests waits for the page's script and for the page
-  separately.
+  separately. (Three of these were not right yet — the fifth review.)
+- [x] **…and a fifth time, 2026-10-12 — the most serious finding was outside
+  the change it was reviewing, and in production.** (1) **A result box
+  with two units recorded a wrong number.** Forty boxes take their value in
+  either of two units (creatinine, bilirubin, glucose, the lipid profile,
+  HBV DNA…). The conversion read only the START of what was typed: a viral
+  load typed `1,20,000` copies/mL was converted from `1` and recorded,
+  shown and printed as `HBV DNA: 0.18IU/mL`; `120,000` became `21.48IU/mL`;
+  `1.2 x 10^5` became `0.21`. Now only a whole, plain number is converted,
+  and anything else is recorded exactly as typed, in the unit of the box it
+  was typed in. **A value recorded wrongly before this cannot be told from
+  a real one in the record** — see the open list. (2) **A ferritin typed
+  `>2,000` was drawn on the chart as 0** (and `<0,5` as 5), in every box
+  that is stored with no name in front of it — 108 of the 177: the part
+  AFTER the comma was read as a value of its own. Also in production. The
+  chart's rule is now about the comma itself — a digit directly on each
+  side of it, and nothing on either side is drawn — and is tested by typing
+  ten such values into every chartable box of the catalog. A comma followed
+  by a space is punctuation again, so `350, 80% lymphocytes` keeps its
+  point, which the fourth round's fix had taken away. (3) **The names on a
+  phone's chart: one round of the fix undid another.** Of four strengths
+  of one tablet two were left under one name, and `12.5 mg` stood on a line
+  by itself, unmarked, as if it were the whole strength. A step is now taken
+  only if it leaves fewer pairs alike than before; a cut line is made to
+  show both its ends (`5 mg…12.5 mg` beside `10 mg…25 mg`); a part is never
+  shown without a mark. What two short lines cannot do is written down as
+  a failing test (`DEFECT-HM-NAMES`). (4) **The open personal note could
+  still be handed to another patient**: the button that opened it stays in
+  the page behind it, and a screen reader could press it again. It does
+  nothing while a note is open. (5) The sign-in helper's new wait matched
+  the sign-in page's own script and was over before it began; it names the
+  page's script exactly now, and a journey holds that the script is not
+  there before sign-in and is after it. Two things the verification itself
+  turned up: a property test of the note's HTML cleaner that failed about
+  one run of the suite in twenty (an old, harmless defect, `DEFECT-D4`,
+  reached by a second shape nobody had set aside — pinned now, see the open
+  list); and another project's dev server on port 3100, which the browser
+  suite would have taken for its own — its two ports can be moved for a run
+  (`E2E_WEB_PORT` / `E2E_API_PORT`). Checked by breaking the code: 46
+  deliberate breaks across this round's six files, 40 caught. Five of the
+  other six pointed at lines that did nothing or could not be held to what
+  they were for — a spacing step, a redundant guard, and a remembered copy
+  of the chart's names — and those were taken out; the sixth guards a state
+  the name rule reaches only by a rare path. New journeys in a real
+  browser: the two-unit box from the keys to the printed sheet and the
+  stored record (it reads `0.18` on the old code), and the note between two
+  devices.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -282,15 +330,28 @@ CLAUDE.md section before picking one up.
   put back on the button (it ends on the page, as it does today in
   production); and the phone layout's print sheet takes the same
   `afterSave` but has not been run on a phone-sized browser.
-- [ ] **Found in the fourth review and left open (2026-10-12).** (1) **The
+- [ ] **⚕️ Results recorded through a two-unit box before 2026-10-12 may be
+  wrong, and the record cannot say which (found in the fifth review — the
+  physician should know).** If a number was typed WITH A COMMA, a power of
+  ten or a remark into the box of the unit that was not the preferred one —
+  most likely a viral load in copies/mL (`1,20,000`), with IU/mL recorded —
+  the value stored, shown and printed is the conversion of the part before
+  the comma: a perfectly formed, far too small number in the other unit
+  (`0.18IU/mL`). Nothing marks such a value, so no repair can be scripted;
+  a viral load that looks implausibly low against the patient's course is
+  worth checking against the paper report. Typed plainly (`120000`), values
+  were always converted correctly. Fixed going forward (`twoUnitValue.ts`).
+- [ ] **Found in the fourth and fifth reviews and left open (2026-10-12).** (1) **The
   health-trend chart reads no number with a sign — the physician's call.**
   A DEXA T-score of `-2.5` gives no point, and its lane says there is no
   reading; T-score and Z-score are the two boxes in the catalog whose usual
   value is negative. A test has always pinned that a value beginning with a
   minus is dropped (`numericInvSeries.test.ts`), so reading it is a
-  decision, not a slip. (2) On the chart ETT's `METs:10,150 bpm at peak` is
-  read as METs 10 and a report — right unless the words were typed into the
-  METs box itself. (3) An open personal note stays on its own patient when
+  decision, not a slip. (2) On the chart an ETT's METs is not drawn when its
+  report begins with a number (`METs:10,150 bpm at peak`): the report box
+  writes no name of its own, so nothing in the stored value says whether
+  that is METs 10 and a report or a METs of 10,150. A report that begins
+  with a word keeps the point. (3) An open personal note stays on its own patient when
   another device moves the editor on, and nothing in the box SAYS the
   editor has moved; the patient's details shown in the box are its own.
   (4) The first save of a personal note takes the patient's details as the
@@ -315,6 +376,29 @@ CLAUDE.md section before picking one up.
   instead of blank — the editor's start-up runs twice under React's
   development checks and the second run no longer sees "just signed in";
   whether a production build can do the same was not checked.
+  (8) **`DEFECT-HM-NAMES` — on a phone's chart, names that differ in more
+  places than two short lines can show.** Each is still written differently
+  where a way is left, but a name may then not say every difference (of
+  five strengths of one tablet, two pairs no longer say whether their
+  middle part is 5 or 10), and of eight strengths differing in three places
+  one pair is left under one name at thirteen letters (`it.fails` in
+  `timelineLabel.test.ts`). The tooltip and the list under the chart carry
+  every name in full; a third line, or a wider strip, would close it and
+  changes the look of the chart. (9) A personal note's save that FAILS after
+  the note was closed says nothing (Close with "Discard" while the request
+  was still on its way): the words are gone and no message is shown. As in
+  production. (10) In the client suite's log, two older test files
+  print React's "not configured to support act(...)" warning
+  (`PatientChat.test.tsx`, `PatientMobileLookup.test.tsx`); they pass, and
+  were not looked into. (11) **`DEFECT-D4` — the cleaner of the personal
+  note's and the header's HTML does not give the same HTML on a second
+  cleaning, for two shapes** (`safeHtml.prop.test.ts`, three `it.fails`): a
+  block inside a pasted table or a button inside a paragraph, and — found
+  2026-10-12 — a heading left directly inside a heading when the tag
+  between them is taken away (`<h1>a<a><h1>b</h1></a>c</h1>`). Layout only:
+  no word is lost and nothing unsafe comes out; the second cleaning is
+  stable. Cleaning until nothing changes would close it; it is a change to
+  the sanitiser and was not made in a release it did not belong to.
 - [x] **DEFECT-E2 — the patient gate stopped the mouse, not the keyboard.** Fixed
   2026-10-06 (`PatientGate` is `inert`); the Playwright test that pinned it is
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a
