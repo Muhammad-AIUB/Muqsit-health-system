@@ -121,17 +121,36 @@ describe("sanitizeHtml — cleaning what is already clean", () => {
     );
   });
 
-  // Idempotence holds for everything EXCEPT markup nested inside an element the
-  // HTML parser treats as a scope boundary and the sanitiser then unwraps (a
-  // pasted <table>, a <button>) — see DEFECT-D4 just below.
+  // Idempotence holds for everything EXCEPT the two shapes of DEFECT-D4, just
+  // below — both a tree the sanitiser builds by unwrapping a tag, and that
+  // cannot be written as HTML:
+  //   • markup nested inside an element the HTML parser treats as a scope
+  //     boundary (a pasted <table>, a <button>);
+  //   • a heading left directly inside a heading. The parser only lets a
+  //     heading stand in a heading when some other tag is between them, and
+  //     the sanitiser takes that tag away (<a>, <form>, an unknown one).
+  // The second was not set aside until 2026-10-12, and the property failed
+  // about one run of the whole suite in twenty — whenever the random input
+  // happened to hold it. A test whose outcome varies is telling the truth:
+  // the shape is real, and it is pinned below instead of left to chance.
   const BOUNDARY = /<\/?(table|tr|td|button)\b/i;
+  const HEADING_IN_HEADING = /<(h[1-4])\b[^>]*>(?:(?!<\/\1>)[\s\S])*?<h[1-4]\b/i;
   it("is idempotent: sanitising sanitised HTML returns it unchanged", () => {
     fc.assert(
       fc.property(htmlish.filter((h) => !BOUNDARY.test(h)), (html) => {
         const once = sanitizeHtml(html);
+        fc.pre(!HEADING_IN_HEADING.test(once));
         expect(sanitizeHtml(once)).toBe(once);
       }),
     );
+  });
+
+  it("the shape set aside above is exactly a heading opened inside an open heading", () => {
+    expect(HEADING_IN_HEADING.test("<h1>a<h1>b</h1>c</h1>")).toBe(true);
+    expect(HEADING_IN_HEADING.test("<h2>a<b><h1>b</h1></b></h2>")).toBe(true);
+    expect(HEADING_IN_HEADING.test("<h1>a</h1><h1>b</h1>")).toBe(false);
+    expect(HEADING_IN_HEADING.test("<h1>a</h1><p>b</p><h2>c</h2>")).toBe(false);
+    expect(HEADING_IN_HEADING.test("<p>a<b>b</b></p>")).toBe(false);
   });
 
   // DEFECT-D4 (low — layout only, nothing unsafe and no word lost): sanitizeHtml is not idempotent when it unwraps a table/button that held a block inside a <p>.
@@ -146,6 +165,15 @@ describe("sanitizeHtml — cleaning what is already clean", () => {
   // a table into the personal note.
   it.fails("DEFECT-D4: a pasted table inside a paragraph cleans to the same HTML every time", () => {
     const once = sanitizeHtml("<p>a<table><tr><td><p>b</p></td></tr></table>c</p>");
+    expect(sanitizeHtml(once)).toBe(once);
+  });
+  // The same defect by its other door (found 2026-10-12, by the property above
+  // failing on one run in about twenty):
+  //   sanitizeHtml('<h1>a<a href="x"><h1>b</h1></a>c</h1>')  === "<h1>a<h1>b</h1>c</h1>"
+  //   sanitizeHtml("<h1>a<h1>b</h1>c</h1>")                    === "<h1>a</h1><h1>b</h1>c"
+  // Layout only, again: no word is lost and nothing unsafe comes out.
+  it.fails("DEFECT-D4: a heading inside a link inside a heading cleans to the same HTML every time", () => {
+    const once = sanitizeHtml('<h1>a<a href="x"><h1>b</h1></a>c</h1>');
     expect(sanitizeHtml(once)).toBe(once);
   });
   it.fails("DEFECT-D4 (property): the same for any block inside a table cell or button inside a <p>", () => {
