@@ -209,12 +209,28 @@ describe("HealthTrendsChart — on a phone", () => {
     ]);
   });
 
-  it("⚕️ …and two combinations that begin with the same ingredient, by the one they differ in", () => {
+  it("⚕️ …and two combinations that begin with the same ingredient, by the one they differ in — with their strength whole", () => {
     giveBox(280);
     const { container } = draw(["Tablet. Amlodipine + Atenolol 5 mg + 50 mg", "Tablet. Amlodipine + Losartan 5 mg + 50 mg"]);
+    expect(namesOfBars(namesOf(container))).toEqual([
+      ["…Amlo…Atenolol", "5 mg + 50 mg"],
+      ["…Amlo…Losartan", "5 mg + 50 mg"],
+    ]);
+  });
+
+  // Four strengths of one tablet (made-up numbers; the shape is what matters):
+  // each bar says its first part and its last, never the last alone.
+  it("⚕️ four strengths of one tablet are four bars with four names", () => {
+    giveBox(280);
+    const strengths = ["5 mg + 160 mg + 12.5 mg", "5 mg + 160 mg + 25 mg", "10 mg + 160 mg + 12.5 mg", "10 mg + 160 mg + 25 mg"];
+    const { container } = draw(strengths.map((s) => `Tablet. Exforge HCT ${s}`));
     const bars = namesOfBars(namesOf(container));
-    expect(bars.map((b) => b[1])).toEqual(["Atenolol 5 mg…", "Losartan 5 mg…"]);
-    expect(new Set(bars.map((b) => b.join("|"))).size).toBe(2);
+    expect(bars).toEqual([
+      ["…Exforge HCT 5", "mg +…12.5 mg"],
+      ["…Exforge HCT 5", "mg +…25 mg"],
+      ["…Exforge HCT", "10 mg…12.5 mg"],
+      ["…Exforge HCT", "10 mg…25 mg"],
+    ]);
   });
 
   // The same for the lab lanes. Four parameters of one test were four lanes
@@ -228,8 +244,8 @@ describe("HealthTrendsChart — on a phone", () => {
     }));
     const { container } = draw([], electrophoresis);
     const texts = written(namesOf(container));
-    expect(texts.filter((t) => /^Hb[A-Z]\d?$/.test(t)).sort()).toEqual(["HbA", "HbA2", "HbF", "HbS"]);
-    expect(texts.filter((t) => t === "Hb Electropho…")).toHaveLength(4);
+    expect(texts.filter((t) => /…Hb[A-Z]\d?$/.test(t)).sort()).toEqual(["Electroph…HbA", "Electroph…HbA2", "Electroph…HbF", "Electroph…HbS"]);
+    expect(texts.filter((t) => t === "Hb")).toHaveLength(4);
   });
 
   it("the two lines of a name stand in their own row: the form above, quieter, the name under it", () => {

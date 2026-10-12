@@ -121,8 +121,16 @@ describe("nameLines — a medicine", () => {
 // combinations that begin with the same ingredient.
 //
 // So the names of one chart are laid out TOGETHER (`namesApart`): each as
-// `nameLines` writes it, and any that came out the same are laid out again so
-// that what they differ in is what is shown.
+// `nameLines` writes it, and any that came out the same are written again so
+// that what they differ in is what is shown — in the first of three ways that
+// leaves fewer pairs alike than before: the dosage form brought back, the cut
+// line made to show both its ends, or the name read from the place itself.
+//
+// The first version of it had two ways and took whichever applied, round after
+// round. One round undid the other: of four strengths of one tablet, two were
+// left under one name — and "12.5 mg" stood on a line by itself, with no mark,
+// as if it were the whole strength of a tablet of 5 mg + 160 mg + 12.5 mg
+// (fifth review, before release).
 describe("namesApart — the names of one chart, together", () => {
   const drugs = (...names: string[]): ChartName[] => names.map((name) => ({ name, kind: "drug" }));
   const apart = (names: ChartName[], max: number) => namesApart(names, max).map((lines) => lines.map((l) => l.text));
@@ -162,18 +170,102 @@ describe("namesApart — the names of one chart, together", () => {
     ]);
   });
 
-  it("⚕️ two combinations that begin with the same ingredient show the one they differ in", () => {
+  it("⚕️ two combinations that begin with the same ingredient show the one they differ in — and keep their strength whole", () => {
     expect(apart(drugs("Tablet. Amlodipine + Atenolol 5 mg + 50 mg", "Tablet. Amlodipine + Losartan 5 mg + 50 mg"), 15)).toEqual([
-      ["Tablet. Amlodi…", "Atenolol 5 mg…"],
-      ["Tablet. Amlodi…", "Losartan 5 mg…"],
+      ["…Amlod…Atenolol", "5 mg + 50 mg"],
+      ["…Amlod…Losartan", "5 mg + 50 mg"],
     ]);
   });
 
-  it("⚕️ two strengths too long for a line, that differ only at their end, show that end", () => {
-    expect(apart(drugs("Tablet. Exforge HCT 5 mg + 160 mg + 12.5 mg", "Tablet. Exforge HCT 5 mg + 160 mg + 25 mg"), 13)).toEqual([
-      ["Tablet. Exfo…", "12.5 mg"],
-      ["Tablet. Exfo…", "25 mg"],
+  // "12.5 mg" on a line by itself would be read as the strength of the tablet.
+  it("⚕️ two strengths too long for a line, that differ only at their end, show BOTH ends — never the last part as if it were the whole", () => {
+    const lines = apart(drugs("Tablet. Exforge HCT 5 mg + 160 mg + 12.5 mg", "Tablet. Exforge HCT 5 mg + 160 mg + 25 mg"), 13);
+    expect(lines).toEqual([
+      ["…Exforge HCT", "5 mg…12.5 mg"],
+      ["…Exforge HCT", "5 mg…25 mg"],
     ]);
+    for (const l of lines.flat()) expect(l).not.toMatch(/^\d[\d.]* mg$/);
+  });
+
+  // Four strengths of one tablet differ in TWO places: the first part and the
+  // last. Showing only the place a pair differs in made the other pair alike,
+  // and the next round turned it back.
+  const FOUR = ["5 mg + 160 mg + 12.5 mg", "5 mg + 160 mg + 25 mg", "10 mg + 160 mg + 12.5 mg", "10 mg + 160 mg + 25 mg"];
+  it("⚕️ four strengths of one tablet, differing in two places, are four names", () => {
+    expect(apart(drugs(...FOUR.map((s) => `Tablet. Exforge HCT ${s}`)), 13)).toEqual([
+      ["…Exforge HCT", "5 mg…12.5 mg"],
+      ["…Exforge HCT", "5 mg…25 mg"],
+      ["…Exforge HCT", "10 mg…12.5 mg"],
+      ["…Exforge HCT", "10 mg…25 mg"],
+    ]);
+  });
+
+  it("⚕️ …at every width a narrow chart has, for every choice of them, under a short brand and a long one", () => {
+    // Made-up tablets; only the SHAPE of their strengths matters: three parts,
+    // of which the first and the last vary (the second follows the first in
+    // the other family).
+    const OTHER = ["5 mg + 1.25 mg + 5 mg", "5 mg + 1.25 mg + 10 mg", "10 mg + 2.5 mg + 5 mg", "10 mg + 2.5 mg + 10 mg"];
+    for (const brand of ["Trio", "Triplixam", "Exforge HCT", "Amlodipine + Valsartan + Hydrochlorothiazide"]) {
+      for (const family of [FOUR, OTHER]) {
+        for (let pick = 1; pick < 16; pick++) {
+          const chart = drugs(...family.filter((_, i) => pick & (1 << i)).map((s) => `Tablet. ${brand} ${s}`));
+          for (let max = 13; max <= 20; max++) {
+            const written = apart(chart, max).map((l) => l.join(" / "));
+            expect(new Set(written).size, `${brand} ${pick.toString(2)} @${max}: ${written.join(" | ")}`).toBe(chart.length);
+          }
+        }
+      }
+    }
+  });
+
+  // A number is never shown in part where the start of a line is shortened to
+  // make room: "12500…" for 12500.5 would be read as a number. (Made-up strengths.)
+  it("⚕️ the start that is kept never ends inside a number — it goes instead, behind the mark", () => {
+    const lines = apart(drugs("Tablet. Exforge HCT 12500.5 mg + 160 mg + 12.5 mg", "Tablet. Exforge HCT 12500.5 mg + 160 mg + 25 mg"), 13);
+    expect(lines).toEqual([
+      ["…Exforge HCT", "…12.5 mg"],
+      ["…Exforge HCT", "…25 mg"],
+    ]);
+  });
+
+  it("the cut may fall exactly where two names part: the letter they part at is brought into view", () => {
+    const chart: ChartName[] = ["X", "Y"].map((c) => ({ name: `Pain knee abcdefghijkl${c}end`, kind: "text" }));
+    expect(apart(chart, 13)).toEqual([
+      ["Pain knee", "abcdefgh…Xend"],
+      ["Pain knee", "abcdefgh…Yend"],
+    ]);
+  });
+
+  // What "written differently" does not promise: that every label says every
+  // difference. Five strengths of one made-up tablet differ in three places;
+  // all five are different names, and two of the pairs no longer say whether
+  // their middle part is 5 or 10. (The tooltip and the list under the chart do.)
+  it("five strengths that differ in three places are five names — though not every name says every part", () => {
+    const five = ["20 mg + 5 mg + 12.5 mg", "40 mg + 5 mg + 12.5 mg", "40 mg + 5 mg + 25 mg", "40 mg + 10 mg + 12.5 mg", "40 mg + 10 mg + 25 mg"];
+    expect(apart(drugs(...five.map((s) => `Tablet. Trimedica ${s}`)), 13)).toEqual([
+      ["…Trimedica 20", "mg + 5 mg +…"],
+      ["Tablet. Trim…", "…12.5 mg"],
+      ["Tablet. Trim…", "…25 mg"],
+      ["…Trimedica 40", "mg +…12.5 mg"],
+      ["…Trimedica 40", "mg +…25 mg"],
+    ]);
+  });
+
+  // Three places, eight strengths, thirteen letters: there is no way left for
+  // the last pair. They are left alike — as all eight were before — and it is
+  // written down here rather than hidden: the test below fails until a way is
+  // found (DEFECT-HM-NAMES, FUNCTIONAL-AUDIT.md).
+  const EIGHT = [5, 10].flatMap((a) => [160, 320].flatMap((b) => [12.5, 25].map((c) => `Tablet. Exforge HCT ${a} mg + ${b} mg + ${c} mg`)));
+  it.fails("DEFECT-HM-NAMES: eight strengths that differ in three places are eight names at thirteen letters", () => {
+    const written = apart(drugs(...EIGHT), 13).map((l) => l.join(" / "));
+    expect(new Set(written).size).toBe(8);
+  });
+
+  it("…and no step is ever undone: of those eight, seven names are different, and they are the same seven however the list is ordered", () => {
+    const written = apart(drugs(...EIGHT), 13).map((l) => l.join(" / "));
+    expect(new Set(written).size).toBe(7);
+    const backwards = apart(drugs(...[...EIGHT].reverse()), 13).map((l) => l.join(" / ")).reverse();
+    expect(backwards).toEqual(written);
   });
 
   it("a symptom or a test's name is told from its neighbour the same way", () => {
@@ -182,8 +274,47 @@ describe("namesApart — the names of one chart, together", () => {
       { name: "Pain in the left knee since last Friday, worse at night", kind: "text" },
     ];
     expect(apart(chart, 15)).toEqual([
-      ["Pain in the le…", "on stairs"],
-      ["Pain in the le…", "at night"],
+      ["Pain in the", "left…on stairs"],
+      ["Pain in the", "left…at night"],
+    ]);
+  });
+
+  // Two symptoms in two places each: where they are felt, and for how long.
+  // The pair that comes second cannot be given the same two ends as the first
+  // (they would be alike across the pairs), so it is read from the place
+  // itself — with a mark in front of what is left, because the line above was cut.
+  it("⚕️ four symptoms that differ in two places are four names, and what is left of one is marked as a part", () => {
+    const chart: ChartName[] = ["epigastrium", "chest"].flatMap((where) => ["2 weeks", "3 weeks"].map((long): ChartName => ({
+      name: `Burning sensation in the ${where} after meals for ${long}`, kind: "text",
+    })));
+    const written = apart(chart, 15);
+    expect(new Set(written.map((l) => l.join(" / "))).size).toBe(4);
+    expect(written).toEqual([
+      ["Burning sensat…", "…2 weeks"],
+      ["Burning sensat…", "…3 weeks"],
+      ["Burning", "sensati…2 weeks"],
+      ["Burning", "sensati…3 weeks"],
+    ]);
+  });
+
+  // The one kind of difference that is not told apart, and need not be.
+  it("two names that differ only in their spacing are written the same: to the eye they are one name", () => {
+    const [a, b] = apart(drugs("Tablet. Ondansetron 8 mg", "Tablet.  Ondansetron  8 mg"), 13);
+    expect(a).toEqual(["…Ondansetron", "8 mg"]);
+    expect(b).toEqual(a);
+  });
+
+  // "…2 weeks" beside "…3 weeks" for twelve weeks and thirteen would be two
+  // wrong numbers. The word is brought into view from its first letter.
+  it("⚕️ the word two names part in is shown WHOLE — a number above all: 12 and 13, never 2 and 3", () => {
+    const chart: ChartName[] = ["12 weeks", "13 weeks"].map((long) => ({ name: `Burning sensation in the chest after meals for ${long}`, kind: "text" }));
+    expect(apart(chart, 15)).toEqual([
+      ["Burning", "sensat…12 weeks"],
+      ["Burning", "sensat…13 weeks"],
+    ]);
+    expect(apart(drugs("Tablet. Exforge HCT 5 mg + 160 mg + 12.5 mg", "Tablet. Exforge HCT 5 mg + 160 mg + 12 mg"), 13)).toEqual([
+      ["…Exforge HCT", "5 mg…12.5 mg"],
+      ["…Exforge HCT", "5 mg…12 mg"],
     ]);
   });
 
@@ -198,7 +329,7 @@ describe("namesApart — the names of one chart, together", () => {
     const short = "Amlodipine + Olmesartan + Hydrochlorothiazide";
     expect(apart([{ name: short, kind: "text" }, { name: `${short} Forte`, kind: "text" }], 13)).toEqual([
       ["Amlodipine +", "Olmesartan +…"],
-      ["Amlodipine +…", "…Forte"],
+      ["Amlodipine +", "Olmesar…Forte"],
     ]);
   });
 
@@ -212,20 +343,20 @@ describe("namesApart — the names of one chart, together", () => {
     // Alone, each of the three is "…Amlodipine…" over "5 mg".
     expect(chart.map((n) => texts(n.name, 13))).toEqual([["…Amlodipine…", "5 mg"], ["…Amlodipine…", "5 mg"], ["…Amlodipine…", "5 mg"]]);
     expect(apart(chart, 13)).toEqual([
-      ["Tablet. Amlo…", "Atenolol 5 mg"],
-      ["Tablet. Amlo…", "Rosuvastatin…"],
-      ["Tablet. Amlo…", "Atorvastatin…"],
+      ["…Aml…Atenolol", "5 mg"],
+      ["…Aml…Rosuvas…", "5 mg"],
+      ["…Aml…Atorvas…", "5 mg"],
     ]);
   });
 
   // A dosage form is only looked for in a MEDICINE. A symptom that happens to
-  // have a full stop after its first word is read from where it differs, like
-  // any other text — not shortened to "Fev… With ch…" as if "Fever." were a form.
+  // have a full stop after its first word is told from its neighbour like any
+  // other text — not shortened to "Fev… With ch…" as if "Fever." were a form.
   it("a symptom is not taken apart as a medicine to be told from another", () => {
     const chart: ChartName[] = ["3 days", "5 days"].map((d) => ({ name: `Fever. With chills and rigor for the last ${d}`, kind: "text" }));
     expect(apart(chart, 13)).toEqual([
-      ["Fever. With…", "3 days"],
-      ["Fever. With…", "5 days"],
+      ["Fever. With", "chills…3 days"],
+      ["Fever. With", "chills…5 days"],
     ]);
   });
 

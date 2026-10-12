@@ -142,7 +142,11 @@ export interface ChartName { name: string; kind: "drug" | "text" }
 
 const shown = (lines: NameLine[]) => lines.map((l) => l.text).join("\n");
 
-// A medicine with its form KEPT — shortened if it must be — on one line with
+// ── Three ways of writing a name again, so that the place where it differs
+//    from the names it was taken for is in sight. Each gives null for a name it
+//    has nothing to offer (that name keeps the lines it has).
+
+// 1. A medicine with its form KEPT — shortened if it must be — on one line with
 // the brand, and the strength under them. What tells a tablet from an
 // injection of the same medicine and strength.
 function formKept(text: string, max: number): NameLine[] | null {
@@ -153,73 +157,168 @@ function formKept(text: string, max: number): NameLine[] | null {
   return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: strength }];
 }
 
-// Two lines read from the place where a name stops being the same as the names
-// it was taken for: what they share, cut at its end, and under it the word
-// they part at — or the very letter, when that word runs on for longer than a
-// line could show the difference in. `same` is how many letters they share.
-// Null for a name that ENDS there: it has nothing to go on with, and keeps the
-// lines it had.
+// Where each line's pieces stand in the name — from the first letter the line
+// shows to the last — or null if they cannot be found there in order.
+function located(text: string, lines: NameLine[]): { start: number; end: number }[] | null {
+  const spans: { start: number; end: number }[] = [];
+  let from = 0;
+  for (const l of lines) {
+    let start = -1;
+    for (const piece of l.text.split("…").map((p) => p.trim()).filter(Boolean)) {
+      const at = text.indexOf(piece, from);
+      if (at < 0) return null;
+      if (start < 0) start = at;
+      from = at + piece.length;
+    }
+    if (start < 0) return null;
+    spans.push({ start, end: from });
+  }
+  return spans;
+}
+
+// The start of `s` in at most `room` letters, for the front of a line: whole
+// words where any fits; otherwise its first word cut where it stands — unless
+// that word is a NUMBER, which is never shown in part ("12" for 12.5).
+function frontOf(s: string, room: number): string {
+  if (s.length <= room) return s;
+  if (room <= 0) return "";
+  const cut = s.slice(0, room);
+  if (/\s/.test(s[room])) return cut.trimEnd();
+  const lastSpace = cut.search(/\s\S*$/);
+  if (lastSpace > 0) return cut.slice(0, lastSpace).trimEnd();
+  return /^…?\d/.test(cut) ? "" : cut;
+}
+
+// The same for what is brought into view after the mark: cut at its END if it
+// must be, with a mark, and again never through a number.
+function upTo(s: string, room: number): string | null {
+  if (s.length <= room) return s;
+  const kept = frontOf(s, room - 1);
+  return kept ? kept + "…" : null;
+}
+
+// 2. The lines the name already has, with the one that was CUT made to show
+// both its ends: its start, a mark, and the word the names part at, which the
+// cut had hidden. "5 mg + 160 m…" becomes "5 mg…12.5 mg" beside "5 mg…25 mg" —
+// the first part of the strength is still there to tell it from "10 mg…", and
+// nothing is shown that could be read as the whole of it.
+//
+// It is done for a GROUP of names at once, so that the start they share is
+// kept at the same length in each: "5 mg…12.5 mg" beside "5 mg…25 mg", not
+// beside "5 mg +…25 mg".
+const START_KEPT = 4; // letters of the line's start that the new end may not push out
+function bothEnds(group: { text: string; lines: NameLine[] }[], same: number, max: number): (NameLine[] | null)[] {
+  const found = group.map(({ text, lines }) => {
+    const at = located(text, lines);
+    if (!at) return null;
+    // The line whose cut hides the place: it ends in a mark, and the place
+    // comes after what it shows and before what the next line shows.
+    const k = lines.findIndex((l, i) => l.text.endsWith("…") && same >= at[i].end && same < (i + 1 < lines.length ? at[i + 1].start : text.length));
+    if (k < 0) return null;
+    const word = text.slice(0, same).search(/\S*$/);
+    const from = same - word <= max - START_KEPT ? word : same; // the whole word they part at, unless it is longer than a line
+    const hidden = text.slice(from, k + 1 < lines.length ? at[k + 1].start : text.length).trim();
+    if (!hidden) return null;
+    // What the line showed, up to that word (the cut may have fallen inside it).
+    const body = lines[k].text.slice(0, -1);
+    const start = body.slice(0, Math.max(0, body.length - Math.max(0, at[k].end - from))).trimEnd();
+    const end = upTo(hidden, max - 1 - Math.min(start.length, START_KEPT));
+    return end ? { k, start, end } : null;
+  });
+  const room = max - 1 - Math.max(0, ...found.map((x) => (x ? x.end.length : 0)));
+  return group.map(({ lines }, n) => {
+    const x = found[n];
+    if (!x) return null;
+    const line = frontOf(x.start, room) + "…" + x.end;
+    return line.length > max ? null : lines.map((l, i) => (i === x.k ? { ...l, text: line } : l));
+  });
+}
+
+// 3. Two lines read from the place itself: what the names share, cut at its
+// end, and under it the word they part at — or the very letter, when that word
+// runs on for longer than a line could show the difference in. A mark leads
+// the second line wherever something was left out before it, so that what
+// stands there is never taken for the whole ("…12.5 mg", not "12.5 mg").
 function fromDifference(text: string, same: number, max: number): NameLine[] | null {
   const word = text.slice(0, same).search(/\S*$/);
   const start = same - word <= max - 3 ? word : same;
   if (start === 0) return wrapTwo(text, max);
   const rest = text.slice(start).trimStart();
   if (!rest) return null;
-  return [{ text: cutEnd(text.slice(0, start).trimEnd(), max) }, { text: cutEnd((start === word ? "" : "…") + rest, max) }];
+  const head = cutEnd(text.slice(0, start).trimEnd(), max);
+  const mark = start !== word || head.endsWith("…") ? "…" : "";
+  return [{ text: head }, { text: cutEnd(mark + rest, max) }];
 }
-
-// More rounds than a real chart can need: each one either tells a group of
-// names apart or moves on to a later letter of them.
-const ROUNDS = 6;
 
 /**
  * The names of ONE chart, each over at most two lines of at most `max`
  * characters, in the order given.
  *
  * Each is what `nameLines` writes for it alone — until two names that are
- * different come out the same. Those are laid out again, together:
- *   • medicines that differ in their dosage form get it back, shortened, with
- *     the strength still under it ("Tab… Ondanse…" / "Inj… Ondanse…");
- *   • anything else is read from the word the names part at, under what they
- *     share ("Tablet. Amlodi…" over "Atenolol 5 mg…" / "Losartan 5 mg…").
- * A name is written the same wherever it stands in the list, and a chart whose
- * names are already different is not touched.
+ * different come out the same. Those are written again, together, in the first
+ * of three ways that leaves FEWER pairs alike on the whole chart than before:
+ *   1. medicines that differ in their dosage form get it back, shortened, with
+ *      the strength still under it ("Tab… Ondanse…" / "Inj… Ondanse…");
+ *   2. the line that was cut is made to show both its ends — its start, and
+ *      the word the names part at ("…Exforge HCT" over "5 mg…12.5 mg" /
+ *      "5 mg…25 mg"; "…Amlod…Atenolol" / "…Amlod…Losartan" over the strength);
+ *   3. failing that, the name is read from the place itself, under what the
+ *      names share ("Calcium" over "Carb. + Vit.…" / "Citr. + Vit.…").
+ * Nothing is ever undone: a step is taken only if it leaves fewer pairs alike,
+ * so the work ends, and a pair once told apart stays apart. A name is written
+ * the same wherever it stands in the list, and a chart whose names are already
+ * different is not touched.
  *
- * ⚕️ What is held (timelineLabel.test.ts): any TWO different names are written
- * differently, whatever they are; and so is every pair on a chart of names
- * built to be mistaken for one another. What is not promised: more than two
- * names that agree for longer than two lines can show, in different places —
- * after ROUNDS tries they are left as they are.
+ * ⚕️ What is held (timelineLabel.test.ts): any TWO names that differ in more
+ * than their spacing are written differently; so is every pair on a chart of
+ * names built to be mistaken for one another, and on a chart of the strengths
+ * of a three-part tablet that differ in two of their parts. What is NOT
+ * promised: names that differ from one another in more places than two short
+ * lines can show. They are still written differently wherever one of the ways
+ * above allows — but a label may then not say EVERY difference, and where no
+ * way is left two of them stay alike (DEFECT-HM-NAMES in the tests).
  */
 export function namesApart(names: ChartName[], max: number): NameLine[][] {
   const texts = names.map((n) => n.name.trim());
-  const lines = names.map((n) => nameLines(n.name, max, n.kind));
-  for (let round = 0; round < ROUNDS; round++) {
+  const alone = names.map((n) => nameLines(n.name, max, n.kind));
+  // How many pairs of different names are written the same.
+  const alike = (ls: NameLine[][]) => {
+    const as = ls.map(shown);
+    let pairs = 0;
+    for (let i = 0; i < as.length; i++) for (let j = i + 1; j < as.length; j++) if (texts[i] !== texts[j] && as[i] === as[j]) pairs++;
+    return pairs;
+  };
+  let lines = alone;
+  for (;;) {
     // Names written the same: grouped by what is shown, and only where the
-    // group holds more than one NAME (the same name twice is one name).
+    // group holds more than one NAME (the same name twice is one name). Taken
+    // in the order of the names themselves, never of the list.
     const byShown = new Map<string, number[]>();
     lines.forEach((l, i) => byShown.set(shown(l), [...(byShown.get(shown(l)) ?? []), i]));
-    const groups = [...byShown.values()].filter((g) => new Set(g.map((i) => texts[i])).size > 1);
-    if (groups.length === 0) break;
+    const first = (g: number[]) => g.map((i) => texts[i]).sort()[0];
+    const groups = [...byShown.values()].filter((g) => new Set(g.map((i) => texts[i])).size > 1).sort((a, b) => (first(a) < first(b) ? -1 : 1));
+    let better = false;
     for (const g of groups) {
-      const kept = g.map((i) => (names[i].kind === "drug" ? formKept(texts[i], max) : null));
-      const told = new Map<string, string>(); // what is shown → the name it stands for
-      const apart = kept.every((l, k) => {
-        if (!l) return false;
-        const was = told.get(shown(l));
-        told.set(shown(l), texts[g[k]]);
-        return was === undefined || was === texts[g[k]];
-      });
-      if (apart) { g.forEach((i, k) => { lines[i] = kept[k] as NameLine[]; }); continue; }
-      const first = texts[g[0]];
-      let same = first.length;
+      const one = texts[g[0]];
+      let same = one.length; // how many letters the group's names share
       for (const i of g) {
         let n = 0;
-        while (n < same && n < texts[i].length && texts[i][n] === first[n]) n++;
+        while (n < same && n < texts[i].length && texts[i][n] === one[n]) n++;
         same = n;
       }
-      for (const i of g) lines[i] = fromDifference(texts[i], same, max) ?? lines[i];
+      // Each way answers for the whole group, in the group's order.
+      const ways: (() => (NameLine[] | null)[])[] = [
+        () => g.map((i) => (names[i].kind === "drug" ? formKept(texts[i], max) : null)),
+        () => bothEnds(g.map((i) => ({ text: texts[i], lines: alone[i] })), same, max),
+        () => g.map((i) => fromDifference(texts[i], same, max)),
+      ];
+      const before = alike(lines);
+      for (const way of ways) {
+        const again = way();
+        const tried = lines.map((l, i) => again[g.indexOf(i)] ?? l);
+        if (alike(tried) < before) { lines = tried; better = true; break; }
+      }
     }
+    if (!better) return lines;
   }
-  return lines;
 }
