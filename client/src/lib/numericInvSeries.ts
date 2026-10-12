@@ -20,7 +20,6 @@ export interface ChartableParam {
   u2?: string;
   c21?: number;                      // u2 -> u1 conversion factor
   otherFieldLabels: string[];         // sibling field labels in the same test (any type)
-  unlabelledAfter: boolean;            // a LATER box of the test is stored with no "Label:" of its own
 }
 
 // Every numeric field in the investigation catalog, flattened to one
@@ -31,7 +30,7 @@ export function chartableParams(): ChartableParam[] {
   for (const cat of INV_CATS) {
     for (const test of cat.tests) {
       const multiField = test.fields.length > 1;
-      for (const [i, f] of test.fields.entries()) {
+      for (const f of test.fields) {
         if (f.t !== "num") continue;
         out.push({
           test: test.name,
@@ -42,7 +41,6 @@ export function chartableParams(): ChartableParam[] {
           u2: f.u2,
           c21: f.c21,
           otherFieldLabels: test.fields.filter((g) => g !== f).map((g) => g.l),
-          unlabelledAfter: test.fields.slice(i + 1).some((g) => VALUE_LABELS.includes(g.l)),
         });
       }
     }
@@ -64,37 +62,43 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 // whose target field's label is in VALUE_LABELS) or as comma-joined
 // "Label:val" parts (every other field). Returns null when the substring
 // can't be identified with confidence — never guesses.
+//
+// ⚕️ A number typed with a comma in it. The parts of a value are joined by
+// commas too — by a comma and nothing else, no space — so a comma with a DIGIT
+// DIRECTLY ON EACH SIDE of it cannot be read: "WBC:1,200" is a WBC of 1,200,
+// or of 1.2 typed the continental way, or a 1 followed by another box's "200",
+// and the string does not say which. What stands on either side of such a
+// comma is not plotted. Looking at only one side of it, or only at one shape
+// of what follows, drew three wrong numbers, each in production:
+//   • a count typed "1,200" into a box with no unit, as 1 (third review);
+//   • the same with anything typed after it — "1,200/cmm" — because the first
+//     guard knew only a bare number after the comma (fourth review);
+//   • a ferritin typed ">2,000", stored ">2,000ng/mL", as 0: the part AFTER
+//     the comma, "000ng/mL", was taken for a value of its own (fifth review).
+// A comma followed by a SPACE is punctuation ("350, repeat next week"), and
+// the number before it stands, as it always did.
+const BARE_NUMBER = /^\d+(?:\.\d+)?$/;
+// `before` and `after` are the pieces on the two sides of one comma, as stored.
+const insideANumber = (before: string, after: string) => /\d$/.test(before) && /^\d/.test(after);
+
 function isolateRaw(value: string, param: ChartableParam): string | null {
-  const parts = value.split(",").map((p) => p.trim());
+  const stored = value.split(",");
+  const parts = stored.map((p) => p.trim());
+  const anothers = (p: string) => param.otherFieldLabels.some((l) => p.startsWith(l + ":"));
   const prefix = param.field + ":";
   const at = parts.findIndex((p) => p.startsWith(prefix));
   if (at !== -1) {
     const mine = parts[at].slice(prefix.length).trim();
-    // ⚕️ A number typed with a comma in it. The parts of a value are joined by
-    // commas too, so "WBC:1,200" is stored looking exactly like a WBC of 1
-    // followed by another part, "200". Where the field has a unit, the cut-off
-    // "1" has none and is refused below; where it has NONE, the 1 was plotted —
-    // a count of 1,200 drawn on the chart as 1 (in production until
-    // 2026-10-12).
-    //
-    // So: a bare number, and straight after it a part that no other box of the
-    // test has its name on. Whose is that part?
-    //   • Almost always this box's own — every later box writes "Label:" in
-    //     front of its value. Then a DIGIT at its start is the rest of the
-    //     number ("1,200", "1,200/cmm", "2,5 (target 2-3)"): not plotted,
-    //     never guessed. Words there are a remark typed after a whole number
-    //     ("350, repeat next week"), and the number stands.
-    //   • Where a later box writes NO name (`unlabelledAfter` — in the catalog,
-    //     the report under ETT's METs), the part may be that box's text:
-    //     "METs:10,150 bpm at peak" is METs 10 and a report. Only a part that
-    //     is nothing but a number could be either, and is refused.
-    // The first guard asked for a bare number in every case, and "1,200/cmm"
-    // went through it as 1 (fourth review, before release).
     const next = parts[at + 1];
-    const BARE_NUMBER = /^\d+(?:\.\d+)?$/;
-    const anothers = next !== undefined && param.otherFieldLabels.some((l) => next.startsWith(l + ":"));
-    if (BARE_NUMBER.test(mine) && next !== undefined && !anothers) {
-      if (param.unlabelledAfter ? BARE_NUMBER.test(next) : /^\d/.test(next)) return null;
+    // A part with another box's name on it is that box's ("WBC:350,ADA:…",
+    // OGTT's "Fasting:95,1 hr:160"). Anything else after the comma may be the
+    // rest of this number — also where the NEXT box writes no name of its own
+    // (ETT's report after METs): "METs:10,150 bpm at peak" is METs 10 and a
+    // report, or a METs of 10,150, as "METs:10,5 METs" is 10.5.
+    if (next !== undefined && !anothers(next)) {
+      if (insideANumber(stored[at], stored[at + 1])) return null;
+      // …and two bare numbers are not read however they are spaced ("1, 200").
+      if (BARE_NUMBER.test(mine) && BARE_NUMBER.test(next)) return null;
     }
     return mine;
   }
@@ -103,11 +107,15 @@ function isolateRaw(value: string, param: ChartableParam): string | null {
   // "Value"/"Result" field). Accept only if exactly one part is unclaimed by
   // a sibling field's own "Label:" prefix and looks numeric — ambiguous
   // (0 or 2+ candidates) means skip rather than pick one.
-  const otherPrefixes = param.otherFieldLabels.map((l) => l + ":");
-  const candidates = parts.filter((p) => !otherPrefixes.some((pre) => p.startsWith(pre)) && /^\d/.test(p));
-  return candidates.length === 1 ? candidates[0] : null;
+  const candidates = parts.flatMap((p, i) => (!anothers(p) && /^\d/.test(p) ? [i] : []));
+  if (candidates.length !== 1) return null;
+  const i = candidates[0];
+  // The same comma from its other side: the one part that begins with a digit
+  // may be the END of a number whose beginning does not (">2,000", "<0,5",
+  // "approx 1,200") — or of another box's ("Count:1,200").
+  if (i > 0 && insideANumber(stored[i - 1], stored[i])) return null;
+  return parts[i];
 }
-
 // Parses "<number><unit>" and normalizes to the field's u1-equivalent.
 // Returns null (point omitted, never guessed) unless the suffix is an exact
 // match for the field's known u1 or u2 — "normal", a dropdown result, or an
