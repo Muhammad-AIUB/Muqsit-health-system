@@ -66,7 +66,7 @@ const closeStrengthGap = (s: string): string =>
  * A dot-less FULL word (`tablet seclo`) is left alone: the design does not ask
  * for it, and the cost is a second habit row, never a wrong merge.
  */
-function splitForm(s: string): { form: string; rest: string } {
+export function splitForm(s: string): { form: string; rest: string } {
   const dot = s.indexOf('.');
   if (dot !== -1) {
     const head = s.slice(0, dot).trim();

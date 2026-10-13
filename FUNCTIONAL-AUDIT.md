@@ -844,12 +844,10 @@ of each for the physician or the operator to decide:
   generic and its warning fired. The box could lend its generic to the line that
   is there — the medicine is proved the same by the key the app uses everywhere
   — but that is the box changing a line, and the physician's to decide.
-- [ ] **A medicine whose whole brand is ONE letter is never looked up** in the
-  catalogue (the lookup would be every brand beginning with that letter), so the
-  server attaches no generic to it. From the box it then has none; under
-  "Your usual" the pad may still find one in the medicine results loaded for
-  what was typed. A brand that only
-  STARTS with a one-letter word (`E Cap`) is looked up, since the second review.
+- [x] **A brand of one letter was never looked up** in the catalogue, because
+  the lookup was a prefix and `e%` is every brand beginning with E. Closed on
+  2026-10-14: the catalogue is asked by an equality on the brand's first word,
+  which a one-letter word can be like any other.
 - [x] Offline, an answer that was not the list, and a failed refresh were each
   drawn as "No medicines yet"; a failed generic lookup returned the list with
   its warnings switched off; the same medicine written with another space was
@@ -865,3 +863,17 @@ Checked by breaking the code, and where that was done: until this review the
 breaks were made in the working checkout, which the dev servers watch — and the
 dev database is production. They are made in a copy of the sources now (root
 `CLAUDE.md`, the last pattern but one).
+
+Found on 2026-10-14 by MEASURING, after three reviews and a green suite:
+
+- [x] **Opening the box took seconds to a minute on a catalogue of real size.**
+  Every test of the generic lookup ran against the six medicines of the test
+  catalogue. Against a made-up one of 35,000, a doctor with 200 medicines
+  waited 5 to 7 s for the box and one with 2,000 over a minute (one `ILIKE`
+  pattern per brand, each tried against every row). The lookup is one pass
+  now — 0.08 s and 0.32 s on the same data — and it is the same lookup "Your
+  usual" uses, which got cheaper with it. **Not measured: the production
+  catalogue itself**, which was not read. If the box is slow there, the first
+  thing to look at is the API log's timing for `GET /rx-habits/all`; an index
+  on the expression the lookup compares would make it instant, and is a
+  manual, additive migration that was not written for this.

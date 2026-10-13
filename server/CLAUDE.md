@@ -138,26 +138,35 @@ these are the ones that live in this app's code and are easy to break.
   fire, on several lines at once, with nothing on screen to say so. A rule that
   fails silently is safe only together with whatever catches the failure;
   before giving it to a second caller, check that caller has the catch too.
-- **No catalogue answer is used that came back full** (`catalogueRows`). The
-  lookup is asked in chunks of 25 brand prefixes with a row cap, and an answer
-  at the cap holds whichever brands the database reached first — the rest are
-  silently missing (the dropdown's old `LIMIT 500` could do that for one broad
-  prefix). A full answer is asked again in halves; one prefix that overflows by
-  itself is asked without a cap. The rows come in a stated order, so the same
-  medicine gets the same generic on every request. **Where the catalogue lists
-  one medicine (form, brand, strength) under two different generics, the first
-  is used, as it always was — the first in the stated order now (brand, form,
-  strength, then generic), where it was whichever row the database returned
-  first — and the log names the medicine and the generics, once per process.** Attaching
-  neither would be the stricter rule; it changes which warnings fire in the
-  dropdown as well, and needs a look at the real catalogue before it is
-  decided (`FUNCTIONAL-AUDIT.md`). **A medicine is asked for by the first word
-  of its brand** (`brandPrefix`); a first word of ONE letter (`E Cap`) takes the
-  second with it — it used to be dropped, and such a medicine was never looked
-  up at all (second review). One letter by ITSELF is still not asked for: it
-  would be every brand that begins with it, so for a medicine whose whole brand is
-  one letter the server attaches no generic on either surface (for "Your usual"
-  the pad's own partial lookup may still find it; the box has nothing else).
+- **⚕️ The catalogue is asked ONCE, by an equality on the brand's first word**
+  (`catalogueRows`, 2026-10-14) — never by a pattern per brand. It was
+  `"brandName" ILIKE ANY('{napa%,…}')`: fine for the dropdown's four medicines,
+  ruinous for a doctor's whole list, because every pattern is tried against
+  every row of the catalogue. Nothing had shown it: the test catalogue is six
+  rows. Measured on a made-up catalogue of 35,000 medicines, the box took 5 to
+  7 s to open for a doctor with 200 medicines and over a minute for 2,000; as
+  one hash join (`lower(first word of "brandName") IN (SELECT unnest($1))`) it
+  is 0.08 s and 0.32 s, and the dropdown's own lookup is cheaper than it was.
+  The question is also a better one. A prefix needed a row cap, and a cap that
+  bites drops whichever brands the database reached last (the dropdown's old
+  `LIMIT 500` could, for one broad prefix); a brand whose first word is one
+  letter could not be asked for at all. An equality needs neither rule, and
+  its answer is bounded by the catalogue. The first word is taken as
+  `normaliseDrugKey` takes it — lower case, a leading space ignored, a tab or
+  a no-break space counted as the space a spreadsheet meant — and
+  `server/test/rx-habits-all.int-spec.ts` holds each of those against a real
+  Postgres, for the box and for the dropdown. **Do not turn it back into a
+  `LIKE`**, and do not use `= ANY($1)` for the list: with a bound array that is
+  a linear search per row (2.5 s for 2,000 brands, measured). The rows come in
+  a stated order, so the same medicine gets the same generic on every request.
+  **Where the catalogue lists one medicine (form, brand, strength) under two
+  different generics, the first is used, as it always was — the first in the
+  stated order now (brand, form, strength, then generic), where it was
+  whichever row the database returned first — and the log names the medicine
+  and the generics, once per process.** Attaching neither would be the
+  stricter rule; it changes which warnings fire in the dropdown as well, and
+  needs a look at the real catalogue before it is decided
+  (`FUNCTIONAL-AUDIT.md`).
 - **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
   single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
   the doctor is shown silence on failure by design, the log is the ONLY place a

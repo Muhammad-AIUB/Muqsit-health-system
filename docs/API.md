@@ -513,9 +513,7 @@ failed generic lookup**: `?q=` returns its suggestions without a generic,
 because the ℞ pad has a second — partial — source for it, the medicine results
 loaded for what was typed; this box has no second source, and a medicine offered without the generic the
 catalogue holds for it goes onto the pad with its prescribing warning switched
-off. A medicine the catalogue does not list simply has no `generic` — nor does
-one whose whole brand is a single letter: the catalogue is not asked for a
-brand by one letter. Read-only:
+off. A medicine the catalogue does not list simply has no `generic`. Read-only:
 nothing is written or logged. An assistant in the workstation may read it with
 no permission key, as with `?q=`; the key that matters (`rx.medicines`) is the
 ℞ pad's.

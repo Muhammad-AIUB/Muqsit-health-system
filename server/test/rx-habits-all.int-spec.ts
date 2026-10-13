@@ -89,8 +89,12 @@ describe('GET /api/rx-habits/all', () => {
       { patientCount: 1, pinned: true, contLines: [{ dose: '1+0+0', food: 'After meal', duration: '5 days' }] },
     );
     await habit(A.id, DELTASONE, { dose: '1+0+0', food: 'After meal', duration: '5 days' }, { patientCount: 10 });
-    // Another doctor's.
+    // Another doctor's: a medicine A does not have, and one A DOES have — at
+    // another dose, pinned and given to far more patients. If the rows of the
+    // two doctors were ranked together and filtered afterwards, B's Napa would
+    // be "the" Napa row and A's list would lose its own.
     await habit(B.id, 'Tablet. Bsecret 10 mg', { dose: '1+0+0', food: '', duration: '7 days' }, { patientCount: 99 });
+    await habit(B.id, NAPA, { dose: '2+2+2', food: 'Before meal', duration: '30 days' }, { patientCount: 999, pinned: true });
 
     a = await loginAs(t, A);
     b = await loginAs(t, B);
@@ -120,6 +124,7 @@ describe('GET /api/rx-habits/all', () => {
       [DELTASONE, '2+0+0', 1],
     ]);
     expect(JSON.stringify(res.body)).not.toContain('Bsecret');
+    expect(JSON.stringify(res.body)).not.toContain('2+2+2'); // B's dose of a medicine both prescribe
   });
 
   it('a dose the doctor hid is not offered, and a medicine with every dose hidden is not listed', async () => {
@@ -143,8 +148,9 @@ describe('GET /api/rx-habits/all', () => {
   });
 
   it('the other doctor gets their own list, and a forged workstation header is refused', async () => {
-    expect(listed((await b.get('/api/rx-habits/all')).body).map((m) => m.drugLabel)).toEqual([
-      'Tablet. Bsecret 10 mg',
+    expect(listed((await b.get('/api/rx-habits/all')).body).map((m) => [m.drugLabel, m.dose, m.patientCount])).toEqual([
+      [NAPA, '2+2+2', 999],
+      ['Tablet. Bsecret 10 mg', '1+0+0', 99],
     ]);
     const forged = await b.get('/api/rx-habits/all').set({ 'X-Workstation': A.id });
     expect(forged.status).toBe(403);
@@ -162,5 +168,88 @@ describe('GET /api/rx-habits/all', () => {
     await a.get('/api/rx-habits/all');
     await as.get('/api/rx-habits/all').set({ 'X-Workstation': A.id });
     expect(await t.prisma.doctorRxHabit.findMany({ orderBy: { id: 'asc' } })).toEqual(before);
+  });
+});
+
+// ⚕️ The catalogue is asked in SQL for the brands whose FIRST WORD is one of the
+// doctor's brand words (rx-habits.service.ts#catalogueRows). A unit test can
+// only read that SQL; whether it finds the right rows is a question for a real
+// Postgres. Each row below is a way a brand is really written in a catalogue
+// that was typed and pasted by hand — and each one a medicine that goes onto
+// the pad without its contraindication warning if the question misses it.
+// Every brand and generic here is made up.
+describe('GET /api/rx-habits/all — the catalogue as it is really written', () => {
+  let t: TestApp;
+  let C: User;
+  let c: Browser;
+
+  const NBSP = String.fromCharCode(160);
+  // [brand as the catalogue has it, generic, form, strength, the label the doctor's habit carries]
+  const CASES: [string, string, string, string, string][] = [
+    [' Spacey', 'Gen leading space', 'Tablet', '5 mg', 'Tablet. Spacey 5 mg'],
+    ['Tabby\tOne', 'Gen tab', 'Tablet', '5 mg', 'Tablet. Tabby One 5 mg'],
+    [`Nobreak${NBSP}Two`, 'Gen no-break space', 'Tablet', '5 mg', 'Tablet. Nobreak Two 5 mg'],
+    ['UPPERCASE Brand', 'Gen capitals', 'Tablet', '5 mg', 'Tablet. Uppercase Brand 5 mg'],
+    ['E Cap', 'Gen one-letter first word', 'Capsule', '400 mg', 'Capsule. E Cap 400 mg'],
+    ['E', 'Gen one-letter brand', 'Capsule', '400 mg', 'Capsule. E 400 mg'],
+    ['Percent%Sign', 'Gen percent', 'Tablet', '5 mg', 'Tablet. Percent%Sign 5 mg'],
+    ['Under_score', 'Gen underscore', 'Tablet', '5 mg', 'Tablet. Under_score 5 mg'],
+    ['Multi Word Brand Name', 'Gen several words', 'Syrup', '120 mg/5 ml', 'Syrup. Multi Word Brand Name 120 mg/5 ml'],
+    ['3 G Cef', 'Gen number then unit', 'Tablet', '250 mg', 'Tablet. 3 G Cef 250 mg'],
+  ];
+  // Rows that must NOT lend their generic: each is what a looser question finds.
+  const DECOYS: [string, string, string, string][] = [
+    ['Percentile', 'WRONG percent as a pattern', 'Tablet', '5 mg'],
+    ['UnderXscore', 'WRONG underscore as a pattern', 'Tablet', '5 mg'],
+    ['Spaceyplus', 'WRONG longer first word', 'Tablet', '5 mg'],
+    ['Spacey', 'WRONG other strength', 'Tablet', '50 mg'],
+    ['Echo', 'WRONG begins with the letter', 'Capsule', '400 mg'],
+  ];
+  const rows = [...CASES.map(([b, g, f, s]) => [b, g, f, s]), ...DECOYS];
+
+  beforeAll(async () => {
+    t = await createTestApp();
+    await resetDb(t.prisma);
+    await t.prisma.$executeRawUnsafe(`DELETE FROM medicines WHERE id LIKE 'bulk-int-%'`);
+    await t.prisma.$executeRawUnsafe(
+      `INSERT INTO medicines (id, "brandName", "genericName", "dosageForm", strength, company, "priceRaw")
+       SELECT 'bulk-int-' || n, b, g, f, s, 'Test Pharma', NULL
+       FROM unnest($1::text[], $2::text[], $3::text[], $4::text[]) WITH ORDINALITY AS x(b, g, f, s, n)`,
+      rows.map((r) => r[0]), rows.map((r) => r[1]), rows.map((r) => r[2]), rows.map((r) => r[3]),
+    );
+    C = await makeDoctor(t.prisma);
+    const line = { dose: '1+0+0', food: '', duration: '7 days' };
+    for (const [, , , , drugLabel] of CASES) {
+      await t.prisma.doctorRxHabit.create({
+        data: {
+          doctorId: C.id, drugKey: normaliseDrugKey(drugLabel), searchKey: searchKeyOf(drugLabel), drugLabel,
+          signature: signatureOf(line, []), ...line, contLines: [], patientCount: 1, lastUsedAt: new Date('2026-10-01T00:00:00Z'),
+        },
+      });
+    }
+    c = await loginAs(t, C);
+  });
+  afterAll(async () => {
+    // `medicines` is reference data that resetDb keeps: take our rows back out.
+    await t.prisma.$executeRawUnsafe(`DELETE FROM medicines WHERE id LIKE 'bulk-int-%'`);
+    await t.close();
+  });
+
+  it('⚕️ finds the generic of every one of them — and of no other row', async () => {
+    const res = await c.get('/api/rx-habits/all');
+    expect(res.status).toBe(200);
+    const got = Object.fromEntries(
+      (res.body.medicines as { drugLabel: string; generic?: string }[]).map((m) => [m.drugLabel, m.generic]),
+    );
+    expect(got).toEqual(Object.fromEntries(CASES.map(([, generic, , , drugLabel]) => [drugLabel, generic])));
+  });
+
+  it('⚕️ "Your usual" asks the same question: the typing dropdown finds them too', async () => {
+    for (const [, generic, , , drugLabel] of CASES) {
+      const res = await c.get('/api/rx-habits').query({ q: drugLabel });
+      expect(res.status).toBe(200);
+      const groups = res.body as { drugLabel: string; generic?: string }[];
+      expect([drugLabel, groups.find((g) => g.drugLabel === drugLabel)?.generic]).toEqual([drugLabel, generic]);
+    }
   });
 });

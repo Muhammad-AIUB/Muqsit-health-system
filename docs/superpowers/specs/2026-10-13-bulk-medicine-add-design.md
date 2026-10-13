@@ -172,6 +172,10 @@ Response:
   from the catalogue that came back at its row cap is asked again in halves, so
   no brand is silently missing. The response also carries `unreadable`, the
   number of medicines left out because their row could not be read.
+  **As built, 2026-10-14:** not in chunks at all. Measured against a catalogue
+  of realistic size the chunked prefix lookup took seconds to a minute; the
+  catalogue is asked once, by an equality on the brand's first word, and needs
+  neither a cap nor halves.
 - **Unlike the dropdown lookup, a failed list THROWS** (500). The dropdown is
   silent on failure by design; a box the doctor opened on purpose must be able
   to say "did not load".

@@ -35,6 +35,10 @@
 >   generic lookup fails the list; the catalogue is never read from an answer
 >   that came back full; rows the server leaves out are counted. 48 more
 >   changes to the code, in a copy of the sources this time, all caught.
+> - **2026-10-14, by measuring:** Task 1's chunked `ILIKE` lookup took seconds
+>   to a minute against a catalogue of 35,000 medicines. It is one pass now (an
+>   equality on the brand's first word); the constants and the chunk loop this
+>   plan describes are gone.
 
 ## Global Constraints
 

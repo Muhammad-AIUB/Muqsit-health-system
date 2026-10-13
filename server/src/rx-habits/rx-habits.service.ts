@@ -9,6 +9,7 @@ import {
   normaliseDrugKey,
   searchKeyOf,
   signatureOf,
+  splitForm,
 } from './normalise';
 
 // ⚕️ SAFETY RULES FOR THIS WHOLE FILE (design §8, non-negotiable):
@@ -125,8 +126,6 @@ const MAX_MEDICINES = 4; // eng review: ≤12 rows above a 10-row medicine list
 const MAX_HIDDEN_PER_MEDICINE = 20; // bounded payload; hiddenCount is the true number
 const MIN_QUERY = 2; // mirrors useMedicineSearch
 const MAX_ALL_MEDICINES = 2000; // the bulk list; `truncated` says when it bit
-const GENERIC_CHUNK = 25; // brand prefixes per catalogue query
-const GENERIC_ROW_CAP = 5000; // an answer with more rows than this is asked again in halves
 
 /** Raw row shape returned by the windowed lookup. */
 interface LookupRow {
@@ -154,19 +153,18 @@ interface CatalogueRow {
 
 /**
  * What a medicine is asked for by in the catalogue: the first word of its
- * brand ("barcavir 0.5mg" → "barcavir"). Only a prefix to fetch candidates —
- * the real test is the normalised key — so a brand of several words still
- * matches.
+ * brand ("Tablet. Barcavir 0.5 mg" → "barcavir"). Only a way to fetch
+ * candidates — the real test is the whole normalised key — so a brand of
+ * several words still matches. Null for a label with no brand word.
  *
- * A first word of ONE letter ("E Cap") takes the second with it. It used to be
- * dropped, and such a medicine was never looked up at all: no generic, with
- * nothing to say so (second review, 2026-10-13). One letter by ITSELF is still
- * not asked for — it would be every brand that begins with it.
+ * Taken from the label AS WRITTEN, after its dosage form — not from the
+ * normalised key, which closes the gap between a number and its unit: the key
+ * of `3 G Cef` begins `3g`, and no brand in the catalogue begins with that
+ * word.
  */
-function brandPrefix(drugLabel: string): string | null {
-  const words = searchKeyOf(drugLabel).split(' ').filter(Boolean);
-  const head = (words[0] ?? '').length >= 2 ? words[0] : words.slice(0, 2).join(' ');
-  return head.length >= 2 ? likePrefix(head) : null;
+function brandWord(drugLabel: string): string | null {
+  const written = (drugLabel ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return splitForm(written).rest.split(' ').filter(Boolean)[0] ?? null;
 }
 
 // Two spellings of one generic — a capital, a space — are one generic.
@@ -552,7 +550,16 @@ export class RxHabitsService implements OnModuleInit {
     }
     // A group left with nothing to show and nothing to restore is not a group.
     const out = [...groups.values()].filter((g) => g.items.length > 0 || g.hiddenCount > 0);
-    await this.attachGenerics(out, 'ignore');
+    // ⚕️ Silent HERE, and only here. Without a generic the suggestion behaves
+    // like a hand-typed brand, and the ℞ pad has a second, partial source for
+    // it: the medicine results loaded for what was typed (`resolveGeneric` on
+    // the client — at most the ten rows of that search). The lookup must never
+    // cost the doctor the suggestion.
+    try {
+      await this.attachGenerics(out);
+    } catch (e) {
+      this.log.warn(`generic lookup failed for ${out.length} medicines: ${String(e)}`);
+    }
     return out;
   }
 
@@ -617,7 +624,12 @@ export class RxHabitsService implements OnModuleInit {
         lastUsedAt: r.lastUsedAt,
       });
     }
-    await this.attachGenerics(medicines, 'throw');
+    // ⚕️ NOT caught, unlike in `list()`: the box has no second source for a
+    // generic. Offered without the one the catalogue holds for it, a medicine
+    // goes onto the pad with its contraindication warning switched off —
+    // several lines at once, and nothing on screen to say so. The box says
+    // "could not be loaded" instead, and Try again asks the catalogue again.
+    await this.attachGenerics(medicines);
     return { medicines, truncated: rows.length > MAX_ALL_MEDICINES, unreadable };
   }
 
@@ -634,9 +646,9 @@ export class RxHabitsService implements OnModuleInit {
    * contraindication behind the brand "Barcavir", silently does not fire.
    * The suggestion and the generic now travel together and cannot separate.
    *
-   * ⚠️ SEARCHED BY EACH GROUP'S OWN BRAND TOKEN, NOT BY WHAT THE DOCTOR TYPED.
-   * An earlier version used the typed query as the prefix, and lost the generic
-   * in two ordinary cases, both verified against production on 2026-08-17:
+   * ⚠️ ASKED BY EACH MEDICINE'S OWN BRAND, NOT BY WHAT THE DOCTOR TYPED. An
+   * earlier version used the typed query as a prefix, and lost the generic in
+   * two ordinary cases, both verified against production on 2026-08-17:
    *   · a full label — `Tablet. Barcavir 0.5 mg` normalises to the search key
    *     `barcavir 0.5mg`, and `brandName ILIKE 'barcavir 0.5mg%'` matches no
    *     brand at all (the brand is "Barcavir"). This is not an edge case: the
@@ -645,73 +657,46 @@ export class RxHabitsService implements OnModuleInit {
    *     one that mattered fell outside the row cap.
    * Both failures were silent and both cost a contraindication warning.
    *
-   * Now: the brand tokens are bound into a bounded `ANY` query, and the match is
-   * made in JS on the SAME normalised key that grouped the habits — never on
-   * the raw label, which differs on a space ("0.5 mg"), a case, or a dropped
-   * "n/a".
+   * The catalogue is asked ONCE, for the rows whose brand begins with one of
+   * these medicines' brand words (`catalogueRows`), and the match is made in JS
+   * on the SAME normalised key that grouped the habits — never on the raw
+   * label, which differs on a space ("0.5 mg"), a case, or a dropped "n/a".
    *
-   * Asked in CHUNKS of brand prefixes (2026-10-13): the dropdown has at most
-   * four medicines and asks once, the bulk list has hundreds. And no answer is
-   * taken that came back FULL (`catalogueRows`): a row cap that bites drops
-   * whichever brands the database happened to reach last, silently, at the
-   * cost of a contraindication warning.
-   *
-   * `onFailure` is the caller's, because the two callers are not in the same
-   * position:
-   *   · `'ignore'` — `list()`, the dropdown. Without a generic the suggestion
-   *     behaves like a hand-typed brand, and the ℞ pad has a second, partial
-   *     source: the medicine results loaded for what was typed (`resolveGeneric`
-   *     on the client — at most the ten rows of that search). The lookup must
-   *     never cost the doctor the suggestion.
-   *   · `'throw'` — `listAll()`, the "Add Bulk Medicine" box. There is no second
-   *     source there. Offered without the generic the catalogue holds for it, a
-   *     medicine goes onto the pad with its warning switched off — several
-   *     lines at once, and nothing on screen to say so. The box says "could not
-   *     be loaded" instead, and Try again asks the catalogue again.
+   * THROWS when the catalogue cannot be asked, and attaches nothing then. What
+   * a failure means is the caller's to say: `list()` catches it, `listAll()`
+   * does not.
    *
    * ⚠️ WHERE THE CATALOGUE LISTS ONE MEDICINE UNDER TWO GENERICS (the same
    * form, brand and strength), the first is used, as it always was — the first
    * in a STATED order now (brand, form, strength, then generic), where it was
    * whichever row the database returned first, so the same medicine gets the
    * same generic on every request — and the log names the medicine and the
-   * generics, once. Whether to
-   * attach neither is not decided here: it changes which warnings fire in the
-   * dropdown too, and needs a look at the real catalogue first
-   * (FUNCTIONAL-AUDIT.md).
+   * generics, once. Whether to attach neither is not decided here: it changes
+   * which warnings fire in the dropdown too, and needs a look at the real
+   * catalogue first (FUNCTIONAL-AUDIT.md).
    */
   private async attachGenerics(
     targets: { drugKey: string; drugLabel: string; generic?: string }[],
-    onFailure: 'ignore' | 'throw',
   ): Promise<void> {
     if (targets.length === 0) return;
-    const prefixes = [
-      ...new Set(targets.map((g) => brandPrefix(g.drugLabel)).filter((p): p is string => p !== null)),
-    ];
-    if (prefixes.length === 0) return;
+    const words = [...new Set(targets.map((g) => brandWord(g.drugLabel)).filter((w): w is string => w !== null))];
+    if (words.length === 0) return;
 
     const byKey = new Map<string, string>();
     // Every DIFFERENT generic met for a key that has more than one, in order.
     const twoGenerics = new Map<string, string[]>();
-    try {
-      for (let i = 0; i < prefixes.length; i += GENERIC_CHUNK) {
-        for (const m of await this.catalogueRows(prefixes.slice(i, i + GENERIC_CHUNK))) {
-          if (!m.genericName) continue;
-          const k = normaliseDrugKey(fmtMedicine(m));
-          if (!k) continue;
-          const had = byKey.get(k);
-          if (had === undefined) {
-            byKey.set(k, m.genericName);
-          } else if (!sameGeneric(had, m.genericName)) {
-            const met = twoGenerics.get(k) ?? [had];
-            if (!met.some((g) => sameGeneric(g, m.genericName as string))) met.push(m.genericName);
-            twoGenerics.set(k, met);
-          }
-        }
+    for (const m of await this.catalogueRows(words)) {
+      if (!m.genericName) continue;
+      const k = normaliseDrugKey(fmtMedicine(m));
+      if (!k) continue;
+      const had = byKey.get(k);
+      if (had === undefined) {
+        byKey.set(k, m.genericName);
+      } else if (!sameGeneric(had, m.genericName)) {
+        const met = twoGenerics.get(k) ?? [had];
+        if (!met.some((g) => sameGeneric(g, m.genericName as string))) met.push(m.genericName);
+        twoGenerics.set(k, met);
       }
-    } catch (e) {
-      if (onFailure === 'throw') throw e;
-      this.log.warn(`generic lookup failed for ${prefixes.length} brands: ${String(e)}`);
-      return;
     }
 
     for (const g of targets) {
@@ -731,35 +716,43 @@ export class RxHabitsService implements OnModuleInit {
   }
 
   /**
-   * Every catalogue row of these brand prefixes — ALL of them.
+   * Every catalogue row whose brand begins with one of these words — in ONE
+   * pass over the table, however many words there are.
    *
-   * An answer that comes back full is not used: it holds whichever brands the
-   * database reached first, and the rest are simply missing. It is asked again
-   * in halves; and for ONE prefix that overflows by itself there is nothing
-   * left to halve, so that one is asked without a cap — bounded by the
-   * catalogue, which is a table of medicines, not of patients.
+   * ⚕️ An EQUALITY on the brand's first word, joined against the list of words.
+   * It was a pattern per brand (`"brandName" ILIKE ANY('{napa%,…}')`), which is
+   * fine for the dropdown's four medicines and ruinous for a doctor's whole
+   * list: every pattern is tried against every row. Measured on 2026-10-14 on a
+   * made-up catalogue of 35,000 medicines, that cost 0.8 s per 25 brands — 5 to
+   * 7 s to open the box with 200 medicines, over a minute with 2,000. As one
+   * hash join it is 0.05 s for 200 and 0.13 s for 2,000, and for the dropdown
+   * it is cheaper than the pattern was.
+   *
+   * It also asks a better question. A prefix needed a row cap, and a cap that
+   * bites drops whichever brands the database reached last — silently, at the
+   * cost of a contraindication warning. A word of one letter could not be
+   * asked for at all (`e%` is every brand beginning with E). An equality needs
+   * neither rule: it returns the brands whose first word IS the word, and the
+   * answer is bounded by the catalogue — a table of medicines, not of patients.
+   *
+   * The first word is taken the way `normaliseDrugKey` would take it: lower
+   * case, leading space ignored, and a tab, a line break or a no-break space
+   * counted as the space a spreadsheet meant.
    *
    * `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md). The
-   * prefixes are a BOUND parameter, so the doctor's own text can never reach
-   * the SQL; the cap is this file's own constant.
+   * words are a BOUND parameter, so the doctor's own text can never reach the
+   * SQL — and being compared, not matched, a `%` or `_` in one means only
+   * itself.
    */
-  private async catalogueRows(prefixes: string[]): Promise<CatalogueRow[]> {
-    const ask = (capped: boolean) =>
-      this.prisma.$queryRawUnsafe<CatalogueRow[]>(
-        `SELECT "brandName", "genericName", "dosageForm", strength
-         FROM medicines
-         WHERE "brandName" ILIKE ANY($1::text[])
-         ORDER BY "brandName", "dosageForm", strength, "genericName"${capped ? `\n         LIMIT ${GENERIC_ROW_CAP + 1}` : ''}`,
-        prefixes,
-      );
-    const rows = await ask(true);
-    if (rows.length <= GENERIC_ROW_CAP) return rows;
-    if (prefixes.length === 1) return ask(false);
-    const half = Math.ceil(prefixes.length / 2);
-    return [
-      ...(await this.catalogueRows(prefixes.slice(0, half))),
-      ...(await this.catalogueRows(prefixes.slice(half))),
-    ];
+  private catalogueRows(words: string[]): Promise<CatalogueRow[]> {
+    return this.prisma.$queryRawUnsafe<CatalogueRow[]>(
+      `SELECT "brandName", "genericName", "dosageForm", strength
+       FROM medicines
+       WHERE lower(split_part(btrim(translate("brandName", E'\\t\\n\\r' || chr(160), '    ')), ' ', 1))
+             IN (SELECT unnest($1::text[]))
+       ORDER BY "brandName", "dosageForm", strength, "genericName"`,
+      words,
+    );
   }
 
   // ── Hide / unhide ─────────────────────────────────────────────────────────
