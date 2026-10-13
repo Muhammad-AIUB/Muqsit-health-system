@@ -152,6 +152,23 @@ interface CatalogueRow {
   strength: string | null;
 }
 
+/**
+ * What a medicine is asked for by in the catalogue: the first word of its
+ * brand ("barcavir 0.5mg" → "barcavir"). Only a prefix to fetch candidates —
+ * the real test is the normalised key — so a brand of several words still
+ * matches.
+ *
+ * A first word of ONE letter ("E Cap") takes the second with it. It used to be
+ * dropped, and such a medicine was never looked up at all: no generic, with
+ * nothing to say so (second review, 2026-10-13). One letter by ITSELF is still
+ * not asked for — it would be every brand that begins with it.
+ */
+function brandPrefix(drugLabel: string): string | null {
+  const words = searchKeyOf(drugLabel).split(' ').filter(Boolean);
+  const head = (words[0] ?? '').length >= 2 ? words[0] : words.slice(0, 2).join(' ');
+  return head.length >= 2 ? likePrefix(head) : null;
+}
+
 // Two spellings of one generic — a capital, a space — are one generic.
 const sameGeneric = (a: string, b: string): boolean =>
   a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -295,6 +312,9 @@ const likePrefix = (s: string): string =>
 @Injectable()
 export class RxHabitsService implements OnModuleInit {
   private readonly log = new Logger(RxHabitsService.name);
+  // Medicines already reported as listed under two generics: the box asks on
+  // every opening, and the same line is not written to the log every time.
+  private readonly reportedTwoGenerics = new Set<string>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -639,9 +659,10 @@ export class RxHabitsService implements OnModuleInit {
    * `onFailure` is the caller's, because the two callers are not in the same
    * position:
    *   · `'ignore'` — `list()`, the dropdown. Without a generic the suggestion
-   *     behaves like a hand-typed brand, and the ℞ pad looks the generic up
-   *     again in the medicine results it has loaded (`resolveGeneric` on the
-   *     client). The lookup must never cost the doctor the suggestion.
+   *     behaves like a hand-typed brand, and the ℞ pad has a second, partial
+   *     source: the medicine results loaded for what was typed (`resolveGeneric`
+   *     on the client — at most the ten rows of that search). The lookup must
+   *     never cost the doctor the suggestion.
    *   · `'throw'` — `listAll()`, the "Add Bulk Medicine" box. There is no second
    *     source there. Offered without the generic the catalogue holds for it, a
    *     medicine goes onto the pad with its warning switched off — several
@@ -650,9 +671,10 @@ export class RxHabitsService implements OnModuleInit {
    *
    * ⚠️ WHERE THE CATALOGUE LISTS ONE MEDICINE UNDER TWO GENERICS (the same
    * form, brand and strength), the first is used, as it always was — the first
-   * by NAME now, where it was whichever row the database returned first, so the
-   * same medicine gets the same generic on every request — and the log says how
-   * many such medicines there were. Whether to
+   * in a STATED order now (brand, form, strength, then generic), where it was
+   * whichever row the database returned first, so the same medicine gets the
+   * same generic on every request — and the log names the medicine and the
+   * generics, once. Whether to
    * attach neither is not decided here: it changes which warnings fire in the
    * dropdown too, and needs a look at the real catalogue first
    * (FUNCTIONAL-AUDIT.md).
@@ -662,21 +684,14 @@ export class RxHabitsService implements OnModuleInit {
     onFailure: 'ignore' | 'throw',
   ): Promise<void> {
     if (targets.length === 0) return;
-    // The brand is the leading token of the search key ("barcavir 0.5mg" →
-    // "barcavir"). Multi-word brands still match: this is only the prefix used
-    // to fetch candidates, and the real test is the normalised key below.
     const prefixes = [
-      ...new Set(
-        targets
-          .map((g) => searchKeyOf(g.drugLabel).split(' ')[0])
-          .filter((t) => t.length >= 2)
-          .map((t) => likePrefix(t)),
-      ),
+      ...new Set(targets.map((g) => brandPrefix(g.drugLabel)).filter((p): p is string => p !== null)),
     ];
     if (prefixes.length === 0) return;
 
     const byKey = new Map<string, string>();
-    const twoGenerics = new Set<string>();
+    // Every DIFFERENT generic met for a key that has more than one, in order.
+    const twoGenerics = new Map<string, string[]>();
     try {
       for (let i = 0; i < prefixes.length; i += GENERIC_CHUNK) {
         for (const m of await this.catalogueRows(prefixes.slice(i, i + GENERIC_CHUNK))) {
@@ -684,8 +699,13 @@ export class RxHabitsService implements OnModuleInit {
           const k = normaliseDrugKey(fmtMedicine(m));
           if (!k) continue;
           const had = byKey.get(k);
-          if (had === undefined) byKey.set(k, m.genericName);
-          else if (!sameGeneric(had, m.genericName)) twoGenerics.add(k);
+          if (had === undefined) {
+            byKey.set(k, m.genericName);
+          } else if (!sameGeneric(had, m.genericName)) {
+            const met = twoGenerics.get(k) ?? [had];
+            if (!met.some((g) => sameGeneric(g, m.genericName as string))) met.push(m.genericName);
+            twoGenerics.set(k, met);
+          }
         }
       }
     } catch (e) {
@@ -694,17 +714,19 @@ export class RxHabitsService implements OnModuleInit {
       return;
     }
 
-    let ambiguous = 0;
     for (const g of targets) {
       const generic = byKey.get(g.drugKey);
       if (!generic) continue;
       g.generic = generic;
-      if (twoGenerics.has(g.drugKey)) ambiguous++;
-    }
-    if (ambiguous > 0) {
-      this.log.warn(
-        `${ambiguous} medicine${ambiguous === 1 ? '' : 's'} listed in the catalogue under more than one generic — the first by name was used`,
-      );
+      const met = twoGenerics.get(g.drugKey);
+      if (met && !this.reportedTwoGenerics.has(g.drugKey)) {
+        this.reportedTwoGenerics.add(g.drugKey);
+        // Names the medicine and the generics: catalogue data, no patient and
+        // no doctor — what the operator needs to settle which is right.
+        this.log.warn(
+          `the catalogue lists "${g.drugKey}" under more than one generic (${met.join(' | ')}) — the first is used`,
+        );
+      }
     }
   }
 

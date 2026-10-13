@@ -459,7 +459,31 @@ describe('RxHabitsService.listAll — the "Add Bulk Medicine" list', () => {
     expect($queryRawUnsafe.mock.calls[0][0]).toMatch(/ORDER BY "brandName", "dosageForm", strength, "genericName"/);
   });
 
-  it('says so in the log when the catalogue lists one medicine under two different generics', async () => {
+  // Second review. The brand is looked up by its first word, and a first word
+  // of ONE letter was not looked up at all — so `E Cap` came from the box with
+  // no generic, silently, which is the very thing the strict lookup is for.
+  it('⚕️ a brand whose first word is one letter is asked for by its first TWO words', async () => {
+    const { svc, $queryRawUnsafe } = svcWith([
+      row({ id: 'e', drugKey: 'capsule. e cap 400mg', drugLabel: 'Capsule. E Cap 400 mg' }),
+      row({ id: 'n', drugKey: 'tablet. napa 500mg', drugLabel: 'Tablet. Napa 500 mg' }),
+    ]);
+    answering($queryRawUnsafe, () => [
+      { brandName: 'E Cap', genericName: 'Vitamin E', dosageForm: 'Capsule', strength: '400 mg' },
+      { brandName: 'Napa', genericName: 'Paracetamol', dosageForm: 'Tablet', strength: '500 mg' },
+    ]);
+    const out = await svc.listAll('doc_1');
+    expect(($queryRawUnsafe.mock.calls[0][1] as string[]).sort()).toEqual(['e cap%', 'napa%']);
+    expect(out.medicines.map((m) => m.generic)).toEqual(['Vitamin E', 'Paracetamol']);
+  });
+
+  it('one letter alone is never asked for — it would be every brand that begins with it', async () => {
+    const { svc, $queryRawUnsafe } = svcWith([row({ id: 'e', drugKey: 'e', drugLabel: 'E' })]);
+    const out = await svc.listAll('doc_1');
+    expect($queryRawUnsafe).not.toHaveBeenCalled();
+    expect(out.medicines[0].generic).toBeUndefined();
+  });
+
+  it('names the medicine and the generics in the log when the catalogue lists one medicine under two — once', async () => {
     const { svc, $queryRawUnsafe } = svcWith(brands(2));
     answering($queryRawUnsafe, () => [
       { brandName: 'Brand0x', genericName: 'Firstgeneric', dosageForm: 'Tablet', strength: '5 mg' },
@@ -470,9 +494,17 @@ describe('RxHabitsService.listAll — the "Add Bulk Medicine" list', () => {
     ]);
     const out = await svc.listAll('doc_1');
     expect(out.medicines.map((m) => m.generic)).toEqual(['Firstgeneric', 'Samegeneric']);
-    const said = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('more than one generic'));
-    expect(said).toHaveLength(1);
-    expect(said[0]).toContain('1 medicine');
+    const said = () => warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('more than one generic'));
+    // What the operator needs to settle it, without reading the table: which
+    // medicine, and which generics. Catalogue data — no patient, no doctor.
+    expect(said()).toHaveLength(1);
+    expect(said()[0]).toContain('tablet. brand0x 5mg');
+    expect(said()[0]).toContain('Firstgeneric | Secondgeneric');
+    expect(said()[0]).not.toContain('brand1x');
+    // The box asks on every opening; the same line is not written every time.
+    await svc.listAll('doc_1');
+    await svc.listAll('doc_1');
+    expect(said()).toHaveLength(1);
   });
 
   it('THROWS when the list itself cannot be read — a box the doctor opened must be able to say so', async () => {

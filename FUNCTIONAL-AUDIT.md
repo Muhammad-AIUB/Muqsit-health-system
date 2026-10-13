@@ -820,11 +820,15 @@ of each for the physician or the operator to decide:
   would be the first thing the box changes on the pad rather than adds.
 - [ ] **One medicine under two generics in the catalogue.** Where the
   `medicines` table lists the same form, brand and strength under two different
-  generics, "Your usual" and the box both attach the first — the first by name
-  since this change, whichever row came back first before it. A wrong generic
+  generics, "Your usual" and the box both attach the first — the first in a
+  stated order since this change (brand, form, strength, then generic),
+  whichever row came back first before it. A wrong generic
   is a warning on the wrong medicine or none on the right one. The API log now
-  says how many such medicines a lookup met (`listed in the catalogue under
-  more than one generic`). Attaching neither is the stricter rule, but it would
+  names each such medicine and the generics it met, once per start of the API
+  (`the catalogue lists "…" under more than one generic (A | B)`): catalogue
+  data, no patient and no doctor, so the answer can be read off the log. A
+  third way to put to the physician with it: carry BOTH generics for the
+  warnings, which errs towards a warning rather than silence. Attaching neither is the stricter rule, but it would
   also take warnings away wherever the two spellings are one drug written two
   ways, so it needs a look at the real table first — by the operator, on the
   VPS; it was not read for this.
@@ -832,12 +836,28 @@ of each for the physician or the operator to decide:
   the API, as they can "Your usual" (`GET /rx-habits?q=`). The key is enforced
   where it matters — the pad is locked and the + greyed — and the list holds no
   patient. Refusing the read as well is a one-line guard if wanted.
+- [ ] **A line typed by hand stays without its generic when the box skips the
+  same medicine.** With `tab barcavir 0.5mg` typed on the pad (no generic, so no
+  warning — the known gap of a hand-typed brand), ticking Barcavir in the box
+  adds nothing: it is the same medicine and line. Before the first review it
+  went on as a second Barcavir line, which is wrong, but that line carried the
+  generic and its warning fired. The box could lend its generic to the line that
+  is there — the medicine is proved the same by the key the app uses everywhere
+  — but that is the box changing a line, and the physician's to decide.
+- [ ] **A medicine whose whole brand is ONE letter is never looked up** in the
+  catalogue (the lookup would be every brand beginning with that letter), so it
+  carries no generic from the box or from "Your usual". A brand that only
+  STARTS with a one-letter word (`E Cap`) is looked up, since the second review.
 - [x] Offline, an answer that was not the list, and a failed refresh were each
   drawn as "No medicines yet"; a failed generic lookup returned the list with
   its warnings switched off; the same medicine written with another space was
   added twice; a medicine the server could not read was left out uncounted; the
   line beside the + was in the brand's blue; Enter held on Add reopened the
-  box. All fixed and pinned (`client/CLAUDE.md`, `server/CLAUDE.md`).
+  box. All fixed and pinned (`client/CLAUDE.md`, `server/CLAUDE.md`). The
+  second review of those fixes found two states more — a list whose every row
+  was unreadable drawn as "No medicines yet" under its own notice, and Add
+  still acting on the ticks while the list was being asked for again or had
+  failed — and both are closed.
 
 Checked by breaking the code, and where that was done: until this review the
 breaks were made in the working checkout, which the dev servers watch — and the

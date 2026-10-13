@@ -310,7 +310,45 @@ describe("BulkMedicineModal", () => {
     const { box } = open({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
     expect(box.textContent).not.toContain("No medicines yet");
     expect(within(box).getByRole("status").textContent).toContain("Loading your medicines");
-    expect(addButton(box).disabled).toBe(true);
+  });
+
+  // Second review: with every row left out as unreadable the box said so, and
+  // under it "No medicines yet — they appear here after you save prescriptions".
+  it("⚕️ a list whose every medicine was left out as unreadable is not an empty history", () => {
+    const { box } = open(loaded([], { unreadable: 3 }));
+    expect(box.textContent).toContain("3 medicines could not be read and are not listed.");
+    expect(box.textContent).not.toContain("No medicines yet");
+    expect(box.textContent).not.toContain("No medicine matches");
+  });
+
+  // Second review: the rows were hidden while the list was being asked for
+  // again, or had failed — and Add still acted on the ticks, from the list the
+  // box had just stopped offering.
+  it("⚕️ what is not on screen cannot be added: Add is off while the list is loading or has failed, ticks or no ticks", () => {
+    const props = { onClose: vi.fn(), existing: [] as RxItem[] };
+    const onAdd = vi.fn();
+    const held = { medicines: [NAPA, SERGEL], truncated: false, unreadable: 0 };
+    const { rerender } = render(<BulkMedicineModal open {...props} list={loaded([NAPA, SERGEL])} onAdd={onAdd} />);
+    const box = screen.getByRole("dialog");
+    tick(box, "Tablet. Napa 500 mg");
+    expect(addButton(box).textContent).toBe("Add (1)");
+
+    for (const state of [
+      { data: held, isLoading: true, isError: false, refetch: vi.fn() },
+      { data: held, isLoading: false, isError: true, error: new Error("x"), refetch: vi.fn() },
+    ]) {
+      rerender(<BulkMedicineModal open {...props} list={state} onAdd={onAdd} />);
+      expect(within(box).queryAllByRole("checkbox")).toHaveLength(0);
+      expect(addButton(box).disabled).toBe(true);
+      expect(addButton(box).textContent).toBe("Add");
+      fireEvent.click(addButton(box));
+      expect(onAdd).not.toHaveBeenCalled();
+    }
+
+    // The list is back: the tick was kept, and is offered again.
+    rerender(<BulkMedicineModal open {...props} list={loaded([NAPA, SERGEL])} onAdd={onAdd} />);
+    expect(tickBox(box, "Tablet. Napa 500 mg").checked).toBe(true);
+    expect(addButton(box).textContent).toBe("Add (1)");
   });
 
   it("a doctor with no history is told how the list fills", () => {

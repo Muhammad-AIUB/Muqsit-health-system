@@ -11,13 +11,23 @@
 // ("500 mg"), a case difference, a dropped "n/a" or a form qualifier, and every
 // one of those misses silently removes a safety alert.
 //
-// WHY THE DUPLICATION IS ACCEPTABLE. This copy decides ONE thing: whether a
-// medicine row can lend its generic name to a suggestion. It never decides
-// which habits exist, and it never folds two medicines together — that happens
-// only on the server. If the two copies ever drift, the worst outcome is that a
-// generic is not found and the line behaves exactly like a hand-typed brand,
-// which is an already-documented state. It cannot produce a wrong generic:
-// a mismatch yields no generic, never another medicine's.
+// WHY THE DUPLICATION IS ACCEPTABLE. This copy decides whether a medicine row
+// can lend its generic name to a suggestion. It never decides which habits
+// exist — that happens only on the server. If the two copies ever drift, the
+// worst outcome there is that a generic is not found and the line behaves
+// exactly like a hand-typed brand, which is an already-documented state. It
+// cannot produce a wrong generic: a mismatch yields no generic, never another
+// medicine's.
+//
+// A SECOND USE SINCE 2026-10-13, and a heavier one: "Add Bulk Medicine"
+// (`lib/bulkMedicines.ts`) asks this function whether a ticked medicine is
+// ALREADY ON THE ℞ PAD. Both sides of that question are answered here, so the
+// server's copy does not come into it — but this function's own folding does:
+// if it ever folded two different medicines into one key, the second would be
+// skipped as "already on ℞" and not added. It folds typography only (case,
+// spacing, the gap before a unit, six form abbreviations, a trailing n/a) and
+// must keep to that: never a strength, never a form qualifier, never a brand.
+// `bulkMedicines.test.ts` holds both directions.
 //
 // `rxHabitKey.test.ts` pins the cases both copies must agree on.
 

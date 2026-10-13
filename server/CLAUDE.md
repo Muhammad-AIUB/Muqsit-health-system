@@ -110,9 +110,9 @@ these are the ones that live in this app's code and are easy to break.
   (`entecavir`) while the ℞ line carries the brand (`Tablet. Barcavir 0.5 mg`).
   Resolving it on the client from a separate medicines request — the original
   design — made it depend on a race, and a doctor clicking the suggestion before
-  that request landed would lose the contraindication warning entirely. One
-  bounded prefix query per lookup, wrapped in try/catch: no generic just means
-  the line behaves like a hand-typed brand.
+  that request landed would lose the contraindication warning entirely. The
+  catalogue is asked through `catalogueRows` (below), wrapped in try/catch: no
+  generic just means the line behaves like a hand-typed brand.
 - **There is a second read path, `listAll()` (`GET /rx-habits/all`, 2026-10-13),
   and it THROWS.** It feeds the "Add Bulk Medicine" box: one row per medicine —
   the row the typing dropdown would offer first (pinned, then most patients, then
@@ -130,9 +130,10 @@ these are the ones that live in this app's code and are easy to break.
 - **⚕️ `attachGenerics` takes `'ignore'` or `'throw'`, and `listAll()` THROWS on
   a failed catalogue lookup** (first review, 2026-10-13, before release). The
   first version wrapped the lookup in the dropdown's try/catch and returned the
-  list without generics. For `list()` that is right: the ℞ pad looks the generic
-  up again in the medicine results it has loaded (`resolveGeneric` on the
-  client). The box has no second source — a medicine added from it without the
+  list without generics. For `list()` that is right: the ℞ pad has a second,
+  PARTIAL source — the medicine results loaded for what was typed
+  (`resolveGeneric` on the client; at most the ten rows of that search). The
+  box has no second source at all — a medicine added from it without the
   generic the catalogue holds for it is a contraindication warning that does not
   fire, on several lines at once, with nothing on screen to say so. A rule that
   fails silently is safe only together with whatever catches the failure;
@@ -145,11 +146,17 @@ these are the ones that live in this app's code and are easy to break.
   itself is asked without a cap. The rows come in a stated order, so the same
   medicine gets the same generic on every request. **Where the catalogue lists
   one medicine (form, brand, strength) under two different generics, the first
-  is used, as it always was — the first by name now, where it was whichever
-  row the database returned first — and the log says how many.** Attaching
+  is used, as it always was — the first in the stated order now (brand, form,
+  strength, then generic), where it was whichever row the database returned
+  first — and the log names the medicine and the generics, once per process.** Attaching
   neither would be the stricter rule; it changes which warnings fire in the
   dropdown as well, and needs a look at the real catalogue before it is
-  decided (`FUNCTIONAL-AUDIT.md`).
+  decided (`FUNCTIONAL-AUDIT.md`). **A medicine is asked for by the first word
+  of its brand** (`brandPrefix`); a first word of ONE letter (`E Cap`) takes the
+  second with it — it used to be dropped, and such a medicine was never looked
+  up at all (second review). One letter by ITSELF is still not asked for: it
+  would be every brand that begins with it, so a medicine whose whole brand is
+  one letter carries no generic from either surface.
 - **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
   single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
   the doctor is shown silence on failure by design, the log is the ONLY place a

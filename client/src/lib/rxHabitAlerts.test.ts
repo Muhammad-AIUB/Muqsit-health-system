@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { bulkToRxItems } from "./bulkMedicines";
 import { habitToRows, resolveGeneric } from "./rxHabitRows";
 import { rowsFromRxItems, rxDrugIndexByRow, rxItemsFromRows } from "./rxRows";
-import { checkRxAlerts, rxAlertsByLine } from "./rxAlerts";
+import { buildRxAlertInput, checkRxAlerts, rxAlertsByLine } from "./rxAlerts";
 import { fmtMedicine } from "./rxShorthand";
 import type { MedicineHit, RxHabitItem } from "@/lib/api";
 import type { RxItem } from "@/types";
@@ -201,10 +201,10 @@ describe("Barcavir — the warning must survive a bulk add", () => {
       ["taper", "", "0.5+0+0", undefined],
       ["medicine", "Tablet. Barcavir 0.5 mg", "1+0+0", "Entecavir"],
     ]);
-    const byLine = rxAlertsByLine({
-      rxDrugs: saved.filter((i) => !i.isNote).map((i) => ({ text: i.drug, generic: i.generic })),
-      sidebar: PREGNANT_SIDEBAR,
-    });
+    // The matcher's input, built by the app's own builder (`useRxAlertInput`
+    // and `savePrescription` both call it): a change to how it numbers the
+    // lines has to turn this test red, which a hand-made copy would not.
+    const byLine = rxAlertsByLine(buildRxAlertInput({ rxItems: saved, leftFields: PREGNANT_SIDEBAR, drugHistory: [], visitDate: "13/10/2026" }));
     // Which ROW of the pad each warning is drawn on.
     const warned = rxDrugIndexByRow(rows)
       .map((n, row) => (n !== null && byLine.get(n) ? rows[row].drug : null))

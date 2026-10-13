@@ -114,7 +114,21 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
     setNote("");
   }, [open]);
 
-  const all = list.data?.medicines ?? NONE;
+  // ⚕️ "Nothing to draw" is "nothing prescribed" in ONE state only: the list is
+  // here, it has not failed, and it is empty — with no row left out of it.
+  // Each of the others was once drawn as "No medicines yet" (first and second
+  // reviews, before release):
+  //   • a failure — also with an older list still held;
+  //   • a list that is not here, not loading and has not failed — a request
+  //     React Query holds back while the browser is offline. Still awaited;
+  //   • a list whose every medicine was left out as unreadable.
+  const waiting = list.isLoading || (!list.isError && list.data === undefined);
+  // What is not on screen cannot be added. While the list is being asked for
+  // again, or has failed, the box offers NOTHING — not even to Add, which went
+  // on acting on the ticks from the list the box had stopped showing. The
+  // ticks themselves are kept, for when the list is back.
+  const offered = !waiting && !list.isError;
+  const all = offered ? list.data?.medicines ?? NONE : NONE;
   const sorted = useMemo(() => sortBulk(all, order), [all, order]);
   const shown = useMemo(() => searchBulk(sorted, search), [sorted, search]);
 
@@ -155,15 +169,6 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
   if (list.data?.truncated) notes.push("Showing your 2,000 most used medicines.");
   const unreadable = list.data?.unreadable ?? 0;
   if (unreadable > 0) notes.push(`${unreadable} ${unreadable === 1 ? "medicine" : "medicines"} could not be read and ${unreadable === 1 ? "is" : "are"} not listed.`);
-
-  // ⚕️ "Nothing to draw" is "nothing prescribed" in ONE state only: the list is
-  // here, and it is empty. Each of the others was once drawn as "No medicines
-  // yet" (first review, before release):
-  //   • a failure — also with an older list still held. Rows that could not be
-  //     refreshed are not offered: their counts and doses may have changed.
-  //   • a list that is not here, not loading and has not failed — a request
-  //     React Query holds back while the browser is offline. Still awaited.
-  const waiting = list.isLoading || (!list.isError && list.data === undefined);
 
   return (
     // The veil's padding is the box's margin: no `vh` / `vw` under the page zoom.
@@ -208,7 +213,9 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
                 <div key={n} style={{ padding: "8px 20px", fontSize: 11.5, color: C.n[700], background: C.n[50], borderBottom: `0.5px solid ${C.n[200]}` }}>{n}</div>
               ))}
               {all.length === 0 ? (
-                <EmptyState icon="fileText" title="No medicines yet" hint="They appear here after you save prescriptions." />
+                // With rows left out, the notice above is the whole truth: there
+                // ARE medicines, and none of them could be read.
+                unreadable > 0 ? null : <EmptyState icon="fileText" title="No medicines yet" hint="They appear here after you save prescriptions." />
               ) : shown.length === 0 ? (
                 <div style={{ padding: "24px 20px", textAlign: "center", fontSize: 12.5, color: C.n[600] }}>No medicine matches “{search.trim()}”.</div>
               ) : (
