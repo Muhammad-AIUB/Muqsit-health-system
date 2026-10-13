@@ -443,6 +443,11 @@ export interface RxHabitGroup {
 export const rxHabitsApi = {
   list: (q: string) =>
     apiFetch<RxHabitGroup[]>(`/rx-habits?q=${encodeURIComponent(q)}`),
+  // The "Add Bulk Medicine" list: every medicine this doctor has prescribed,
+  // each with its usual instruction. Typed `unknown` on purpose — it reaches
+  // the ℞ pad, so `readBulkList` (lib/bulkMedicines.ts) reads it defensively.
+  // Unlike `list`, the server answers a failure with an error, not `[]`.
+  all: () => apiFetch<unknown>(`/rx-habits/all`),
   // No remove(): the prescription record is never touched, so "deleting" a
   // suggestion means hiding it — and hiding is always reversible.
   setFlags: (id: string, flags: { hidden?: boolean; pinned?: boolean }) =>
