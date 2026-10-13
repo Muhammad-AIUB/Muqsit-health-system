@@ -19,7 +19,10 @@ import { splitDrugLabel } from "./rxShorthand";
 //   • `nameLines` lays ONE name out, keeping what most often tells two bars
 //     apart: the brand and the strength;
 //   • `namesApart` lays out the names of one CHART, and any that came out the
-//     same are laid out again so that what they differ in is what is shown.
+//     same are laid out again so that what they differ in is what is shown —
+//     and a strength that is longer than a line is cut there by the OTHER
+//     strengths of its medicine on the chart, so that a dose change can be
+//     read off two names that were different anyway.
 //
 // One name that does not fit takes TWO lines (a bar's row has the height for
 // them), and what gives way, in this order, is:
@@ -220,12 +223,18 @@ function formAndBrand(form: string, brand: string, written: string, max: number)
 // And it looks for the strength at the first word that begins with a DIGIT, so
 // ".5 mg" was no strength at all: the brand was "Rivotril .5 mg", and where
 // that did not fit a line the strength was left off whole. A word that begins
-// with a decimal point begins the strength too.
+// with a decimal point begins the strength too — also where that point is the
+// label's first full stop, the one misread above: everything in front of the
+// word is then the name ("Tab Clonazepam" over ".5 mg"; with no brand and no
+// strength found, "Tab" stood over "Clonazepam…" — eighth review).
 const DIGIT_FIRST = new RegExp(`^[${DIGITS}]`);
 const POINT_WORD = new RegExp(`\\s(?=\\.[${DIGITS}])`);
 function labelParts(text: string): { before: string; name: string; after: string } {
   const parts = splitDrugLabel(text);
-  if (parts.before.endsWith(".") && DIGIT_FIRST.test(parts.name)) return { before: text, name: "", after: "" };
+  if (parts.before.endsWith(".") && DIGIT_FIRST.test(parts.name)) {
+    const point = POINT_WORD.exec(text);
+    return point ? { before: "", name: text.slice(0, point.index), after: text.slice(point.index) } : { before: text, name: "", after: "" };
+  }
   const point = parts.after ? null : POINT_WORD.exec(parts.name);
   if (point && point.index > 0) return { before: parts.before, name: parts.name.slice(0, point.index), after: parts.name.slice(point.index) };
   return parts;
@@ -236,6 +245,20 @@ function labelParts(text: string): { before: string; name: string; after: string
  * `kind` "drug" lays a medicine's label out as above; "text" only wraps.
  */
 export function nameLines(name: string, max: number, kind: "drug" | "text"): NameLine[] {
+  return layOut(name, max, kind, []);
+}
+
+// One name — and, for a medicine, the OTHER strengths of it on the same chart
+// (`others`; none for a name laid out by itself). They change one thing: where
+// the strength is longer than a line and something of the name has to be left
+// off, the strength has the second line to ITSELF — cut so that what it
+// differs in from those others stays in sight (`strengthFor`) — and the brand
+// gives way on the line above it. By itself a name keeps as much of its brand
+// as two lines hold, and the strength is what is cut, or left off whole
+// ("…Amlodipine +" over "Olmesartan…"): right for telling two medicines
+// apart, and no use for telling 12.5 from 25. Where the name fits its two
+// lines, nothing changes.
+function layOut(name: string, max: number, kind: "drug" | "text", others: string[]): NameLine[] {
   const text = name.trim();
   if (!text) return [];
   if (text.length <= max) return [{ text }];
@@ -248,32 +271,52 @@ export function nameLines(name: string, max: number, kind: "drug" | "text"): Nam
   const word = head.replace(/\.$/, "");
   const knownForm = KNOWN_FORM.test(word);
   const partOfName = head !== "" && !knownForm && /^\S{1,4}$/.test(word);
+  // The strength as a line of its own shows it: whole where it fits, otherwise
+  // cut — at its end, or by what it has to be told from.
+  const told = strengthFor(strength, others, max, max);
 
   if (head === "" || partOfName) {
     // The whole of it is the name.
     const plain = wrapTwo(text, max);
     const whole = !plain.some((l) => l.text.includes("…"));
-    if (whole || !strength || strength.length > max) return plain;
-    return [{ text: cutEnd((before + brand).trim(), max) }, { text: strength }];
+    if (whole || !strength || (strength.length > max && others.length === 0)) return plain;
+    return [{ text: cutEnd((before + brand).trim(), max) }, { text: told }];
   }
 
   const rest = (brand + after).trim();
   if (rest.length <= max) return [{ text: cutEnd(head, max), quiet: true }, { text: rest }];
   if (knownForm) {
-    if (strength && strength.length <= max) {
-      // Left off only when there is no room for it beside the brand: where
-      // there is, the whole name fits the two lines.
-      const written = (before + brand).trim();
-      return [{ text: written.length <= max ? written : cutEnd("…" + brand, max) }, { text: strength }];
-    }
-    return wrapTwo("…" + rest, max);
+    // Left off only when there is no room for it beside the brand: where
+    // there is, the whole name fits the two lines.
+    const written = (before + brand).trim();
+    const formAndName = { text: written.length <= max ? written : cutEnd("…" + brand, max) };
+    if (strength && strength.length <= max) return [formAndName, { text: strength }];
+    const wrapped = wrapTwo((pointFirst(rest) ? "… " : "…") + rest, max);
+    // (A line that ENDS in a mark: something besides the form was left off.)
+    return strength && others.length > 0 && wrapped.some((l) => l.text.endsWith("…")) ? [formAndName, { text: told }] : wrapped;
   }
   // Reads as a form, but not one the app knows by name: shortened, never left
-  // off — and the strength has the line under it, cut at its end if it must
-  // be. (With the form above and the rest under it, a strength too long for a
-  // line was not shown at all: "Capsule (Ent…" over "Edeloss…".)
-  if (strength) return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: cutEnd(strength, max) }];
+  // off — and the strength has the line under it, cut if it must be. (With
+  // the form above and the rest under it, a strength too long for a line was
+  // not shown at all: "Capsule (Ent…" over "Edeloss…".)
+  if (strength) return [{ text: formAndBrand(head, brand, (before + brand).trim(), max) }, { text: told }];
   return [{ text: cutEnd(head, max), quiet: true }, { text: cutEnd(rest, max) }];
+}
+
+// The medicine a label is OF, whatever its form — what two labels have to
+// share for the strength of one to be told from the strength of the other. Its
+// brand; with a short first word that is part of the name in front of it
+// ("Pot. chloride" is not "Sod. chloride"); and without a form word written
+// with no full stop after it, which the split reads as the start of the brand
+// ("Tablet Edeloss" is Edeloss).
+function medicineOf({ before, name }: { before: string; name: string }): string {
+  const head = before.trim();
+  if (head) {
+    const word = head.replace(/\.$/, "");
+    return !KNOWN_FORM.test(word) && /^\S{1,4}$/.test(word) ? `${head} ${name}` : name;
+  }
+  const first = /^(\S+)\s+(?=\S)/.exec(name);
+  return first && KNOWN_FORM.test(first[1]) ? name.slice(first[0].length) : name;
 }
 
 /** One name on the chart, and what it is: a medicine's label, or any other text. */
@@ -315,7 +358,10 @@ function plusParts(strength: string): Part[] {
 // ⚕️ Cut at its end whatever the chart held, a tablet and an injection of one
 // medicine in two strengths were left with one pair under one name, and — the
 // form brought back over the cut strength — a dose change was shown as
-// "10 mg+160 mg+…" twice (seventh review, before release).
+// "10 mg+160 mg+…" twice (seventh review, before release). And for one round
+// it was asked only of names that had come out the SAME as another: two
+// labels that differed in how their form was written still read
+// "10 mg+160 mg+…" for 12.5 and for 25 (eighth review; `layOut`).
 function strengthFor(strength: string, others: string[], room: number, max: number): string {
   if (strength.length <= room) return strength;
   const cut = cutEnd(strength, room, max);
@@ -335,18 +381,31 @@ function strengthFor(strength: string, others: string[], room: number, max: numb
     return keep[keep.length - 1] < last ? s + "…" : s;
   };
   const from = (k: number) => parts.slice(k).map((_, i) => k + i);
+  // How many of the other strengths a way of cutting it is told from — one is,
+  // when a part it has differently is in sight — and then how many of the
+  // parts that differ it shows.
+  //
+  // ⚕️ Counted by parts alone, a THIRD strength on the chart that differed in
+  // every part made every part count: the cut at the end, with two of three
+  // in sight, stood level with the first part and the last, and 12.5 and 25
+  // both read "10 mg+160 mg…" again (seen in a browser, eighth review).
+  const worth = (inSight: (k: number) => boolean) => ({
+    told: theirs.filter((t) => parts.some((p, k) => inSight(k) && (t[k]?.text ?? "") !== p.text)).length,
+    shown: wanted.filter(inSight).length,
+  });
   // Besides its end cut: its first part and its last; all from the first part
-  // that differs; that part alone. The first of them that shows more of what
-  // differs than the one before it did.
-  const ways = [[0, last], from(wanted[0]), [wanted[0]]];
+  // that differs; that part alone; and then the same from each later part that
+  // differs — the part that tells it from the most of the others need not be
+  // the first. The first of them that is worth more than the one before it was.
+  const ways = [[0, last], from(wanted[0]), [wanted[0]], ...wanted.slice(1).flatMap((k) => [from(k), [k]])];
   let best = cut;
-  let bestShown = wanted.filter(cutShows).length;
+  let bestWorth = worth(cutShows);
   for (const way of ways) {
     const keep = way.filter((k, i) => way.indexOf(k) === i);
     const written = write(keep);
     if (written.length > room) continue;
-    const shownOfWanted = wanted.filter((k) => keep.includes(k)).length;
-    if (shownOfWanted > bestShown) { best = written; bestShown = shownOfWanted; }
+    const w = worth((k) => keep.includes(k));
+    if (w.told > bestWorth.told || (w.told === bestWorth.told && w.shown > bestWorth.shown)) { best = written; bestWorth = w; }
   }
   return best;
 }
@@ -438,11 +497,16 @@ function partStart(text: string, same: number, room: number, max: number): { at:
   if (holds && !holds.inWord) word = holds.a;
   else while (word > 0 && !/\s/.test(text[word - 1]) && text[word - 1] !== "+" && !amounts.some(({ b, inWord }) => !inWord && b === word)) word--;
   const wordFits = same - word <= room && (!holds || holds.b - word <= room + 1);
-  const at = wordFits ? word : same;
-  return { at: startsInside(amounts, at)?.a ?? at, word };
+  const outside = (p: number) => startsInside(amounts, p)?.a ?? p; // never from inside an amount
+  const at = outside(wordFits ? word : same);
+  // A word may begin inside an amount ("B12 pg/mL-fas…": the "pg" is read as
+  // the unit of that 12), and the amount's start is then further from the
+  // place than the word's was — too far, where the line would run out before
+  // it. From the place itself, then.
+  return { at: same - at > room ? outside(same) : at, word };
 }
 
-// 2. The lines the name already has, with the one that was CUT made to show
+// 3. The lines the name already has, with the one that was CUT made to show
 // both its ends: its start, a mark, and the word the names part at, which the
 // cut had hidden. "5 mg + 160 m…" becomes "5 mg…12.5 mg" beside "5 mg…25 mg" —
 // the first part of the strength is still there to tell it from "10 mg…", and
@@ -481,7 +545,7 @@ function bothEnds(group: { text: string; lines: NameLine[] }[], same: number, ma
   });
 }
 
-// 3. Two lines read from the place itself: what the names share, cut at its
+// 4. Two lines read from the place itself: what the names share, cut at its
 // end, and under it the word they part at — or the very letter, when that word
 // runs on for longer than a line could show the difference in. A mark leads
 // the second line wherever something was left out before it, so that what
@@ -502,34 +566,45 @@ function fromDifference(text: string, same: number, max: number): NameLine[] | n
  *
  * Each is what `nameLines` writes for it alone — until two names that are
  * different come out the same. Those are written again, together, in the first
- * of three ways that leaves FEWER pairs alike on the whole chart than before:
+ * of four ways that leaves FEWER pairs alike on the whole chart than before:
  *   1. medicines that differ in their dosage form get it back, shortened, with
- *      the strength still under it ("Tab… Ondanse…" / "Inj… Ondanse…") — cut
- *      between its parts where it is longer than a line;
- *   2. the line that was cut is made to show both its ends — its start, and
+ *      the strength still under it ("Tab… Ondanse…" / "Inj… Ondanse…");
+ *   2. or on a line of its own, cut at its end, with the start of the brand
+ *      and the strength under it — for two forms that BEGIN alike ("Tablet
+ *      (Dela…" / "Tablet (Exte…", each over "Pantoni…40 mg");
+ *   3. the line that was cut is made to show both its ends — its start, and
  *      the word the names part at ("…Exforge HCT" over "5 mg…12.5 mg" /
  *      "5 mg…25 mg"; "…Amlod…Atenolol" / "…Amlod…Losartan" over the strength);
- *   3. failing that, the name is read from the place itself, under what the
- *      names share ("Calcium" over "Carb. + Vit.…" / "Citr. + Vit.…").
+ *   4. failing that, the name is read from the place itself, under what the
+ *      names share ("Burning sensat…" over "…2 weeks" / "…3 weeks").
  * A step is taken only if it leaves fewer pairs alike on the whole chart, so
  * the work ends and two rounds cannot turn each other back. That is all the
  * count promises: each way starts from the lines a name has by itself, not
  * from the last step's, so a later step may write a name again — and may put
  * two names together that an earlier step had told apart, so long as fewer
  * pairs are alike after it than before. A name is written the same wherever it
- * stands in the list, and a chart whose names are already different is not
- * touched.
+ * stands in the list.
+ *
+ * Then, the strengths of ONE medicine. A medicine that was not written again
+ * above still has the lines it has by itself, and by itself a strength longer
+ * than a line is cut at its end, or left off for the sake of the brand — the
+ * same "10 mg+160 mg+…" for 12.5 and for 25, under two labels that differ in
+ * something else. Where another strength of that medicine is on the chart,
+ * the strength has the second line to itself and is cut by what it has to be
+ * told from (`layOut`, `strengthFor`); the name keeps that unless it would put
+ * it under one name with another. So a chart whose names are already
+ * different is left as it is but for this.
  *
  * ⚕️ What is held (timelineLabel.test.ts): no "…" stands inside an amount, for
- * any chart; any TWO names that differ in more than their spacing are written
- * differently; so is every pair on a chart of names built to be mistaken for
- * one another, and on a chart of the strengths of a three-part tablet that
- * differ in two of their parts. What is NOT promised: names that differ from
- * one another in more places than two short lines can show. They are still
- * written differently wherever one of the ways above allows — but a label may
- * then not say EVERY difference (it may not show the brand), and where no way
- * is left two of them stay alike: two such cases are known, and each is a
- * failing test (DEFECT-HM-NAMES).
+ * any chart drawn there; two STRENGTHS of one medicine never show the same
+ * numbers, counted over fixed pools of forms, brands and strengths; and pairs
+ * of names built to be mistaken for one another are written differently —
+ * a sample of them on every run, not all. What is NOT promised: names that
+ * differ from one another in more places than two short lines can show. They
+ * are still written differently wherever one of the ways above allows — but a
+ * label may then not say EVERY difference (it may not show the brand), and
+ * where no way is left two of them stay alike: four such cases are known, and
+ * each is a failing test (DEFECT-HM-NAMES).
  */
 export function namesApart(names: ChartName[], max: number): NameLine[][] {
   const texts = names.map((n) => n.name.trim());
@@ -544,10 +619,11 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
   // A medicine's three parts, and the OTHER strengths on the chart of the same
   // medicine (whatever its form) — what its own strength has to be told from.
   const parts = names.map((n, i) => (n.kind === "drug" ? labelParts(texts[i]) : null));
+  const medicines = parts.map((p) => (p?.name ? medicineOf(p) : null));
   const others = (i: number) => {
     const mine = parts[i];
     if (!mine?.name) return [];
-    const strengths = parts.flatMap((p) => (p && p.name === mine.name && p.after.trim() !== mine.after.trim() ? [p.after.trim()] : []));
+    const strengths = parts.flatMap((p, k) => (p && medicines[k] === medicines[i] && p.after.trim() !== mine.after.trim() ? [p.after.trim()] : []));
     return strengths.filter((s, k) => strengths.indexOf(s) === k);
   };
   let lines = alone;
@@ -586,6 +662,23 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
         if (alike(tried) < before) { lines = tried; better = true; break; }
       }
     }
-    if (!better) return lines;
+    if (!better) break;
   }
+  // The strengths of ONE medicine. A name that was not written again still has
+  // the lines it has by itself — and by itself a strength longer than a line is
+  // cut at its end, whatever else is on the chart: "10 mg+160 mg+…" for 12.5
+  // and for 25, under two labels that differ in something else (how the form
+  // was written, or which form it is) and so were never written again. Such a
+  // name is laid out once more with the other strengths of its medicine beside
+  // it, and keeps that unless it would put it under one name with another. In
+  // the order of the names themselves, never of the list.
+  const byName = texts.map((_, i) => i).sort((a, b) => (texts[a] < texts[b] ? -1 : texts[a] > texts[b] ? 1 : a - b));
+  for (const i of byName) {
+    if (shown(lines[i]) !== shown(alone[i])) continue;
+    const again = layOut(names[i].name, max, names[i].kind, others(i)); // (no others for what is not a medicine)
+    if (shown(again) === shown(alone[i])) continue;
+    const tried = lines.map((l, k) => (k === i ? again : l));
+    if (alike(tried) <= alike(lines)) lines = tried;
+  }
+  return lines;
 }
