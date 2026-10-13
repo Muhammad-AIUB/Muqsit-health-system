@@ -758,7 +758,7 @@ describe("namesApart — the names of one chart, together", () => {
       const [other, low, high] = apart(drugs(`Tablet. Edeloss ${third}`, "Tablet. Edeloss 10 mg+160 mg+12.5 mg", "Tablet Edeloss 10 mg+160 mg+25 mg"), 13);
       expect(other, third).toEqual(whole);
       expect(low, third).toEqual(["…Edeloss", "10 mg…12.5 mg"]);
-      expect(high, third).toEqual(["Tablet Edelo…", "10 mg…25 mg"]);
+      expect(high, third).toEqual(["…Edeloss", "10 mg…25 mg"]);
     }
     // …and the part that tells it from the most of them may not be the FIRST
     // part that differs: beside a strength with another first part, the first
@@ -767,17 +767,17 @@ describe("namesApart — the names of one chart, together", () => {
     expect(apart(drugs("Tablet. Edeloss 40 mg", "Capsule (Enteric Coated). Edeloss 12.5 mg+500 mg", "Tablet Edeloss 12.5 mg+1000 mg"), 13)).toEqual([
       ["Tablet.", "Edeloss 40 mg"],
       ["Caps… Edeloss", "…500 mg"],
-      ["Tablet Edelo…", "…1000 mg"],
+      ["…Edeloss 12.5", "mg+1000 mg"], // whole, with the typed form word set aside
     ]);
     // …with what follows it, where that fits (made-up strengths).
     expect(apart(drugs("Tablet. Edeloss 40 mg", "Capsule (Enteric Coated). Edeloss 12.5 mg+500 mg+5 mg", "Tablet Edeloss 12.5 mg+1000 mg+5 mg"), 13).slice(1)).toEqual([
       ["Caps… Edeloss", "…500 mg+5 mg"],
-      ["Tablet Edelo…", "…1000 mg+5 mg"],
+      ["…Edeloss", "…1000 mg+5 mg"],
     ]);
     // …and alone between two marks, where it does not.
     expect(apart(drugs("Tablet. Edeloss 40 mg", "Capsule (Enteric Coated). Edeloss 12.5 mg+500 mg+12.5 mg+200 IU", "Tablet Edeloss 12.5 mg+1000 mg+12.5 mg+200 IU"), 13).slice(1)).toEqual([
       ["Caps… Edeloss", "…500 mg…"],
-      ["Tablet Edelo…", "…1000 mg…"],
+      ["…Edeloss", "…1000 mg…"],
     ]);
   });
 
@@ -786,7 +786,7 @@ describe("namesApart — the names of one chart, together", () => {
   it("two strengths that differ in their first part and their last show both, under two ways of writing the form", () => {
     expect(apart(drugs("Tablet. Edeloss 5 mg+160 mg+12.5 mg", "Tablet Edeloss 10 mg+160 mg+25 mg"), 13)).toEqual([
       ["…Edeloss", "5 mg…12.5 mg"],
-      ["Tablet Edelo…", "10 mg…25 mg"],
+      ["…Edeloss", "10 mg…25 mg"],
     ]);
   });
 
@@ -805,41 +805,60 @@ describe("namesApart — the names of one chart, together", () => {
     const one = "Tablet. Amlodipine + Olmesartan 10 mg+160 mg+12.5 mg";
     expect(apart(drugs(one), 13)[0]).toEqual(["…Amlodipine +", "Olmesartan…"]);
     expect(apart(drugs(one, "Capsule (Enteric Coated). Amlodipine + Olmesartan 10 mg+160 mg+12.5 mg"), 13)[0]).toEqual(["…Amlodipine +", "Olmesartan…"]);
-    // With another strength of it there, the strength has the second line.
+    // A brand longer than a line is not cut for the strength's sake: with
+    // another strength of it on the chart it still keeps the lines it has by
+    // itself (the other bar's label, and the tooltip, say which is which).
     expect(apart(drugs(one, "Capsule (Enteric Coated). Amlodipine + Olmesartan 5 mg+160 mg+12.5 mg"), 13)).toEqual([
-      ["…Amlodipine…", "10 mg+160 mg…"],
+      ["…Amlodipine +", "Olmesartan…"],
       ["Cap… Amlodip…", "5 mg+160 mg+…"],
     ]);
   });
 
-  // ⚕️ Giving the strength the second line cuts the BRAND at its end — and the
-  // end of a brand may be all that tells two medicines apart: "Exforge HCT"
-  // beside "Exforge", "Amlodipine + Atenolol" beside "Amlodipine +
-  // Olmesartan". For one round (on `dev`, never released) the pass took the
-  // line whenever the strings stayed different, and "Tablet Exforg…" stood
-  // over a strength with nothing left to say it was the HCT (ninth review).
-  // A name keeps the lines it has by itself where the rewrite would leave no
-  // more of its brand in sight than it shares with another medicine on the
-  // chart.
-  it("⚕️ the strength does not take the line from the word that tells two MEDICINES apart", () => {
-    // (At fifteen letters the cut leaves "Tablet Exforge…" — all of "Exforge",
-    // and nothing to say whether more follows: no more than the two share.)
-    for (const max of [14, 15]) {
-      expect(apart(drugs("Tablet Exforge HCT 5 mg+160 mg+12.5 mg", "Tablet Exforge HCT 10 mg+160 mg+25 mg", "Tablet Exforge 10 mg+160 mg"), max), `@${max}`).toEqual([
-        ["Tablet Exforge", "HCT 5 mg+…"],
-        ["Tablet Exforge", "HCT 10 mg+…"],
-        ["Tablet Exforge", "10 mg+160 mg"],
-      ]);
-    }
+  // ⚕️ Giving the strength the second line takes it from the END of the brand —
+  // and the end of a brand may be all that says which medicine a bar is:
+  // "Exforge HCT" beside "Exforge", "Amlodipine + Atenolol" beside
+  // "Amlodipine + Olmesartan". For two rounds (on `dev`, never released) the
+  // pass took the line where it judged that nothing was lost, and each review
+  // found a chart where something was: "Tablet Exforg…" for the HCT; then the
+  // same for the plain one, with the HCT beside it; "Oral Solutio…" with no
+  // medicine left at all. The rule is now one that needs no judgement: the
+  // strength has the line only where the new lines show as much of the
+  // medicine's name as the name shows by itself.
+  it("⚕️ the strength takes the second line only where that costs nothing of the medicine's name", () => {
+    // A form word typed with no full stop gives way, so that the brand need not.
+    // (At thirteen letters these two come out the same by themselves, and
+    // are told apart as any two names are — as in the release before.)
+    const hct = drugs("Tablet Exforge HCT 5 mg+160 mg+12.5 mg", "Tablet Exforge HCT 10 mg+160 mg+25 mg", "Tablet Exforge 10 mg+160 mg");
+    expect(apart(hct, 14)).toEqual([
+      ["…Exforge HCT", "5 mg…12.5 mg"],
+      ["…Exforge HCT", "10 mg…25 mg"],
+      ["Tablet Exforge", "10 mg+160 mg"],
+    ]);
+    expect(apart(hct, 15)).toEqual([
+      ["…Exforge HCT", "5 mg…12.5 mg"],
+      ["…Exforge HCT 10", "mg+160 mg+25 mg"], // whole
+      ["Tablet Exforge", "10 mg+160 mg"],
+    ]);
+    // A medicine whose whole name another one begins with is told from it by
+    // where its name ENDS: "…Exforge", with no mark after it, is not the HCT.
+    expect(apart(drugs("Tablet Exforge 12.5 mg+500 mg", "Tablet Exforge 5 mg+160 mg+12.5 mg", "Tablet. Exforge HCT 12.5 mg+500 mg"), 13).slice(0, 2)).toEqual([
+      ["…Exforge 12.5", "mg+500 mg"],
+      ["…Exforge", "5 mg+160 mg+…"],
+    ]);
+    // A brand too long for a line shows more of itself by itself than it
+    // would above a strength: it keeps its lines, and its "Atenolol".
     const atenolol = apart(drugs(...["Olmesartan", "Atenolol"].flatMap((b) => ["5 mg+160 mg+12.5 mg", "50 mg+500 mg"].map((s) => `Tablet. Amlodipine + ${b} ${s}`))), 14)[2];
     expect(atenolol).toEqual(["…Amlodipine +", "Atenolol 5 mg…"]);
-    // A medicine whose WHOLE name another one begins with has nothing to lose
-    // by the cut — by itself it could not be told from the other either.
-    expect(apart(drugs("Tablet. Amlodipine + Olmesartan 5 mg+160 mg+12.5 mg", "Tablet Amlodipine + Olmesartan 5 mg+160 mg+25 mg", "Tablet. Amlodipine + Olmesartan Plus 40 mg"), 14).slice(0, 2).map((l) => l[1])).toEqual(["5 mg…12.5 mg", "5 mg…25 mg"]);
-    // Where the two medicines share nothing the cut could hide, the strength has the line as before.
+    // So does a name behind a form the app cannot set aside — two words, with
+    // no full stop: cut for the strength it read "Oral Solutio…", no medicine.
+    expect(apart(drugs("Oral Solution Diovan 5 mg+160 mg+25 mg", "Oral Solution Diovan 10 mg+160 mg+12.5 mg"), 13)).toEqual([
+      ["Oral Solution", "Diovan 5 mg+…"],
+      ["Oral Solution", "Diovan 10 mg…"],
+    ]);
+    // Where nothing of the name is lost, the strength has the line.
     expect(apart(drugs("Tablet. Edeloss 10 mg+160 mg+12.5 mg", "Tablet Edeloss 10 mg+160 mg+25 mg", "Tablet. Exforge 10 mg+160 mg"), 13).slice(0, 2)).toEqual([
       ["…Edeloss", "10 mg…12.5 mg"],
-      ["Tablet Edelo…", "10 mg…25 mg"],
+      ["…Edeloss", "10 mg…25 mg"],
     ]);
   });
 
@@ -853,6 +872,34 @@ describe("namesApart — the names of one chart, together", () => {
       ["Calbo 1 + 2 +", "Vit-D400 sof…"],
       ["Calbo 1 + 2 +", "Vit-D800 sof…"],
     ]);
+  });
+
+  // The same medicine and strength written two ways are still two names. At
+  // thirteen letters the typed one's strength line would be, letter for
+  // letter, the label its twin already has — so it keeps its own lines, and
+  // the dose is read off the twin.
+  it("the strength does not take the line where that is the label another name already has", () => {
+    expect(apart(drugs("Tablet. Edeloss 10 mg+160 mg+12.5 mg", "Tablet. Edeloss 10 mg+160 mg+25 mg", "Tablet Edeloss 10 mg+160 mg+25 mg"), 13)).toEqual([
+      ["…Edeloss", "10 mg…12.5 mg"],
+      ["…Edeloss", "10 mg…25 mg"],
+      ["Tablet", "Edeloss…"],
+    ]);
+  });
+
+  // …and where two ways of writing ONE medicine and strength would both be
+  // given the same lines, one of them has them — the first by its own name,
+  // whatever the order of the list — and the other keeps its own. Refused to
+  // both, as to two different strengths, neither said 12.5 (seen in a browser
+  // on a made-up chart, before this was committed).
+  it("⚕️ of two ways of writing one medicine and strength, one shows the part that differs from the other strengths", () => {
+    const chart = ["Tablet. Exforge HCT 5 mg+160 mg+12.5 mg", "Tablet. Exforge HCT 5 mg+160 mg+25 mg", "Tablet Exforge HCT 5 mg+160 mg+12.5 mg"];
+    const expected = [
+      ["…Exforge HCT", "5 mg+160 mg+…"],
+      ["…Exforge HCT 5", "mg+160 mg+25 mg"],
+      ["…Exforge HCT", "5 mg…12.5 mg"],
+    ];
+    expect(apart(drugs(...chart), 16)).toEqual(expected);
+    expect(apart(drugs(...[...chart].reverse()), 16)).toEqual([...expected].reverse());
   });
 
   it("the same medicine written with NO strength is no other strength to be told from", () => {
@@ -1468,10 +1515,17 @@ describe("namesApart — counted over fixed pools, at every width from 13 to 20"
   // (eighth review, before release). It is counted now over every way a form
   // is written here: those ten, a form word with no full stop, and none.
   const WRITTEN = [...FORMS, "Tablet ", "Injection ", ""];
+  // ⚕️ Brands that FIT a line. The strength takes the second line only where
+  // that costs nothing of the medicine's name (tenth review), and a brand
+  // longer than a line — "Amlodipine + Olmesartan" written out — shows more of
+  // itself by itself than above a strength: there the dose change stays as
+  // unreadable as in the release before ("…Amlodipine +" over "Olmesartan…"
+  // twice), and that is written down, below, not counted as held.
+  const FITTING = ["Napa", "Edeloss", "Exforge HCT"];
   it("⚕️ two strengths of a medicine, and one of them written another way, are three names — and the other strength never shows the same numbers", () => {
     let charts = 0;
     const wrong: string[] = [];
-    for (let max = 13; max <= 20; max++) for (const brand of ["Edeloss", "Amlodipine + Olmesartan"]) {
+    for (let max = 13; max <= 20; max++) for (const brand of FITTING.slice(1)) {
       for (const f1 of WRITTEN) for (const f2 of WRITTEN) {
         if (f1 === f2) continue;
         for (const s1 of STRENGTHS) for (const s2 of STRENGTHS) {
@@ -1499,7 +1553,7 @@ describe("namesApart — counted over fixed pools, at every width from 13 to 20"
   it("⚕️ two strengths of a medicine under two forms are two names that never show the same numbers", () => {
     let charts = 0;
     const wrong: string[] = [];
-    for (let max = 13; max <= 20; max++) for (const brand of ["Napa", "Edeloss", "Amlodipine + Olmesartan"]) {
+    for (let max = 13; max <= 20; max++) for (const brand of FITTING) {
       for (const f1 of WRITTEN) for (const f2 of WRITTEN) {
         if (f1 === f2) continue;
         for (let s1 = 0; s1 < STRENGTHS.length; s1++) for (let s2 = s1 + 1; s2 < STRENGTHS.length; s2++) {
@@ -1515,14 +1569,14 @@ describe("namesApart — counted over fixed pools, at every width from 13 to 20"
     expect(charts).toBe(340_704);
   }, 600_000);
 
-  // ⚕️ What the strength's line may NOT cost: the word that tells two medicines
-  // apart. Two medicines that begin alike — "Exforge" and "Exforge HCT" — one
-  // of them in two strengths, under every pair of five ways of writing a form.
-  // A name that came out by itself with more of its medicine in sight than the
-  // two share must still have that (ninth review: for one round, on `dev`, the
-  // strength took the line and "Tablet Exforg…" stood for the HCT — worse than
-  // the release before it in one chart in forty of this pool).
-  it("⚕️ a medicine's name is never cut back to what it shares with another medicine on the chart, to make room for a strength", () => {
+  // ⚕️ What the strength's line may NOT cost: anything of the medicine's name.
+  // Two medicines that begin alike — "Exforge" and "Exforge HCT" — one of them
+  // in two strengths (each in turn), under every pair of five ways of writing
+  // a form. A name that was not written again to be told from another shows
+  // as much of its medicine's name, from its start, as it shows by itself
+  // (ninth and tenth reviews: for two rounds, on `dev`, the strength took the
+  // line and "Tablet Exforg…" stood for the HCT, then for the plain one).
+  it("⚕️ a name shows no less of its medicine than it shows by itself, where a strength is given the second line", () => {
     const ALIKE = [["Exforge", "Exforge HCT"], ["Napa Extra", "Napa Extend"], ["Seretide Evohaler", "Seretide Accuhaler"], ["Amlodipine + Olmesartan", "Amlodipine + Atenolol"], ["Calbo", "Calbo-D"], ["Neuro-B", "Neuro-B Forte"], ["Co-Diovan", "Co-Diovan Plus"]];
     const WAYS = ["Tablet. ", "Tablet ", "Tab ", "Capsule (Enteric Coated). ", ""];
     const LONG = ["12.5 mg+500 mg", "12.5 mg+1000 mg", "5 mg+160 mg+12.5 mg", "5 mg+160 mg+25 mg", "10 mg+160 mg+12.5 mg", "10 mg+160 mg+25 mg", "25 mcg+125 mcg", "50 mcg+250 mcg", "10 mg+160 mg", "40 mg"];
@@ -1533,10 +1587,9 @@ describe("namesApart — counted over fixed pools, at every width from 13 to 20"
       return n;
     };
     let charts = 0;
+    let given = 0; // names whose strength was given the line
     const wrong: string[] = [];
-    for (let max = 13; max <= 20; max++) for (const [a, b] of ALIKE) for (const f1 of WAYS) for (const f2 of WAYS) {
-      let shared = 0;
-      while (shared < a.length && shared < b.length && a[shared] === b[shared]) shared++;
+    for (let max = 13; max <= 20; max++) for (const pair of ALIKE) for (const [a, b] of [pair, [pair[1], pair[0]]]) for (const f1 of WAYS) for (const f2 of WAYS) {
       for (let s1 = 0; s1 < LONG.length; s1++) for (let s2 = s1 + 1; s2 < LONG.length; s2++) for (const s3 of [LONG[s1], LONG[9]]) {
         const medicines = [a, a, b];
         const names = [`${f1}${a} ${LONG[s1]}`, `${f1}${a} ${LONG[s2]}`, `${f2}${b} ${s3}`];
@@ -1546,13 +1599,15 @@ describe("namesApart — counted over fixed pools, at every width from 13 to 20"
         names.forEach((name, i) => {
           // (A name that came out the same as another by itself is written again to be told apart: another matter.)
           if (alone.some((other, k) => k !== i && names[k] !== name && other.join("\n") === alone[i].join("\n"))) return;
-          if (inSight(medicines[i], lines[i]) <= shared && shared < inSight(medicines[i], alone[i])) wrong.push(`@${max} ${name}  =>  ${lines[i].join(" / ")}  (by itself: ${alone[i].join(" / ")})`);
+          if (lines[i].join("\n") !== alone[i].join("\n")) given++;
+          if (inSight(medicines[i], lines[i]) < inSight(medicines[i], alone[i])) wrong.push(`@${max} ${name}  =>  ${lines[i].join(" / ")}  (by itself: ${alone[i].join(" / ")})`);
         });
       }
     }
     expect(wrong.slice(0, 5)).toEqual([]);
     expect(wrong).toHaveLength(0);
-    expect(charts).toBe(126_000);
+    expect(charts).toBe(252_000);
+    expect(given).toBeGreaterThan(50_000); // (the rule is not held by never giving the line)
   }, 600_000);
 });
 

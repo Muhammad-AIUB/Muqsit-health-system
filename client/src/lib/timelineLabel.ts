@@ -259,20 +259,31 @@ export function nameLines(name: string, max: number, kind: "drug" | "text"): Nam
 // (`others`; none for a name laid out by itself). They change one thing: where
 // the strength is longer than a line and something of the name has to be left
 // off, the strength has the second line to ITSELF — cut so that what it
-// differs in from those others stays in sight (`strengthFor`) — and the brand
-// gives way on the line above it. By itself a name keeps as much of its brand
-// as two lines hold, and the strength is what is cut, or left off whole
+// differs in from those others stays in sight (`strengthFor`) — with the
+// brand on the line above it. By itself a name keeps as much of its brand as
+// two lines hold, and the strength is what is cut, or left off whole
 // ("…Amlodipine +" over "Olmesartan…"): right for telling two medicines
 // apart, and no use for telling 12.5 from 25. Where the name fits its two
-// lines, nothing changes.
+// lines, nothing changes. (Whether a chart TAKES what this offers is
+// `namesApart`'s to say: not where it would show less of the medicine's name.)
 function layOut(name: string, max: number, kind: "drug" | "text", others: string[]): NameLine[] {
   const text = name.trim();
   if (!text) return [];
   if (text.length <= max) return [{ text }];
   if (kind !== "drug") return wrapTwo(text, max);
 
-  const { before, name: brand, after } = labelParts(text);
-  if (!brand) return wrapTwo(text, max);
+  const parts = labelParts(text);
+  if (!parts.name) return wrapTwo(text, max);
+  // With other strengths to be told from, a form word written with no full
+  // stop after it ("Tablet Edeloss") gives way like any form the app knows
+  // where there is no room for it beside the brand — so that the brand need
+  // not: "…Edeloss", not "Tablet Edelo…". (By itself such a label is laid out
+  // as it always was; `medicineOf` reads it the same.)
+  const typedForm = others.length > 0 && parts.before.trim() === "" && parts.name.length > max ? /^(\S+)\s+(?=\S)/.exec(parts.name) : null;
+  const split = typedForm && KNOWN_FORM.test(typedForm[1]) ? typedForm[0].length : 0;
+  const before = parts.before + parts.name.slice(0, split);
+  const brand = parts.name.slice(split);
+  const after = parts.after;
   const strength = after.trim();
   const head = before.trim();
   const word = head.replace(/\.$/, "");
@@ -698,14 +709,17 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
   // name is laid out once more with the other strengths of its medicine beside
   // it, and keeps that unless it would put it under one name with another.
   //
-  // ⚕️ And unless it would hide which MEDICINE the bar is. The strength takes
-  // its line from the end of the brand, and the end of a brand may be all that
-  // tells two medicines apart — "Exforge HCT" beside "Exforge", "Amlodipine +
-  // Atenolol" beside "Amlodipine + Olmesartan". Where no more of the brand
-  // would be left in sight than it shares with another medicine on the chart,
-  // and the name by itself shows more, it keeps the lines it has by itself
-  // (ninth review; the two strings would still have differed).
-  // How much of its medicine's name — from its start — a name's lines show.
+  // ⚕️ And only where it costs NOTHING of the medicine's name. The strength
+  // takes its line from the end of the brand, and the end of a brand may be
+  // all that says which medicine a bar is — "Exforge HCT" beside "Exforge",
+  // "Amlodipine + Atenolol" beside "Amlodipine + Olmesartan"; or the brand may
+  // be all that is cut, behind a form the app cannot set aside ("Oral
+  // Solutio…" for Oral Solution Diovan). Two rounds of review each found
+  // another way a dose told apart had cost the medicine (ninth and tenth, on
+  // `dev`, before release), and a rule for "what the two medicines share" had
+  // a hole each time. So the rule is the one that needs no judgement: a name
+  // keeps the lines it has by itself unless the new ones show as much of its
+  // medicine's name, from its start, as those did.
   const medicineInSight = (i: number, ls: NameLine[]) => {
     const medicine = medicineNames[i] ?? "";
     const written = ls.map((l) => l.text).join(" ");
@@ -713,30 +727,37 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
     while (n > 0 && (/\s/.test(medicine[n - 1]) || !written.includes(medicine.slice(0, n)))) n--; // (a space is not a letter of it)
     return n;
   };
-  const hidesItsMedicine = (i: number, again: NameLine[]) => {
-    const mine = medicines[i] ?? "";
-    const left = medicineInSight(i, again);
-    const before = medicineInSight(i, alone[i]);
-    return medicines.some((theirs) => {
-      if (theirs === null || theirs === mine) return false;
-      let shared = 0;
-      while (shared < mine.length && shared < theirs.length && mine[shared] === theirs[shared]) shared++;
-      return left <= shared && shared < before;
-    });
-  };
   const settled = lines;
+  // (A name still drawn the same as another has more to gain than its brand
+  // has to lose: there the line is taken as any way of telling two names
+  // apart is, whatever it costs the name.)
+  const stillAlike = (i: number) => texts.some((t, k) => t !== texts[i] && shown(settled[k]) === shown(settled[i]));
   const again = texts.map((_, i) => {
     if (shown(settled[i]) !== shown(alone[i])) return null; // written again already, to be told apart
     const a = layOut(names[i].name, max, names[i].kind, others(i)); // (no others for what is not a medicine)
-    return shown(a) === shown(alone[i]) || hidesItsMedicine(i, a) ? null : a;
+    if (shown(a) === shown(alone[i])) return null;
+    return medicineInSight(i, a) < medicineInSight(i, alone[i]) && !stillAlike(i) ? null : a;
   });
   // Kept only where it is no OTHER name's lines — as they stand, or as they
-  // would be written again. Asked of every name the same way, so the answer
-  // does not depend on the order of the list, or of anything else.
+  // would be written again: two strengths that would read the same that way
+  // are both better off as they are. Asked of every name the same way, so the
+  // answer does not depend on the order of the list.
+  //
+  // One case is not refused to both. Two ways of writing ONE medicine and
+  // strength ("Tablet." picked, "Tablet" typed) are offered the very same
+  // lines, and rightly; refused to both, neither showed the part that tells
+  // them from the other strengths. One of them has the lines — the first by
+  // its own name — and the other keeps its own.
+  const twins = (i: number, k: number) => medicines[i] !== null && medicines[i] === medicines[k] && parts[i]?.after.trim() === parts[k]?.after.trim();
   return settled.map((l, i) => {
     const a = again[i];
     if (!a) return l;
-    const taken = texts.some((t, k) => t !== texts[i] && (shown(settled[k]) === shown(a) || (again[k] !== null && shown(again[k]!) === shown(a))));
+    const taken = texts.some((t, k) => {
+      if (t === texts[i]) return false;
+      if (shown(settled[k]) === shown(a)) return true;
+      if (again[k] === null || shown(again[k]!) !== shown(a)) return false;
+      return !twins(i, k) || t < texts[i];
+    });
     return taken ? l : a;
   });
 }
