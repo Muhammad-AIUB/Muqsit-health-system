@@ -8,7 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 const all = vi.hoisted(() => vi.fn());
@@ -31,7 +31,10 @@ beforeEach(() => {
   all.mockReset();
   qc = new QueryClient({ defaultOptions: { queries: { retryDelay: 1 } } });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  onlineManager.setOnline(true);
+});
 
 const inApp = (ui: ReactElement) => <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
 const box = (over: Partial<{ workstationId: string | null; onAdd: (items: RxItem[], summary: string) => void }> = {}) =>
@@ -55,10 +58,53 @@ describe("BulkMedicineBox — the box with its list", () => {
     expect(dialog().textContent).toContain("1 medicine could not be read and is not listed.");
   });
 
-  it("an answer that is not a list at all is an empty box, never a crash", async () => {
-    all.mockResolvedValue("<html>502 Bad Gateway</html>");
+  // ⚕️ First review, before release. Each of the next three was drawn as "No
+  // medicines yet — they appear here after you save prescriptions", to a doctor
+  // with years of prescriptions.
+  it.each([
+    ["nothing at all (an empty answer)", undefined],
+    ["something that is not the list", { message: "ok" }],
+    ["a list that is not a list", { medicines: null }],
+  ])("⚕️ an answer that is %s is a failure to load — said, never an empty history", async (_what, answer) => {
+    all.mockResolvedValue(answer);
     render(inApp(box()));
-    await waitFor(() => expect(dialog().textContent).toContain("No medicines yet"));
+    await waitFor(() => expect(within(dialog()).queryByRole("alert")).not.toBeNull());
+    expect(dialog().textContent).toContain("Your medicines could not be loaded.");
+    expect(dialog().textContent).not.toContain("No medicines yet");
+  });
+
+  it("⚕️ with the connection gone the box still ASKS, and says it could not load — it does not sit as an empty history", async () => {
+    // React Query holds a request back while the browser says it is offline:
+    // nothing is fetching, nothing has failed, and nothing is there.
+    onlineManager.setOnline(false);
+    all.mockRejectedValue(new TypeError("Failed to fetch"));
+    render(inApp(box()));
+    expect(dialog().textContent).not.toContain("No medicines yet");
+    await waitFor(() => expect(within(dialog()).queryByRole("alert")).not.toBeNull());
+    expect(all).toHaveBeenCalled();
+    expect(dialog().textContent).toContain("Your medicines could not be loaded.");
+    expect(dialog().textContent).toContain("Check your internet connection and try again.");
+    expect(dialog().textContent).not.toContain("Failed to fetch");
+    expect(dialog().textContent).not.toContain("No medicines yet");
+  });
+
+  it("⚕️ Try again pressed with the connection still gone ends on 'could not be loaded' again, never on an empty history", async () => {
+    all.mockRejectedValue(new TypeError("Failed to fetch"));
+    render(inApp(box()));
+    await waitFor(() => expect(within(dialog()).queryByRole("alert")).not.toBeNull());
+    onlineManager.setOnline(false);
+    const asked = all.mock.calls.length;
+    fireEvent.click(within(dialog()).getByRole("button", { name: /Try again/ }));
+    await waitFor(() => expect(all.mock.calls.length).toBeGreaterThan(asked));
+    await waitFor(() => expect(within(dialog()).queryByRole("alert")).not.toBeNull());
+    expect(dialog().textContent).not.toContain("No medicines yet");
+  });
+
+  it("rows the SERVER could not read are counted in the box's notice with its own", async () => {
+    all.mockResolvedValue({ medicines: [NAPA, { ...ACE, contLines: "x" }], truncated: false, unreadable: 2 });
+    render(inApp(box()));
+    await waitFor(() => expect(names()).toEqual(["Tablet. Napa 500 mg"]));
+    expect(dialog().textContent).toContain("3 medicines could not be read and are not listed.");
   });
 
   it("⚕️ a failure is said, after one quiet retry — and Try again asks the server again", async () => {

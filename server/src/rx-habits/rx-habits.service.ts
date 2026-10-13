@@ -112,6 +112,12 @@ export interface HabitMedicineList {
   medicines: HabitMedicine[];
   /** The doctor has more medicines than the cap; the most used are returned. */
   truncated: boolean;
+  /**
+   * Medicines left out because their row could not be read. The box says the
+   * number: a medicine that is silently not there reads as one never
+   * prescribed.
+   */
+  unreadable: number;
 }
 
 const MAX_PER_MEDICINE = 3; // 5.docx: "1ta osudh er max 3tar beshi suggestion thakbe na"
@@ -120,7 +126,7 @@ const MAX_HIDDEN_PER_MEDICINE = 20; // bounded payload; hiddenCount is the true 
 const MIN_QUERY = 2; // mirrors useMedicineSearch
 const MAX_ALL_MEDICINES = 2000; // the bulk list; `truncated` says when it bit
 const GENERIC_CHUNK = 25; // brand prefixes per catalogue query
-const GENERIC_CHUNK_ROWS = 5000; // rows per catalogue query; logged if reached
+const GENERIC_ROW_CAP = 5000; // an answer with more rows than this is asked again in halves
 
 /** Raw row shape returned by the windowed lookup. */
 interface LookupRow {
@@ -137,6 +143,18 @@ interface LookupRow {
   hidden: boolean;
   hiddenCount: number;
 }
+
+/** One row of the raw `medicines` catalogue, as the generic lookup reads it. */
+interface CatalogueRow {
+  brandName: string;
+  genericName: string | null;
+  dosageForm: string | null;
+  strength: string | null;
+}
+
+// Two spellings of one generic — a capital, a space — are one generic.
+const sameGeneric = (a: string, b: string): boolean =>
+  a.replace(/\s+/g, ' ').trim().toLowerCase() === b.replace(/\s+/g, ' ').trim().toLowerCase();
 
 /** Raw row shape returned by the whole-list query. */
 interface AllRow {
@@ -514,7 +532,7 @@ export class RxHabitsService implements OnModuleInit {
     }
     // A group left with nothing to show and nothing to restore is not a group.
     const out = [...groups.values()].filter((g) => g.items.length > 0 || g.hiddenCount > 0);
-    await this.attachGenerics(out);
+    await this.attachGenerics(out, 'ignore');
     return out;
   }
 
@@ -527,10 +545,17 @@ export class RxHabitsService implements OnModuleInit {
    * are left out BEFORE that choice, so a dose the doctor hid never hides the
    * next one — and a medicine whose doses are all hidden is not listed.
    *
-   * ⚠️ UNLIKE `list()`, THIS THROWS. The dropdown is silent on failure by
-   * design: it sits under a working medicine search. This is a box the doctor
-   * opened on purpose, and "your medicines could not be loaded" must not look
-   * like "you have prescribed nothing".
+   * ⚠️ UNLIKE `list()`, THIS THROWS — when the habits cannot be read, and also
+   * when the catalogue cannot be asked for their generics (see
+   * `attachGenerics`). The dropdown is silent on failure by design: it sits
+   * under a working medicine search. This is a box the doctor opened on
+   * purpose, and "your medicines could not be loaded" must not look like "you
+   * have prescribed nothing".
+   *
+   * A medicine whose chosen row cannot be read is left out and COUNTED
+   * (`unreadable`). The dropdown would offer that medicine's next instruction
+   * instead; here one row stands for the medicine, so it is not listed — and
+   * the box says how many are not.
    */
   async listAll(doctorId: string): Promise<HabitMedicineList> {
     const rows = await this.prisma.$queryRaw<AllRow[]>`
@@ -551,11 +576,13 @@ export class RxHabitsService implements OnModuleInit {
     `;
 
     const medicines: HabitMedicine[] = [];
+    let unreadable = 0;
     for (const r of rows.slice(0, MAX_ALL_MEDICINES)) {
       // Dropped WHOLE, as in the dropdown: half a taper is worse than none.
       const contLines = sanitiseContLines(r.contLines);
       if (contLines === null) {
         this.log.warn(`habit ${r.id} has unreadable contLines — left out of the bulk list`);
+        unreadable++;
         continue;
       }
       medicines.push({
@@ -570,8 +597,8 @@ export class RxHabitsService implements OnModuleInit {
         lastUsedAt: r.lastUsedAt,
       });
     }
-    await this.attachGenerics(medicines);
-    return { medicines, truncated: rows.length > MAX_ALL_MEDICINES };
+    await this.attachGenerics(medicines, 'throw');
+    return { medicines, truncated: rows.length > MAX_ALL_MEDICINES, unreadable };
   }
 
   /**
@@ -603,17 +630,36 @@ export class RxHabitsService implements OnModuleInit {
    * the raw label, which differs on a space ("0.5 mg"), a case, or a dropped
    * "n/a".
    *
-   * Asked in CHUNKS of brand prefixes (2026-10-13). The dropdown has at most
-   * four medicines and so asks once; the bulk list has hundreds, and one query
-   * with one row cap would let the first brands crowd the last ones out of it —
-   * silently, at the cost of a contraindication warning. What was found before
-   * a failed chunk is still attached.
+   * Asked in CHUNKS of brand prefixes (2026-10-13): the dropdown has at most
+   * four medicines and asks once, the bulk list has hundreds. And no answer is
+   * taken that came back FULL (`catalogueRows`): a row cap that bites drops
+   * whichever brands the database happened to reach last, silently, at the
+   * cost of a contraindication warning.
    *
-   * Never allowed to fail the lookup: without a generic the line behaves
-   * exactly like a hand-typed brand, which is the already-documented state.
+   * `onFailure` is the caller's, because the two callers are not in the same
+   * position:
+   *   · `'ignore'` — `list()`, the dropdown. Without a generic the suggestion
+   *     behaves like a hand-typed brand, and the ℞ pad looks the generic up
+   *     again in the medicine results it has loaded (`resolveGeneric` on the
+   *     client). The lookup must never cost the doctor the suggestion.
+   *   · `'throw'` — `listAll()`, the "Add Bulk Medicine" box. There is no second
+   *     source there. Offered without the generic the catalogue holds for it, a
+   *     medicine goes onto the pad with its warning switched off — several
+   *     lines at once, and nothing on screen to say so. The box says "could not
+   *     be loaded" instead, and Try again asks the catalogue again.
+   *
+   * ⚠️ WHERE THE CATALOGUE LISTS ONE MEDICINE UNDER TWO GENERICS (the same
+   * form, brand and strength), the first is used, as it always was — the first
+   * by NAME now, where it was whichever row the database returned first, so the
+   * same medicine gets the same generic on every request — and the log says how
+   * many such medicines there were. Whether to
+   * attach neither is not decided here: it changes which warnings fire in the
+   * dropdown too, and needs a look at the real catalogue first
+   * (FUNCTIONAL-AUDIT.md).
    */
   private async attachGenerics(
     targets: { drugKey: string; drugLabel: string; generic?: string }[],
+    onFailure: 'ignore' | 'throw',
   ): Promise<void> {
     if (targets.length === 0) return;
     // The brand is the leading token of the search key ("barcavir 0.5mg" →
@@ -628,39 +674,70 @@ export class RxHabitsService implements OnModuleInit {
       ),
     ];
     if (prefixes.length === 0) return;
+
     const byKey = new Map<string, string>();
+    const twoGenerics = new Set<string>();
     try {
       for (let i = 0; i < prefixes.length; i += GENERIC_CHUNK) {
-        const chunk = prefixes.slice(i, i + GENERIC_CHUNK);
-        // `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md).
-        // Bound parameter, so the doctor's own text can never reach the SQL.
-        const rows = await this.prisma.$queryRawUnsafe<
-          { brandName: string; genericName: string | null; dosageForm: string | null; strength: string | null }[]
-        >(
-          `SELECT "brandName", "genericName", "dosageForm", strength
-           FROM medicines
-           WHERE "brandName" ILIKE ANY($1::text[])
-           LIMIT ${GENERIC_CHUNK_ROWS}`,
-          chunk,
-        );
-        if (rows.length >= GENERIC_CHUNK_ROWS) {
-          this.log.warn(
-            `generic lookup reached its row cap for ${chunk.length} brands — some may carry no generic`,
-          );
-        }
-        for (const m of rows) {
+        for (const m of await this.catalogueRows(prefixes.slice(i, i + GENERIC_CHUNK))) {
           if (!m.genericName) continue;
           const k = normaliseDrugKey(fmtMedicine(m));
-          if (k && !byKey.has(k)) byKey.set(k, m.genericName);
+          if (!k) continue;
+          const had = byKey.get(k);
+          if (had === undefined) byKey.set(k, m.genericName);
+          else if (!sameGeneric(had, m.genericName)) twoGenerics.add(k);
         }
       }
     } catch (e) {
+      if (onFailure === 'throw') throw e;
       this.log.warn(`generic lookup failed for ${prefixes.length} brands: ${String(e)}`);
+      return;
     }
+
+    let ambiguous = 0;
     for (const g of targets) {
       const generic = byKey.get(g.drugKey);
-      if (generic) g.generic = generic;
+      if (!generic) continue;
+      g.generic = generic;
+      if (twoGenerics.has(g.drugKey)) ambiguous++;
     }
+    if (ambiguous > 0) {
+      this.log.warn(
+        `${ambiguous} medicine${ambiguous === 1 ? '' : 's'} listed in the catalogue under more than one generic — the first by name was used`,
+      );
+    }
+  }
+
+  /**
+   * Every catalogue row of these brand prefixes — ALL of them.
+   *
+   * An answer that comes back full is not used: it holds whichever brands the
+   * database reached first, and the rest are simply missing. It is asked again
+   * in halves; and for ONE prefix that overflows by itself there is nothing
+   * left to halve, so that one is asked without a cap — bounded by the
+   * catalogue, which is a table of medicines, not of patients.
+   *
+   * `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md). The
+   * prefixes are a BOUND parameter, so the doctor's own text can never reach
+   * the SQL; the cap is this file's own constant.
+   */
+  private async catalogueRows(prefixes: string[]): Promise<CatalogueRow[]> {
+    const ask = (capped: boolean) =>
+      this.prisma.$queryRawUnsafe<CatalogueRow[]>(
+        `SELECT "brandName", "genericName", "dosageForm", strength
+         FROM medicines
+         WHERE "brandName" ILIKE ANY($1::text[])
+         ORDER BY "brandName", "dosageForm", strength, "genericName"${capped ? `\n         LIMIT ${GENERIC_ROW_CAP + 1}` : ''}`,
+        prefixes,
+      );
+    const rows = await ask(true);
+    if (rows.length <= GENERIC_ROW_CAP) return rows;
+    if (prefixes.length === 1) return ask(false);
+    const half = Math.ceil(prefixes.length / 2);
+    return [
+      ...(await this.catalogueRows(prefixes.slice(0, half))),
+      ...(await this.catalogueRows(prefixes.slice(half))),
+    ];
   }
 
   // ── Hide / unhide ─────────────────────────────────────────────────────────

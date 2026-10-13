@@ -16,6 +16,12 @@ import type { RxItem } from "@/types";
 // the next one's prescription. So when the patient changes the box closes —
 // in the same render, not an effect later — and what the last Add said goes
 // with it. It does not come back if the editor returns to the first patient.
+//
+// This tells patients apart by their id, so it cannot tell apart two pads that
+// have none. It does not have to: the editor is closed to writing until a
+// patient with an id is chosen (`PatientGate`), and the column this sits in is
+// redrawn when that gate opens or closes. A caller that shows this over a pad
+// with no patient id would need another signal.
 
 interface Props {
   /** The patient whose pad this is; null while the editor holds none. */
@@ -58,12 +64,18 @@ export default function BulkMedicineButton({ patientId, workstationId, allowed, 
         title={allowed ? "Add Bulk Medicine" : "View only — you don't have access to edit medicines"}
         disabled={!allowed}
         onClick={() => { setSaid(""); setOpen(true); }}
+        // Add hands the focus back here. Enter still held down from pressing
+        // Add would press this again and again — the box back open over the
+        // lines just added, and the line that says what was added wiped. A key
+        // that is being HELD presses nothing; a fresh press does.
+        onKeyDown={(e) => { if (e.repeat && (e.key === "Enter" || e.key === " ")) e.preventDefault(); }}
         onMouseEnter={(e) => { if (allowed) { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; } }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}
         style={{ width: 20, height: 20, padding: 0, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: allowed ? C.pri[400] : C.n[400], fontSize: 14, lineHeight: 1, cursor: allowed ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: font }}
       >+</button>
-      {/* What the last Add did, until the next press or the next patient. */}
-      <span role="status" aria-label="Add Bulk Medicine result" style={{ fontSize: 11, color: C.pri[600] }}>{said}</span>
+      {/* What the last Add did, until the next press or the next patient.
+          Something DONE, so in the colour of done (`C.ok`), not of the brand. */}
+      <span role="status" aria-label="Add Bulk Medicine result" style={{ fontSize: 11, color: C.ok[600] }}>{said}</span>
       {/* Mounted only while open: every opening asks for the list again. */}
       {showing && (
         <BulkMedicineBox

@@ -356,14 +356,22 @@ describe('RxHabitsService.listAll — the "Add Bulk Medicine" list', () => {
     expect(out.medicines[1].contLines).toEqual([{ dose: '1+0+0', food: 'After meal', duration: '5 days' }]);
   });
 
-  it('⚕️ drops a medicine whose tapering lines cannot be read — whole, never half a taper', async () => {
+  it('⚕️ drops a medicine whose tapering lines cannot be read — whole, never half a taper — and COUNTS it', async () => {
     const { svc } = svcWith([
       row({ id: 'bad', contLines: [{ dose: '1+0+0' }] }),
       row({ id: 'h2', drugKey: 'tablet. ace 500mg', drugLabel: 'Tablet. Ace 500 mg' }),
+      row({ id: 'bad2', drugKey: 'tablet. odd 5mg', drugLabel: 'Tablet. Odd 5 mg', contLines: 'not a list' }),
     ]);
     const out = await svc.listAll('doc_1');
     expect(out.medicines.map((m) => m.id)).toEqual(['h2']);
+    // The box says "2 medicines could not be read and are not listed": a
+    // medicine that silently is not there reads as one never prescribed.
+    expect(out.unreadable).toBe(2);
     expect(warn).toHaveBeenCalled();
+  });
+
+  it('counts none left out when every row was read', async () => {
+    expect((await svcWith([row()]).svc.listAll('doc_1')).unreadable).toBe(0);
   });
 
   it('says so when the doctor has more medicines than the cap, and returns the cap', async () => {
@@ -375,45 +383,130 @@ describe('RxHabitsService.listAll — the "Add Bulk Medicine" list', () => {
     expect(out.medicines).toHaveLength(2000);
   });
 
-  it('⚕️ attaches the generic to every medicine, asking the catalogue in chunks', async () => {
-    const habits = Array.from({ length: 60 }, (_, i) =>
-      row({ id: `h${i}`, drugKey: `tablet. brand${i} 5mg`, drugLabel: `Tablet. Brand${i} 5 mg` }),
+  // ── The generic ───────────────────────────────────────────────────────────
+  // A catalogue that answers each question with the rows of the brands it was
+  // asked for — so a test can tell a chunk that was asked from one that was not.
+  const brands = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      row({ id: `h${i}`, drugKey: `tablet. brand${i}x 5mg`, drugLabel: `Tablet. Brand${i}x 5 mg` }),
     );
-    const { svc, $queryRawUnsafe } = svcWith(habits, [
-      { brandName: 'Brand59', genericName: 'Lastgeneric', dosageForm: 'Tablet', strength: '5 mg' },
-      { brandName: 'Brand0', genericName: 'Firstgeneric', dosageForm: 'Tablet', strength: '5 mg' },
-    ]);
+  const catalogueRow = (prefix: string) => {
+    const n = /^brand(\d+)x%$/.exec(prefix)?.[1];
+    return { brandName: `Brand${n}x`, genericName: `Generic${n}`, dosageForm: 'Tablet', strength: '5 mg' };
+  };
+  const answering = ($queryRawUnsafe: jest.Mock, answer: (sql: string, prefixes: string[]) => unknown[] | Error) =>
+    $queryRawUnsafe.mockImplementation((sql: string, prefixes: string[]) => {
+      const a = answer(sql, prefixes);
+      return a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
+    });
+
+  it('⚕️ attaches ITS OWN generic to every medicine, asking the catalogue in chunks', async () => {
+    const { svc, $queryRawUnsafe } = svcWith(brands(60));
+    answering($queryRawUnsafe, (_sql, prefixes) => prefixes.map(catalogueRow));
     const out = await svc.listAll('doc_1');
     expect($queryRawUnsafe).toHaveBeenCalledTimes(3); // 25 + 25 + 10 brands
-    const asked = $queryRawUnsafe.mock.calls.flatMap((c) => c[1] as string[]);
-    expect(new Set(asked).size).toBe(60);
-    expect(out.medicines[0].generic).toBe('Firstgeneric');
-    expect(out.medicines[59].generic).toBe('Lastgeneric');
-    expect(out.medicines[1].generic).toBeUndefined();
+    expect($queryRawUnsafe.mock.calls.map((c) => (c[1] as string[]).length)).toEqual([25, 25, 10]);
+    // Every one of the sixty — a generic from the first chunk only, or the same
+    // one on every medicine, would not pass.
+    expect(out.medicines.map((m) => m.generic)).toEqual(Array.from({ length: 60 }, (_, i) => `Generic${i}`));
   });
 
-  it('keeps the generics already found when a LATER chunk of the catalogue fails', async () => {
-    const habits = Array.from({ length: 30 }, (_, i) =>
-      row({ id: `h${i}`, drugKey: `tablet. brand${i} 5mg`, drugLabel: `Tablet. Brand${i} 5 mg` }),
-    );
-    const { svc, $queryRawUnsafe } = svcWith(habits, []);
-    $queryRawUnsafe
-      .mockResolvedValueOnce([{ brandName: 'Brand0', genericName: 'Firstgeneric', dosageForm: 'Tablet', strength: '5 mg' }])
-      .mockRejectedValueOnce(new Error('connection lost'));
+  it('a medicine the catalogue does not have carries no generic — the state of a hand-typed brand', async () => {
+    const { svc, $queryRawUnsafe } = svcWith(brands(3));
+    answering($queryRawUnsafe, (_sql, prefixes) => prefixes.filter((p) => p !== 'brand1x%').map(catalogueRow));
+    expect((await svc.listAll('doc_1')).medicines.map((m) => m.generic)).toEqual(['Generic0', undefined, 'Generic2']);
+  });
+
+  // ⚕️ `list()` may lose a generic to a failed lookup: the ℞ pad then looks it
+  // up again in the medicine results it has loaded (`resolveGeneric`). The box
+  // has no such second source. A medicine offered here without the generic the
+  // catalogue holds for it is a contraindication warning that does not fire,
+  // on several lines at once, with nothing on screen to say so.
+  it('⚕️ THROWS when the catalogue cannot be asked — a medicine is not offered here without the generic its warnings need', async () => {
+    await expect(svcWith([row()], new Error('medicines unreachable')).svc.listAll('doc_1')).rejects.toThrow('medicines unreachable');
+  });
+
+  it('⚕️ …also when it is a LATER chunk that fails: half the list with generics is not a list', async () => {
+    const { svc, $queryRawUnsafe } = svcWith(brands(60));
+    let asked = 0;
+    answering($queryRawUnsafe, (_sql, prefixes) => (++asked === 3 ? new Error('connection lost') : prefixes.map(catalogueRow)));
+    await expect(svc.listAll('doc_1')).rejects.toThrow('connection lost');
+  });
+
+  it('⚕️ an answer that comes back FULL is asked again in halves — no brand is crowded out by the row cap', async () => {
+    const { svc, $queryRawUnsafe } = svcWith(brands(6));
+    const filler = Array.from({ length: 5001 }, () => ({ brandName: 'Fillerbrand', genericName: 'Filler', dosageForm: 'Tablet', strength: '1 mg' }));
+    // Asked for more than two brands at once, the catalogue has more rows than fit.
+    answering($queryRawUnsafe, (_sql, prefixes) => (prefixes.length > 2 ? filler : prefixes.map(catalogueRow)));
     const out = await svc.listAll('doc_1');
-    expect(out.medicines).toHaveLength(30);
-    expect(out.medicines[0].generic).toBe('Firstgeneric');
-    expect(warn).toHaveBeenCalled();
+    expect(out.medicines.map((m) => m.generic)).toEqual(['Generic0', 'Generic1', 'Generic2', 'Generic3', 'Generic4', 'Generic5']);
+    expect($queryRawUnsafe.mock.calls.every((c) => /LIMIT 5001/.test(c[0] as string))).toBe(true);
   });
 
-  it('still returns the list when the generic lookup FAILS — the medicine then behaves like a hand-typed brand', async () => {
-    const out = await svcWith([row()], new Error('medicines unreachable')).svc.listAll('doc_1');
-    expect(out.medicines).toHaveLength(1);
-    expect(out.medicines[0].generic).toBeUndefined();
-    expect(warn).toHaveBeenCalled();
+  it('⚕️ ONE brand whose rows alone overflow is asked for without a cap — bounded by the catalogue itself', async () => {
+    const { svc, $queryRawUnsafe } = svcWith(brands(1));
+    const filler = Array.from({ length: 5001 }, () => ({ brandName: 'Brand0xtra', genericName: 'Other', dosageForm: 'Syrup', strength: '1 mg' }));
+    answering($queryRawUnsafe, (sql, prefixes) => (/LIMIT/.test(sql) ? filler : [...filler, ...prefixes.map(catalogueRow)]));
+    const out = await svc.listAll('doc_1');
+    expect(out.medicines[0].generic).toBe('Generic0');
+    expect($queryRawUnsafe).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks in a stated order, so the same medicine is given the same generic on every request', async () => {
+    const { svc, $queryRawUnsafe } = svcWith(brands(1));
+    answering($queryRawUnsafe, (_sql, prefixes) => prefixes.map(catalogueRow));
+    await svc.listAll('doc_1');
+    expect($queryRawUnsafe.mock.calls[0][0]).toMatch(/ORDER BY "brandName", "dosageForm", strength, "genericName"/);
+  });
+
+  it('says so in the log when the catalogue lists one medicine under two different generics', async () => {
+    const { svc, $queryRawUnsafe } = svcWith(brands(2));
+    answering($queryRawUnsafe, () => [
+      { brandName: 'Brand0x', genericName: 'Firstgeneric', dosageForm: 'Tablet', strength: '5 mg' },
+      { brandName: 'Brand0x', genericName: 'Secondgeneric', dosageForm: 'Tablet', strength: '5 mg' },
+      // The same generic twice — another company, another spelling of the case — is not two.
+      { brandName: 'Brand1x', genericName: 'Samegeneric', dosageForm: 'Tablet', strength: '5 mg' },
+      { brandName: 'Brand1x', genericName: ' samegeneric ', dosageForm: 'Tablet', strength: '5 mg' },
+    ]);
+    const out = await svc.listAll('doc_1');
+    expect(out.medicines.map((m) => m.generic)).toEqual(['Firstgeneric', 'Samegeneric']);
+    const said = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('more than one generic'));
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain('1 medicine');
   });
 
   it('THROWS when the list itself cannot be read — a box the doctor opened must be able to say so', async () => {
     await expect(svcWith(new Error('connection lost')).svc.listAll('doc_1')).rejects.toThrow('connection lost');
+  });
+});
+
+// The dropdown shares the catalogue lookup. What changed under it on 2026-10-13
+// must not have changed what it does when the lookup FAILS: it stays silent.
+describe('RxHabitsService.list — still silent where listAll is loud', () => {
+  const habitRow = {
+    id: 'h1', drugKey: 'tablet. barcavir 0.5mg', drugLabel: 'Tablet. Barcavir 0.5 mg',
+    dose: '1+0+0', food: '', duration: 'Continue', contLines: [],
+    patientCount: 1, lastUsedAt: new Date(), pinned: false, hidden: false, hiddenCount: 0,
+  };
+
+  it('a failed catalogue lookup still returns the suggestions, without a generic', async () => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const svc = new RxHabitsService({
+      $queryRaw: jest.fn().mockResolvedValue([habitRow]),
+      $queryRawUnsafe: jest.fn().mockRejectedValue(new Error('medicines unreachable')),
+    } as unknown as PrismaService);
+    const groups = await svc.list('doc_1', 'barcavir');
+    expect(groups).toHaveLength(1);
+    expect(groups[0].generic).toBeUndefined();
+    jest.restoreAllMocks();
+  });
+
+  it('an answer that comes back full is asked again here too, so a broad prefix no longer costs the generic', async () => {
+    const filler = Array.from({ length: 5001 }, () => ({ brandName: 'Barxyz', genericName: 'Other', dosageForm: 'Syrup', strength: '1 mg' }));
+    const $queryRawUnsafe = jest.fn().mockImplementation((sql: string) =>
+      Promise.resolve(/LIMIT/.test(sql) ? filler : [...filler, { brandName: 'Barcavir', genericName: 'Entecavir', dosageForm: 'Tablet', strength: '0.5 mg' }]),
+    );
+    const svc = new RxHabitsService({ $queryRaw: jest.fn().mockResolvedValue([habitRow]), $queryRawUnsafe } as unknown as PrismaService);
+    expect((await svc.list('doc_1', 'barcavir'))[0].generic).toBe('Entecavir');
   });
 });

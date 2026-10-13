@@ -169,6 +169,21 @@ describe("BulkMedicineModal", () => {
     expect((onAdd.mock.calls[0][0] as RxItem[]).map((it) => it.drug)).toEqual(["Tablet. Napa 500 mg", "Capsule. Sergel 20 mg"]);
   });
 
+  it("⚕️ the footer says how many of the ticks a search has put out of sight — they will be added all the same", () => {
+    const { box } = open(loaded([NAPA, SERGEL, DELTA]));
+    tick(box, "Capsule. Sergel 20 mg");
+    tick(box, "Tablet. Deltasone 5 mg");
+    expect(box.textContent).toContain("2 selected");
+    expect(box.textContent).not.toContain("not shown");
+    fireEvent.change(searchBox(box), { target: { value: "napa" } });
+    expect(box.textContent).toContain("2 selected · 2 not shown by this search");
+    tick(box, "Tablet. Napa 500 mg");
+    expect(box.textContent).toContain("3 selected · 2 not shown by this search");
+    fireEvent.change(searchBox(box), { target: { value: "" } });
+    expect(box.textContent).toContain("3 selected");
+    expect(box.textContent).not.toContain("not shown");
+  });
+
   it("a search that matches nothing says so, and finds a medicine by its generic", () => {
     const { box } = open(loaded([NAPA, SERGEL]));
     fireEvent.change(searchBox(box), { target: { value: "zzz" } });
@@ -215,6 +230,41 @@ describe("BulkMedicineModal", () => {
     expect(box.textContent).not.toContain("already on ℞");
   });
 
+  // ⚕️ First review, before release: with Deltasone on the pad WITHOUT a taper,
+  // ticking the box's Deltasone (which has one) said "already on ℞ with the
+  // same instruction". Its taper was not on the prescription.
+  describe("a tapering medicine whose first line is already on the pad", () => {
+    const head: RxItem = { drug: "Tablet. Deltasone 5 mg", dose: "2+0+0", duration: "5 days", instruction: "After meal", isCont: false };
+    const taper: RxItem = { drug: "", dose: "1+0+0", duration: "5 days", instruction: "After meal", isCont: true };
+
+    it("ticked alone, with no taper on the pad: nothing is added, and the box does NOT say 'the same instruction'", () => {
+      const { box, onAdd, onClose } = open(loaded([DELTA]), [head]);
+      tick(box, "Tablet. Deltasone 5 mg");
+      fireEvent.click(addButton(box));
+      expect(onAdd).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(box.textContent).toContain("its tapering lines there are not the ones shown here");
+      expect(box.textContent).not.toContain("same instruction");
+    });
+
+    it("ticked alone, with the same taper on the pad: it IS the same instruction, and the box says so", () => {
+      const { box } = open(loaded([DELTA]), [head, taper]);
+      tick(box, "Tablet. Deltasone 5 mg");
+      fireEvent.click(addButton(box));
+      expect(box.textContent).toContain("already on ℞ with the same instruction");
+    });
+
+    it("ticked with others: the rest are added, its lines are not, and the result says its tapering lines differ", () => {
+      const { box, onAdd } = open(loaded([NAPA, DELTA]), [head]);
+      tick(box, "Tablet. Napa 500 mg");
+      tick(box, "Tablet. Deltasone 5 mg");
+      fireEvent.click(addButton(box));
+      const [items, summary] = onAdd.mock.calls[0] as [RxItem[], string];
+      expect(items.map((it) => [it.drug, it.dose])).toEqual([["Tablet. Napa 500 mg", "1+1+1"]]);
+      expect(summary).toBe("1 added · 1 already on ℞ — its tapering lines differ there");
+    });
+  });
+
   it("says it is loading", () => {
     const { box } = open({ isLoading: true, isError: false, refetch: vi.fn() });
     expect(within(box).getByRole("status").textContent).toContain("Loading your medicines");
@@ -243,10 +293,24 @@ describe("BulkMedicineModal", () => {
     expect(crashed.box.textContent).not.toContain("internet"); // the connection is not what failed
   });
 
-  it("⚕️ a refresh that fails with nothing to show is a failure, not an empty history", () => {
-    const { box } = open({ data: undefined, isLoading: false, isError: true, error: new Error("x"), refetch: vi.fn() });
+  // The three states in which "nothing to draw" is NOT "nothing prescribed".
+  it("⚕️ a failure with an older EMPTY list still held is a failure, not an empty history", () => {
+    const { box } = open({ data: { medicines: [], truncated: false, unreadable: 0 }, isLoading: false, isError: true, error: new Error("x"), refetch: vi.fn() });
     expect(within(box).queryByRole("alert")).not.toBeNull();
     expect(box.textContent).not.toContain("No medicines yet");
+  });
+
+  it("⚕️ a failure with an older list still held draws no rows from it: what could not be refreshed is not offered", () => {
+    const { box } = open({ data: { medicines: [NAPA], truncated: false, unreadable: 0 }, isLoading: false, isError: true, error: new Error("x"), refetch: vi.fn() });
+    expect(within(box).getByRole("alert").textContent).toContain("Your medicines could not be loaded.");
+    expect(within(box).queryAllByRole("checkbox")).toHaveLength(0);
+  });
+
+  it("⚕️ a list that is neither here, nor loading, nor failed — a request held back offline — is still awaited, not empty", () => {
+    const { box } = open({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() });
+    expect(box.textContent).not.toContain("No medicines yet");
+    expect(within(box).getByRole("status").textContent).toContain("Loading your medicines");
+    expect(addButton(box).disabled).toBe(true);
   });
 
   it("a doctor with no history is told how the list fills", () => {

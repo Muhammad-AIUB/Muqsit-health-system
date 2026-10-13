@@ -807,3 +807,39 @@ are not outpatient habits); a line added from it is not counted in the
 from "Your usual"), so how much the box is used is not measured anywhere; and
 the line beside the + that says what was added stays until the next press or
 the next patient, also after the lines it speaks of have been edited.
+
+Found in its first review (2026-10-13, before release), fixed, and what is left
+of each for the physician or the operator to decide:
+
+- [ ] **A medicine already on ℞ is never changed from the box.** With Deltasone
+  on the pad at 2+0+0 and no tapering lines, ticking the box's Deltasone (which
+  has them) adds nothing — a medicine is not written twice — and the line beside
+  the + reads `… 1 already on ℞ — its tapering lines differ there`. It used to
+  say "with the same instruction". Whether the box should instead put the
+  tapering lines under the line that is there is the physician's to say; it
+  would be the first thing the box changes on the pad rather than adds.
+- [ ] **One medicine under two generics in the catalogue.** Where the
+  `medicines` table lists the same form, brand and strength under two different
+  generics, "Your usual" and the box both attach the first — the first by name
+  since this change, whichever row came back first before it. A wrong generic
+  is a warning on the wrong medicine or none on the right one. The API log now
+  says how many such medicines a lookup met (`listed in the catalogue under
+  more than one generic`). Attaching neither is the stricter rule, but it would
+  also take warnings away wherever the two spellings are one drug written two
+  ways, so it needs a look at the real table first — by the operator, on the
+  VPS; it was not read for this.
+- [ ] **An assistant without `rx.medicines` can still READ the list** through
+  the API, as they can "Your usual" (`GET /rx-habits?q=`). The key is enforced
+  where it matters — the pad is locked and the + greyed — and the list holds no
+  patient. Refusing the read as well is a one-line guard if wanted.
+- [x] Offline, an answer that was not the list, and a failed refresh were each
+  drawn as "No medicines yet"; a failed generic lookup returned the list with
+  its warnings switched off; the same medicine written with another space was
+  added twice; a medicine the server could not read was left out uncounted; the
+  line beside the + was in the brand's blue; Enter held on Add reopened the
+  box. All fixed and pinned (`client/CLAUDE.md`, `server/CLAUDE.md`).
+
+Checked by breaking the code, and where that was done: until this review the
+breaks were made in the working checkout, which the dev servers watch — and the
+dev database is production. They are made in a copy of the sources now (root
+`CLAUDE.md`, the last pattern but one).

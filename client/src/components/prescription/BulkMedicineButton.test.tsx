@@ -65,6 +65,27 @@ describe("BulkMedicineButton — the + beside the ℞ mark", () => {
     expect(plus().disabled).toBe(false);
   });
 
+  // "3 added" is something DONE, and done is green; blue is what can be pressed.
+  it("the result is written in the colour of a thing done, not of a thing to press", async () => {
+    mount();
+    await openBox();
+    tick("Napa");
+    add();
+    const line = screen.getByRole("status", { name: "Add Bulk Medicine result" }) as HTMLElement;
+    expect(line.style.color).toBe("rgb(15, 110, 86)"); // C.ok[600]
+  });
+
+  // Add hands the focus back to the +. Enter still held down from pressing Add
+  // then pressed the + again, and again: the box came back open over the lines
+  // just added and the result line was wiped.
+  it("a key HELD down does not press the +: only a fresh press opens the box", () => {
+    mount();
+    expect(fireEvent.keyDown(plus(), { key: "Enter", repeat: true })).toBe(false); // default prevented
+    expect(fireEvent.keyDown(plus(), { key: " ", repeat: true })).toBe(false);
+    expect(fireEvent.keyDown(plus(), { key: "Enter" })).toBe(true);
+    expect(fireEvent.keyDown(plus(), { key: "Tab", repeat: true })).toBe(true); // moving on is not pressing
+  });
+
   it("asks the server for nothing until it is pressed", async () => {
     mount();
     await new Promise((r) => setTimeout(r, 20));

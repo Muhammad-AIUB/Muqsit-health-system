@@ -501,14 +501,22 @@ medicine whose doses are all hidden is not listed:
 ```ts
 {
   medicines: [{ id, drugKey, drugLabel, generic?, dose, food, duration, contLines, patientCount, lastUsedAt }],
-  truncated: boolean   // the doctor has more than 2,000; the most used are returned
+  truncated: boolean,  // the doctor has more than 2,000; the most used are returned
+  unreadable: number   // medicines left out because their row could not be read
 }
 ```
 
-Ordered most patients first. `generic` is attached exactly as above. ⚠️ **Unlike
-`?q=`, a failure here is a 500, not an empty list** — the box that reads it was
-opened on purpose and has to be able to say "could not be loaded". A failed
-generic lookup still never fails it. Read-only: nothing is written or logged.
+Ordered most patients first. `generic` is looked up as above. ⚠️ **Unlike `?q=`,
+a failure here is a 500, not an empty list** — the box that reads it was opened
+on purpose and has to be able to say "could not be loaded". **That includes a
+failed generic lookup**: `?q=` returns its suggestions without a generic,
+because the ℞ pad can look it up again from the medicine results it has loaded;
+this box has no second source, and a medicine offered without the generic the
+catalogue holds for it goes onto the pad with its prescribing warning switched
+off. A medicine the catalogue does not list simply has no `generic`. Read-only:
+nothing is written or logged. An assistant in the workstation may read it with
+no permission key, as with `?q=`; the key that matters (`rx.medicines`) is the
+℞ pad's.
 
 ⚠️ **There is no DELETE route** — "deleting" a suggestion sets `hidden`, and the
 prescription it was learned from stays byte-identical. `patientCount` is **distinct

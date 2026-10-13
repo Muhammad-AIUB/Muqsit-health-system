@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { C, font } from "@/theme";
 import { btnClose, btnDisabled, btnPrimary, btnSecondary, dialogTitle, inputSm, scrim, shadowDialog } from "@/theme/styles";
 import { useDialog } from "@/lib/useDialog";
 import { ApiError } from "@/lib/api";
 import { Loading, LoadError } from "@/components/common/ListState";
 import EmptyState from "@/components/common/EmptyState";
-import { moveSummary } from "@/lib/drugHistorySelect";
 import { splitDrugLabel } from "@/lib/rxShorthand";
 import { useBulkMedicines } from "@/hooks/useBulkMedicines";
 import {
-  bulkToRxItems, instructionOf, patientsLabel, searchBulk, sortBulk,
+  bulkSummary, bulkToRxItems, instructionOf, nothingAddedNote, patientsLabel, searchBulk, sortBulk,
   type BulkList, type BulkMedicine, type BulkOrder,
 } from "@/lib/bulkMedicines";
 import type { RxItem } from "@/types";
@@ -61,6 +60,43 @@ const ORDERS: { key: BulkOrder; label: string }[] = [
   { key: "alphabetical", label: "Alphabetical" },
 ];
 
+// One medicine. Its own component so that a tick redraws ONE row: the list can
+// be two thousand long, and every row redrawn on every tick is a pause between
+// the press and the tick appearing.
+const BulkRow = memo(function BulkRow({ m, on, onToggle }: { m: BulkMedicine; on: boolean; onToggle: (id: string) => void }) {
+  const { before, name, after } = splitDrugLabel(m.drugLabel);
+  // The strength, apart from the space before it. Drawn as one piece: a long
+  // name wraps, and wrapped anywhere a combination's strength turned in its
+  // middle — "… 10" at a line's end and "mg+40 mg+25 mg" on the next. As a
+  // piece it goes to the next line whole (and wraps inside itself only if it
+  // is longer than a whole line). The text is the label's, unchanged.
+  const strength = after.trimStart();
+  const gap = after.slice(0, after.length - strength.length);
+  const line = instructionOf(m);
+  return (
+    <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 20px", cursor: "pointer", borderBottom: `0.5px solid ${C.n[200]}`, background: on ? C.pri[50] : "transparent" }}>
+      <input type="checkbox" checked={on} onChange={() => onToggle(m.id)} style={{ marginTop: 3, flexShrink: 0, cursor: "pointer" }} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        {/* Only the brand in bold, as on the pad and the printed sheet. */}
+        <span data-name style={{ display: "block", fontSize: 13, color: C.n[900], overflowWrap: "anywhere" }}>
+          {name ? (
+            <>{before}<b>{name}</b>{gap}{strength && <span data-strength style={{ display: "inline-block", maxWidth: "100%" }}>{strength}</span>}</>
+          ) : <b>{m.drugLabel}</b>}
+        </span>
+        {/* A blank cell is simply absent. A medicine saved with nothing
+            beside it says so: it will be added with nothing beside it. */}
+        <span style={{ display: "block", fontSize: 12, color: line ? C.n[700] : C.n[500], marginTop: 2, overflowWrap: "anywhere" }}>
+          {line || "No dose recorded"}
+        </span>
+        {m.contLines.map((c, i) => (
+          <span key={i} style={{ display: "block", fontSize: 12, color: C.n[700], marginTop: 1, overflowWrap: "anywhere" }}>↳ {instructionOf(c)}</span>
+        ))}
+      </span>
+      <span style={{ flexShrink: 0, fontSize: 11, color: C.n[500], whiteSpace: "nowrap", marginTop: 2 }}>{patientsLabel(m.patientCount)}</span>
+    </label>
+  );
+});
+
 export default function BulkMedicineModal({ open, onClose, existing, list, onAdd }: Props) {
   const [order, setOrder] = useState<BulkOrder>("popular");
   const [search, setSearch] = useState("");
@@ -82,6 +118,16 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
   const sorted = useMemo(() => sortBulk(all, order), [all, order]);
   const shown = useMemo(() => searchBulk(sorted, search), [sorted, search]);
 
+  const toggle = useCallback((id: string) => {
+    setNote(""); // it was about the last press
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   if (!open) return null;
 
   // Counted over the whole list, in the order on screen — not over what a
@@ -89,64 +135,20 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
   // tick. And a tick whose row is no longer in the list is not one.
   const chosen = sorted.filter((m) => picked.has(m.id));
   const count = chosen.length;
-
-  const toggle = (id: string) => {
-    setNote("");
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  // Ticks a search has put out of sight. They are added all the same, so the
+  // footer says they are there: a medicine must not reach the pad unseen.
+  const outOfSight = count - shown.filter((m) => picked.has(m.id)).length;
 
   const add = () => {
     if (count === 0) return;
-    const { items, added, skipped } = bulkToRxItems(chosen, existing);
-    if (added === 0) {
+    const result = bulkToRxItems(chosen, existing);
+    if (result.added === 0) {
       // Nothing to hand over: closing now would look as if it had worked.
-      setNote(count === 1
-        ? "That medicine is already on ℞ with the same instruction — nothing was added."
-        : "Those medicines are already on ℞ with the same instructions — nothing was added.");
+      setNote(nothingAddedNote(count, result.otherTaper));
       return;
     }
-    onAdd(items, moveSummary(added, skipped));
+    onAdd(result.items, bulkSummary(result));
     onClose();
-  };
-
-  const row = (m: BulkMedicine) => {
-    const on = picked.has(m.id);
-    const { before, name, after } = splitDrugLabel(m.drugLabel);
-    // The strength, apart from the space before it. Drawn as one piece: a long
-    // name wraps, and wrapped anywhere a combination's strength turned in its
-    // middle — "… 10" at a line's end and "mg+40 mg+25 mg" on the next. As a
-    // piece it goes to the next line whole (and wraps inside itself only if it
-    // is longer than a whole line). The text is the label's, unchanged.
-    const strength = after.trimStart();
-    const gap = after.slice(0, after.length - strength.length);
-    const line = instructionOf(m);
-    return (
-      <label key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 20px", cursor: "pointer", borderBottom: `0.5px solid ${C.n[200]}`, background: on ? C.pri[50] : "transparent" }}>
-        <input type="checkbox" checked={on} onChange={() => toggle(m.id)} style={{ marginTop: 3, flexShrink: 0, cursor: "pointer" }} />
-        <span style={{ flex: 1, minWidth: 0 }}>
-          {/* Only the brand in bold, as on the pad and the printed sheet. */}
-          <span data-name style={{ display: "block", fontSize: 13, color: C.n[900], overflowWrap: "anywhere" }}>
-            {name ? (
-              <>{before}<b>{name}</b>{gap}{strength && <span data-strength style={{ display: "inline-block", maxWidth: "100%" }}>{strength}</span>}</>
-            ) : <b>{m.drugLabel}</b>}
-          </span>
-          {/* A blank cell is simply absent. A medicine saved with nothing
-              beside it says so: it will be added with nothing beside it. */}
-          <span style={{ display: "block", fontSize: 12, color: line ? C.n[700] : C.n[500], marginTop: 2, overflowWrap: "anywhere" }}>
-            {line || "No dose recorded"}
-          </span>
-          {m.contLines.map((c, i) => (
-            <span key={i} style={{ display: "block", fontSize: 12, color: C.n[700], marginTop: 1, overflowWrap: "anywhere" }}>↳ {instructionOf(c)}</span>
-          ))}
-        </span>
-        <span style={{ flexShrink: 0, fontSize: 11, color: C.n[500], whiteSpace: "nowrap", marginTop: 2 }}>{patientsLabel(m.patientCount)}</span>
-      </label>
-    );
   };
 
   const notes: string[] = [];
@@ -154,9 +156,14 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
   const unreadable = list.data?.unreadable ?? 0;
   if (unreadable > 0) notes.push(`${unreadable} ${unreadable === 1 ? "medicine" : "medicines"} could not be read and ${unreadable === 1 ? "is" : "are"} not listed.`);
 
-  // A failure is said even when an older list is still held: "could not be
-  // loaded" must never be drawn as "No medicines yet".
-  const failed = list.isError && all.length === 0;
+  // ⚕️ "Nothing to draw" is "nothing prescribed" in ONE state only: the list is
+  // here, and it is empty. Each of the others was once drawn as "No medicines
+  // yet" (first review, before release):
+  //   • a failure — also with an older list still held. Rows that could not be
+  //     refreshed are not offered: their counts and doses may have changed.
+  //   • a list that is not here, not loading and has not failed — a request
+  //     React Query holds back while the browser is offline. Still awaited.
+  const waiting = list.isLoading || (!list.isError && list.data === undefined);
 
   return (
     // The veil's padding is the box's margin: no `vh` / `vw` under the page zoom.
@@ -191,25 +198,31 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-          {notes.map((n) => (
-            <div key={n} style={{ padding: "8px 20px", fontSize: 11.5, color: C.n[700], background: C.n[50], borderBottom: `0.5px solid ${C.n[200]}` }}>{n}</div>
-          ))}
-          {list.isLoading ? (
+          {waiting ? (
             <Loading label="Loading your medicines…" />
-          ) : failed ? (
+          ) : list.isError ? (
             <LoadError title="Your medicines could not be loaded." detail={reasonOf(list.error)} onRetry={() => list.refetch()} retrying={list.isFetching} />
-          ) : all.length === 0 ? (
-            <EmptyState icon="fileText" title="No medicines yet" hint="They appear here after you save prescriptions." />
-          ) : shown.length === 0 ? (
-            <div style={{ padding: "24px 20px", textAlign: "center", fontSize: 12.5, color: C.n[600] }}>No medicine matches “{search.trim()}”.</div>
           ) : (
-            shown.map(row)
+            <>
+              {notes.map((n) => (
+                <div key={n} style={{ padding: "8px 20px", fontSize: 11.5, color: C.n[700], background: C.n[50], borderBottom: `0.5px solid ${C.n[200]}` }}>{n}</div>
+              ))}
+              {all.length === 0 ? (
+                <EmptyState icon="fileText" title="No medicines yet" hint="They appear here after you save prescriptions." />
+              ) : shown.length === 0 ? (
+                <div style={{ padding: "24px 20px", textAlign: "center", fontSize: 12.5, color: C.n[600] }}>No medicine matches “{search.trim()}”.</div>
+              ) : (
+                shown.map((m) => <BulkRow key={m.id} m={m} on={picked.has(m.id)} onToggle={toggle} />)
+              )}
+            </>
           )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 20px", borderTop: `0.5px solid ${C.n[200]}`, background: C.n[50], flexWrap: "wrap" }}>
           <span aria-live="polite" style={{ fontSize: 11.5, color: note ? C.n[900] : C.n[600], fontWeight: note ? 500 : 400, flex: "1 1 160px", minWidth: 0 }}>
-            {note || (count ? `${count} selected` : "Tick the medicines to add.")}
+            {note || (count
+              ? `${count} selected${outOfSight ? ` · ${outOfSight} not shown by this search` : ""}`
+              : "Tick the medicines to add.")}
           </span>
           <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
             <button type="button" onClick={onClose} style={btnSecondary("md")}>Cancel</button>

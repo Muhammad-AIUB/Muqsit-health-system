@@ -28,6 +28,13 @@
 >   `CLAUDE.md` asks.
 > - Every test written after its code (the integration spec, the alert bridge)
 >   was checked by breaking the code: 10 changes on the server, 77 on the client.
+> - **After its first review** (an independent read of the whole range): the
+>   skip compares medicines as the app does and says when the tapering lines
+>   differ; "No medicines yet" is drawn only for a list that is here and empty
+>   (offline, a non-list answer and a failed refresh are failures); a failed
+>   generic lookup fails the list; the catalogue is never read from an answer
+>   that came back full; rows the server leaves out are counted. 48 more
+>   changes to the code, in a copy of the sources this time, all caught.
 
 ## Global Constraints
 

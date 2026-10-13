@@ -48,6 +48,12 @@ These follow existing decisions; none is new.
   `>>>` lines is shown with them and added with them, in order.
 - **A line already on the pad is skipped**, matched on all four of drug, dose,
   instruction and duration, and the box says so: `5 added · 1 already on ℞`.
+  **As built, after the first review:** the drug is compared as the app
+  compares medicines everywhere (capitals, spacing, `Tab` for `Tablet.` — never
+  the strength), so the same medicine written with another space is not added
+  twice; and because only the FIRST line is compared, the box says when a
+  skipped medicine stands on the pad with other tapering lines than it shows
+  (`… — its tapering lines differ there`) instead of "the same instruction".
 - **The generic travels with the medicine.** Prescribing-alert rules are written
   against generics while the pad line carries the brand, so every listed
   medicine carries its generic from the server, on the same response. A bulk
@@ -157,8 +163,15 @@ Response:
 - Generics are attached as the dropdown does it — candidates fetched from the
   raw `medicines` table by brand prefix, matched in code on the same normalised
   key — but in chunks, because this list is hundreds of medicines where the
-  dropdown has four. A failed generic lookup never fails the list: the medicine
-  then behaves like a hand-typed brand, the documented state.
+  dropdown has four. ~~A failed generic lookup never fails the list: the medicine
+  then behaves like a hand-typed brand, the documented state.~~ **As built,
+  after the first review: a failed generic lookup FAILS the list.** The dropdown
+  can afford to lose a generic because the pad looks it up again from the
+  medicine results it has loaded; this box has no second source, and a medicine
+  added without its generic has its prescribing warning switched off. An answer
+  from the catalogue that came back at its row cap is asked again in halves, so
+  no brand is silently missing. The response also carries `unreadable`, the
+  number of medicines left out because their row could not be read.
 - **Unlike the dropdown lookup, a failed list THROWS** (500). The dropdown is
   silent on failure by design; a box the doctor opened on purpose must be able
   to say "did not load".
@@ -186,6 +199,10 @@ Response:
 - The response is read defensively: it reaches the pad, and an uncaught render
   error inside the editor unmounts the whole prescription. If any medicine was
   unreadable the box says how many were left out.
+- **As built, after the first review:** "No medicines yet" is drawn only for a
+  list that is here and empty. Offline (the request is made anyway and fails),
+  an answer that is not the list, and a failed refresh are each "could not be
+  loaded"; ticks a search has put out of sight are counted in the footer.
 - **As built:** the list is asked for again on every opening and nothing is
   kept between openings, so a prescription saved since the last one is in it.
   While it is being asked for the box says Loading and draws no rows: a cached

@@ -112,6 +112,7 @@ describe('GET /api/rx-habits/all', () => {
     const res = await a.get('/api/rx-habits/all');
     expect(res.status).toBe(200);
     expect(res.body.truncated).toBe(false);
+    expect(res.body.unreadable).toBe(0);
     expect(listed(res.body).map((m) => [m.drugLabel, m.dose, m.patientCount])).toEqual([
       [NAPA, '1+1+1', 30],
       [BARCAVIR, '1+0+0', 9],

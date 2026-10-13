@@ -119,15 +119,37 @@ these are the ones that live in this app's code and are easy to break.
   most recent), with hidden rows left out BEFORE that choice, so a hidden dose
   never hides the next one. `list()` is silent on failure because it sits under a
   working medicine search; this is a list the doctor opened on purpose, and
-  "could not be loaded" must not look like "you have prescribed nothing". The
-  generic is attached by the same `attachGenerics`, which now asks the catalogue
-  in CHUNKS of 25 brand prefixes: the dropdown has four medicines and still asks
-  once, the bulk list has hundreds, and one query with one row cap would let the
-  first brands crowd the last ones out — silently, at the cost of a
-  contraindication warning on a line added in bulk. It writes nothing and logs
-  nothing to `activity`; scope is `@WorkstationDoctorId()` like every other
-  route here (`server/test/rx-habits-all.int-spec.ts` holds that against the
-  real database).
+  "could not be loaded" must not look like "you have prescribed nothing". It
+  writes nothing and logs nothing to `activity`; scope is
+  `@WorkstationDoctorId()` like every other route here
+  (`server/test/rx-habits-all.int-spec.ts` holds that against the real
+  database). A medicine whose chosen row has unreadable `contLines` is left out
+  and COUNTED (`unreadable`), and the box says the number — the dropdown would
+  offer that medicine's next instruction, so in that one case the two surfaces
+  differ.
+- **⚕️ `attachGenerics` takes `'ignore'` or `'throw'`, and `listAll()` THROWS on
+  a failed catalogue lookup** (first review, 2026-10-13, before release). The
+  first version wrapped the lookup in the dropdown's try/catch and returned the
+  list without generics. For `list()` that is right: the ℞ pad looks the generic
+  up again in the medicine results it has loaded (`resolveGeneric` on the
+  client). The box has no second source — a medicine added from it without the
+  generic the catalogue holds for it is a contraindication warning that does not
+  fire, on several lines at once, with nothing on screen to say so. A rule that
+  fails silently is safe only together with whatever catches the failure;
+  before giving it to a second caller, check that caller has the catch too.
+- **No catalogue answer is used that came back full** (`catalogueRows`). The
+  lookup is asked in chunks of 25 brand prefixes with a row cap, and an answer
+  at the cap holds whichever brands the database reached first — the rest are
+  silently missing (the dropdown's old `LIMIT 500` could do that for one broad
+  prefix). A full answer is asked again in halves; one prefix that overflows by
+  itself is asked without a cap. The rows come in a stated order, so the same
+  medicine gets the same generic on every request. **Where the catalogue lists
+  one medicine (form, brand, strength) under two different generics, the first
+  is used, as it always was — the first by name now, where it was whichever
+  row the database returned first — and the log says how many.** Attaching
+  neither would be the stricter rule; it changes which warnings fire in the
+  dropdown as well, and needs a look at the real catalogue before it is
+  decided (`FUNCTIONAL-AUDIT.md`).
 - **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
   single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
   the doctor is shown silence on failure by design, the log is the ONLY place a

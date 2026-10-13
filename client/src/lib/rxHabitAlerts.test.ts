@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { bulkToRxItems } from "./bulkMedicines";
 import { habitToRows, resolveGeneric } from "./rxHabitRows";
-import { rxItemsFromRows } from "./rxRows";
+import { rowsFromRxItems, rxDrugIndexByRow, rxItemsFromRows } from "./rxRows";
 import { checkRxAlerts, rxAlertsByLine } from "./rxAlerts";
 import { fmtMedicine } from "./rxShorthand";
 import type { MedicineHit, RxHabitItem } from "@/lib/api";
+import type { RxItem } from "@/types";
 
 // ⚕️ SUGGESTION FIRST, THEN THE WARNING — the Barcavir case.
 //
@@ -170,6 +171,46 @@ describe("Barcavir — the warning must survive a bulk add", () => {
     });
     expect(byLine.get(1)?.map((a) => a.message)).toEqual([CONTRAINDICATION]);
     expect(byLine.get(0)).toBeUndefined();
+  });
+
+  // The tests above hand the box's lines straight to the matcher. The app does
+  // not: `RightColumn` appends them to `rxItems`, the pad turns those into its
+  // rows and back, and a warning is drawn against a ROW by `rxDrugIndexByRow`.
+  // So: through the pad, behind a note and behind a tapering medicine — the two
+  // things that move a line's number.
+  it("⚕️ through the pad's own rows — after a note and a tapering medicine — the warning is drawn on the Barcavir row and no other", () => {
+    const onPad: RxItem[] = [
+      { drug: "bed rest", dose: "", duration: "", instruction: "", isNote: true },
+      { drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "After meal", isCont: false, generic: "Paracetamol" },
+    ];
+    const { items } = bulkToRxItems(
+      [
+        { id: "h_delta", drugLabel: "Tablet. Deltasone 5 mg", dose: "2+0+0", food: "After meal", duration: "5 days", contLines: [{ dose: "1+0+0", food: "After meal", duration: "5 days" }, { dose: "0.5+0+0", food: "After meal", duration: "5 days" }], patientCount: 3 },
+        { ...BULK, generic: "Entecavir" },
+      ],
+      onPad,
+    );
+    const rows = rowsFromRxItems([...onPad, ...items]);
+    const saved = rxItemsFromRows(rows);
+    // Nothing of the block was lost or re-attached on the way through the pad.
+    expect(saved.map((it) => [it.isNote ? "note" : it.isCont ? "taper" : "medicine", it.drug, it.dose, it.generic])).toEqual([
+      ["note", "bed rest", "", undefined],
+      ["medicine", "Tablet. Napa 500 mg", "1+1+1", "Paracetamol"],
+      ["medicine", "Tablet. Deltasone 5 mg", "2+0+0", undefined],
+      ["taper", "", "1+0+0", undefined],
+      ["taper", "", "0.5+0+0", undefined],
+      ["medicine", "Tablet. Barcavir 0.5 mg", "1+0+0", "Entecavir"],
+    ]);
+    const byLine = rxAlertsByLine({
+      rxDrugs: saved.filter((i) => !i.isNote).map((i) => ({ text: i.drug, generic: i.generic })),
+      sidebar: PREGNANT_SIDEBAR,
+    });
+    // Which ROW of the pad each warning is drawn on.
+    const warned = rxDrugIndexByRow(rows)
+      .map((n, row) => (n !== null && byLine.get(n) ? rows[row].drug : null))
+      .filter((d) => d !== null);
+    expect(warned).toEqual(["Tablet. Barcavir 0.5 mg"]);
+    expect([...byLine.values()].flat().map((a) => a.message)).toEqual([CONTRAINDICATION]);
   });
 
   it("documents why the server sends it: WITHOUT its generic the same line raises nothing", () => {
