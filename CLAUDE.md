@@ -44,6 +44,7 @@ npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.pri
 - **Clinical logic gets a unit test** (same-medicine matching, offered doses, which alert fires). A red test is a clinical regression — check the source before changing the expectation.
 - **DB:** one shared PostgreSQL on the VPS, reached through an SSH tunnel the user runs. `P1001` = tunnel down, ask the user; not a code bug. Applying a migration locally migrates production.
 - **Deploy:** push to `main` → `.github/workflows/deploy.yml` builds and `pm2 restart all` (~2–3 min). It does not run migrations. If a VPS `package-lock.json` drift blocks `git pull`: SSH in, `git checkout -- <app>/package-lock.json`, re-run the Action.
+- **Branches:** exactly two, `main` and `dev`, locally and on GitHub (product owner, 2026-10-13). Work on `dev`; release by fast-forwarding `main` to it — that push is the deploy. No feature, design, backup or `claude/*` branch is left standing: a safety copy is a stash, a patch file or a bundle under `.git/`.
 - **Dates:** stored/shown `dd/mm/yyyy`, `ptDate` is ISO; `ddmmyy` shorthand accepted.
 - **Git identity:** every commit and push as `Muhammad-AIUB <mjubayer.aiub@gmail.com>`. The machine's default is wrong — check `git config user.email` and `gh auth status` before committing and before pushing.
 - Commits: conventional (`fix(scope): …`), ending `Co-Authored-By: Claude <model> <noreply@anthropic.com>`.

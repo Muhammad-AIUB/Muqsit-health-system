@@ -361,6 +361,81 @@ CLAUDE.md section before picking one up.
   stated; "every label that came from a real sheet" (there is one);
   "nothing is left off" of a name whose form was (nothing after the turn
   is); and two tests named for more than they tried. Checked by breaking the code: 37 deliberate breaks in this round's changes to the name rule, 36 caught; the one that was not pointed at a way of cutting a strength that no case needed, and it was taken out.
+- [x] **…and an eighth time, 2026-10-13 — nothing that stores, prints or
+  plots a wrong value, and no label that states a false number; a dose
+  change that could still not be read off the phone chart's names, a test
+  that failed one run in four, and what the documents claimed.** These
+  fixes FOLLOW the release the review was of: the product owner asked for
+  the release that day (`2878301`, with the repository brought down to two
+  branches, `main` and `dev`), and what the review found made a label say
+  less than it could, never something false.
+  (1) **A dose change was still hidden where the labels differed to begin
+  with.** The seventh round's rule — a strength cut by the other strengths
+  of its medicine — was applied only to names that had come out the SAME as
+  another, and its count ran over four ways of writing a form, all of them
+  words the app knows. With the third bar under a form it does not know by
+  name, or under `Tablet` with no full stop (read as the start of the
+  brand), the three labels differed, nothing was written again, and the
+  first bar and the third both read `10 mg+160 mg+…` — 12.5 beside 25: 288
+  of the 524,160 three-bar charts of the test's own ten forms, and of two
+  bars under two forms 2,440 of 327,600. `namesApart` now ends with a pass
+  over the strengths of ONE medicine: a name that was not written again is
+  laid out once more with the other strengths of its medicine beside it,
+  the strength has the second line to itself, cut by what it has to be
+  told from, and the name keeps that unless it would put it under one name
+  with another. Counted: 454,272 three-bar charts over thirteen ways of
+  writing a form (the ten, `Tablet` and `Injection` with no stop, and
+  none) and 340,704 two-bar ones; in none do two strengths show the same
+  numbers. And what is kept of a strength is now what tells it from the
+  MOST of the others: it was whatever showed the most of the parts that
+  differ, and a THIRD strength on the chart that differed in every part
+  made the cut at the end count for as much as the first part with the
+  last — 12.5 and 25 read `10 mg+160 mg…` again. That was seen in a
+  browser, on a made-up chart, before this was committed; the counts
+  above all have two strengths of a medicine on a chart, and could not
+  have seen it. Three strengths under mixed forms were gone through once
+  by hand (1,223,040 charts; 158 left, open list); that count is not in
+  the suite. (2) **A test that failed about one run in four, and the defect
+  under it.** "Two names that are different are never written the same"
+  draws 20,000 pairs a run, a different 20,000 each time. On 2026-10-13 a
+  run failed. Drawn two million times it left 27 pairs alike — in the
+  released code too, and none in the code before the seventh round's
+  change, which is where it came in: that round was released on a run that
+  passed. Nineteen were one defect: a word that begins inside an amount
+  (`B12 pg/mL-fas…`, where `pg` reads as the unit of that 12) was shown
+  from the amount, and the line ran out before the letter the names part
+  at. Where the amount is too far back, it is shown from the place itself.
+  The other eight are a limit, written down as a failing test (open list):
+  two names whose only difference is in the UNIT of an amount too long to
+  keep whole. After the fix: seven alike in two million, all of that
+  shape, which the property now leaves out by name. (3) **Two more cases
+  under one name, the same in the code before this release**, written down
+  as failing tests (open list): a tablet and an injection of two medicines
+  that differ at the END of a long brand, and the same with a strength in
+  brackets. (4) **Two smaller things closed**: a strength behind a decimal
+  point that is the label's FIRST full stop was not shown where the name
+  was long (`Tab Clonazepam .5 mg` read `Tab` over `Clonazepam…`; now
+  `Tab Clonazep…` over `.5 mg`), and the mark of a form left off stood
+  straight before a name that begins with a point — four dots in a row.
+  (5) **What the documents said that was not so**, corrected where it
+  stood: "three ways" of writing a name again (four), with a calcium
+  example that is no longer what is drawn, in the code's own comment;
+  "(69,888)" for the three-bar count, with no word of its four forms and
+  four brands; "one pair at thirteen letters" of the eight strengths
+  (thirteen to sixteen as they are written, thirteen and fourteen with no
+  space round the plus); "one such case is known" (four); "the part they
+  differ in is the part kept", which held only for names that would have
+  come out the same; `Mixtard 30/70 as before` as the example of a cut
+  before a ratio (it fits whole; `Insulin Mixtard 30/70 as before` is the
+  one that is cut); "a word that begins with a point begins the strength"
+  (not where that point was the label's first full stop — closed above); a
+  test named for more than it tried; and "a chart whose names are already
+  different is not touched", which is no longer so and now says what is
+  done. The seventh round's commit (`ba98264`) says of the one before it
+  (`95c13a4`) that its message gave no limit for "an amount is never cut
+  into" and wrote of a failing test "at thirteen letters": that message
+  does state the limit, and those words are not in it. The commit is
+  published and stays as written; this is the correction. Checked by breaking the code: 32 deliberate breaks in this round's changes, 28 caught at once; three had no test — one was written for each, and they are caught now; one pointed at a condition that was not needed, and it was taken out. And the seventh round's 37 were run again, because they were first run while a test under them failed one run in four, when any red run counts as a break caught: the 31 that still point at a line of today's code are all caught; the other six pointed at lines rewritten since, and the breaks made for those lines as they stand are caught too.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -506,17 +581,38 @@ CLAUDE.md section before picking one up.
   places than two short lines can show.** Each is still written differently
   where a way is left, but a name may then not say every difference (of
   five strengths of one tablet, two pairs no longer say whether their
-  middle part is 5 or 10), and in one known case a pair is left under one
-  name at thirteen letters (`it.fails` in `timelineLabel.test.ts`): eight
-  strengths of one tablet, in one form, differing in three places. (The
-  second case written down in the sixth review — two forms that begin alike
-  — was closed in the seventh.) What is COUNTED is one medicine in two
-  forms and two strengths, and two strengths with one written another way,
-  over fixed pools; other shapes are covered by a sample of random charts,
-  and a sample has been wrong here before. Known besides: a label may show
-  NO strength where a long brand and a long strength both have to give way
+  middle part is 5 or 10), and four cases are known where two bars are left
+  under ONE name — each an `it.fails` in `timelineLabel.test.ts`, with what
+  is drawn today beside it: (a) eight strengths of one tablet, in one form,
+  differing in three places — one pair, in a line of thirteen to sixteen
+  letters as they are written with a space round the plus, of thirteen and
+  fourteen with none; (b) a tablet and an injection of two medicines whose
+  names differ only at the END of a long brand, with no strength
+  (`Vitamin B Complex Forte` / `Plus`, made-up names) — the two forms of
+  one of them, up to seventeen letters; (c) the same with a strength
+  written in brackets (`(400 mg+400 mg+30 mg)/5 ml`), which is not read as
+  a strength — up to eighteen; (d) two names whose only difference is in
+  the UNIT of an amount too long to keep whole (`1,00,000 CFU` /
+  `1,00,000 RBC`, in thirteen letters). (One more, written down in the
+  sixth review — two forms that begin alike — was closed in the seventh.)
+  What is COUNTED is one medicine in two forms and two strengths (163,800
+  charts), two strengths with one written another way (454,272) and two
+  strengths under two forms (340,704), over fixed pools; every other shape
+  is covered by samples — random charts, and 20,000 random pairs a run —
+  and a sample has been wrong here twice. With THREE strengths of one
+  medicine under two or three ways of writing a form, 158 of 1,223,040
+  charts (gone through once, not in the suite) still show the same numbers
+  for two of them, in thirteen and fourteen letters: a `12.5` that is the
+  first part of one strength (`12.5 mg+…`) and the last of another
+  (`…12.5 mg`). Known besides: with no
+  other strength of its medicine on the chart, a label may show NO strength
+  where a long brand and a long strength both have to give way
   (`…Salmeterol +` over `Fluticasone…`) or where the strength is written
-  in brackets, which the split does not read as a strength; a name told
+  in brackets, which the split does not read as a strength; under a form
+  on a line of its own, what follows the brand's mark may be only the LAST
+  part of a strength (`Jardim…500 mg` for 12.5 mg+500 mg) — the one mark
+  stands for the rest of the brand and the start of the strength both, and
+  a reader may take the part for the whole; a name told
   apart from the place it differs in may not show its brand; a dosage form
   written with NO full stop after it (`Oral Solution Avolac 3.35 gm/5 ml` —
   five of the eight labels of the one sheet in the tests are written so) is
@@ -525,8 +621,9 @@ CLAUDE.md section before picking one up.
   medicines list, which have the stop, are laid out with the brand whole —
   whether stored labels are written without it was not checked; what a
   unit is, is a guess — the short word after a number — so `30/70 as` is
-  kept together and `Mixtard 30/70 as before` is cut before its 30/70 on
-  a line where the number alone would have fitted; and a cut can still fall
+  kept together and `Insulin Mixtard 30/70 as before` is cut before its
+  30/70 (`Insulin` over `Mixtard…`, in thirteen and fourteen letters) on a
+  line where the number alone would have fitted; and a cut can still fall
   inside a Bangla conjunct, as it can in production. The tooltip and the
   list under the chart carry every name in full; a third line, a wider
   strip, or laying a name out round EVERY place it differs in would close
