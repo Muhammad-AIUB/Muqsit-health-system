@@ -117,6 +117,13 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
   const row = (m: BulkMedicine) => {
     const on = picked.has(m.id);
     const { before, name, after } = splitDrugLabel(m.drugLabel);
+    // The strength, apart from the space before it. Drawn as one piece: a long
+    // name wraps, and wrapped anywhere a combination's strength turned in its
+    // middle — "… 10" at a line's end and "mg+40 mg+25 mg" on the next. As a
+    // piece it goes to the next line whole (and wraps inside itself only if it
+    // is longer than a whole line). The text is the label's, unchanged.
+    const strength = after.trimStart();
+    const gap = after.slice(0, after.length - strength.length);
     const line = instructionOf(m);
     return (
       <label key={m.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 20px", cursor: "pointer", borderBottom: `0.5px solid ${C.n[200]}`, background: on ? C.pri[50] : "transparent" }}>
@@ -124,7 +131,9 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
         <span style={{ flex: 1, minWidth: 0 }}>
           {/* Only the brand in bold, as on the pad and the printed sheet. */}
           <span data-name style={{ display: "block", fontSize: 13, color: C.n[900], overflowWrap: "anywhere" }}>
-            {name ? <>{before}<b>{name}</b>{after}</> : <b>{m.drugLabel}</b>}
+            {name ? (
+              <>{before}<b>{name}</b>{gap}{strength && <span data-strength style={{ display: "inline-block", maxWidth: "100%" }}>{strength}</span>}</>
+            ) : <b>{m.drugLabel}</b>}
           </span>
           {/* A blank cell is simply absent. A medicine saved with nothing
               beside it says so: it will be added with nothing beside it. */}

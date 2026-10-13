@@ -776,3 +776,34 @@ CLAUDE.md section before picking one up.
   an ordinary regression test now. Fixing it exposed that `Lock` could leave a
   just-unlocked section inert until a reload; fixed in the same commit
   (`client/src/lib/inert.ts`).
+
+### Add Bulk Medicine (2026-10-13) — what it does not do, for the physician
+
+The + beside the ℞ mark lists the doctor's own medicines from the same learned
+rows "Your usual" reads (`client/CLAUDE.md`, the "Add Bulk Medicine" bullet).
+Three limits follow from that, each a product decision and none taken here:
+
+- [ ] **A medicine only ever saved with no dose, timing or duration is not in
+  the list.** The request was "all other medicines the doctor has prescribed".
+  But an empty line is not learned as a habit — the rule that stops a blank
+  suggestion ranking above the real dose (`blocksFrom`, found in production on
+  Tycil). Such a medicine appears once it has been saved with any instruction
+  beside it. Listing it sooner means reading medicines from the prescriptions
+  themselves, with a distinct-patient count worked out apart from the habit
+  table — its own piece of work.
+- [ ] **"Popular" counts the patients given the instruction SHOWN.** A medicine
+  written at three doses for ten patients each stands below one written at one
+  dose for eleven. The record holds a distinct-patient count per instruction,
+  not per medicine, and adding the three counts would count a patient whose
+  dose was changed twice. Counting patients per medicine needs the same work as
+  the item above.
+- [ ] **One dose per medicine in the box.** Decided (one row per medicine); the
+  other doses are reached by typing, as before. Noted here because the first
+  doctor who writes a medicine at two usual doses will ask.
+
+Also not done, deliberately: the box is not on the IPD order sheet (ward doses
+are not outpatient habits); a line added from it is not counted in the
+`N of M ℞ lines inserted from "Your usual"` activity line (it was not inserted
+from "Your usual"), so how much the box is used is not measured anywhere; and
+the line beside the + that says what was added stays until the next press or
+the next patient, also after the lines it speaks of have been edited.

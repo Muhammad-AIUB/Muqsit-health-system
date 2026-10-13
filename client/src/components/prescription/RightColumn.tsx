@@ -12,6 +12,7 @@ import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
 import { useTemplates } from "@/hooks/useTemplates";
 import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
+import BulkMedicineButton from "@/components/prescription/BulkMedicineButton";
 import { savedAdviceFor } from "@/lib/rxDrugAdvice";
 import { useRxAlertInput } from "@/hooks/useRxAlertInput";
 import type { RxItem } from "@/types";
@@ -26,7 +27,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     rxItems, setRxItems,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
-    can, savedDrugAdvice,
+    can, savedDrugAdvice, activeWorkstationId, currentPatientId,
   } = useMuqsit();
 
   // ••• special advice (physician's design, 2026-09-24): which medicine's box is open.
@@ -100,7 +101,21 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           <span style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: C.n[500], display: "flex", pointerEvents: "none" }}><Icon name="search" size={13} /></span>
         </div>
       </div>
-      <div style={{ fontSize: 22, fontWeight: 500, color: C.pri[400], fontStyle: "italic" }}>℞</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 22, fontWeight: 500, color: C.pri[400], fontStyle: "italic" }}>℞</div>
+        {/* "Add Bulk Medicine" (physician's request, 2026-10-13): the doctor's own
+            medicines, ticked and appended to the pad as a template's are. OPD pad
+            only — the IPD sheet, the Drug-history pad and the template editor do
+            not render this column. The box it opens is ONE patient's: see the
+            component. */}
+        <BulkMedicineButton
+          patientId={currentPatientId}
+          workstationId={activeWorkstationId}
+          allowed={can("rx.medicines")}
+          existing={rxItems}
+          onAppend={(items) => setRxItems((prev) => [...prev, ...items])}
+        />
+      </div>
 
       {/* Notebook-style prescription pad (same editor as Drug history) */}
       <Lock locked={!can("rx.medicines")}>

@@ -2,7 +2,8 @@
 
 - Date: 2026-10-13
 - Asked for by the physician (product owner); design approved in chat the same day.
-- Status: approved, not built.
+- Status: built 2026-10-13. Where the build differs from what was approved it
+  says so below, marked **(as built)**.
 
 ## What it is
 
@@ -79,8 +80,10 @@ These follow existing decisions; none is new.
 
 - Title "Add Bulk Medicine"; `×` is `btnClose`.
 - **Order** is a two-button switch (`aria-pressed`), Popular first.
-- **Search** narrows the list as typed (case-insensitive, anywhere in the
-  name). It filters what is shown; ticks on rows that are filtered out are
+- **Search** narrows the list as typed (case-insensitive; every word typed
+  must be in the name or the generic — **as built**, the design said the name
+  only). Escape with something typed clears the search and nothing else. It
+  filters what is shown; ticks on rows that are filtered out are
   kept, and the footer always counts every tick.
 - **A row** is a `<label>` wrapping its checkbox, so the whole row is the
   target. Name on the first line with the brand in bold as on the pad
@@ -109,6 +112,10 @@ These follow existing decisions; none is new.
   the + button — which saves nothing, so returning focus is right). Panel is
   `width: min(640px, 100%)`, `maxHeight: 100%` inside the padded veil; only the
   list scrolls. Works at phone width.
+- **The box is one patient's (as built).** It closes if the patient in the
+  editor changes under it — another device moving the editor on, a patient
+  still loading — so medicines ticked over one patient's pad are never added
+  to the next one's. What the last Add said goes with it.
 - The ticks, the order and the search are the box's own state and are not
   mirrored to other devices; the lines it adds reach them through `rxItems` as
   any pad edit does.
@@ -166,22 +173,32 @@ Response:
 | `lib/bulkMedicines.ts` | pure: read the response (total — anything unreadable is skipped and counted), sort, search, turn ticked medicines into pad lines |
 | `hooks/useBulkMedicines.ts` | React Query: fetch when the box opens, keyed by workstation |
 | `components/prescription/BulkMedicineModal.tsx` | the box |
-| `RightColumn.tsx` | the + button, the result line, appending to `rxItems` |
+| `components/prescription/BulkMedicineButton.tsx` | the + button, the result line, and whose pad the box belongs to (**as built**: its own component, so the one-patient rule can be tested) |
+| `RightColumn.tsx` | places the button beside the ℞ mark and appends to `rxItems` |
 
-- `bulkMedicines.ts` builds, per ticked medicine, the same lines "Your usual"
-  builds (`habitToRows` shape: head with `generic` and `fromHabit`, then one
-  line per taper) and hands them to `appendBlocks` from `drugHistorySelect.ts`,
-  which already knows "skip a block whose head line is on the pad" and counts
+- `bulkMedicines.ts` builds, per ticked medicine, the lines "Your usual"
+  builds (head with `generic`, then one line per taper) — **as built, without
+  `fromHabit`**: that flag makes a save write `N of M ℞ lines inserted from
+  "Your usual"` to the activity feed, and a line added from this box was not —
+  and hands them to `appendBlocks` from `drugHistorySelect.ts`, which already
+  knows "skip a block whose head line is on the pad" and counts
   blocks, not lines. `moveSummary` writes the result line.
 - The response is read defensively: it reaches the pad, and an uncaught render
   error inside the editor unmounts the whole prescription. If any medicine was
   unreadable the box says how many were left out.
-- The list is fetched once per opening and cached for the session; after a
-  prescription is saved the cache is invalidated so newly learned medicines
-  appear.
+- **As built:** the list is asked for again on every opening and nothing is
+  kept between openings, so a prescription saved since the last one is in it.
+  While it is being asked for the box says Loading and draws no rows: a cached
+  list replaced a moment later would re-sort itself under the doctor's finger.
+  A failure is tried once more quietly, then said.
 
 ## What it does not do
 
+- **Found while building:** it does not list a medicine that was only ever
+  saved with no dose, timing or duration. An empty line is not learned as a
+  habit (`blocksFrom`), and this list is the habits. And *Popular* counts the
+  patients given the instruction shown, not everyone given that medicine at
+  any dose. Both are in `FUNCTIONAL-AUDIT.md` for the physician.
 - It does not offer medicines the doctor has never prescribed, or another
   doctor's.
 - It does not let a dose be edited inside the box, or a second dose of one

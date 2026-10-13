@@ -80,6 +80,23 @@ describe("BulkMedicineModal", () => {
     expect(name.textContent).toBe("Tablet. Napa 500 mg");
   });
 
+  // A long name wraps. Wrapped anywhere, a combination's strength turned in
+  // the middle — "… 10" at the end of one line and "mg+40 mg+25 mg" on the
+  // next (seen on a phone-wide box, on made-up medicines). The strength is one
+  // piece that goes to the next line WHOLE; nothing of the label is changed.
+  it("⚕️ the strength is kept in one piece, and the name still reads exactly as written", () => {
+    const LONG = "Tablet. Amlodipine + Olmesartan Medoxomil + Hydrochlorothiazide 10 mg+40 mg+25 mg";
+    const { box } = open(loaded([med({ id: "x", drugLabel: LONG }), NAPA, med({ id: "y", drugLabel: "Zinc" })]));
+    const nameOf = (label: string) => tickBox(box, label).closest("label")?.querySelector("[data-name]") as HTMLElement;
+    expect(nameOf(LONG).textContent).toBe(LONG);
+    expect(nameOf(LONG).querySelector("[data-strength]")?.textContent).toBe("10 mg+40 mg+25 mg");
+    expect((nameOf(LONG).querySelector("[data-strength]") as HTMLElement).style.display).toBe("inline-block");
+    expect(nameOf("Tablet. Napa 500 mg").querySelector("[data-strength]")?.textContent).toBe("500 mg");
+    // A label with no strength has no such piece, and is still itself.
+    expect(nameOf("Zinc").textContent).toBe("Zinc");
+    expect(nameOf("Zinc").querySelector("[data-strength]")).toBeNull();
+  });
+
   it("opens most-patients-first, and Alphabetical files by brand", () => {
     const { box } = open(loaded([ACE, SERGEL, NAPA]));
     expect(rowNames(box)).toEqual(["Tablet. Napa 500 mg", "Capsule. Sergel 20 mg", "Tablet. Ace 500 mg"]);

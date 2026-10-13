@@ -10,6 +10,25 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-13-bulk-medicine-add-design.md`
 
+> **As executed (2026-10-13).** The six tasks were done in order, test first.
+> Where the code differs from what is written below, the code and the spec's
+> "as built" notes are right and this plan is the record of the intention:
+>
+> - **Task 3:** the pad lines carry no `fromHabit` — that flag writes
+>   `N of M ℞ lines inserted from "Your usual"` to the activity feed on save.
+> - **Task 4:** `useBulkMedicines(workstationId)` takes no `enabled`; the box
+>   with its list is `BulkMedicineBox`, mounted only while open, and it shows
+>   "Loading" for as long as the list is being asked for (`isFetching`), so a
+>   list never re-sorts under a tick. A 5xx is not shown in the server's words.
+>   Escape in a non-empty search clears the search.
+> - **Task 5:** the +, the result line and the one-patient rule live in their
+>   own component, `BulkMedicineButton.tsx` (with `BulkMedicineButton.test.tsx`),
+>   which resets while rendering rather than in an effect; `RightColumn` only
+>   places it. The documents of Task 6 went into the same commit, as the root
+>   `CLAUDE.md` asks.
+> - Every test written after its code (the integration spec, the alert bridge)
+>   was checked by breaking the code: 10 changes on the server, 77 on the client.
+
 ## Global Constraints
 
 - Scope is `@WorkstationDoctorId()` — never `req.user.id`, never a body field. No doctor ever sees another doctor's medicines.
