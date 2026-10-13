@@ -845,8 +845,10 @@ of each for the physician or the operator to decide:
   is there — the medicine is proved the same by the key the app uses everywhere
   — but that is the box changing a line, and the physician's to decide.
 - [ ] **A medicine whose whole brand is ONE letter is never looked up** in the
-  catalogue (the lookup would be every brand beginning with that letter), so it
-  carries no generic from the box or from "Your usual". A brand that only
+  catalogue (the lookup would be every brand beginning with that letter), so the
+  server attaches no generic to it. From the box it then has none; under
+  "Your usual" the pad may still find one in the medicine results loaded for
+  what was typed. A brand that only
   STARTS with a one-letter word (`E Cap`) is looked up, since the second review.
 - [x] Offline, an answer that was not the list, and a failed refresh were each
   drawn as "No medicines yet"; a failed generic lookup returned the list with

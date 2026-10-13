@@ -155,8 +155,9 @@ these are the ones that live in this app's code and are easy to break.
   of its brand** (`brandPrefix`); a first word of ONE letter (`E Cap`) takes the
   second with it — it used to be dropped, and such a medicine was never looked
   up at all (second review). One letter by ITSELF is still not asked for: it
-  would be every brand that begins with it, so a medicine whose whole brand is
-  one letter carries no generic from either surface.
+  would be every brand that begins with it, so for a medicine whose whole brand is
+  one letter the server attaches no generic on either surface (for "Your usual"
+  the pad's own partial lookup may still find it; the box has nothing else).
 - **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
   single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
   the doctor is shown silence on failure by design, the log is the ONLY place a

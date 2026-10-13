@@ -123,7 +123,9 @@ export default function BulkMedicineModal({ open, onClose, existing, list, onAdd
   //     React Query holds back while the browser is offline. Still awaited;
   //   • a list whose every medicine was left out as unreadable.
   const waiting = list.isLoading || (!list.isError && list.data === undefined);
-  // What is not on screen cannot be added. While the list is being asked for
+  // Nothing is added from a list that is not being shown. (A row a SEARCH has
+  // hidden is another matter: the list is on screen and its tick counts, as
+  // the footer says.) While the list is being asked for
   // again, or has failed, the box offers NOTHING — not even to Add, which went
   // on acting on the ticks from the list the box had stopped showing. The
   // ticks themselves are kept, for when the list is back.

@@ -324,7 +324,7 @@ describe("BulkMedicineModal", () => {
   // Second review: the rows were hidden while the list was being asked for
   // again, or had failed — and Add still acted on the ticks, from the list the
   // box had just stopped offering.
-  it("⚕️ what is not on screen cannot be added: Add is off while the list is loading or has failed, ticks or no ticks", () => {
+  it("⚕️ nothing is added from a list that is not being shown: Add is off while it is loading or has failed, ticks or no ticks", () => {
     const props = { onClose: vi.fn(), existing: [] as RxItem[] };
     const onAdd = vi.fn();
     const held = { medicines: [NAPA, SERGEL], truncated: false, unreadable: 0 };

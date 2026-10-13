@@ -19,8 +19,11 @@
 // cannot produce a wrong generic: a mismatch yields no generic, never another
 // medicine's.
 //
-// A SECOND USE SINCE 2026-10-13, and a heavier one: "Add Bulk Medicine"
-// (`lib/bulkMedicines.ts`) asks this function whether a ticked medicine is
+// TWO MORE USES SINCE. `lib/rxDrugAdvice.ts` (2026-09-24) keys a medicine's
+// own saved advice by it, mirroring `server/src/drug-advice/keys.ts`: a drift
+// there means the advice is not offered, never that it is offered on another
+// drug. And, heavier, "Add Bulk Medicine" (2026-10-13,
+// `lib/bulkMedicines.ts`) asks this function whether a ticked medicine is
 // ALREADY ON THE ℞ PAD. Both sides of that question are answered here, so the
 // server's copy does not come into it — but this function's own folding does:
 // if it ever folded two different medicines into one key, the second would be
