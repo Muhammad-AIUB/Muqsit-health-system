@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { bulkToRxItems } from "./bulkMedicines";
 import { habitToRows, resolveGeneric } from "./rxHabitRows";
 import { rxItemsFromRows } from "./rxRows";
 import { checkRxAlerts, rxAlertsByLine } from "./rxAlerts";
@@ -121,6 +122,60 @@ describe("Barcavir — the warning must survive the suggestion", () => {
   it("never lends another medicine's generic — 1 mg is not 0.5 mg", () => {
     const oneMg: MedicineHit = { ...BARCAVIR_MED, id: "m2", strength: "1 mg" };
     expect(resolveGeneric("Tablet. Barcavir 0.5 mg", [oneMg])).toBeUndefined();
+  });
+});
+
+// ⚕️ The same bridge on the other fast path: "Add Bulk Medicine" (2026-10-13)
+// puts several of the doctor's own medicines on the pad in one press. Each
+// carries the generic the server sent on the same response, and that is all
+// that lets a rule written against the generic see the brand line.
+describe("Barcavir — the warning must survive a bulk add", () => {
+  const BULK = {
+    id: "h_barcavir", drugLabel: "Tablet. Barcavir 0.5 mg", dose: "1+0+0", food: "", duration: "Continue",
+    contLines: [], patientCount: 1,
+  };
+  const alertsAfterBulkAdd = (generic?: string) => {
+    const { items } = bulkToRxItems([{ ...BULK, ...(generic ? { generic } : {}) }], []);
+    return checkRxAlerts({
+      rxDrugs: items.map((i) => ({ text: i.drug, generic: i.generic })),
+      sidebar: PREGNANT_SIDEBAR,
+    });
+  };
+
+  it("RAISES the contraindication for a medicine added from the box", () => {
+    expect(alertsAfterBulkAdd("Entecavir").alerts.map((a) => a.message)).toContain(CONTRAINDICATION);
+  });
+
+  it("raises exactly the same warning as picking the medicine from the dropdown", () => {
+    const viaDropdown = checkRxAlerts({
+      rxDrugs: [{ text: fmtMedicine(BARCAVIR_MED), generic: BARCAVIR_MED.genericName ?? undefined }],
+      sidebar: PREGNANT_SIDEBAR,
+    });
+    expect(alertsAfterBulkAdd("Entecavir").alerts.map((a) => a.message)).toEqual(
+      viaDropdown.alerts.map((a) => a.message),
+    );
+  });
+
+  it("lands on the line the box added, not on its neighbour", () => {
+    const { items } = bulkToRxItems(
+      [
+        { id: "h_napa", drugLabel: "Tablet. Napa 500 mg", dose: "1+1+1", food: "After meal", duration: "5 days", contLines: [], patientCount: 30 },
+        { ...BULK, generic: "Entecavir" },
+      ],
+      [],
+    );
+    const byLine = rxAlertsByLine({
+      rxDrugs: items.map((i) => ({ text: i.drug, generic: i.generic })),
+      sidebar: PREGNANT_SIDEBAR,
+    });
+    expect(byLine.get(1)?.map((a) => a.message)).toEqual([CONTRAINDICATION]);
+    expect(byLine.get(0)).toBeUndefined();
+  });
+
+  it("documents why the server sends it: WITHOUT its generic the same line raises nothing", () => {
+    // The state of a hand-typed brand — which is exactly what a bulk-added
+    // medicine would be if the generic travelled on a second request.
+    expect(alertsAfterBulkAdd().alerts.map((a) => a.message)).not.toContain(CONTRAINDICATION);
   });
 });
 

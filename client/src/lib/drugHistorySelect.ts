@@ -117,7 +117,9 @@ const lineKey = (it: RxItem): string =>
  * two byte-identical rows from different dates add the medicine once.
  */
 export function appendBlocks(
-  blocks: HistoryBlock[],
+  // Only the lines are read, so the "Add Bulk Medicine" box (`bulkMedicines.ts`)
+  // can hand over blocks that never were drug-history rows.
+  blocks: ReadonlyArray<Pick<HistoryBlock, "items">>,
   existing: RxItem[],
 ): { items: RxItem[]; added: number; skipped: number } {
   const seen = new Set((existing ?? []).filter(Boolean).map(lineKey));
