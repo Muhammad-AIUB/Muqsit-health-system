@@ -54,6 +54,31 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     setRxItems((prev) => [...prev, ...items.map((it) => ({ ...it }))]);
   };
 
+  // "Add Bulk Medicine" appends after the pad's last line, and the pad shows
+  // ten lines before it scrolls: the medicines just added could be below its
+  // edge, on the prescription and out of sight. The last of them is brought
+  // into view and then the first, so that as many as fit are seen from the
+  // first down.
+  //
+  // Only once the pad has DRAWN them. Its rows follow `rxItems` an effect
+  // later, and until then the row at `first` is the empty typing line — which
+  // was scrolled to instead, one line short of every medicine added (seen in
+  // a browser, on a made-up pad, before this was committed). The pad has
+  // drawn them when its rows are no longer the ones it had at the press
+  // (`from`) — they are made again from `rxItems`, so a line's place on the
+  // pad is then its place in `rxItems`, which is what `first` and `last` are.
+  const columnRef = useRef<HTMLDivElement>(null);
+  const [added, setAdded] = useState<{ first: number; last: number; from: Row[] } | null>(null);
+  useEffect(() => {
+    if (!added || rows === added.from) return;
+    const row = (i: number) => columnRef.current?.querySelector<HTMLElement>(`[data-rx-row="${i}"]`);
+    row(added.last)?.scrollIntoView?.({ block: "nearest" });
+    row(added.first)?.scrollIntoView?.({ block: "nearest" });
+    setAdded(null);
+  }, [rows, added]);
+  // Another patient's pad is not scrolled for what was added to the last one's.
+  useEffect(() => setAdded(null), [currentPatientId]);
+
   // Pad edits → prescription model.
   useEffect(() => {
     const items = toRxItems(rows);
@@ -72,7 +97,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   }, [rxItems]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: mobile ? 8 : 10 }}>
+    <div ref={columnRef} style={{ display: "flex", flexDirection: "column", gap: mobile ? 8 : 10 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
         <div style={{ flex: 1, display: "flex", gap: 5, flexWrap: "wrap", minWidth: 0 }}>
           {shownTemplates.map((t, i) => (
@@ -113,7 +138,10 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           workstationId={activeWorkstationId}
           allowed={can("rx.medicines")}
           existing={rxItems}
-          onAppend={(items) => setRxItems((prev) => [...prev, ...items])}
+          onAppend={(items) => {
+            setAdded({ first: rxItems.length, last: rxItems.length + items.length - 1, from: rows });
+            setRxItems((prev) => [...prev, ...items]);
+          }}
         />
       </div>
 

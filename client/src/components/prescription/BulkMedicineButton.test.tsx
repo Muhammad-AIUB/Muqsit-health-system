@@ -16,6 +16,7 @@ vi.mock("@/lib/api", async (original) => ({
 }));
 
 import BulkMedicineButton from "./BulkMedicineButton";
+import { C } from "@/theme";
 import type { RxItem } from "@/types";
 
 const NAPA = { id: "h1", drugLabel: "Tablet. Napa 500 mg", generic: "Paracetamol", dose: "1+1+1", food: "After meal", duration: "5 days", contLines: [], patientCount: 30 };
@@ -46,10 +47,11 @@ const mount = (over: Over = {}) => {
   const view = render(tree(over));
   return { onAppend, rerender: (o: Over) => view.rerender(tree({ ...over, ...o })) };
 };
-const plus = () => screen.getByRole("button", { name: "Add Bulk Medicine" }) as HTMLButtonElement;
+const plus = () => screen.getByRole("button", { name: /^Add Bulk Medicine/ }) as HTMLButtonElement;
 const box = () => screen.getByRole("dialog", { name: "Add Bulk Medicine" });
 const noBox = () => expect(screen.queryByRole("dialog")).toBeNull();
-const said = () => screen.getByRole("status", { name: "Add Bulk Medicine result" }).textContent;
+const resultLine = () => screen.getByRole("status", { name: "Add Bulk Medicine result" }) as HTMLElement;
+const said = () => resultLine().textContent;
 const openBox = async () => {
   fireEvent.click(plus());
   await waitFor(() => expect(within(box()).getAllByRole("checkbox").length).toBeGreaterThan(0));
@@ -62,28 +64,8 @@ describe("BulkMedicineButton — the + beside the ℞ mark", () => {
     mount();
     expect(plus().textContent).toBe("+");
     expect(plus().title).toBe("Add Bulk Medicine");
-    expect(plus().disabled).toBe(false);
-  });
-
-  // "3 added" is something DONE, and done is green; blue is what can be pressed.
-  it("the result is written in the colour of a thing done, not of a thing to press", async () => {
-    mount();
-    await openBox();
-    tick("Napa");
-    add();
-    const line = screen.getByRole("status", { name: "Add Bulk Medicine result" }) as HTMLElement;
-    expect(line.style.color).toBe("rgb(15, 110, 86)"); // C.ok[600]
-  });
-
-  // Add hands the focus back to the +. Enter still held down from pressing Add
-  // then pressed the + again, and again: the box came back open over the lines
-  // just added and the result line was wiped.
-  it("a key HELD down does not press the +: only a fresh press opens the box", () => {
-    mount();
-    expect(fireEvent.keyDown(plus(), { key: "Enter", repeat: true })).toBe(false); // default prevented
-    expect(fireEvent.keyDown(plus(), { key: " ", repeat: true })).toBe(false);
-    expect(fireEvent.keyDown(plus(), { key: "Enter" })).toBe(true);
-    expect(fireEvent.keyDown(plus(), { key: "Tab", repeat: true })).toBe(true); // moving on is not pressing
+    expect(plus().getAttribute("aria-label")).toBe("Add Bulk Medicine");
+    expect(plus().getAttribute("aria-disabled")).toBe("false");
   });
 
   it("asks the server for nothing until it is pressed", async () => {
@@ -95,7 +77,7 @@ describe("BulkMedicineButton — the + beside the ℞ mark", () => {
     expect(all).toHaveBeenCalledTimes(1);
   });
 
-  it("⚕️ hands the pad the ticked medicines, and says what was added", async () => {
+  it("⚕️ hands the pad the ticked medicines, and says what was added — in the colour of a thing done", async () => {
     const { onAppend } = mount();
     await openBox();
     tick("Napa");
@@ -108,6 +90,10 @@ describe("BulkMedicineButton — the + beside the ℞ mark", () => {
     ]);
     noBox();
     expect(said()).toBe("2 added");
+    // Green is "done"; blue is what can be pressed.
+    const inTheColourOf = (colour: string) => { const probe = document.createElement("span"); probe.style.color = colour; return probe.style.color; };
+    expect(resultLine().style.color).toBe(inTheColourOf(C.ok[600]));
+    expect(resultLine().style.color).not.toBe(inTheColourOf(C.pri[600]));
   });
 
   it("a line already on the pad is not handed over again, and the result says so", async () => {
@@ -120,6 +106,15 @@ describe("BulkMedicineButton — the + beside the ℞ mark", () => {
     expect(said()).toBe("1 added · 1 already on ℞");
   });
 
+  it("⚕️ a medicine added beside itself at another dose is said to be on ℞ more than once", async () => {
+    const { onAppend } = mount({ existing: [{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", duration: "3 days", instruction: "After meal" }] });
+    await openBox();
+    tick("Napa");
+    add();
+    expect((onAppend.mock.calls[0][0] as RxItem[]).map((it) => [it.drug, it.dose])).toEqual([["Tablet. Napa 500 mg", "1+1+1"]]);
+    expect(said()).toBe("1 added · it is now on ℞ more than once");
+  });
+
   it("the result is about the last press: pressing + again takes it away", async () => {
     mount();
     await openBox();
@@ -128,6 +123,17 @@ describe("BulkMedicineButton — the + beside the ℞ mark", () => {
     expect(said()).toBe("1 added");
     fireEvent.click(plus());
     expect(said()).toBe("");
+  });
+
+  // Add hands the focus back to the +. Enter still held down from pressing Add
+  // then pressed the + again, and again: the box came back open over the lines
+  // just added and the result line was wiped.
+  it("a key HELD down does not press the +: only a fresh press does", () => {
+    mount();
+    expect(fireEvent.keyDown(plus(), { key: "Enter", repeat: true })).toBe(false); // default prevented
+    expect(fireEvent.keyDown(plus(), { key: " ", repeat: true })).toBe(false);
+    expect(fireEvent.keyDown(plus(), { key: "Enter" })).toBe(true);
+    expect(fireEvent.keyDown(plus(), { key: "Tab", repeat: true })).toBe(true); // moving on is not pressing
   });
 
   it("closing the box without adding hands the pad nothing and says nothing", async () => {
@@ -185,23 +191,27 @@ describe("BulkMedicineButton — the + beside the ℞ mark", () => {
     noBox();
   });
 
-  it("an assistant without the pad's own key sees the + greyed, with the reason, and it opens nothing", async () => {
+  // Greyed, never hidden — and still reachable from the keyboard, so that the
+  // reason is not only a tooltip a mouse can find.
+  it("an assistant without the pad's own key finds the + greyed, with the reason in its name, and it opens nothing", async () => {
     mount({ allowed: false });
-    expect(plus().disabled).toBe(true);
+    expect(plus().getAttribute("aria-disabled")).toBe("true");
+    expect(plus().disabled).toBe(false); // still a Tab stop
     expect(plus().title).toBe("View only — you don't have access to edit medicines");
+    expect(plus().getAttribute("aria-label")).toBe("Add Bulk Medicine. View only — you don't have access to edit medicines");
     fireEvent.click(plus());
+    await new Promise((r) => setTimeout(r, 20));
     noBox();
     expect(all).not.toHaveBeenCalled();
   });
 
-  it("⚕️ a box that is open closes if the permission is taken away under it", async () => {
+  it("⚕️ a box that is open closes if the permission is taken away under it, and does not come back with it", async () => {
     const { onAppend, rerender } = mount({ allowed: true });
     await openBox();
     tick("Napa");
     rerender({ allowed: false });
     noBox();
     expect(onAppend).not.toHaveBeenCalled();
-    // …and it does not come back by itself when the permission does.
     rerender({ allowed: true });
     noBox();
   });

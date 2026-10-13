@@ -127,8 +127,8 @@ these are the ones that live in this app's code and are easy to break.
   and COUNTED (`unreadable`), and the box says the number — the dropdown would
   offer that medicine's next instruction, so in that one case the two surfaces
   differ.
-- **⚕️ `attachGenerics` takes `'ignore'` or `'throw'`, and `listAll()` THROWS on
-  a failed catalogue lookup** (first review, 2026-10-13, before release). The
+- **⚕️ `attachGenerics` THROWS on a failed catalogue lookup: `list()` catches
+  it, `listAll()` does not** (first review, 2026-10-13, before release). The
   first version wrapped the lookup in the dropdown's try/catch and returned the
   list without generics. For `list()` that is right: the ℞ pad has a second,
   PARTIAL source — the medicine results loaded for what was typed
@@ -146,7 +146,8 @@ these are the ones that live in this app's code and are easy to break.
   rows. Measured on a made-up catalogue of 35,000 medicines, the box took 5 to
   7 s to open for a doctor with 200 medicines and over a minute for 2,000; as
   one hash join (`lower(first word of "brandName") IN (SELECT unnest($1))`) it
-  is 0.08 s and 0.32 s, and the dropdown's own lookup is cheaper than it was.
+  is 0.08 s and 0.32 s for the whole service call (0.05 s and 0.13 s of it the
+  query), and the dropdown's own lookup is cheaper than it was.
   The question is also a better one. A prefix needed a row cap, and a cap that
   bites drops whichever brands the database reached last (the dropdown's old
   `LIMIT 500` could, for one broad prefix); a brand whose first word is one

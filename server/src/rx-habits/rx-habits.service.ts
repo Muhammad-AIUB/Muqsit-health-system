@@ -91,9 +91,11 @@ export interface HabitGroup {
 }
 
 /**
- * One medicine of the "Add Bulk Medicine" list: the instruction this doctor
- * most often writes for it — the first suggestion the typing dropdown would
- * offer for the same medicine, so the two can never disagree.
+ * One medicine of the "Add Bulk Medicine" list, with the instruction the
+ * typing dropdown would offer first for it (pinned, then most patients, then
+ * most recent). The one case where the two differ: a first row that cannot be
+ * read — the dropdown offers the next, the list leaves the medicine out and
+ * counts it.
  */
 export interface HabitMedicine {
   id: string;
@@ -725,7 +727,8 @@ export class RxHabitsService implements OnModuleInit {
    * list: every pattern is tried against every row. Measured on 2026-10-14 on a
    * made-up catalogue of 35,000 medicines, that cost 0.8 s per 25 brands — 5 to
    * 7 s to open the box with 200 medicines, over a minute with 2,000. As one
-   * hash join it is 0.05 s for 200 and 0.13 s for 2,000, and for the dropdown
+   * hash join the query is 0.05 s for 200 and 0.13 s for 2,000 (the whole
+   * service call 0.08 s and 0.32 s), and for the dropdown
    * it is cheaper than the pattern was.
    *
    * It also asks a better question. A prefix needed a row cap, and a cap that

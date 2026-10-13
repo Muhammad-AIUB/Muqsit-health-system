@@ -447,7 +447,10 @@ export const rxHabitsApi = {
   // each with its usual instruction. Typed `unknown` on purpose — it reaches
   // the ℞ pad, so `readBulkList` (lib/bulkMedicines.ts) reads it defensively.
   // Unlike `list`, the server answers a failure with an error, not `[]`.
-  all: () => apiFetch<unknown>(`/rx-habits/all`),
+  // `signal: abort` is written out, not `{ signal }`: the contract test reads
+  // this file and takes only `name: value` options as ones it can read
+  // (server/test/support/client-calls.ts).
+  all: (abort?: AbortSignal) => apiFetch<unknown>(`/rx-habits/all`, { signal: abort }),
   // No remove(): the prescription record is never touched, so "deleting" a
   // suggestion means hiding it — and hiding is always reversible.
   setFlags: (id: string, flags: { hidden?: boolean; pinned?: boolean }) =>

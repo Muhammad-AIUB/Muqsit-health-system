@@ -140,3 +140,20 @@ beside "New Prescription"), `.sheet` / `.right table` inside the print document,
 and field popups opened by clicking the field's label text (the `+` buttons had
 no accessible name when these were written; since 2026-10-05 each is named
 `Add <field>`, and the helpers still click the label).
+
+## A journey is run once per seeding
+
+`--repeat-each` signs the same seeded doctor in again, and a journey that ends
+with an unsaved pad (the bulk-medicine ones do) has left that doctor a draft.
+On the DEV server the next sign-in may open on that draft instead of the blank,
+gated editor, and the journey waits two minutes for a mobile box that is not
+there. The cause is not in the journey: `reactStrictMode` runs the editor's
+hydrate effect twice on mount (`MuqsitContext`), the first run takes the
+fresh-sign-in mark and clears the stored draft, and the second — the mark gone
+— asks for the stored draft and may be answered before the clearing has
+landed. A production build runs the effect once. (The developer's own
+`next dev` on :3000 has the same race: a fresh sign-in there can open on that
+doctor's last draft instead of the gate. It is their own draft.) To run a journey several
+times, run the command several times: each run seeds new doctors (found
+2026-10-14, from one failure in four repeats; the trace shows the `PUT` and
+the `GET` of `/prescription-draft` a millisecond apart).

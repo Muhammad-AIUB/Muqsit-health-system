@@ -813,7 +813,7 @@ of each for the physician or the operator to decide:
 
 - [ ] **A medicine already on ℞ is never changed from the box.** With Deltasone
   on the pad at 2+0+0 and no tapering lines, ticking the box's Deltasone (which
-  has them) adds nothing — a medicine is not written twice — and the line beside
+  has them) adds nothing — a line that is on the pad is not written twice — and the line beside
   the + reads `… 1 already on ℞ — its tapering lines differ there`. It used to
   say "with the same instruction". Whether the box should instead put the
   tapering lines under the line that is there is the physician's to say; it
@@ -871,9 +871,125 @@ Found on 2026-10-14 by MEASURING, after three reviews and a green suite:
   catalogue. Against a made-up one of 35,000, a doctor with 200 medicines
   waited 5 to 7 s for the box and one with 2,000 over a minute (one `ILIKE`
   pattern per brand, each tried against every row). The lookup is one pass
-  now — 0.08 s and 0.32 s on the same data — and it is the same lookup "Your
+  now — the service call alone takes 0.08 s and 0.32 s on the same data — and
+  it is the same lookup "Your
   usual" uses, which got cheaper with it. **Not measured: the production
   catalogue itself**, which was not read. If the box is slow there, the first
   thing to look at is the API log's timing for `GET /rx-habits/all`; an index
   on the expression the lookup compares would make it instant, and is a
   manual, additive migration that was not written for this.
+
+From a second, independent review of the whole feature (2026-10-14), and what
+was done with it:
+
+- [ ] **The same medicine can be added at a second dose.** A LINE is not
+  written twice; a medicine can be — Napa is on the pad for 3 days, the box's
+  Napa is for 5, and ticking it adds a second Napa line. That is the approved
+  rule (which dose is right is the doctor's judgement, as in "Move to Rx"), and
+  five sentences of this repository said the opposite. What changed: the row
+  carries an **On ℞** mark before it is ticked, the line beside the + says
+  `… is now on ℞ more than once`, and the pad scrolls to what was added.
+  **For the physician:** should the box refuse a medicine that is already on
+  the prescription at ANY dose, instead of marking it?
+- [x] A row showed how many patients and not WHEN; a dose given to twelve
+  patients two years ago read like last week's. The date is beside the count,
+  as in "Your usual" (`lib/lastUsed.ts`, one function for both).
+- [x] A medicine with no generic — one the catalogue does not list — looked
+  like any other, though its prescribing warnings will not fire. The generic
+  is shown under the name; a row without one shows none.
+- [x] From the keyboard, every row was a Tab stop (two hundred presses between
+  the search and Add), and a press beside the box threw every tick away. The
+  list is one Tab stop with arrow keys; the veil closes the box only while
+  nothing is ticked.
+- [ ] **"Move to Rx" in Drug history still compares medicines letter for
+  letter**, so `Tablet. Napa 500mg` from the history goes on the pad beside
+  `Tablet. Napa 500 mg`. The box was given the app's own medicine comparison;
+  Drug history was left as released, to be changed on its own.
+- [ ] **The documents for this feature are long for its size**, and several
+  comments told the story of its reviews instead of the rule. The client guide's
+  section was rewritten shorter; the root `CLAUDE.md` patterns were kept, since
+  each is a lesson that applies beyond this feature.
+
+Timed in a browser on 2026-10-14 — Chromium, a PRODUCTION build of the client,
+the test API, made-up lists against a made-up catalogue of 35,000. Every figure
+is the middle one of several readings:
+
+- [x] **A long list was slow to draw and to re-order.** With 2,000 medicines
+  — the most the server sends — the box took 1.9 s from the press on + to its
+  rows, 1.3 s of that drawing them, and Popular / Alphabetical about a second.
+  A row out of sight is no longer laid out or painted until it is scrolled to,
+  and the On ℞ marks are worked out when the list or the pad changes instead
+  of at every tick: 1.2 s to open, of which the page waits 0.55–0.6 s for the
+  request, and 0.2–0.3 s to re-order. With 300 medicines: 0.33 s to open
+  (0.19 s of it the request) and 0.1 s to re-order. A tick is 0.02–0.06 s at
+  either size. The list is not windowed: every row is in the page, and a
+  journey holds that the keyboard reaches a row that was never drawn.
+- [ ] **The request by itself** — asked for directly, not through the page —
+  takes 0.5 s for 2,000 medicines and 0.17 s for 300, in the browser suite's
+  database, with tapering lines on one medicine in nine. (The 0.08 s and
+  0.32 s further up are the service call alone, without HTTP, for 200 and
+  2,000 medicines with no tapering lines, in the load-test database: another
+  list, and less of the work.) Where in the request the time goes was not
+  taken apart; the box reads "Loading the medicine list…" meanwhile.
+- [ ] **Not timed, and not known:** how many medicines a real doctor's list
+  holds (it was not read — the dev database is production); the production
+  catalogue; a phone or an old tablet, where drawing costs several times a
+  laptop's; Firefox and Safari; and whether the VPS compresses the answer —
+  2,000 medicines are 550 KB of JSON, the API does not compress by itself,
+  and on a hospital's Wi-Fi that matters more than any of the above. **For
+  the operator:** check that nginx gzips `application/json`.
+
+From the second pass of the independent review (2026-10-14, before release) —
+nothing in it was held to block a release; what was done, and what is left:
+
+- [x] **The search could be a moment behind the keyboard.** Its rows are drawn
+  after the key press, so that a long list does not hold up typing — and
+  `napa`, Tab, Space on a slow machine ticked the first row of the list as it
+  stood before the search. The rows are brought up to what is typed before Tab
+  lands on them.
+- [x] **Escape threw the ticks away**, as a press beside the box had: it is
+  also the key that clears the search, and one press too many emptied the box.
+  With medicines ticked, Escape and the veil say how to close; Add, Cancel and
+  the × leave the box.
+- [x] **The result did not say WHICH medicine is now on ℞ more than once.** It
+  names it (two at most; a count beyond that): `3 added · “Tablet. Napa 500
+  mg” is now on ℞ more than once`.
+- [x] **The quiet retry had been taken from every answer below 500** — for one
+  round of this work, never released — and the framework's words shown for
+  them ("Unauthorized", "Cannot GET /api/…"). A 401 is what the page gets
+  when its session could not be renewed just then, and the retry is what gets
+  the list. Only a 403 — the one refusal worded for a person — is shown as
+  written and not asked for again.
+- [x] **End and the Page keys could leave the row they landed on out of
+  sight** — where Space ticks it unseen. A row is drawn a frame after it
+  comes near, taller than the space kept for it, and pushes the rows below
+  it down. Chromium holds the page still through that; a browser that does
+  not (Safari is documented as having no scroll anchoring) does not. Reasoned in the second
+  pass, answered with one ask a frame later, shown by the third pass to come
+  too early — and then SEEN: with anchoring switched off and rows with two
+  tapering lines, End left the last row below the edge. The row is asked
+  into view on each of the next four frames; the journey runs with anchoring
+  off. **Not run in Safari itself.**
+- [x] A row not yet drawn stood 18px taller than a drawn one without
+  tapering lines (the number given is what a row holds; its padding is
+  added); the amber line was put on the page with its words in it, which a
+  screen reader often does not read out; nothing said that the arrows move
+  along the list; and "2,000" was written out on this side as well as the
+  server's. All closed.
+- [ ] **The name in the result line is the label as written, at any length.**
+  Two long labels make a long line (it wraps), and a label with a quotation
+  mark in it is quoted inside quotation marks. Cosmetic.
+- [ ] **A line typed on the pad without its dosage form is not known to be the
+  same medicine.** With `Napa 500 mg` typed by hand and `Tablet. Napa 500 mg`
+  ticked in the box, there is no On ℞ mark, the result reads `1 added`, and
+  the pad has two Napa lines. The app compares medicines form and all
+  everywhere (`normaliseDrugKey`); whether a line with NO form should count as
+  any form of that brand and strength is the physician's to say.
+- [ ] **A row with no generic says so only by not showing one.** Its
+  prescribing warnings will not fire. Whether the row should say that in
+  words, and in which, is the physician's.
+- [ ] Left as they are: Try again takes the focus with it when it is pressed
+  (the next Tab brings it back into the box); no test holds that the pad
+  hands the box its patient's id — the rule itself is held, in
+  `BulkMedicineButton.test.tsx`; and what is written about this feature in
+  the guides is long for its size.

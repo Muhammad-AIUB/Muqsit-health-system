@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { C, font } from "@/theme";
-import { BulkMedicineBox } from "@/components/prescription/BulkMedicineModal";
+import BulkMedicineBox from "@/components/prescription/BulkMedicineBox";
 import type { RxItem } from "@/types";
 
-// The + beside the ℞ mark of the OPD pad (physician's request, 2026-10-13):
-// "Add Bulk Medicine". It opens the doctor's own medicines, hands the ticked
-// ones to the pad, and says beside itself what was added.
+// The + beside the ℞ mark of the OPD pad: "Add Bulk Medicine". It opens the
+// doctor's own medicines, hands the ticked ones to the pad, and says beside
+// itself what was added.
 //
 // ⚕️ THE BOX IS ONE PATIENT'S. It is opened over the pad of the patient in the
 // editor, and the editor can move on underneath it: another device picks the
@@ -17,11 +17,10 @@ import type { RxItem } from "@/types";
 // in the same render, not an effect later — and what the last Add said goes
 // with it. It does not come back if the editor returns to the first patient.
 //
-// This tells patients apart by their id, so it cannot tell apart two pads that
-// have none. It does not have to: the editor is closed to writing until a
-// patient with an id is chosen (`PatientGate`), and the column this sits in is
-// redrawn when that gate opens or closes. A caller that shows this over a pad
-// with no patient id would need another signal.
+// Patients are told apart by their id, so two pads with no id look alike. That
+// is safe only because the editor cannot be written in until a patient with an
+// id is chosen (`PatientGate`); a caller that shows this over a pad with no
+// patient id would need another signal.
 
 interface Props {
   /** The patient whose pad this is; null while the editor holds none. */
@@ -35,6 +34,8 @@ interface Props {
   /** Append these lines after the pad's last one. */
   onAppend: (items: RxItem[]) => void;
 }
+
+const NO_ACCESS = "View only — you don't have access to edit medicines";
 
 export default function BulkMedicineButton({ patientId, workstationId, allowed, existing, onAppend }: Props) {
   const [open, setOpen] = useState(false);
@@ -51,23 +52,23 @@ export default function BulkMedicineButton({ patientId, workstationId, allowed, 
   }
   // The same for a permission taken away while the box is open.
   if (open && !allowed) setOpen(false);
-  const showing = open && allowed && seen === patientId;
 
   return (
     <>
-      {/* Without the pad's own key the + is shown greyed, with the reason —
-          never hidden. The pad itself is locked for the same user. */}
+      {/* Without the pad's own key the + is greyed, never hidden — and still a
+          Tab stop (`aria-disabled`, not `disabled`), so that the reason can be
+          reached from the keyboard and is read out with its name. */}
       <button
         type="button"
         className="hit-area"
-        aria-label="Add Bulk Medicine"
-        title={allowed ? "Add Bulk Medicine" : "View only — you don't have access to edit medicines"}
-        disabled={!allowed}
-        onClick={() => { setSaid(""); setOpen(true); }}
-        // Add hands the focus back here. Enter still held down from pressing
-        // Add would press this again and again — the box back open over the
-        // lines just added, and the line that says what was added wiped. A key
-        // that is being HELD presses nothing; a fresh press does.
+        aria-label={allowed ? "Add Bulk Medicine" : `Add Bulk Medicine. ${NO_ACCESS}`}
+        aria-disabled={!allowed}
+        title={allowed ? "Add Bulk Medicine" : NO_ACCESS}
+        onClick={() => { if (!allowed) return; setSaid(""); setOpen(true); }}
+        // Add hands the focus back here, and Enter still held down from
+        // pressing Add would press this again and again: the box back open over
+        // the lines just added, and what was said about them wiped. A key that
+        // is being HELD presses nothing; a fresh press does.
         onKeyDown={(e) => { if (e.repeat && (e.key === "Enter" || e.key === " ")) e.preventDefault(); }}
         onMouseEnter={(e) => { if (allowed) { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; } }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}
@@ -77,7 +78,7 @@ export default function BulkMedicineButton({ patientId, workstationId, allowed, 
           Something DONE, so in the colour of done (`C.ok`), not of the brand. */}
       <span role="status" aria-label="Add Bulk Medicine result" style={{ fontSize: 11, color: C.ok[600] }}>{said}</span>
       {/* Mounted only while open: every opening asks for the list again. */}
-      {showing && (
+      {open && allowed && (
         <BulkMedicineBox
           workstationId={workstationId}
           onClose={() => setOpen(false)}

@@ -36,8 +36,9 @@ These follow existing decisions; none is new.
   patient returning monthly must not make a one-off dose look routine.
 - **Which instruction is "the usual one"** is decided exactly as the typing
   dropdown decides its first suggestion: pinned first, then most patients, then
-  most recently used. The two surfaces can never disagree about a medicine's
-  usual dose.
+  most recently used, so the two surfaces show the same usual dose. (As built,
+  one exception: a first row that cannot be read — the dropdown offers the
+  medicine's next instruction, the box leaves the medicine out and counts it.)
 - **A dose the doctor hid (✕ in "Your usual") is not offered.** The medicine's
   next visible instruction is shown; a medicine whose instructions are all
   hidden is not listed.
@@ -197,9 +198,14 @@ Response:
   builds (head with `generic`, then one line per taper) — **as built, without
   `fromHabit`**: that flag makes a save write `N of M ℞ lines inserted from
   "Your usual"` to the activity feed, and a line added from this box was not —
-  and hands them to `appendBlocks` from `drugHistorySelect.ts`, which already
-  knows "skip a block whose head line is on the pad" and counts
-  blocks, not lines. `moveSummary` writes the result line.
+  and decides itself which are on the pad already (`bulkToRxItems`): the same
+  rule as `appendBlocks` in `drugHistorySelect.ts` — skip a block whose first
+  line is on the pad, count medicines, not lines — but comparing the medicine
+  as the app does elsewhere, and counting what the skip leaves unsaid.
+  `bulkSummary` writes the result line. **As built:** a medicine added beside
+  itself at another dose is marked **On ℞** in the list beforehand and named in
+  the result (`… now on ℞ more than once`); each row shows its generic and when
+  it was last written; the list is one Tab stop with arrow keys.
 - The response is read defensively: it reaches the pad, and an uncaught render
   error inside the editor unmounts the whole prescription. If any medicine was
   unreadable the box says how many were left out.
@@ -234,8 +240,9 @@ Response:
 - **Server unit** (`rx-habits.service.spec.ts`): the list is scoped by the
   doctor id it is given; hidden rows are not returned and do not hide the next
   instruction; the lead row follows the dropdown's order; unreadable
-  `contLines` drop the row; generics are attached across chunks and a failed
-  generic lookup returns the list without them; a failed list throws.
+  `contLines` drop the row; every medicine is given its own generic from one
+  catalogue query, and a failed generic lookup — like a failed list — throws
+  (as built; the design had it return the list without them).
 - **Server integration** (`server/test`, throwaway database): doctor A's list
   never holds doctor B's medicines; an assistant in A's workstation gets A's;
   the route is in the route contract.
@@ -259,3 +266,15 @@ Response:
 `docs/API.md` (the route), `server/CLAUDE.md` (Rule 2c: the second read path
 and why it throws), `client/CLAUDE.md` (the box and its rules),
 `docs/DOMAIN.md` (the concept and the physician's decisions).
+
+**As built, 2026-10-14 (the long list).** The list is not windowed: every row
+is in the page. A row out of sight is not laid out or painted until it is
+scrolled to (`content-visibility: auto`), and the On ℞ marks are worked out
+when the list or the pad changes. The rows are drawn a moment behind what is
+typed in the search, and Tab brings them up to it before it lands on one. With
+medicines ticked, Escape and a press on the veil say how to close instead of
+closing. The result names the medicine that now stands on ℞ more than once.
+The notice of a cut list counts the rows listed (the design had "your 2,000"
+written out). The one quiet retry is not spent on a 403, the one refusal the
+server words for a person. Timings and what was not timed:
+`FUNCTIONAL-AUDIT.md`.

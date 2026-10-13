@@ -7,6 +7,7 @@ import { useMedicineSearch } from "@/hooks/useMedicineSearch";
 import { useRxHabits } from "@/hooks/useRxHabits";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import { rxSuggestReady } from "@/lib/rxSuggest";
+import { lastUsedLabel } from "@/lib/lastUsed";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
@@ -122,26 +123,9 @@ function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, bang
 // already saved and printed. Nothing is generated, nothing is auto-filled — a
 // suggestion reaches the pad only by an explicit click.
 
-// "last 15 Aug", or "last 15 Aug 2024" once it is not this year.
-//
-// ⚕️ THE YEAR IS NOT DECORATION. The count and the date are shown together
-// precisely so a routine dose and a one-off can be told apart (design §8 rule
-// 7) — and without a year, an instruction last written two years ago reads
-// exactly like one written last week. A stale habit that looks current is the
-// same failure as a wrong count.
-//
-// `lastUsedAt` is an ISO timestamp from the server, so a plain Date parse is
-// correct here — unlike the app's stored dd/mm/yyyy strings, which must never
-// go through `new Date(str)` (see client/CLAUDE.md).
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-export function lastUsedLabel(iso: unknown, now: Date = new Date()): string {
-  if (typeof iso !== "string") return "";
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return "";
-  const d = new Date(ms);
-  const year = d.getFullYear() === now.getFullYear() ? "" : ` ${d.getFullYear()}`;
-  return `last ${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}${year}`;
-}
+// "last 15 Aug" beside a suggestion's count: lib/lastUsed.ts, shared with the
+// "Add Bulk Medicine" box.
+export { lastUsedLabel };
 
 // The instruction, exactly as saved. A blank field is simply absent — never
 // filled in with a guess.
