@@ -277,3 +277,143 @@ describe('RxHabitsService.setFlags — ownership and the audit line', () => {
     ).resolves.toMatchObject({ id: 'h1' });
   });
 });
+
+// ⚕️ The "Add Bulk Medicine" box: every medicine ONE doctor has a visible habit
+// for, one row each. Two things set it apart from `list()` above: it is not a
+// search, and it THROWS — a list the doctor opened on purpose must be able to
+// say "could not be loaded" instead of looking like an empty history.
+describe('RxHabitsService.listAll — the "Add Bulk Medicine" list', () => {
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: 'h1', drugKey: 'tablet. napa 500mg', drugLabel: 'Tablet. Napa 500 mg',
+    dose: '1+1+1', food: 'After meal', duration: '5 days', contLines: [],
+    patientCount: 30, lastUsedAt: new Date('2026-10-01T00:00:00Z'), ...over,
+  });
+  const svcWith = (habits: unknown[] | Error, medicines: unknown[] | Error = []) => {
+    const $queryRaw = jest.fn().mockImplementation(() =>
+      habits instanceof Error ? Promise.reject(habits) : Promise.resolve(habits),
+    );
+    const $queryRawUnsafe = jest.fn().mockImplementation(() =>
+      medicines instanceof Error ? Promise.reject(medicines) : Promise.resolve(medicines),
+    );
+    return {
+      svc: new RxHabitsService({ $queryRaw, $queryRawUnsafe } as unknown as PrismaService),
+      $queryRaw,
+      $queryRawUnsafe,
+    };
+  };
+  /** The SQL text and the bound values of the one tagged-template call. */
+  const sqlOf = ($queryRaw: jest.Mock) => {
+    const [strings, ...values] = $queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    return { text: strings.join('?'), values };
+  };
+
+  it('⚕️ asks for ONE doctor: the id it is given is bound into the query', async () => {
+    const { svc, $queryRaw } = svcWith([row()]);
+    await svc.listAll('doc_1');
+    const { text, values } = sqlOf($queryRaw);
+    expect(values).toContain('doc_1');
+    expect(text).toMatch(/"doctorId" = \?/);
+  });
+
+  it("leaves hidden rows out BEFORE choosing a medicine's row, so a hidden dose never hides the next one", async () => {
+    const { svc, $queryRaw } = svcWith([row()]);
+    await svc.listAll('doc_1');
+    const { text } = sqlOf($queryRaw);
+    const hidden = text.indexOf('"hidden" = false');
+    expect(hidden).toBeGreaterThan(-1);
+    expect(hidden).toBeLessThan(text.indexOf('rn = 1'));
+  });
+
+  it("chooses a medicine's row as the typing dropdown does: pinned, then most patients, then most recent", async () => {
+    const { svc, $queryRaw } = svcWith([row()]);
+    await svc.listAll('doc_1');
+    expect(sqlOf($queryRaw).text).toMatch(
+      /PARTITION BY h\."drugKey"\s+ORDER BY h\."pinned" DESC, h\."patientCount" DESC, h\."lastUsedAt" DESC, h\."id" ASC/,
+    );
+  });
+
+  it('returns one medicine per row with its instruction, in the order the database gave', async () => {
+    const { svc } = svcWith([
+      row(),
+      row({
+        id: 'h2', drugKey: 'tablet. deltasone 5mg', drugLabel: 'Tablet. Deltasone 5 mg',
+        dose: '2+0+0', duration: '5 days', patientCount: 6,
+        contLines: [{ dose: '1+0+0', food: 'After meal', duration: '5 days' }],
+      }),
+    ]);
+    const out = await svc.listAll('doc_1');
+    expect(out.truncated).toBe(false);
+    expect(out.medicines.map((m) => m.drugLabel)).toEqual(['Tablet. Napa 500 mg', 'Tablet. Deltasone 5 mg']);
+    expect(out.medicines[0]).toMatchObject({
+      id: 'h1', dose: '1+1+1', food: 'After meal', duration: '5 days', contLines: [], patientCount: 30,
+    });
+    expect(out.medicines[1].contLines).toEqual([{ dose: '1+0+0', food: 'After meal', duration: '5 days' }]);
+  });
+
+  it('⚕️ drops a medicine whose tapering lines cannot be read — whole, never half a taper', async () => {
+    const { svc } = svcWith([
+      row({ id: 'bad', contLines: [{ dose: '1+0+0' }] }),
+      row({ id: 'h2', drugKey: 'tablet. ace 500mg', drugLabel: 'Tablet. Ace 500 mg' }),
+    ]);
+    const out = await svc.listAll('doc_1');
+    expect(out.medicines.map((m) => m.id)).toEqual(['h2']);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('says so when the doctor has more medicines than the cap, and returns the cap', async () => {
+    const many = Array.from({ length: 2001 }, (_, i) =>
+      row({ id: `h${i}`, drugKey: `tablet. med${i} 5mg`, drugLabel: `Tablet. Med${i} 5 mg` }),
+    );
+    const out = await svcWith(many).svc.listAll('doc_1');
+    expect(out.truncated).toBe(true);
+    expect(out.medicines).toHaveLength(2000);
+  });
+
+  it('⚕️ attaches the generic to every medicine, asking the catalogue in chunks', async () => {
+    const habits = Array.from({ length: 60 }, (_, i) =>
+      row({ id: `h${i}`, drugKey: `tablet. brand${i} 5mg`, drugLabel: `Tablet. Brand${i} 5 mg` }),
+    );
+    const { svc, $queryRawUnsafe } = svcWith(habits, [
+      { brandName: 'Brand59', genericName: 'Lastgeneric', dosageForm: 'Tablet', strength: '5 mg' },
+      { brandName: 'Brand0', genericName: 'Firstgeneric', dosageForm: 'Tablet', strength: '5 mg' },
+    ]);
+    const out = await svc.listAll('doc_1');
+    expect($queryRawUnsafe).toHaveBeenCalledTimes(3); // 25 + 25 + 10 brands
+    const asked = $queryRawUnsafe.mock.calls.flatMap((c) => c[1] as string[]);
+    expect(new Set(asked).size).toBe(60);
+    expect(out.medicines[0].generic).toBe('Firstgeneric');
+    expect(out.medicines[59].generic).toBe('Lastgeneric');
+    expect(out.medicines[1].generic).toBeUndefined();
+  });
+
+  it('keeps the generics already found when a LATER chunk of the catalogue fails', async () => {
+    const habits = Array.from({ length: 30 }, (_, i) =>
+      row({ id: `h${i}`, drugKey: `tablet. brand${i} 5mg`, drugLabel: `Tablet. Brand${i} 5 mg` }),
+    );
+    const { svc, $queryRawUnsafe } = svcWith(habits, []);
+    $queryRawUnsafe
+      .mockResolvedValueOnce([{ brandName: 'Brand0', genericName: 'Firstgeneric', dosageForm: 'Tablet', strength: '5 mg' }])
+      .mockRejectedValueOnce(new Error('connection lost'));
+    const out = await svc.listAll('doc_1');
+    expect(out.medicines).toHaveLength(30);
+    expect(out.medicines[0].generic).toBe('Firstgeneric');
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('still returns the list when the generic lookup FAILS — the medicine then behaves like a hand-typed brand', async () => {
+    const out = await svcWith([row()], new Error('medicines unreachable')).svc.listAll('doc_1');
+    expect(out.medicines).toHaveLength(1);
+    expect(out.medicines[0].generic).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('THROWS when the list itself cannot be read — a box the doctor opened must be able to say so', async () => {
+    await expect(svcWith(new Error('connection lost')).svc.listAll('doc_1')).rejects.toThrow('connection lost');
+  });
+});

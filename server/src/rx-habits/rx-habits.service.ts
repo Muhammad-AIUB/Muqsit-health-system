@@ -89,10 +89,38 @@ export interface HabitGroup {
   hiddenCount: number;
 }
 
+/**
+ * One medicine of the "Add Bulk Medicine" list: the instruction this doctor
+ * most often writes for it — the first suggestion the typing dropdown would
+ * offer for the same medicine, so the two can never disagree.
+ */
+export interface HabitMedicine {
+  id: string;
+  drugKey: string;
+  drugLabel: string;
+  /** ⚕️ Safety field — see `HabitGroup.generic`. */
+  generic?: string;
+  dose: string;
+  food: string;
+  duration: string;
+  contLines: HabitLine[];
+  patientCount: number;
+  lastUsedAt: Date;
+}
+
+export interface HabitMedicineList {
+  medicines: HabitMedicine[];
+  /** The doctor has more medicines than the cap; the most used are returned. */
+  truncated: boolean;
+}
+
 const MAX_PER_MEDICINE = 3; // 5.docx: "1ta osudh er max 3tar beshi suggestion thakbe na"
 const MAX_MEDICINES = 4; // eng review: ≤12 rows above a 10-row medicine list
 const MAX_HIDDEN_PER_MEDICINE = 20; // bounded payload; hiddenCount is the true number
 const MIN_QUERY = 2; // mirrors useMedicineSearch
+const MAX_ALL_MEDICINES = 2000; // the bulk list; `truncated` says when it bit
+const GENERIC_CHUNK = 25; // brand prefixes per catalogue query
+const GENERIC_CHUNK_ROWS = 5000; // rows per catalogue query; logged if reached
 
 /** Raw row shape returned by the windowed lookup. */
 interface LookupRow {
@@ -108,6 +136,19 @@ interface LookupRow {
   pinned: boolean;
   hidden: boolean;
   hiddenCount: number;
+}
+
+/** Raw row shape returned by the whole-list query. */
+interface AllRow {
+  id: string;
+  drugKey: string;
+  drugLabel: string;
+  dose: string;
+  food: string;
+  duration: string;
+  contLines: unknown;
+  patientCount: number;
+  lastUsedAt: Date;
 }
 
 /**
@@ -478,6 +519,62 @@ export class RxHabitsService implements OnModuleInit {
   }
 
   /**
+   * Every medicine this doctor has a visible habit for, one row each: the
+   * "Add Bulk Medicine" box (P1 — scoped to ONE doctor).
+   *
+   * The row chosen for a medicine is the typing dropdown's first suggestion
+   * for it: pinned, then most DISTINCT PATIENTS, then most recent. Hidden rows
+   * are left out BEFORE that choice, so a dose the doctor hid never hides the
+   * next one — and a medicine whose doses are all hidden is not listed.
+   *
+   * ⚠️ UNLIKE `list()`, THIS THROWS. The dropdown is silent on failure by
+   * design: it sits under a working medicine search. This is a box the doctor
+   * opened on purpose, and "your medicines could not be loaded" must not look
+   * like "you have prescribed nothing".
+   */
+  async listAll(doctorId: string): Promise<HabitMedicineList> {
+    const rows = await this.prisma.$queryRaw<AllRow[]>`
+      WITH ranked AS (
+        SELECT h.*, ROW_NUMBER() OVER (
+          PARTITION BY h."drugKey"
+          ORDER BY h."pinned" DESC, h."patientCount" DESC, h."lastUsedAt" DESC, h."id" ASC
+        ) AS rn
+        FROM "DoctorRxHabit" h
+        WHERE h."doctorId" = ${doctorId} AND h."hidden" = false
+      )
+      SELECT "id", "drugKey", "drugLabel", "dose", "food", "duration", "contLines",
+             "patientCount", "lastUsedAt"
+      FROM ranked
+      WHERE rn = 1
+      ORDER BY "patientCount" DESC, "lastUsedAt" DESC, "drugKey" ASC
+      LIMIT ${MAX_ALL_MEDICINES + 1}
+    `;
+
+    const medicines: HabitMedicine[] = [];
+    for (const r of rows.slice(0, MAX_ALL_MEDICINES)) {
+      // Dropped WHOLE, as in the dropdown: half a taper is worse than none.
+      const contLines = sanitiseContLines(r.contLines);
+      if (contLines === null) {
+        this.log.warn(`habit ${r.id} has unreadable contLines — left out of the bulk list`);
+        continue;
+      }
+      medicines.push({
+        id: r.id,
+        drugKey: r.drugKey,
+        drugLabel: r.drugLabel,
+        dose: r.dose,
+        food: r.food,
+        duration: r.duration,
+        contLines,
+        patientCount: Number(r.patientCount),
+        lastUsedAt: r.lastUsedAt,
+      });
+    }
+    await this.attachGenerics(medicines);
+    return { medicines, truncated: rows.length > MAX_ALL_MEDICINES };
+  }
+
+  /**
    * Recover each medicine's generic name from the `medicines` catalogue.
    *
    * ⚕️ WHY THIS RUNS ON THE SERVER. An earlier design resolved the generic on
@@ -501,51 +598,68 @@ export class RxHabitsService implements OnModuleInit {
    *     one that mattered fell outside the row cap.
    * Both failures were silent and both cost a contraindication warning.
    *
-   * Now: at most 4 brand tokens, one bounded `ANY` query, and the match is made
-   * in JS on the SAME normalised key that grouped the habits — never on the raw
-   * label, which differs on a space ("0.5 mg"), a case, or a dropped "n/a".
+   * Now: the brand tokens are bound into a bounded `ANY` query, and the match is
+   * made in JS on the SAME normalised key that grouped the habits — never on
+   * the raw label, which differs on a space ("0.5 mg"), a case, or a dropped
+   * "n/a".
+   *
+   * Asked in CHUNKS of brand prefixes (2026-10-13). The dropdown has at most
+   * four medicines and so asks once; the bulk list has hundreds, and one query
+   * with one row cap would let the first brands crowd the last ones out of it —
+   * silently, at the cost of a contraindication warning. What was found before
+   * a failed chunk is still attached.
    *
    * Never allowed to fail the lookup: without a generic the line behaves
    * exactly like a hand-typed brand, which is the already-documented state.
    */
-  private async attachGenerics(groups: HabitGroup[]): Promise<void> {
-    if (groups.length === 0) return;
+  private async attachGenerics(
+    targets: { drugKey: string; drugLabel: string; generic?: string }[],
+  ): Promise<void> {
+    if (targets.length === 0) return;
     // The brand is the leading token of the search key ("barcavir 0.5mg" →
     // "barcavir"). Multi-word brands still match: this is only the prefix used
     // to fetch candidates, and the real test is the normalised key below.
     const prefixes = [
       ...new Set(
-        groups
+        targets
           .map((g) => searchKeyOf(g.drugLabel).split(' ')[0])
           .filter((t) => t.length >= 2)
           .map((t) => likePrefix(t)),
       ),
     ];
     if (prefixes.length === 0) return;
+    const byKey = new Map<string, string>();
     try {
-      // `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md).
-      // Bound parameter, so the doctor's own text can never reach the SQL.
-      const rows = await this.prisma.$queryRawUnsafe<
-        { brandName: string; genericName: string | null; dosageForm: string | null; strength: string | null }[]
-      >(
-        `SELECT "brandName", "genericName", "dosageForm", strength
-         FROM medicines
-         WHERE "brandName" ILIKE ANY($1::text[])
-         LIMIT 500`,
-        prefixes,
-      );
-      const byKey = new Map<string, string>();
-      for (const m of rows) {
-        if (!m.genericName) continue;
-        const k = normaliseDrugKey(fmtMedicine(m));
-        if (k && !byKey.has(k)) byKey.set(k, m.genericName);
-      }
-      for (const g of groups) {
-        const generic = byKey.get(g.drugKey);
-        if (generic) g.generic = generic;
+      for (let i = 0; i < prefixes.length; i += GENERIC_CHUNK) {
+        const chunk = prefixes.slice(i, i + GENERIC_CHUNK);
+        // `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md).
+        // Bound parameter, so the doctor's own text can never reach the SQL.
+        const rows = await this.prisma.$queryRawUnsafe<
+          { brandName: string; genericName: string | null; dosageForm: string | null; strength: string | null }[]
+        >(
+          `SELECT "brandName", "genericName", "dosageForm", strength
+           FROM medicines
+           WHERE "brandName" ILIKE ANY($1::text[])
+           LIMIT ${GENERIC_CHUNK_ROWS}`,
+          chunk,
+        );
+        if (rows.length >= GENERIC_CHUNK_ROWS) {
+          this.log.warn(
+            `generic lookup reached its row cap for ${chunk.length} brands — some may carry no generic`,
+          );
+        }
+        for (const m of rows) {
+          if (!m.genericName) continue;
+          const k = normaliseDrugKey(fmtMedicine(m));
+          if (k && !byKey.has(k)) byKey.set(k, m.genericName);
+        }
       }
     } catch (e) {
-      this.log.warn(`generic lookup failed for ${prefixes.join(', ')}: ${String(e)}`);
+      this.log.warn(`generic lookup failed for ${prefixes.length} brands: ${String(e)}`);
+    }
+    for (const g of targets) {
+      const generic = byKey.get(g.drugKey);
+      if (generic) g.generic = generic;
     }
   }
 

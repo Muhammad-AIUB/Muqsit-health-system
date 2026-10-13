@@ -27,6 +27,14 @@ export class RxHabitsController {
     return this.habits.list(doctorId, q ?? '');
   }
 
+  // GET /api/rx-habits/all — the "Add Bulk Medicine" box: every medicine this
+  // doctor has prescribed, each with its usual instruction. Declared before
+  // any `:id` route so the two can never collide.
+  @Get('all')
+  listAll(@WorkstationDoctorId() doctorId: string) {
+    return this.habits.listAll(doctorId);
+  }
+
   // PATCH /api/rx-habits/:id  { hidden?, pinned? }
   // No DELETE — P4: "deleting" a suggestion sets `hidden`, and the prescription
   // record it was learned from stays byte-identical.

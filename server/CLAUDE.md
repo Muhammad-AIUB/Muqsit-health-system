@@ -113,6 +113,21 @@ these are the ones that live in this app's code and are easy to break.
   that request landed would lose the contraindication warning entirely. One
   bounded prefix query per lookup, wrapped in try/catch: no generic just means
   the line behaves like a hand-typed brand.
+- **There is a second read path, `listAll()` (`GET /rx-habits/all`, 2026-10-13),
+  and it THROWS.** It feeds the "Add Bulk Medicine" box: one row per medicine —
+  the row the typing dropdown would offer first (pinned, then most patients, then
+  most recent), with hidden rows left out BEFORE that choice, so a hidden dose
+  never hides the next one. `list()` is silent on failure because it sits under a
+  working medicine search; this is a list the doctor opened on purpose, and
+  "could not be loaded" must not look like "you have prescribed nothing". The
+  generic is attached by the same `attachGenerics`, which now asks the catalogue
+  in CHUNKS of 25 brand prefixes: the dropdown has four medicines and still asks
+  once, the bulk list has hundreds, and one query with one row cap would let the
+  first brands crowd the last ones out — silently, at the cost of a
+  contraindication warning on a line added in bulk. It writes nothing and logs
+  nothing to `activity`; scope is `@WorkstationDoctorId()` like every other
+  route here (`server/test/rx-habits-all.int-spec.ts` holds that against the
+  real database).
 - **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
   single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
   the doctor is shown silence on failure by design, the log is the ONLY place a
