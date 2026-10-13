@@ -257,6 +257,32 @@ describe("nameLines — a medicine", () => {
   // name that begins with a decimal point.
   it("a name that begins with a decimal point stands apart from the mark of the form left off before it", () => {
     expect(texts("Tablet. .150 mg strength of it", 13)).toEqual(["… .150 mg", "strength of…"]);
+    // …on the line the brand shares with the mark, too (the first fix was on one of two paths: ninth review).
+    expect(texts("Tablet. .5 Rivotril 2 mg", 13)).toEqual(["… .5 Rivotril", "2 mg"]);
+    expect(texts("Tab. .5 mg Rivotril 1 tab at night", 14)).toEqual(["… .5 mg Rivot…", "1 tab at night"]);
+  });
+
+  // What a line shows is looked for in the name, to know what its cut hid. A
+  // short piece — the "25" left after a hidden "12125 mg" — was found at its
+  // FIRST place, inside the hidden number, and what was brought into view
+  // stopped there: "121", three digits of five (the same property; about one
+  // label in four million pairs, in a line of ten letters; made-up names).
+  it("⚕️ a piece of a line that also stands inside a hidden number is not taken for that number's end", () => {
+    const chart: ChartName[] = ["1", "2"].map((x) => ({ name: `Longwordname-${x}2125 mg 25`, kind: "text" }));
+    expect(namesApart(chart, 13).map((lines) => lines.map((l) => l.text))).toEqual([
+      ["Long…12125 mg", "…25"],
+      ["Long…22125 mg", "…25"],
+    ]);
+  });
+
+  // A full stop that is no decimal point where it stands — straight after a
+  // unit, "mg.25 ml" — would become one if what follows a mark began with it:
+  // "… .25 ml", a quarter of what was written. (Found by the property that no
+  // mark parts a number from its unit, on one run of many; made-up name.)
+  it("⚕️ a full stop after a unit does not become a decimal point behind a mark", () => {
+    expect(texts("Abcdefghijklmn5 mg.25 ml x", 13, "text")).toEqual(["Abcdefghijkl…", "…25 ml x"]);
+    // After a per cent sign it IS the number's point, and stays with its number.
+    expect(texts("Abcdefghijklmn5 %.25 ml x", 13, "text")).toEqual(["Abcdefghijkl…", "… .25 ml x"]);
   });
 
   it("a unit is not left standing by itself where the cut has hidden its number", () => {
@@ -625,6 +651,14 @@ describe("namesApart — the names of one chart, together", () => {
       ["Serum vitamin", "B12 pg/mL-f…A"],
       ["Serum vitamin", "B12 pg/mL-f…B"],
     ]);
+    // …and where the place is itself the number of another amount ("A1 %"),
+    // what has to be reached is the END of that amount: measured only to the
+    // place, the line ran out between the two (ninth review).
+    const inAnAmount: ChartName[] = ["1", "2"].map((x) => ({ name: `Serum B12 pg/mL-A${x} % of total`, kind: "text" }));
+    expect(apart(inAnAmount, 14)).toEqual([
+      ["Serum", "B12 pg…1 % of…"],
+      ["Serum", "B12 pg…2 % of…"],
+    ]);
     // Where the amount is near enough for the line to reach the place from
     // it, it is still shown from the amount — the number is in sight.
     const near: ChartName[] = ["A", "B"].map((x) => ({ name: `Serum vitamin of B12 pg/mL-${x} x`, kind: "text" }));
@@ -775,6 +809,60 @@ describe("namesApart — the names of one chart, together", () => {
     expect(apart(drugs(one, "Capsule (Enteric Coated). Amlodipine + Olmesartan 5 mg+160 mg+12.5 mg"), 13)).toEqual([
       ["…Amlodipine…", "10 mg+160 mg…"],
       ["Cap… Amlodip…", "5 mg+160 mg+…"],
+    ]);
+  });
+
+  // ⚕️ Giving the strength the second line cuts the BRAND at its end — and the
+  // end of a brand may be all that tells two medicines apart: "Exforge HCT"
+  // beside "Exforge", "Amlodipine + Atenolol" beside "Amlodipine +
+  // Olmesartan". For one round (on `dev`, never released) the pass took the
+  // line whenever the strings stayed different, and "Tablet Exforg…" stood
+  // over a strength with nothing left to say it was the HCT (ninth review).
+  // A name keeps the lines it has by itself where the rewrite would leave no
+  // more of its brand in sight than it shares with another medicine on the
+  // chart.
+  it("⚕️ the strength does not take the line from the word that tells two MEDICINES apart", () => {
+    // (At fifteen letters the cut leaves "Tablet Exforge…" — all of "Exforge",
+    // and nothing to say whether more follows: no more than the two share.)
+    for (const max of [14, 15]) {
+      expect(apart(drugs("Tablet Exforge HCT 5 mg+160 mg+12.5 mg", "Tablet Exforge HCT 10 mg+160 mg+25 mg", "Tablet Exforge 10 mg+160 mg"), max), `@${max}`).toEqual([
+        ["Tablet Exforge", "HCT 5 mg+…"],
+        ["Tablet Exforge", "HCT 10 mg+…"],
+        ["Tablet Exforge", "10 mg+160 mg"],
+      ]);
+    }
+    const atenolol = apart(drugs(...["Olmesartan", "Atenolol"].flatMap((b) => ["5 mg+160 mg+12.5 mg", "50 mg+500 mg"].map((s) => `Tablet. Amlodipine + ${b} ${s}`))), 14)[2];
+    expect(atenolol).toEqual(["…Amlodipine +", "Atenolol 5 mg…"]);
+    // A medicine whose WHOLE name another one begins with has nothing to lose
+    // by the cut — by itself it could not be told from the other either.
+    expect(apart(drugs("Tablet. Amlodipine + Olmesartan 5 mg+160 mg+12.5 mg", "Tablet Amlodipine + Olmesartan 5 mg+160 mg+25 mg", "Tablet. Amlodipine + Olmesartan Plus 40 mg"), 14).slice(0, 2).map((l) => l[1])).toEqual(["5 mg…12.5 mg", "5 mg…25 mg"]);
+    // Where the two medicines share nothing the cut could hide, the strength has the line as before.
+    expect(apart(drugs("Tablet. Edeloss 10 mg+160 mg+12.5 mg", "Tablet Edeloss 10 mg+160 mg+25 mg", "Tablet. Exforge 10 mg+160 mg"), 13).slice(0, 2)).toEqual([
+      ["…Edeloss", "10 mg…12.5 mg"],
+      ["Tablet Edelo…", "10 mg…25 mg"],
+    ]);
+  });
+
+  // The strength's line is refused, too, where it would be the line ANOTHER
+  // strength takes: by themselves these two show the place they differ in
+  // ("D400" / "D800", inside a part longer than a line), and with the
+  // strength on a line of its own both would read "1 + 2 + Vit-…".
+  // (Made-up names; found by the pair property with the refusal switched off.)
+  it("⚕️ the strength does not take the line where two strengths would then read the same", () => {
+    expect(apart(drugs("Calbo 1 + 2 + Vit-D400 softgel caps", "Calbo 1 + 2 + Vit-D800 softgel caps"), 13)).toEqual([
+      ["Calbo 1 + 2 +", "Vit-D400 sof…"],
+      ["Calbo 1 + 2 +", "Vit-D800 sof…"],
+    ]);
+  });
+
+  it("the same medicine written with NO strength is no other strength to be told from", () => {
+    expect(apart(drugs("Tablet. Exforge HCT", "Tablet Exforge HCT 10 mg+160 mg+25 mg"), 14)[1]).toEqual(["Tablet Exforge", "HCT 10 mg+…"]);
+  });
+
+  it("⚕️ the same medicine typed in another case is the same medicine", () => {
+    expect(apart(drugs("Tablet. Exforge HCT 10 mg+160 mg+12.5 mg", "tab exforge hct 10 mg+160 mg+25 mg"), 13)).toEqual([
+      ["…Exforge HCT", "10 mg…12.5 mg"],
+      ["…exforge hct", "10 mg…25 mg"],
     ]);
   });
 
@@ -957,11 +1045,12 @@ describe("namesApart — the names of one chart, together", () => {
   });
 
   // 4. Two names whose only difference is in the UNIT of an amount too long to
-  // keep whole (twelve characters, in a line of thirteen): such an amount
-  // keeps its number and may lose its unit behind the mark, and the unit is
-  // all there is to tell them by. Found by the property below, on one run in
-  // some dozens (2026-10-13). Two STRENGTHS of one medicine are told apart
-  // even so — the strength has a line to itself there, and its unit fits.
+  // keep whole (twelve characters, in a line of thirteen — and so on up: an
+  // amount long enough is too long for any line): such an amount keeps its
+  // number and may lose its unit behind the mark, and the unit is all there
+  // is to tell them by. Found by the property below (2026-10-13). The two
+  // strengths of the last example are told apart even so — a strength has a
+  // line to itself there, and this unit fits it; a longer amount would not.
   const LONG_AMOUNT = ["CFU", "RBC"].map((unit) => `Colony count in urine culture 1,00,000 ${unit} per ml`);
   const symptoms = (names: string[]): ChartName[] => names.map((name) => ({ name, kind: "text" }));
   it.fails("DEFECT-HM-NAMES: two names that differ only in the unit of an amount too long to keep whole are two names", () => {
@@ -1134,8 +1223,11 @@ describe("namesApart — the names of one chart, together", () => {
     // UNIT of an amount too long to keep whole — such an amount keeps its
     // number, and its unit may go behind the mark. Those pairs are left out
     // here BY NAME and written down above as what they are (DEFECT-HM-NAMES,
-    // the fourth case). After the fix, of two million pairs seven were alike,
-    // all of that shape. "Never", of a sample, means "not in the pairs drawn".
+    // the fourth case). An independent draw of two million then found two
+    // more pairs alike, and two at real widths the first fix had missed
+    // (ninth review); with those closed, three million pairs drawn at random
+    // were all told apart but for that one shape. "Never", of a sample, means
+    // "not in the pairs drawn" — and this one has been wrong before.
     const partInTheUnitOfALongAmount = (a: string, b: string, max: number) => {
       let same = 0;
       while (same < a.length && same < b.length && a[same] === b[same]) same++;
@@ -1421,6 +1513,46 @@ describe("namesApart — counted over fixed pools, at every width from 13 to 20"
     expect(wrong.slice(0, 5)).toEqual([]);
     expect(wrong).toHaveLength(0);
     expect(charts).toBe(340_704);
+  }, 600_000);
+
+  // ⚕️ What the strength's line may NOT cost: the word that tells two medicines
+  // apart. Two medicines that begin alike — "Exforge" and "Exforge HCT" — one
+  // of them in two strengths, under every pair of five ways of writing a form.
+  // A name that came out by itself with more of its medicine in sight than the
+  // two share must still have that (ninth review: for one round, on `dev`, the
+  // strength took the line and "Tablet Exforg…" stood for the HCT — worse than
+  // the release before it in one chart in forty of this pool).
+  it("⚕️ a medicine's name is never cut back to what it shares with another medicine on the chart, to make room for a strength", () => {
+    const ALIKE = [["Exforge", "Exforge HCT"], ["Napa Extra", "Napa Extend"], ["Seretide Evohaler", "Seretide Accuhaler"], ["Amlodipine + Olmesartan", "Amlodipine + Atenolol"], ["Calbo", "Calbo-D"], ["Neuro-B", "Neuro-B Forte"], ["Co-Diovan", "Co-Diovan Plus"]];
+    const WAYS = ["Tablet. ", "Tablet ", "Tab ", "Capsule (Enteric Coated). ", ""];
+    const LONG = ["12.5 mg+500 mg", "12.5 mg+1000 mg", "5 mg+160 mg+12.5 mg", "5 mg+160 mg+25 mg", "10 mg+160 mg+12.5 mg", "10 mg+160 mg+25 mg", "25 mcg+125 mcg", "50 mcg+250 mcg", "10 mg+160 mg", "40 mg"];
+    const inSight = (medicine: string, lines: string[]) => {
+      const written = lines.join(" ");
+      let n = medicine.length;
+      while (n > 0 && (medicine[n - 1] === " " || !written.includes(medicine.slice(0, n)))) n--;
+      return n;
+    };
+    let charts = 0;
+    const wrong: string[] = [];
+    for (let max = 13; max <= 20; max++) for (const [a, b] of ALIKE) for (const f1 of WAYS) for (const f2 of WAYS) {
+      let shared = 0;
+      while (shared < a.length && shared < b.length && a[shared] === b[shared]) shared++;
+      for (let s1 = 0; s1 < LONG.length; s1++) for (let s2 = s1 + 1; s2 < LONG.length; s2++) for (const s3 of [LONG[s1], LONG[9]]) {
+        const medicines = [a, a, b];
+        const names = [`${f1}${a} ${LONG[s1]}`, `${f1}${a} ${LONG[s2]}`, `${f2}${b} ${s3}`];
+        const alone = names.map((n) => nameLines(n, max, "drug").map((l) => l.text));
+        const lines = lay(names, max);
+        charts++;
+        names.forEach((name, i) => {
+          // (A name that came out the same as another by itself is written again to be told apart: another matter.)
+          if (alone.some((other, k) => k !== i && names[k] !== name && other.join("\n") === alone[i].join("\n"))) return;
+          if (inSight(medicines[i], lines[i]) <= shared && shared < inSight(medicines[i], alone[i])) wrong.push(`@${max} ${name}  =>  ${lines[i].join(" / ")}  (by itself: ${alone[i].join(" / ")})`);
+        });
+      }
+    }
+    expect(wrong.slice(0, 5)).toEqual([]);
+    expect(wrong).toHaveLength(0);
+    expect(charts).toBe(126_000);
   }, 600_000);
 });
 

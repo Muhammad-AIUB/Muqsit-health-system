@@ -110,6 +110,7 @@ const AMOUNT = new RegExp(`(${ONE_NUMBER}(?:[/\\-\\u2013]${ONE_NUMBER})*)${UNIT}
 const PLAIN_AMOUNT = new RegExp(`(${ONE_NUMBER})${UNIT}`, "g");
 const LETTER = new RegExp(`[${LETTERS}]`);
 const LETTER_OR_DIGIT = new RegExp(`[${LETTERS}${DIGITS}]`);
+const STOP_BEFORE_DIGIT = new RegExp(`^\\.(?=[${DIGITS}])`);
 
 /** `a`…`b` in the text; its number ends at `n`. */
 interface Amount {
@@ -180,7 +181,13 @@ function wrapTwo(text: string, max: number): NameLine[] {
     // What follows it takes the second line — from the END of an amount whose
     // number the cut has hidden: its unit would stand there by itself.
     const hidden = startsInside(amounts, words[0].length + 1);
-    const rest = hidden ? joined.slice(hidden.b).trimStart() : words.slice(1).join(" ");
+    // (A full stop straight after that amount's LETTERS, with a digit after it
+    // — "mg.5" — is no decimal point where it stands, and would be read as one
+    // behind a mark: ".5", ten times less. It stays behind the mark with the
+    // amount. After a per cent sign it IS the number's point, and stays with it.)
+    const stop = hidden && LETTER_OR_DIGIT.test(joined[hidden.b - 1] ?? "");
+    const after = hidden ? joined.slice(hidden.b) : "";
+    const rest = hidden ? (stop ? after.replace(STOP_BEFORE_DIGIT, "") : after).trimStart() : words.slice(1).join(" ");
     return rest ? [{ text: head }, { text: cutEnd(hidden ? (pointFirst(rest) ? "… " : "…") + rest : rest, max) }] : [{ text: head }];
   }
   let i = 1;
@@ -289,7 +296,7 @@ function layOut(name: string, max: number, kind: "drug" | "text", others: string
     // Left off only when there is no room for it beside the brand: where
     // there is, the whole name fits the two lines.
     const written = (before + brand).trim();
-    const formAndName = { text: written.length <= max ? written : cutEnd("…" + brand, max) };
+    const formAndName = { text: written.length <= max ? written : cutEnd((pointFirst(brand) ? "… " : "…") + brand, max) };
     if (strength && strength.length <= max) return [formAndName, { text: strength }];
     const wrapped = wrapTwo((pointFirst(rest) ? "… " : "…") + rest, max);
     // (A line that ENDS in a mark: something besides the form was left off.)
@@ -443,13 +450,28 @@ function formAbove(text: string, others: string[], max: number): NameLine[] | nu
 
 // Where each line's pieces stand in the name — from the first letter the line
 // shows to the last — or null if they cannot be found there in order.
-function located(text: string, lines: NameLine[]): { start: number; end: number }[] | null {
+//
+// ⚕️ A piece is looked for where it neither begins nor ends inside an amount,
+// before anywhere else. A short one — the "25" left after a hidden "12125 mg"
+// — also stands INSIDE that number, and found there first, what was then
+// brought into view stopped at it: "121" for 12125 (seen once in four million
+// labels drawn at random; a line only begins or ends inside an amount where
+// it turns between a number and its unit).
+function located(text: string, lines: NameLine[], max: number): { start: number; end: number }[] | null {
+  const amounts = amountsIn(text, max);
+  const place = (piece: string, from: number) => {
+    const first = text.indexOf(piece, from);
+    for (let at = first; at >= 0; at = text.indexOf(piece, at + 1)) {
+      if (!startsInside(amounts, at) && !startsInside(amounts, at + piece.length)) return at;
+    }
+    return first;
+  };
   const spans: { start: number; end: number }[] = [];
   let from = 0;
   for (const l of lines) {
     let start = -1;
     for (const piece of l.text.split("…").map((p) => p.trim()).filter(Boolean)) {
-      const at = text.indexOf(piece, from);
+      const at = place(piece, from);
       if (at < 0) return null;
       if (start < 0) start = at;
       from = at + piece.length;
@@ -496,14 +518,16 @@ function partStart(text: string, same: number, room: number, max: number): { at:
   let word = same;
   if (holds && !holds.inWord) word = holds.a;
   else while (word > 0 && !/\s/.test(text[word - 1]) && text[word - 1] !== "+" && !amounts.some(({ b, inWord }) => !inWord && b === word)) word--;
-  const wordFits = same - word <= room && (!holds || holds.b - word <= room + 1);
+  // Can a line show the name from `p` as far as the place — and, where the
+  // place is in an amount, as far as that amount's end?
+  const reaches = (p: number) => same - p <= room && (!holds || holds.b - p <= room + 1);
   const outside = (p: number) => startsInside(amounts, p)?.a ?? p; // never from inside an amount
-  const at = outside(wordFits ? word : same);
+  const at = outside(reaches(word) ? word : same);
   // A word may begin inside an amount ("B12 pg/mL-fas…": the "pg" is read as
   // the unit of that 12), and the amount's start is then further from the
   // place than the word's was — too far, where the line would run out before
   // it. From the place itself, then.
-  return { at: same - at > room ? outside(same) : at, word };
+  return { at: reaches(at) ? at : outside(same), word };
 }
 
 // 3. The lines the name already has, with the one that was CUT made to show
@@ -518,7 +542,7 @@ function partStart(text: string, same: number, room: number, max: number): { at:
 const START_KEPT = 4; // letters of the line's start that the new end may not push out
 function bothEnds(group: { text: string; lines: NameLine[] }[], same: number, max: number): (NameLine[] | null)[] {
   const found = group.map(({ text, lines }) => {
-    const at = located(text, lines);
+    const at = located(text, lines, max);
     if (!at) return null;
     // The line whose cut hides the place: it ends in a mark, and the place
     // comes after what it shows and before what the next line shows.
@@ -619,12 +643,14 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
   // A medicine's three parts, and the OTHER strengths on the chart of the same
   // medicine (whatever its form) — what its own strength has to be told from.
   const parts = names.map((n, i) => (n.kind === "drug" ? labelParts(texts[i]) : null));
-  const medicines = parts.map((p) => (p?.name ? medicineOf(p) : null));
+  const medicineNames = parts.map((p) => (p?.name ? medicineOf(p) : null));
+  const medicines = medicineNames.map((m) => m?.toLowerCase() ?? null); // (typed in any case)
   const others = (i: number) => {
     const mine = parts[i];
     if (!mine?.name) return [];
+    // (A label of it with NO strength is no other strength to be told from.)
     const strengths = parts.flatMap((p, k) => (p && medicines[k] === medicines[i] && p.after.trim() !== mine.after.trim() ? [p.after.trim()] : []));
-    return strengths.filter((s, k) => strengths.indexOf(s) === k);
+    return strengths.filter((s, k) => s !== "" && strengths.indexOf(s) === k);
   };
   let lines = alone;
   for (;;) {
@@ -670,15 +696,47 @@ export function namesApart(names: ChartName[], max: number): NameLine[][] {
   // and for 25, under two labels that differ in something else (how the form
   // was written, or which form it is) and so were never written again. Such a
   // name is laid out once more with the other strengths of its medicine beside
-  // it, and keeps that unless it would put it under one name with another. In
-  // the order of the names themselves, never of the list.
-  const byName = texts.map((_, i) => i).sort((a, b) => (texts[a] < texts[b] ? -1 : texts[a] > texts[b] ? 1 : a - b));
-  for (const i of byName) {
-    if (shown(lines[i]) !== shown(alone[i])) continue;
-    const again = layOut(names[i].name, max, names[i].kind, others(i)); // (no others for what is not a medicine)
-    if (shown(again) === shown(alone[i])) continue;
-    const tried = lines.map((l, k) => (k === i ? again : l));
-    if (alike(tried) <= alike(lines)) lines = tried;
-  }
-  return lines;
+  // it, and keeps that unless it would put it under one name with another.
+  //
+  // ⚕️ And unless it would hide which MEDICINE the bar is. The strength takes
+  // its line from the end of the brand, and the end of a brand may be all that
+  // tells two medicines apart — "Exforge HCT" beside "Exforge", "Amlodipine +
+  // Atenolol" beside "Amlodipine + Olmesartan". Where no more of the brand
+  // would be left in sight than it shares with another medicine on the chart,
+  // and the name by itself shows more, it keeps the lines it has by itself
+  // (ninth review; the two strings would still have differed).
+  // How much of its medicine's name — from its start — a name's lines show.
+  const medicineInSight = (i: number, ls: NameLine[]) => {
+    const medicine = medicineNames[i] ?? "";
+    const written = ls.map((l) => l.text).join(" ");
+    let n = medicine.length;
+    while (n > 0 && (/\s/.test(medicine[n - 1]) || !written.includes(medicine.slice(0, n)))) n--; // (a space is not a letter of it)
+    return n;
+  };
+  const hidesItsMedicine = (i: number, again: NameLine[]) => {
+    const mine = medicines[i] ?? "";
+    const left = medicineInSight(i, again);
+    const before = medicineInSight(i, alone[i]);
+    return medicines.some((theirs) => {
+      if (theirs === null || theirs === mine) return false;
+      let shared = 0;
+      while (shared < mine.length && shared < theirs.length && mine[shared] === theirs[shared]) shared++;
+      return left <= shared && shared < before;
+    });
+  };
+  const settled = lines;
+  const again = texts.map((_, i) => {
+    if (shown(settled[i]) !== shown(alone[i])) return null; // written again already, to be told apart
+    const a = layOut(names[i].name, max, names[i].kind, others(i)); // (no others for what is not a medicine)
+    return shown(a) === shown(alone[i]) || hidesItsMedicine(i, a) ? null : a;
+  });
+  // Kept only where it is no OTHER name's lines — as they stand, or as they
+  // would be written again. Asked of every name the same way, so the answer
+  // does not depend on the order of the list, or of anything else.
+  return settled.map((l, i) => {
+    const a = again[i];
+    if (!a) return l;
+    const taken = texts.some((t, k) => t !== texts[i] && (shown(settled[k]) === shown(a) || (again[k] !== null && shown(again[k]!) === shown(a))));
+    return taken ? l : a;
+  });
 }
