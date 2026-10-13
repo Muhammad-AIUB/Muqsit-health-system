@@ -482,6 +482,50 @@ CLAUDE.md section before picking one up.
   the fix's title, "wherever it stands", says more than is done: a form
   of two words with no full stop is still not matched. The commits are
   published and stay; this is the correction. Checked by breaking the code: 13 deliberate breaks in this round's changes. Nine were caught at once by a named example; two only by the sampled pair property, and an example is written for them now; one had no test and has one. One is not caught: the refusal of a strength's line that is another name's lines as they already STAND — no chart was found where that happens, and the check is kept so that this pass can never put two names under one.
+- [x] **…and a tenth, 2026-10-13, of the ninth round's fix (`58a7fa5`) —
+  the guard had holes, and a rule replaced it.** That fix let the strength
+  take the second line unless no more of the medicine's name would be left
+  than it "shares with another medicine on the chart". (1) **It could not
+  fire for the SHORTER of two names**: with `Exforge HCT` on the chart, a
+  plain `Tablet Exforge 5 mg+160 mg+12.5 mg` read `Tablet Exfor…` over its
+  strength, where the release before said `Exforge` whole. (2) **Refusing
+  one name the line gave the same lines to its sibling.** (3) **Nothing
+  set a floor**: behind a form the app cannot set aside, `Oral Solution
+  Diovan …` read `Oral Solutio…` — no medicine at all. And the commit's own
+  sentence, "against the release … the medicine is as readable in every
+  one", was false: measured by the review, 8,944 of 378,000 labels showed
+  fewer letters of their medicine than the release, and 570 no longer
+  ruled out the other medicine. Three rules for "what may be lost" had now
+  had a hole each, so the rule that replaced them has no judgement in it:
+  **a name keeps the lines it has by itself unless the new ones show as
+  much of its medicine's name, from its start, as those did**; and a form
+  word typed with no full stop gives way where there is no room for it, so
+  that the brand need not. Counted in the suite over 252,000 charts of two
+  medicines that begin alike, each in turn in two strengths; and against
+  the release, over 493,920 such charts (seven ways of writing a form,
+  two of them with no full stop): not one label of 1,481,760 shows less of
+  its medicine's name, 99,957 show more, two strengths of one medicine
+  show different numbers in 5,918 charts where they did not, and never the
+  reverse. **What the rule gives up** (open list): for a brand longer than
+  a line the strength is not given the line, and a dose change stays as
+  unreadable as in the release in about one two-bar chart in a hundred of
+  such a brand — so the two counts of the eighth round are now over brands
+  that FIT a line, and say so. (4) Also seen, not changed: a full stop
+  after a unit, before a digit (`mg.25 ml`), behind a mark is now `…25 ml`
+  where the release wrote `… .25 ml` — the reading the rule's own scan of
+  the name gives, and a guess about a typed full stop all the same;
+  reachable only where a first word longer than the line ends in a number.
+  And a made-up name can still leave a first line that is a mark and
+  nothing else. (5) Two ways of writing ONE medicine and strength
+  (`Tablet.` picked, `Tablet` typed) are offered the very same lines; one
+  of them has them — the first by its own name, whatever the order of the
+  list — and the other keeps its own. Refused to both, neither bar showed
+  the part that differs from the other strengths (seen in a browser, on a
+  made-up chart). This round's rule was not reviewed by another reader: it
+  was checked by counting it against the release, as above, by two
+  million pairs drawn at random (no number in part, none alike outside the
+  one shape written down), and by breaking it — 12 deliberate breaks, 11
+  caught by a named example, one that changes nothing that can be seen.
 - [ ] **Left open by the 2026-10-09 and 2026-10-12 design passes** (the first is
   product, the rest engineering): on a phone the patient list is reached
   through More, not from a place of its own on the bottom bar — whether it
@@ -643,11 +687,17 @@ CLAUDE.md section before picking one up.
   sixth review — two forms that begin alike — was closed in the seventh.)
   What is COUNTED is one medicine in two forms and two strengths (163,800
   charts), two strengths with one written another way (454,272) and two
-  strengths under two forms (340,704), and two medicines that begin alike,
-  where no name may be cut back to what the two share (126,000), over
-  fixed pools; every other shape is covered by samples — random charts,
-  and 20,000 random pairs a run — and a sample has been wrong here three
-  times. With THREE
+  strengths under two forms (340,704) — both for brands that FIT a line —
+  and two medicines that begin alike, where no name may show less of its
+  medicine than it shows by itself (252,000), over fixed pools; every
+  other shape is covered by samples — random charts, and 20,000 random
+  pairs a run — and a sample has been wrong here three times. For a brand
+  LONGER than a line (`Amlodipine + Olmesartan` written out) the strength
+  is not given the second line, because the name would pay for it, and a
+  dose change may read the same on two bars: 1,203 of 113,568 two-bar
+  charts of that brand under two forms (1,683 in the release before), 41
+  of 227,136 three-bar ones (41 before) — gone through once, not in the
+  suite. With THREE
   strengths of one medicine under two or three ways of writing a form, 158
   of 1,223,040 charts still show the same numbers for two of them, in
   thirteen and fourteen letters: a `12.5` or a `25` that is the first part
