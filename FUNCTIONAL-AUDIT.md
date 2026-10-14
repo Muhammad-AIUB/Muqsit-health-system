@@ -1176,9 +1176,12 @@ nothing in it was held to block a release; what was done, and what is left:
   `ALGO_VERSION` is 2, and the rebuild keeps a `hidden`/`pinned` flag set on any
   wording that folds in. **Still to do on the VPS, after the deploy:**
   `cd /root/muqsit/server && node scripts/rebuild-rx-habits.js --dry-run`, read
-  it, then without `--dry-run`. Until then rows already learned in Bangla stay
-  separate. Not run against production: the dry run there is the first look at
-  how many rows fold.
+  it, then without `--dry-run`. **Done 2026-10-15 on the VPS** (`algoVersion = 2`,
+  297 rows → 297 rows, 218 prescriptions scanned, flags 1 of 1): no Bangla and
+  English pair existed yet, so nothing folded; every row is now stamped version
+  2. The fold itself has therefore only been run against the test database
+  (`server/test/rx-habits-bangla.int-spec.ts`), not against real Bangla
+  prescriptions in production.
 - [ ] **A folded habit shows the wording of whichever was written first on the
   live path, and the newest after a rebuild** — the same instruction, Bangla or
   English. Lines inserted from "Your usual" are written in the current
