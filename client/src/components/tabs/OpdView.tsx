@@ -17,7 +17,7 @@ const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 export default function OpdView() {
-  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setActiveTemplate, setCurrentPatientId, setPtInfo, resetEditor, loadPatientById } = useMuqsit();
+  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setCurrentPatientId, setPtInfo, resetEditor, loadPatientById } = useMuqsit();
   const { data: queue = [], isLoading, error, refetch, isFetching } = useOpdQueue();
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
@@ -184,7 +184,6 @@ export default function OpdView() {
                           district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
                         });
                         setRxItems([]);
-                        setActiveTemplate(null);
                       }
                       setActiveTab("prescription");
                     }}

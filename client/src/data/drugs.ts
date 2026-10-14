@@ -1,4 +1,4 @@
-import type { Drug, RxItem } from "@/types";
+import type { Drug } from "@/types";
 
 export const drugDB: Drug[] = [
   { name: "Tab. Paracetamol 500mg", cat: "Analgesic", price: 1.5 },
@@ -20,22 +20,3 @@ export const drugDB: Drug[] = [
   { name: "Tab. Atorvastatin 10mg", cat: "Statin", price: 5.0 },
   { name: "Tab. Clopidogrel 75mg", cat: "Antiplatelet", price: 6.0 },
 ];
-
-export const templateRx: Record<string, RxItem[]> = {
-  "Fever + cold": [
-    { drug: "Tab. Paracetamol 500mg", dose: "1+0+1", duration: "5 days", instruction: "After meal" },
-    { drug: "Tab. Cetirizine 10mg", dose: "0+0+1", duration: "5 days", instruction: "At night" },
-    { drug: "Cap. Amoxicillin 500mg", dose: "1+1+1", duration: "7 days", instruction: "After meal" },
-  ],
-  "Gastric": [
-    { drug: "Cap. Omeprazole 20mg", dose: "1+0+1", duration: "14 days", instruction: "Before meal (30 min)" },
-    { drug: "Tab. Domperidone 10mg", dose: "1+1+1", duration: "7 days", instruction: "Before meal" },
-  ],
-  "Hypertension": [
-    { drug: "Tab. Amlodipine 5mg", dose: "1+0+0", duration: "30 days", instruction: "Morning" },
-    { drug: "Tab. Losartan 50mg", dose: "0+0+1", duration: "30 days", instruction: "At night" },
-  ],
-  "Diabetes": [
-    { drug: "Tab. Metformin 500mg", dose: "1+0+1", duration: "30 days", instruction: "After meal" },
-  ],
-};

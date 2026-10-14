@@ -15,7 +15,6 @@ import CriticalAlert from "@/components/ipd/CriticalAlert";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
 import TabRouter from "@/components/TabRouter";
-import DrugPicker from "@/components/prescription/DrugPicker";
 import InvestigationPopup from "@/components/investigation/InvestigationPopup";
 import OePopup from "@/components/examination/OePopup";
 
@@ -64,7 +63,6 @@ export default function DesktopShell() {
         {showHeader && <PatientHeader />}
         {activeTab === "prescription" ? <PrescriptionView /> : <TabRouter />}
       </div>
-      <DrugPicker />
       <InvestigationPopup />
       <OePopup />
       <BanglaTyping />

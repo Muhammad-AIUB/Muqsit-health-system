@@ -1058,3 +1058,27 @@ nothing in it was held to block a release; what was done, and what is left:
   does not yet.
 - [ ] Small: the line that says what Move to Rx did is in the brand's blue and
   is not a status region; the box's is green and is one.
+
+### The legacy drug picker and the static templates — removed (2026-10-14)
+
+- [x] **Unreachable code that wrote what no doctor wrote.** The drug picker
+  (`DrugPicker.tsx`, `addDrug`) put any medicine of an 18-item list kept in the
+  app on the pad with `1+0+1 · After meal · 5 days` beside it; the static
+  "templates" (`templateRx`, `loadTemplate`) put whole regimens there — four of
+  them, `Cap. Amoxicillin 500mg` 1+1+1 for 7 days among them. No screen opened
+  either; the picker's open flag rode the device mirror, so a snapshot from
+  another device carrying `showDrugPicker: true` was the one way left. Both are
+  gone, with two pad helpers nothing called (`removeDrug`, `updateRx`) and a
+  template state nothing read (`activeTemplate`, which the OPD queue still
+  cleared); an
+  older build may still send `showDrugPicker` and `drugSearch`, and nothing
+  reads them.
+- [ ] **"Total monthly approximate cost" reads only that 18-item list**, by the
+  exact name (`Tab. Paracetamol 500mg`), notes included (a note typed
+  `Tab. Paracetamol 500mg` is priced). A medicine picked from the medicine
+  list is written as the table writes it (`Tablet. Napa 500 mg`) and is on it
+  only if the table's own label is one of those eighteen letter for letter —
+  the production table was not read for this — so for a real prescription
+  the box shows, as far as is known, `৳0.0`, as it did before this change. Whether
+  the box should go, or be priced from the medicines table, is the
+  physician's to say.

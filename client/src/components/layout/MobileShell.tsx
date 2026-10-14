@@ -10,7 +10,6 @@ import { WorkstationIndicator } from "./WorkstationSwitcher";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
 import TabRouter from "@/components/TabRouter";
-import DrugPicker from "@/components/prescription/DrugPicker";
 import InvestigationPopup from "@/components/investigation/InvestigationPopup";
 import OePopup from "@/components/examination/OePopup";
 
@@ -75,7 +74,6 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
             );
           })}
         </nav>
-        <DrugPicker mobile />
         <InvestigationPopup />
         <OePopup />
       </div>

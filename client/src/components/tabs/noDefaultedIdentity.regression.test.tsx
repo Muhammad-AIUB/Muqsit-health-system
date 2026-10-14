@@ -20,7 +20,7 @@ import type { PtInfo } from "@/types";
 let ctx: Record<string, ReturnType<typeof vi.fn> | null>;
 const freshCtx = () => ({
   setPtName: vi.fn(), setPtAge: vi.fn(), setPtGender: vi.fn(), setPtPhone: vi.fn(), setActiveTab: vi.fn(),
-  setRxItems: vi.fn(), setActiveTemplate: vi.fn(), setCurrentPatientId: vi.fn(), setPtInfo: vi.fn(),
+  setRxItems: vi.fn(), setCurrentPatientId: vi.fn(), setPtInfo: vi.fn(),
   resetEditor: vi.fn(), loadPatientById: vi.fn(), loadPatient: vi.fn(), setPtSettingsTab: vi.fn(),
   activeWorkstationId: null,
 });

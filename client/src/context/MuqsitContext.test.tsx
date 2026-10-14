@@ -376,3 +376,36 @@ describe("the family tree is merged with the stored one (G9)", () => {
     expect(writesOf("familyMembers").at(-1)?.[1]).toEqual({ familyMembers: [C, B] });
   });
 });
+
+// ⚕️ The legacy drug picker — an 18-item list kept in the app itself — put a
+// medicine on the pad with `1+0+1 · After meal · 5 days` beside it, a dose
+// nobody wrote; the static "templates" beside it put whole regimens there
+// (`Cap. Amoxicillin 500mg` 1+1+1 for 7 days). No screen could open either;
+// the picker's one way left was a snapshot mirrored from another device
+// carrying `showDrugPicker: true`. Both are gone (2026-10-14). An older build
+// on another device may still send the picker's two keys: they are read by nothing.
+describe("the legacy drug picker and the static templates are gone", () => {
+  it("the store offers no way to put a medicine on the pad with a dose nobody wrote", async () => {
+    const { result } = await setup();
+    for (const gone of ["addDrug", "loadTemplate", "filteredDrugs", "showDrugPicker", "setShowDrugPicker", "drugSearch", "setDrugSearch", "activeTemplate"]) {
+      expect(result.current, gone).not.toHaveProperty(gone);
+    }
+  });
+
+  it("a snapshot from an older build that carries the picker's keys is applied — and the keys are read by nothing", async () => {
+    const { result } = await setup();
+    act(() => result.current.applyMirrorSnapshot({
+      workstationId: "doc1", currentPatientId: "X", rxItems: [], chiefComplaints: ["Fever"],
+      showDrugPicker: true, drugSearch: "para",
+    }));
+    await tick(400);
+    expect(result.current.chiefComplaints).toEqual(["Fever"]); // the rest of it is applied
+    expect(result.current).not.toHaveProperty("showDrugPicker");
+  });
+
+  it("the snapshot sent to other devices carries neither of the picker's keys", async () => {
+    const { result } = await setup();
+    expect(result.current.mirrorSnapshot).not.toHaveProperty("showDrugPicker");
+    expect(result.current.mirrorSnapshot).not.toHaveProperty("drugSearch");
+  });
+});

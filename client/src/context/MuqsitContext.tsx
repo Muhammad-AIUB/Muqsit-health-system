@@ -14,7 +14,7 @@ import React, {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
-import { drugDB, templateRx } from "@/data/drugs";
+import { drugDB } from "@/data/drugs";
 import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { createRxSnapshotGate } from "@/lib/rxSnapshot";
 import { mergeThumbs, safeThumbMap, type ThumbMap } from "@/lib/imageThumbs";
@@ -35,7 +35,6 @@ import type {
   View,
   TabId,
   RxItem,
-  Drug,
   OeData,
   PtInfo,
   FamilyForm,
@@ -213,9 +212,6 @@ function useMuqsitStore() {
   // this visit. Both ride the draft and the device mirror; resetEditor clears them.
   const [rxAdviceOwned, setRxAdviceOwned] = useState<StringList>([]);
   const [rxAdviceOff, setRxAdviceOff] = useState<StringList>([]);
-  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
-  const [showDrugPicker, setShowDrugPicker] = useState(false);
-  const [drugSearch, setDrugSearch] = useState("");
   const [savedMsg, setSavedMsg] = useState("");
   const [followUpNum, setFollowUpNum] = useState("");
   const [followUpUnit, setFollowUpUnit] = useState("day");
@@ -327,22 +323,16 @@ function useMuqsitStore() {
   // ── Handlers ──────────────────────────────────────────────
   const handleLogin = () => setPage("app");
 
-  const addDrug = (name: string) => {
-    if (!rxItems.find((r) => r.drug === name))
-      setRxItems([...rxItems, { drug: name, dose: "1+0+1", duration: "5 days", instruction: "After meal" }]);
-    setShowDrugPicker(false);
-    setDrugSearch("");
-  };
-  const removeDrug = (idx: number) => setRxItems(rxItems.filter((_, i) => i !== idx));
-  const updateRx = (idx: number, f: keyof RxItem, v: string) => {
-    const c = [...rxItems];
-    c[idx] = { ...c[idx], [f]: v };
-    setRxItems(c);
-  };
-  const loadTemplate = (name: string) => {
-    setActiveTemplate(name);
-    if (templateRx[name]) setRxItems([...templateRx[name]]);
-  };
+  // ⚕️ Nothing here puts a NEW medicine on the pad: this store holds the pad,
+  // clears it, and restores it from a draft or another device. What goes onto
+  // it comes from the pad itself (`MedicinePad` via `RightColumn`), "Your
+  // usual", the OPD templates the signed-in user saved, Drug history's "Move to Rx"
+  // and "Add Bulk Medicine" — each of them what a doctor wrote, and no more.
+  // The legacy drug picker (`addDrug`: any medicine of an 18-item list, with
+  // `1+0+1 · After meal · 5 days` beside it) and the static "templates"
+  // (`loadTemplate`: whole regimens written into the app) were reachable from
+  // no screen, and were removed on 2026-10-14 so that neither could come back
+  // by accident.
   // Saves the prescription to the API. If no saved patient is loaded,
   // a patient record is created first from the header fields.
   //
@@ -788,7 +778,7 @@ function useMuqsitStore() {
     setAssociatedIllness([]); setFinalDiagnosis([]);
     setRxItems([]); setAdvice([]); setAdviceTest([]); setRxAdviceOwned([]); setRxAdviceOff([]);
     setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
-    setActiveTemplate(null); setInvImages({}); setOeData(initialOeData);
+    setInvImages({}); setOeData(initialOeData);
     setIgnoredAlerts(new Set());
     drugHistoryHydratedRef.current = null; // blank list — nothing to mirror onto yet
     // The held values belonged to the editor just cleared (a patient switch while
@@ -1414,7 +1404,6 @@ function useMuqsitStore() {
     ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
     // Popups / pickers, so opening one shows up on the other device too
     showOePopup, showInvPopup, invActiveCat, invFormData, invSearch,
-    showDrugPicker, drugSearch,
   }), [
     activeTab, view, ptSettingsTab, currentPatientId,
     activeWorkstationId, authUser?.id, rxCompletedPid,
@@ -1428,7 +1417,6 @@ function useMuqsitStore() {
     hiddenInvestigation,
     ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
     showOePopup, showInvPopup, invActiveCat, invFormData, invSearch,
-    showDrugPicker, drugSearch,
   ]);
 
   // Apply a snapshot received from another device. Guarded so applying it
@@ -1499,8 +1487,8 @@ function useMuqsitStore() {
     if (typeof d.showInvPopup === "boolean") setShowInvPopup(d.showInvPopup);
     str("invActiveCat", setInvActiveCat); str("invSearch", setInvSearch);
     if (d.invFormData && typeof d.invFormData === "object") setInvFormData(d.invFormData as Record<string, string>);
-    if (typeof d.showDrugPicker === "boolean") setShowDrugPicker(d.showDrugPicker);
-    str("drugSearch", setDrugSearch);
+    // An older build may still send the legacy drug picker's `showDrugPicker`
+    // and `drugSearch`: they are read by nothing, here or anywhere.
     // Release the echo guard after the batched state settles.
     setTimeout(() => { mirrorApplyingRef.current = false; }, 300);
   }, [setActiveTab]);
@@ -1524,11 +1512,6 @@ function useMuqsitStore() {
     }
   };
 
-  const filteredDrugs: Drug[] = drugDB.filter(
-    (d) =>
-      d.name.toLowerCase().includes(drugSearch.toLowerCase()) ||
-      d.cat.toLowerCase().includes(drugSearch.toLowerCase())
-  );
 
   // Cost calculation
   const monthlyCost = (() => {
@@ -1588,7 +1571,6 @@ function useMuqsitStore() {
     finalDiagnosis, setFinalDiagnosis,
     rxItems, setRxItems, advice, setAdvice, adviceTest, setAdviceTest,
     rxAdviceOff, setRxAdviceOff, savedDrugAdvice, savedDrugAdviceReady,
-    activeTemplate, setActiveTemplate, showDrugPicker, setShowDrugPicker, drugSearch, setDrugSearch,
     savedMsg, setSavedMsg, followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit,
     followUpMandatory, setFollowUpMandatory,
     showInvPopup, setShowInvPopup, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
@@ -1607,8 +1589,8 @@ function useMuqsitStore() {
     rcFilter, setRcFilter, rcSelected, setRcSelected, watchPatient, setWatchPatient,
     hmDrugs, setHmDrugs, oeData, setOeData,
     // handlers + derived
-    handleLogin, addDrug, removeDrug, updateRx, loadTemplate, savePrescription, toggleWatch,
-    resetEditor, flushEditorDraft, saveDraftNow, hasRxContent, loadPatient, loadPatientById, filteredDrugs, monthlyCost, allFieldValues, leftFields,
+    handleLogin, savePrescription, toggleWatch,
+    resetEditor, flushEditorDraft, saveDraftNow, hasRxContent, loadPatient, loadPatientById, monthlyCost, allFieldValues, leftFields,
     activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
     can, canEditLabel, isAssistantMode,
     // device mirroring
