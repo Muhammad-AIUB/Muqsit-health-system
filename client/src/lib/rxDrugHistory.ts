@@ -25,7 +25,7 @@ import { rowsFromRxItems } from "@/lib/rxRows";
 /** dd/mm/yyyy, structurally — the stamp that decides Current vs Distant past. */
 const VISIT_DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
 
-const SEP = " — ";
+export const SEP = " — ";
 
 /**
  * The drug-history entries today's ℞ contributes, in pad order.
