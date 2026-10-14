@@ -31,7 +31,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate,
     ptHospitalId, setPtHospitalId, setPtInfo, ptInfo, currentPatientId,
-    rxItems, watchPatient, toggleWatch, activeTab, setActiveTab,
+    rxItems, watchPatient, toggleWatch, activeTab, setActiveTab, setOeData,
   } = useMuqsit();
 
   // A patient photo can 404 (deleted upload, flaky clinic network) — fall back
@@ -174,7 +174,14 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
           </select>
         </div>
         {!mobile && address}
-        <div style={{ flex: mobile ? "0 0 54px" : "0 0 60px" }}><label data-caption style={fieldLabel}>Weight</label><input aria-label="Weight" value={ptWeight} onChange={(e) => setPtWeight(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
+        <div style={{ flex: mobile ? "0 0 54px" : "0 0 60px" }}><label data-caption style={fieldLabel}>Weight</label><input aria-label="Weight" value={ptWeight} onChange={(e) => {
+          const v = e.target.value.replace(/[^\d.]/g, "").slice(0, 5);
+          setPtWeight(v);
+          // ⚕️ Physician's request: typing the weight here also fills On
+          // examination's Weight (kg) box, so its kg↔lb conversion shows
+          // without retyping the same number there.
+          setOeData((prev) => ({ ...prev, weightKg: v }));
+        }} inputMode="decimal" placeholder="kg" style={inputSm} /></div>
         <div style={{ flex: mobile ? "1 1 110px" : "0 0 130px" }}><label data-caption style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
         {mobile && address}
         <MobileLookupField mobile={mobile} />
