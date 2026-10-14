@@ -486,6 +486,8 @@ Two rules `ImageGallery.test.tsx` pins: a file dropped ON a tile uploads ONCE (t
 
 ## Responsive layout
 
+**A short screen is its own case, not only a narrow one (2026-10-15).** On a 1366×768 laptop (about 650px of window) the Investigation popup's month of days took so much height that the tests below were one row of boxes tall (physician's report). On a window `max-height: 850px` (`useMediaQuery`, `lib/useMediaQuery.ts`, which reads the window, unaffected by the page zoom), the days fold away behind a **Days ▾** button. The typed-date box, the chosen date and the ±M / ±Y / Today jumps stay in view. A tall screen is unchanged. The popup also took `maxHeight: 85vh` (95% of the screen under the zoom) and now takes `100%` of its veil, per the page-zoom rule below. Pinned in `InvestigationPopup.shortScreen.test.tsx`.
+
 The app adapts to the real device viewport, not just the manual preview toggle:
 
 - `Muqsit.tsx` derives `effectiveView` from `matchMedia("(max-width: 767px)")` — phones always render `MobileShell`, regardless of the manual Desktop/Mobile toggle (hidden on real phones). It does **not** mutate the shared `view` state, since `view` is part of the mirrored snapshot (`mirrorSnapshot`/`applyMirrorSnapshot` in MuqsitContext) — device mirroring must stay unaffected.

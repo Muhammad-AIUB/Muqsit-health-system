@@ -16,6 +16,7 @@ import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 import { useDialog } from "@/lib/useDialog";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { zoomScale } from "@/lib/dropdownAnchor";
 import { readFinding } from "@/lib/findingParts";
 import { resultBoxName } from "@/lib/resultBoxName";
@@ -390,6 +391,15 @@ export default function InvestigationPopup() {
   };
   const dialog = useDialog(showInvPopup, handleEscape);
 
+  // A short screen (a 1366×768 laptop: about 650px of window) cannot hold the
+  // month of days AND the tests: the tests were left one row of boxes tall
+  // (physician's report, 2026-10-15). There the days fold away behind "Days";
+  // the date, the typed-date box and the ±M / ±Y / Today jumps stay. The query
+  // reads the window itself, which the page zoom does not scale.
+  const shortScreen = useMediaQuery("(max-height: 850px)");
+  const [daysOpen, setDaysOpen] = useState(false);
+  const showDays = !shortScreen || daysOpen;
+
   if (!showInvPopup) return null;
 
   const today = new Date();
@@ -482,7 +492,7 @@ export default function InvestigationPopup() {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
-      <div role="dialog" aria-modal="true" aria-label="Investigation report findings" {...dialog} onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "85vh" : undefined, maxHeight: "85vh", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
+      <div role="dialog" aria-modal="true" aria-label="Investigation report findings" {...dialog} onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "100%" : undefined, maxHeight: "100%", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
         <style>{`
           @media (max-width: 820px) {
             .invModal { flex-direction: column !important; width: 100% !important; }
@@ -610,9 +620,17 @@ export default function InvestigationPopup() {
         {/* Calendar */}
         <div style={{ padding: "6px 20px 5px", borderBottom: "0.5px solid " + C.n[200], background: C.n[0] }}>
           <div style={{ maxWidth: 620, margin: "0 auto" }}>
-          {/* Type-to-jump date box — DDMMYY (e.g. 060625 → 06/06/2025). */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+          {/* Type-to-jump date box — DDMMYY (e.g. 060625 → 06/06/2025). On a
+              short screen it shares one row with the date and the Days fold. */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", flexWrap: "wrap", gap: shortScreen ? 10 : 0, marginBottom: 4 }}>
             <QuickDateBox onPick={handleCalDateChange} />
+            {shortScreen && (
+              <button type="button" onClick={() => setDaysOpen((o) => !o)} aria-expanded={daysOpen}
+                title={daysOpen ? "Hide the days of the month" : "Show the days of the month"}
+                style={{ padding: "3px 10px", borderRadius: 6, border: `1px solid ${C.pri[400]}`, background: daysOpen ? C.pri[50] : C.n[0], color: C.pri[600], fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                Days {daysOpen ? "▴" : "▾"}
+              </button>
+            )}
           </div>
           {/* Selected date display */}
           <div style={{ textAlign: "center", marginBottom: 5 }}>
@@ -663,8 +681,8 @@ export default function InvestigationPopup() {
               ))}
             </div>
           </div>
-          {/* Day headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0 }}>
+          {/* Day headers — folded away on a short screen until "Days" is pressed */}
+          {showDays && <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 0 }}>
             {rotatedDays.map((d) => <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 600, color: C.pri[600], padding: "3px 0", background: C.pri[50], borderRadius: 2 }}>{d}</div>)}
             {cells.map((day, i) => {
               const todayMatch = isToday(day);
@@ -695,7 +713,7 @@ export default function InvestigationPopup() {
                   }}>{day}</button>
               );
             })}
-          </div>
+          </div>}
           </div>
         </div>
 
