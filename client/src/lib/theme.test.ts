@@ -3,6 +3,8 @@
 // Night mode (physician's request, 2026-10-15). The mode is one attribute on
 // <html>; the palette's variables do the rest (src/theme/palette.ts).
 
+import { readFileSync } from "fs";
+import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import { savedTheme, setTheme, getTheme, THEME_BOOT_SCRIPT } from "./theme";
 
@@ -38,6 +40,24 @@ describe("theme store", () => {
     expect(savedTheme("u2")).toBe("light");
     expect(savedTheme("u3")).toBe("light");
     expect(savedTheme(undefined)).toBe("light");
+  });
+});
+
+describe("what the root layout imports holds no React", () => {
+  // app/layout.tsx is a SERVER component. A hook reached from it fails the
+  // build ("needs useSyncExternalStore … only works in a Client Component") —
+  // which the typecheck and this suite did not see, and the browser did
+  // (2026-10-15). So the layout's own imports are read here.
+  it("layout.tsx imports only modules with no React in them", () => {
+    const root = join(__dirname, "..", "..");
+    const layout = readFileSync(join(root, "app", "layout.tsx"), "utf8");
+    const local = [...layout.matchAll(/from\s+"@\/([^"]+)"/g)].map((m) => m[1]).filter((p) => !p.startsWith("components/"));
+    expect(local.sort()).toEqual(["lib/themeBoot", "theme/palette"]);
+    for (const p of local) {
+      const src = readFileSync(join(root, "src", `${p}.ts`), "utf8");
+      expect(src, p).not.toMatch(/from\s+["']react["']/);
+      expect(src, p).not.toMatch(/from\s+["']\.\/theme["']|from\s+["']@\/lib\/theme["']/);
+    }
   });
 });
 

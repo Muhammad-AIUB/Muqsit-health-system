@@ -337,6 +337,26 @@ A ward holds admitted patients; its team is who works it. Notes that matter:
 login is not built. See "Rule 2b" in `server/CLAUDE.md` for why that must not go
 through the workstation switcher.
 
+## Night mode — ☀ / ☾ (physician's request, 2026-10-15)
+
+- **Every colour is a CSS variable.** `C.n[900]` is `var(--c-n-900, #202124)`. The hex lives once, in `src/theme/palette.ts`: `LIGHT` (the app as it always was) and `DARK`, the dark-grey night palette (page `#16181B`, card `#1F2226`, text `#E3E6EA`; not black, by the physician's choice). `paletteCss()` defines both, and `app/layout.tsx` puts it in `<head>`. The mode is ONE attribute: `html[data-theme="dark"]`, with no attribute meaning light. A switch re-renders nothing. Shadows and the veil are variables too (`effectVar`), deeper at night. `globals.css` uses the same `--c-*` names; it keeps no copy of the colours.
+- **Never write a colour as a literal in a component.** It will not switch: white text stays white on a night button, and a white panel glares in a dark room. `src/theme/rawColours.test.ts` fails on any `#hex`, `rgba(` or `"white"` in `components/` or `lib/` that is not on its allowlist. Each allowed entry has a reason, because it must be the same in both modes:
+  - the image viewer's black backdrop;
+  - the rich-text colour swatches;
+  - print HTML;
+  - the siren glow;
+  - small black shadows.
+  Text on a filled colour is `C.n[0]`. At night that is dark text on a light tint, as Android draws it.
+- **Contrast decides the night values, not taste.** `src/theme/contrast.test.ts` holds every pair the app draws to WCAG AA in both modes: body text, labels, chips, links, filled buttons, status text. `palette.test.ts` pins LIGHT to the old hex, colour for colour. Light mode did not move.
+- **Never darkened:**
+  - **Every printout.** `prescriptionDoc.ts` imports no theme; the note and investigation print HTML is its own. Pinned in `printStaysWhite.test.ts` with night mode on.
+  - **Patient images**, which are never filtered or inverted.
+  - **Rich text, which is PAPER.** `PAPER` in `theme/index.ts` covers the editor's surface and the personal note's saved view: a doctor's text colours are chosen for white paper and print on it.
+- **The switch** is `ThemeToggle` beside BAN / EN (desktop) and in the mobile header; the store is `lib/theme.ts`, shaped like `lib/kbdLang.ts`.
+  - Remembered per user per device (`mhs_theme:<userId>`), plus the device's last choice (`mhs_theme`). Not mirrored.
+  - `THEME_BOOT_SCRIPT` (`lib/themeBoot.ts`) is inline in `<head>` and sets the attribute before the first paint, so night never flashes white on reload.
+  - **`app/layout.tsx` is a server component: whatever it imports must hold no React.** `lib/theme.ts` imported there failed the BUILD ("needs useSyncExternalStore … only works in a Client Component"). Typecheck and the unit suite were green; the browser pass caught it. `theme.test.ts` now reads the layout's imports, and a production build (`NEXT_DIST_DIR=.next-verify npm run build`) is part of verifying a change to the layout.
+
 ## UI conventions
 
 - **The ℞ pad sets the brand NAME in bold, and nothing else** (`MedicinePad`, medicine column, 2026-08-23) — the same emphasis the printed sheet carries, via the same `splitDrugLabel`. An `<input>` can only hold ONE font weight, so the line the doctor is **not** typing in is covered by a read-only `aria-hidden` copy that can, with the input's own text turned transparent underneath. On focus the overlay goes and the real input shows through unchanged: bold glyphs are wider than regular, and an input places its caret using its own single weight, so leaving the overlay up while typing would drift the caret away from the letters. Two traps if you touch it: the overlay's content must stay ONE flex item (a bare text node beside the `<b>` becomes its own flex item and its outer spaces collapse — `Tablet.Napa500 mg`), and `white-space: pre` is what keeps the spacing identical to the input's. The input itself is untouched — still mounted, still holding `drugRefs[idx]`, so focus, Enter-navigation, the autocomplete dropdown and device mirroring all behave as before. Verified in the browser: programmatic `focus()` drops the overlay, editing re-splits the label on blur. Free-typed note lines are not medicines and are never split or bolded. **Known cosmetic limit:** a click lands the caret by the input's regular-weight metrics while the eye aims at the wider bold name, so clicking into a name can be under half a character off.

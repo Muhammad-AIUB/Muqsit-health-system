@@ -349,7 +349,9 @@ const RichTextEditor = forwardRef<
             label="Highlight"
             title="Highlight the selected text (press again to remove)"
             onClick={toggleHighlight}
-            style={{ background: HIGHLIGHT }}
+            // The highlighter's own yellow, with paper ink on it: theme text
+            // (light at night) vanished on the yellow (browser pass, 2026-10-15).
+            style={{ background: HIGHLIGHT, color: PAPER.color }}
           />
         )}
         {sensitive && (

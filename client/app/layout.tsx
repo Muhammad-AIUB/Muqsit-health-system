@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Providers from "@/components/providers/Providers";
 import { paletteCss } from "@/theme/palette";
-import { THEME_BOOT_SCRIPT } from "@/lib/theme";
+import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 import "./globals.css";
 
 export const metadata: Metadata = {

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { THEME_DEVICE_KEY } from "./themeBoot";
 
 // Light / night — the header's ☀ / ☾ switch (physician's request, 2026-10-15).
 // The mode is ONE attribute on <html> (`data-theme="dark"`, absent for light);
@@ -12,7 +13,7 @@ import { useSyncExternalStore } from "react";
 
 export type ThemeMode = "light" | "dark";
 
-const DEVICE_KEY = "mhs_theme";
+const DEVICE_KEY = THEME_DEVICE_KEY;
 const userKey = (userId: string) => `${DEVICE_KEY}:${userId}`;
 
 let mode: ThemeMode = "light";
@@ -54,10 +55,6 @@ if (typeof document !== "undefined" && document.documentElement.dataset.theme ==
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
 export const useTheme = () => useSyncExternalStore(subscribe, () => mode, () => "light" as ThemeMode);
 
-/**
- * Inline in <head> (app/layout.tsx), before anything is drawn: a doctor working
- * at night must not get a white flash on every load. First-party, fetches
- * nothing; anything but the exact word "dark" — or storage that throws — is light.
- */
-export const THEME_BOOT_SCRIPT =
-  `try{if(window.localStorage.getItem("${DEVICE_KEY}")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}`;
+// The first-paint script lives in ./themeBoot.ts (no React: the root layout,
+// a server component, imports it).
+export { THEME_BOOT_SCRIPT } from "./themeBoot";

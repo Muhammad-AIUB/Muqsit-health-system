@@ -1210,3 +1210,27 @@ nothing in it was held to block a release; what was done, and what is left:
   the old build was not run to confirm. Now one effect, `lib/usePadSync.ts`:
   in a render where the pad moved, the pad's edit wins. Pinned by
   `usePadSync.test.tsx`, red on the old logic.
+
+### Night mode — ☀ / ☾ (2026-10-15)
+
+Shipped: the doctor app's whole palette as CSS variables, a dark-grey night palette (AA contrast held by a test), the switch beside BAN / EN and in the mobile header, set before the first paint. Light mode is unchanged.
+
+Looked at in the browser, in night mode (sandbox, Chromium):
+- prescription screen, OPD, IPD, Patients, Supervised, Research, Settings;
+- prescription settings with the header editor (paper);
+- On examination, Investigation, Preview PDF (paper stays white);
+- health-trend chart, records view, personal note;
+- sign-in page, mobile layout, reload (no flash; no hydration warning).
+
+- [ ] **Not looked at in night mode:**
+  - every IPD admission screen and order sheet;
+  - Patient Settings;
+  - the template editor;
+  - the image viewer with a real photo;
+  - every alert banner state;
+  - the signup page.
+
+  The colour scan test covers their literals, but nobody has looked at them.
+- [ ] **Safari / Firefox not run.** `var()` inside SVG presentation attributes (`fill={C.…}`) was confirmed in Chromium only.
+- [ ] **The print preview's grey surround** comes from the print document's own HTML (`prescriptionDoc.ts`, untouched by rule). At night the preview is a bright page in a dark app. That is accepted: it is the paper.
+- [ ] **The admin console (:3001) has no night mode.** It is out of scope by the physician's choice.
