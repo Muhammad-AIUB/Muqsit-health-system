@@ -1163,3 +1163,25 @@ nothing in it was held to block a release; what was done, and what is left:
   before that import were not read. A price in another shape is simply "not
   priced", never misread. The production table's `price` column (the first
   ৳ number of the text, a bottle's price for a syrup) is not used.
+
+### BAN writes the ℞ dose / food / duration in Bangla (2026-10-14)
+
+- [ ] **"Your usual" learns a Bangla and an English instruction as two
+  habits.** A prescription saved in BAN carries `খাবারের আগে`, `১+০+১`;
+  the server's habit key (`server/src/rx-habits/normalise.ts`) folds
+  typography only, so the same dose is learned twice and its distinct-patient
+  count is split between the two rows. The client already reads both as one
+  for "already on ℞" (`instructionKey`). Closing it is a server change: read a
+  Bangla cell as its English in the habit key (the same table as
+  `client/src/lib/rxLanguage.ts`, pinned side by side), then
+  `node server/scripts/rebuild-rx-habits.js` to fold the rows already learned.
+- [ ] **Shorthand does not work in BAN** (`bm`, `am`, `7d`, `c`): the letters
+  are Bangla as they are typed. Unchanged since 2026-09-23 — switch to EN to
+  use it. Digits are unaffected (`101` still becomes `১+০+১`).
+- [ ] **A round trip writes the app's own English**: `2 weeks` → `২ সপ্তাহ`
+  → `2 week`, `before meal` → `খাবারের আগে` → `Before meal`. Same meaning;
+  the exact English spelling typed is not kept.
+- [ ] **Only the physician's table is translated.** Anything else typed in
+  the three cells (`after food`, `2.5 ml`, `1m`) is left exactly as written,
+  in either mode. Each phrase to add is the physician's wording, added to
+  `lib/rxLanguage.ts` and its test.
