@@ -31,22 +31,9 @@
   box-sizing: border-box;
 }
 
-/* The few colours the global rules below need. They MIRROR
-   src/theme/index.ts (C.pri / C.n) — components are styled inline from that
-   file, and a stylesheet cannot import it. Change both together. */
-:root {
-  --pri-50: #e8f0fe;
-  --pri-100: #c6dafc;
-  --pri-300: #8ab4f8;
-  --pri-400: #1a73e8;
-  --n-50: #f8f9fa;
-  --n-100: #f1f3f4;
-  --n-200: #e3e6ea;
-  --n-300: #cdd1d6;
-  --n-400: #8e949a;
-  --n-900: #202124;
-  color-scheme: light;
-}
+/* Colours: the rules below use the palette's own variables (--c-<hue>-<shade>),
+   defined for light and night by src/theme/palette.ts and placed in <head> by
+   app/layout.tsx, together with `color-scheme`. Nothing is copied here. */
 
 html {
   /* Without this the root element defaults to Times New Roman — visible on any
@@ -56,7 +43,7 @@ html {
 
 body {
   font-family: "DM Sans", "Outfit", system-ui, sans-serif;
-  background: var(--n-100);
+  background: var(--c-n-100);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* Uniformly scales the whole UI (text + spacing) up by 12% */
@@ -84,12 +71,12 @@ textarea {
    A control that draws its own focus state opts out with
    data-focus-ring="off" (the sign-in fields light their wrapper instead). */
 :where(a, button, select, summary, [role="button"], [tabindex]):not([data-focus-ring="off"]):focus-visible {
-  outline: 2px solid var(--pri-400) !important;
+  outline: 2px solid var(--c-pri-400) !important;
   outline-offset: 2px;
 }
 
 :where(input, textarea, [contenteditable="true"]):not([data-focus-ring="off"]):focus-visible {
-  outline: 2px solid var(--pri-400) !important;
+  outline: 2px solid var(--c-pri-400) !important;
   outline-offset: -2px;
 }
 
@@ -132,21 +119,21 @@ button:disabled {
 input[type="checkbox"],
 input[type="radio"],
 input[type="range"] {
-  accent-color: var(--pri-400);
+  accent-color: var(--c-pri-400);
 }
 
 ::selection {
-  background: var(--pri-100);
+  background: var(--c-pri-100);
 }
 
 ::placeholder {
-  color: var(--n-400);
+  color: var(--c-n-400);
   opacity: 1;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--n-300) transparent;
+  scrollbar-color: var(--c-n-300) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -168,8 +155,8 @@ input[type="range"] {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid var(--pri-100);
-  border-top-color: var(--pri-400);
+  border: 2px solid var(--c-pri-100);
+  border-top-color: var(--c-pri-400);
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
 }
@@ -221,7 +208,7 @@ input[type="range"] {
     transition: border-color 0.12s, box-shadow 0.12s;
   }
   .card-press:not([aria-disabled="true"]):hover {
-    border-color: var(--pri-300) !important;
+    border-color: var(--c-pri-300) !important;
     box-shadow: 0 1px 2px rgba(60, 64, 67, 0.06), 0 2px 8px rgba(60, 64, 67, 0.08);
   }
 }
@@ -234,10 +221,10 @@ input[type="range"] {
    `-webkit-text-fill-color` is what puts it back.
    `!important` because the boxes carry inline styles. */
 fieldset.read-form:disabled :is(input, select, textarea) {
-  background: var(--n-100) !important;
-  border-color: var(--n-200) !important;
-  color: var(--n-900) !important;
-  -webkit-text-fill-color: var(--n-900);
+  background: var(--c-n-100) !important;
+  border-color: var(--c-n-200) !important;
+  color: var(--c-n-900) !important;
+  -webkit-text-fill-color: var(--c-n-900);
   opacity: 1;
   cursor: default;
 }
@@ -247,8 +234,8 @@ fieldset.read-form:disabled :is(input, select, textarea) {
    would stand in an empty box in the same ink as a recorded mobile number and
    a recorded income. */
 fieldset.read-form:disabled :is(input, textarea)::placeholder {
-  color: var(--n-400) !important;
-  -webkit-text-fill-color: var(--n-400);
+  color: var(--c-n-400) !important;
+  -webkit-text-fill-color: var(--c-n-400);
   opacity: 1;
 }
 

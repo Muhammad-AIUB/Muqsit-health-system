@@ -41,7 +41,7 @@ export default function MirrorToggle() {
         background: mirrorOn ? C.pri[50] : C.n[0],
       }}
     >
-      <span aria-hidden style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${mirrorOn ? C.pri[400] : C.n[300]}`, background: mirrorOn ? C.pri[400] : "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 700 }}>
+      <span aria-hidden style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${mirrorOn ? C.pri[400] : C.n[300]}`, background: mirrorOn ? C.pri[400] : C.n[0], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[0], fontSize: 9, fontWeight: 700 }}>
         {mirrorOn ? "✓" : ""}
       </span>
       <span style={{ fontSize: 12, fontWeight: mirrorOn ? 600 : 500, color: mirrorOn ? C.pri[600] : C.n[600] }}>

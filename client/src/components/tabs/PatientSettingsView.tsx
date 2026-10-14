@@ -126,7 +126,7 @@ function PatientPhotoCorner() {
             style={{
               position: "absolute", top: -8, right: -8,
               width: 22, height: 22, borderRadius: "50%",
-              border: `1.5px solid ${C.n[0]}`, background: C.danger[800], color: "#fff",
+              border: `1.5px solid ${C.n[0]}`, background: C.danger[800], color: C.n[0],
               fontSize: 13, lineHeight: 1, cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
             }}

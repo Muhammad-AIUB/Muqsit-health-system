@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { C, font } from "@/theme";
+import { effectVar } from "@/theme/palette";
 import { btnSecondary, scrim, shadowDialog } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -46,7 +47,7 @@ export default function WorkstationSwitcher() {
   // really returned zero workstations.
   if (isSuccess && workstations.length === 0 && !isPurchasedTier) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: "rgba(248,248,246,0.55)", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: font, background: effectVar("veil-switch"), backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)" }}>
         <div style={{ maxWidth: 560, textAlign: "center", background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 16, boxShadow: shadowDialog, padding: "30px 28px" }}>
           <div style={{ marginBottom: 12, display: "flex", justifyContent: "center", color: C.n[500] }}><Icon name="lock" size={30} /></div>
           <div style={{ fontSize: 18, fontWeight: 700, color: C.danger[800], lineHeight: 1.5 }}>

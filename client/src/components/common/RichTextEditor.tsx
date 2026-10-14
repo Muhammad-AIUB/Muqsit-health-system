@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { C } from "@/theme";
+import { C, PAPER } from "@/theme";
 import { shadowMenu } from "@/theme/styles";
 import { tell } from "@/lib/dialogs";
 import { ApiError, uploadImage } from "@/lib/api";
@@ -374,10 +374,11 @@ const RichTextEditor = forwardRef<
         {allowImages && <input ref={imageInputRef} type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPickImage} />}
       </div>
 
-      {/* Editable surface */}
-      <div style={{ position: "relative" }}>
+      {/* Editable surface — paper in both modes (theme PAPER): the text colours
+          offered above are for white paper, and this prints on it. */}
+      <div style={{ position: "relative", background: PAPER.background }}>
         {empty && (
-          <div style={{ position: "absolute", top: 12, left: 14, color: C.n[500], fontSize: 13, pointerEvents: "none" }}>
+          <div style={{ position: "absolute", top: 12, left: 14, color: PAPER.muted, fontSize: 13, pointerEvents: "none" }}>
             {placeholder}
           </div>
         )}
@@ -397,7 +398,7 @@ const RichTextEditor = forwardRef<
             padding: "12px 14px",
             fontSize: 13,
             lineHeight: 1.6,
-            color: C.n[900],
+            color: PAPER.color,
             outline: "none",
             fontFamily: "inherit",
           }}

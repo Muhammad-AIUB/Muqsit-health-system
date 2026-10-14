@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Providers from "@/components/providers/Providers";
+import { paletteCss } from "@/theme/palette";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the boot script may set data-theme before React
+    // hydrates, an attribute the server did not render.
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* The font is served by this app (globals.css @font-face); nothing is
             fetched from Google. Preloading the Latin file avoids a flash of the
@@ -25,6 +29,11 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        {/* Night mode is put on before anything is drawn, so a reload at night
+            never flashes white (src/lib/theme.ts). First-party, inline. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        {/* Every colour of the app, light and night (src/theme/palette.ts). */}
+        <style id="mhs-palette" dangerouslySetInnerHTML={{ __html: paletteCss() }} />
       </head>
       {/* suppressHydrationWarning silences a noisy dev-only warning caused
           by browser extensions (Grammarly, ColorZilla, etc.) that inject

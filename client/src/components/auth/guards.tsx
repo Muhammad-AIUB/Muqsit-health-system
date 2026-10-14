@@ -40,7 +40,7 @@ function takeDestination(): string {
 function Centered({ text }: { text: string }) {
   return (
     <div role="status" aria-live="polite" style={{ fontFamily: font, minHeight: "70vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, color: C.n[600] }}>
-      <div aria-hidden style={{ width: 48, height: 48, borderRadius: 12, background: C.pri[400], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, letterSpacing: "0.02em" }}>MHS+</div>
+      <div aria-hidden style={{ width: 48, height: 48, borderRadius: 12, background: C.pri[400], color: C.n[0], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, letterSpacing: "0.02em" }}>MHS+</div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13 }}>
         <span className="spinner" aria-hidden />
         {text}

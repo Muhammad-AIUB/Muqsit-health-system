@@ -343,7 +343,7 @@ export default function PatientRecordsView() {
           .inv-del{width:25px;height:25px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
             border:1px solid ${C.danger[100]};background:${C.danger[50]};color:${C.danger[400]};font-size:15px;line-height:1;
             cursor:pointer;transition:all .12s ease;flex-shrink:0;padding:0;font-family:inherit}
-          .inv-del:hover{background:${C.danger[400]};border-color:${C.danger[400]};color:#fff;transform:translateY(-1px);box-shadow:0 2px 7px ${C.danger[100]}}
+          .inv-del:hover{background:${C.danger[400]};border-color:${C.danger[400]};color:${C.n[0]};transform:translateY(-1px);box-shadow:0 2px 7px ${C.danger[100]}}
           .inv-del:active{transform:translateY(0)}
           .inv-del:focus-visible{outline:2px solid ${C.danger[400]};outline-offset:2px}
           .inv-undo{animation:invUndoIn .18s ease}

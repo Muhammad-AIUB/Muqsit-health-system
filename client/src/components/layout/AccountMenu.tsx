@@ -33,14 +33,14 @@ export default function AccountMenu({ size = 28 }: { size?: number }) {
         title={fullName}
         aria-haspopup="menu"
         aria-expanded={open}
-        style={{ width: size, height: size, borderRadius: "50%", border: open ? `2px solid ${C.pri[600]}` : "none", background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: size <= 24 ? 9 : 10, fontWeight: 500, cursor: "pointer", fontFamily: font, boxSizing: "border-box" }}
+        style={{ width: size, height: size, borderRadius: "50%", border: open ? `2px solid ${C.pri[600]}` : "none", background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[0], fontSize: size <= 24 ? 9 : 10, fontWeight: 500, cursor: "pointer", fontFamily: font, boxSizing: "border-box" }}
       >{initials}</button>
 
       {open && (
         <div role="menu" style={{ position: "absolute", top: size + 8, right: 0, width: 224, background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: shadowMenu, overflow: "hidden", zIndex: 1000 }}>
           {/* Identity */}
           <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, borderBottom: `0.5px solid ${C.n[200]}` }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.pri[400], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{initials}</div>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.pri[400], color: C.n[0], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>{initials}</div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fullName}</div>
               <div style={{ fontSize: 11, color: C.n[500], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</div>

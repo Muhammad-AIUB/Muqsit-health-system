@@ -143,7 +143,7 @@ function Bubble({ m }: { m: ChatMessage }) {
   const mine = m.mine;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
-      <div style={{ maxWidth: "80%", background: mine ? C.pri[400] : C.n[0], color: mine ? "#fff" : C.n[900], border: mine ? "none" : `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "7px 11px", fontSize: 12.5, lineHeight: 1.45 }}>
+      <div style={{ maxWidth: "80%", background: mine ? C.pri[400] : C.n[0], color: mine ? C.n[0] : C.n[900], border: mine ? "none" : `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "7px 11px", fontSize: 12.5, lineHeight: 1.45 }}>
         {!mine && <div style={{ fontSize: 11, fontWeight: 700, color: C.pri[600], marginBottom: 2 }}>{m.authorName}</div>}
         {m.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>}
         {m.attachmentUrl && (() => {
@@ -152,7 +152,7 @@ function Bubble({ m }: { m: ChatMessage }) {
           // as inert text so a javascript:/data: payload can't execute.
           if (!href) {
             return (
-              <div style={{ fontSize: 12, color: mine ? "#fff" : C.n[500], marginTop: m.body ? 4 : 0, wordBreak: "break-word" }}><Icon name="paperclip" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Attachment</div>
+              <div style={{ fontSize: 12, color: mine ? C.n[0] : C.n[500], marginTop: m.body ? 4 : 0, wordBreak: "break-word" }}><Icon name="paperclip" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Attachment</div>
             );
           }
           return isImageUrl(href) ? (
@@ -161,7 +161,7 @@ function Bubble({ m }: { m: ChatMessage }) {
               <img src={href} alt="attachment" style={{ maxWidth: "100%", borderRadius: 6, marginTop: m.body ? 6 : 0, display: "block" }} />
             </a>
           ) : (
-            <a href={href} target="_blank" rel="noreferrer" style={{ color: mine ? "#fff" : C.info[800], textDecoration: "underline", fontSize: 12, display: "inline-block", marginTop: m.body ? 4 : 0 }}><Icon name="paperclip" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Attachment</a>
+            <a href={href} target="_blank" rel="noreferrer" style={{ color: mine ? C.n[0] : C.info[800], textDecoration: "underline", fontSize: 12, display: "inline-block", marginTop: m.body ? 4 : 0 }}><Icon name="paperclip" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />Attachment</a>
           );
         })()}
       </div>

@@ -17,7 +17,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { C, font } from "@/theme";
+import { C, font, PAPER } from "@/theme";
+import { effectVar } from "@/theme/palette";
 import { btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, btnClose } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -265,7 +266,8 @@ function PersonalNoteBox({ patientId, details, onClose }: OpenNote & { onClose: 
                 ) : (
                   <div
                     className="pn-view"
-                    style={{ fontSize: 13.5, color: C.n[900], lineHeight: 1.5, border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "10px 12px", overflowWrap: "anywhere" }}
+                    // Paper in both modes, as the editor is (theme PAPER).
+                    style={{ fontSize: 13.5, color: PAPER.color, background: PAPER.background, lineHeight: 1.5, border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "10px 12px", overflowWrap: "anywhere" }}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(text) }}
                   />
                 )}
@@ -303,7 +305,7 @@ function PersonalNoteBox({ patientId, details, onClose }: OpenNote & { onClose: 
         {askPrint && (
           <div
             onMouseDown={(e) => { if (e.target === e.currentTarget) setAskPrint(false); }}
-            style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.75)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+            style={{ position: "absolute", inset: 0, background: effectVar("veil-surface"), borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           >
             <div role="dialog" aria-modal="true" aria-label="Print the note" {...printQuestion} style={{ width: "min(380px, 100%)", background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, boxShadow: shadowDialog, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: C.n[900] }}>This note has sensitive information</div>

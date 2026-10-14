@@ -546,7 +546,7 @@ export default function InvestigationPopup() {
                       draggable
                       onDragStart={(e) => { e.dataTransfer.setData("text/mhs-report-image", invImages[imgKey] || ""); e.dataTransfer.effectAllowed = "copy"; }}
                       title="Drag onto a test's “Add report image” to tag this report there"
-                      style={{ position: "absolute", top: 8, right: 8, zIndex: 3, background: C.pri[400], color: "#fff", fontSize: 10.5, fontWeight: 600, padding: "5px 11px", borderRadius: 999, cursor: "grab", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 5 }}
+                      style={{ position: "absolute", top: 8, right: 8, zIndex: 3, background: C.pri[400], color: C.n[0], fontSize: 10.5, fontWeight: 600, padding: "5px 11px", borderRadius: 999, cursor: "grab", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 5 }}
                     >⠿ Drag to tag</div>
                   )}
                 </div>
@@ -655,7 +655,7 @@ export default function InvestigationPopup() {
               <span onWheel={(e) => { e.preventDefault(); if (e.deltaY < 0) shiftYear(1); else shiftYear(-1); }}
                 style={{ fontSize: 12, fontWeight: 500, color: C.n[900], cursor: "ns-resize", padding: "1px 5px", borderRadius: 4, userSelect: "none" }}
                 title="Scroll to change year">{y}</span>
-              <button onClick={() => { handleCalDateChange(new Date()); setShowMonthPicker(false); }} style={{ padding: "1px 7px", borderRadius: 4, border: "1px solid " + C.pri[400], background: C.pri[400], color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Today</button>
+              <button onClick={() => { handleCalDateChange(new Date()); setShowMonthPicker(false); }} style={{ padding: "1px 7px", borderRadius: 4, border: "1px solid " + C.pri[400], background: C.pri[400], color: C.n[0], fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Today</button>
             </div>
             <div style={{ display: "flex", gap: 3 }}>
               {navRight.map((b) => (
@@ -686,7 +686,7 @@ export default function InvestigationPopup() {
                   aria-current={todayMatch ? "date" : undefined}
                   aria-label={`${day} ${months[m]} ${y}${todayMatch ? ", today" : ""}`}
                   style={{ width: "100%", border: "none", fontFamily: "inherit", textAlign: "center", padding: "3px 0", fontSize: 10, cursor: "pointer",
-                    color: todayMatch ? "#fff" : C.n[800],
+                    color: todayMatch ? C.n[0] : C.n[800],
                     background: todayMatch ? C.pri[400] : (selected ? C.pri[50] : "transparent"),
                     borderRadius: todayMatch || selected ? 4 : 0,
                     fontWeight: todayMatch ? 600 : 400,
@@ -789,8 +789,8 @@ export default function InvestigationPopup() {
                         }}
                         style={{
                         minHeight: 30, padding: "0 12px", borderRadius: 8,
-                        border: dropTest === test.name ? "2px dashed #fff" : "none",
-                        background: dropTest === test.name ? C.pri[600] : C.pri[400], color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+                        border: dropTest === test.name ? `2px dashed ${C.n[0]}` : "none",
+                        background: dropTest === test.name ? C.pri[600] : C.pri[400], color: C.n[0], fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
                         display: "inline-flex", alignItems: "center", gap: 4,
                       }}>
                         <span>Add report image</span>

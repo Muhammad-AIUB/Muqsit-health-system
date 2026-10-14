@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { C, font } from "@/theme";
+import { effectVar } from "@/theme/palette";
 import Icon from "@/components/common/Icon";
 import { useDialog } from "@/lib/useDialog";
 
@@ -135,19 +136,19 @@ export default function PrintSheetModal({
       aria-modal="true"
       aria-label="Prescription"
       {...dialog}
-      style={{ position: "fixed", inset: 0, zIndex: 2500, display: "flex", flexDirection: "column", background: "#f0f0f0", fontFamily: font }}
+      style={{ position: "fixed", inset: 0, zIndex: 2500, display: "flex", flexDirection: "column", background: effectVar("backdrop-print"), fontFamily: font }}
     >
       <div ref={barRef} style={{ background: C.pri[400], padding: 10, textAlign: "center", flexShrink: 0 }}>
         <button
           onClick={printSheet}
           disabled={!html}
-          style={{ background: "#fff", color: html ? C.pri[600] : C.n[400], border: "none", padding: "8px 22px", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: html ? "pointer" : "not-allowed", margin: "0 4px", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 6 }}
+          style={{ background: C.n[0], color: html ? C.pri[600] : C.n[400], border: "none", padding: "8px 22px", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: html ? "pointer" : "not-allowed", margin: "0 4px", fontFamily: font, display: "inline-flex", alignItems: "center", gap: 6 }}
         >
           <Icon name="printer" size={15} /> Print / Save as PDF
         </button>
         <button
           onClick={onClose}
-          style={{ background: "#fff", color: C.pri[600], border: "none", padding: "8px 22px", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: "pointer", margin: "0 4px", fontFamily: font }}
+          style={{ background: C.n[0], color: C.pri[600], border: "none", padding: "8px 22px", borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: "pointer", margin: "0 4px", fontFamily: font }}
         >
           Close
         </button>
@@ -165,7 +166,7 @@ export default function PrintSheetModal({
           ref={frameRef}
           title="Prescription"
           tabIndex={html ? 0 : -1}
-          style={{ width: "100%", height: "100%", border: "none", background: "#f0f0f0", visibility: html ? "visible" : "hidden" }}
+          style={{ width: "100%", height: "100%", border: "none", background: effectVar("backdrop-print"), visibility: html ? "visible" : "hidden" }}
         />
         {!html && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: C.n[500] }}>

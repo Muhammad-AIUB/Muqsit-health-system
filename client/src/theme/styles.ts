@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { C, font } from "./index";
+import { effectVar } from "./palette";
 
 // Shared input/label styles reused across the prescription forms.
 export const inputSm: CSSProperties = {
@@ -21,7 +22,7 @@ export const inputMd: CSSProperties = { ...inputSm, minHeight: 36, padding: "0 1
 // ── Surfaces and headings ─────────────────────────────────────
 // The veil behind a popup. One value — eleven popups used eight different
 // greys, so the page behind looked a different distance away each time.
-export const scrim = "rgba(32,33,36,0.45)";
+export const scrim = effectVar("scrim");
 
 // How far something stands off the page. Three heights and one light: 27
 // places had written 21 different shadows, so two popups side by side looked
@@ -30,9 +31,11 @@ export const scrim = "rgba(32,33,36,0.45)";
 //   shadowCard   — a surface resting on the page (the app shell, an Undo bar)
 //   shadowMenu   — a list hung from a field (medicine list, patient lookup, account menu)
 //   shadowDialog — a popup standing over the veil
-export const shadowCard = "0 1px 2px rgba(60,64,67,0.06), 0 2px 8px rgba(60,64,67,0.05)";
-export const shadowMenu = "0 1px 3px rgba(32,33,36,0.10), 0 8px 24px rgba(32,33,36,0.16)";
-export const shadowDialog = "0 2px 6px rgba(32,33,36,0.10), 0 16px 44px rgba(32,33,36,0.22)";
+// The values themselves are in ./palette.ts (LIGHT_EFFECTS / DARK_EFFECTS): a
+// shadow barely shows on a dark page, so night casts a deeper one.
+export const shadowCard = effectVar("shadow-card");
+export const shadowMenu = effectVar("shadow-menu");
+export const shadowDialog = effectVar("shadow-dialog");
 
 // The name of the screen you are on ("OPD queue management", "Settings").
 // It was 16px/500, lighter than the 13px/600 card headings beneath it.

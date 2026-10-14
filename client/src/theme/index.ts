@@ -1,4 +1,5 @@
 import type { ColorKey } from "@/types";
+import { LIGHT, tokenVar, type Hue } from "./palette";
 
 // ═══════════════════════════════════════════════════════════
 // Color palette + typography tokens
@@ -27,6 +28,12 @@ import type { ColorKey } from "@/types";
 // colour; they are defined now.
 // ═══════════════════════════════════════════════════════════
 
+//
+// Since 2026-10-15 each value is a CSS variable (`var(--c-n-900, #202124)`):
+// the hex itself lives in ./palette.ts, once for light and once for night, and
+// the header's ☀/☾ switch flips which set is in force. Never write a colour as
+// a literal in a component — it would not switch (src/theme/rawColours.test.ts).
+
 type Palette = Record<number, string>;
 
 interface Colors {
@@ -38,16 +45,25 @@ interface Colors {
   n: Palette;
 }
 
+const tokens = (hue: Hue): Palette =>
+  Object.fromEntries(Object.keys(LIGHT[hue]).map((shade) => [shade, tokenVar(hue, Number(shade))]));
+
 export const C: Colors = {
-  pri: { 50: "#E8F0FE", 100: "#C6DAFC", 300: "#8AB4F8", 400: "#1A73E8", 500: "#1967D2", 600: "#185ABC", 700: "#174EA6", 800: "#123C80" },
-  ok: { 50: "#E1F5EE", 100: "#9FE1CB", 400: "#1D9E75", 600: "#0F6E56", 800: "#085041" },
-  warn: { 50: "#FAEEDA", 100: "#FAC775", 400: "#EF9F27", 600: "#BA7517", 800: "#854F0B" },
-  danger: { 50: "#FCEBEB", 100: "#F7C1C1", 400: "#E24B4A", 800: "#A32D2D" },
-  info: { 50: "#E6F1FB", 100: "#B5D4F4", 400: "#378ADD", 800: "#185FA5" },
-  n: { 0: "#FFF", 50: "#F8F9FA", 100: "#F1F3F4", 200: "#E3E6EA", 300: "#CDD1D6", 400: "#8E949A", 500: "#6B7075", 600: "#565A5F", 700: "#44474A", 800: "#303438", 900: "#202124" },
+  pri: tokens("pri"),
+  ok: tokens("ok"),
+  warn: tokens("warn"),
+  danger: tokens("danger"),
+  info: tokens("info"),
+  n: tokens("n"),
 };
 
-export const font = "'DM Sans', 'Outfit', system-ui, sans-serif";
+// PAPER — the one surface night mode does not darken: rich text (the personal
+// note, the printed header and footer) is written in colours a doctor chose for
+// white paper and prints on white paper, so it is edited and read on white in
+// both modes. Black text a doctor picked would vanish on a dark card.
+export const PAPER = { background: LIGHT.n[0], color: LIGHT.n[900], muted: LIGHT.n[500] } as const;
+
+export const font ="'DM Sans', 'Outfit', system-ui, sans-serif";
 
 interface Swatch {
   bg: string;

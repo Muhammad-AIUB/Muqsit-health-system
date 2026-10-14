@@ -9,6 +9,7 @@ import TabIcon from "./TabIcon";
 import AccountMenu from "./AccountMenu";
 import MirrorToggle from "./MirrorToggle";
 import { BanglaTyping, LanguageToggle } from "./BanglaTyping";
+import ThemeToggle from "./ThemeToggle";
 import PatientSearch from "./PatientSearch";
 import { WorkstationIndicator } from "./WorkstationSwitcher";
 import CriticalAlert from "@/components/ipd/CriticalAlert";
@@ -30,7 +31,7 @@ export default function DesktopShell() {
       <div style={{ background: C.n[0], borderBottom: `1px solid ${C.n[200]}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8, padding: "10px 20px 8px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: "0.02em", flexShrink: 0 }}>MHS+</div>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[0], fontSize: 10, fontWeight: 700, letterSpacing: "0.02em", flexShrink: 0 }}>MHS+</div>
             <span style={{ fontSize: 15, fontWeight: 600, color: C.n[900], whiteSpace: "nowrap" }}>Muqsit Health System</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -52,9 +53,10 @@ export default function DesktopShell() {
                 </Fragment>
               );
             })}
-            {/* BAN / EN sits at the end of the tab row, beside Settings. */}
-            <div style={{ display: "flex", alignItems: "center", marginLeft: 8 }}>
+            {/* BAN / EN and ☀ / ☾ sit at the end of the tab row, beside Settings. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
               <LanguageToggle />
+              <ThemeToggle />
             </div>
           </nav>
         </div>

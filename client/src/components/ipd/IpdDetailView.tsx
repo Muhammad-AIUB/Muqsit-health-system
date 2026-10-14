@@ -413,7 +413,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
                 padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font,
                 border: `0.5px solid ${active ? C.pri[400] : C.n[200]}`,
                 background: active ? C.pri[400] : C.n[0],
-                color: active ? "#fff" : C.n[700],
+                color: active ? C.n[0] : C.n[700],
               }}
             >{v.label}</button>
           );

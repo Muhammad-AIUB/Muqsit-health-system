@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
+import { effectVar } from "@/theme/palette";
 import { btnPrimary, btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
@@ -250,7 +251,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
                 border: "none",
                 borderLeft: i === 0 ? "none" : `1px solid ${active ? C.pri[600] : C.n[200]}`,
                 background: active ? C.pri[600] : C.n[0],
-                color: active ? "#fff" : C.n[800],
+                color: active ? C.n[0] : C.n[800],
                 cursor: "pointer",
                 fontFamily: "inherit",
                 textAlign: "left",
@@ -266,14 +267,14 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: 14,
-                  background: active ? "rgba(255,255,255,0.2)" : C.n[100],
+                  background: active ? effectVar("on-fill-chip") : C.n[100],
                 }}
               >
                 {s.icon}
               </span>
               <span style={{ overflow: "hidden" }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</div>
-                <div style={{ fontSize: 11, color: active ? "rgba(255,255,255,0.85)" : C.n[500] }}>Prescription</div>
+                <div style={{ fontSize: 11, color: active ? effectVar("on-fill-muted") : C.n[500] }}>Prescription</div>
               </span>
             </button>
           );
