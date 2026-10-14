@@ -978,12 +978,13 @@ nothing in it was held to block a release; what was done, and what is left:
 - [ ] **The name in the result line is the label as written, at any length.**
   Two long labels make a long line (it wraps), and a label with a quotation
   mark in it is quoted inside quotation marks. Cosmetic.
-- [ ] **A line typed on the pad without its dosage form is not known to be the
-  same medicine.** With `Napa 500 mg` typed by hand and `Tablet. Napa 500 mg`
-  ticked in the box, there is no On ℞ mark, the result reads `1 added`, and
-  the pad has two Napa lines. The app compares medicines form and all
-  everywhere (`normaliseDrugKey`); whether a line with NO form should count as
-  any form of that brand and strength is the physician's to say.
+- [x] **A line typed on the pad without its dosage form was not known to be
+  the same medicine.** With `Napa 500 mg` typed by hand and `Tablet. Napa 500
+  mg` ticked in the box, there was no On ℞ mark, the result read `1 added`,
+  and the pad had two Napa lines. **Decided by the physician (2026-10-14):**
+  a label with no form is the same medicine as any form of that name and
+  strength — never another strength ("Sergel 20 and Sergel 40 mg are not the
+  same"), and never two forms for one (`sameMedicine`). Both screens.
 - [ ] **A row with no generic says so only by not showing one.** Its
   prescribing warnings will not fire. Whether the row should say that in
   words, and in which, is the physician's.
@@ -1011,15 +1012,16 @@ nothing in it was held to block a release; what was done, and what is left:
   Nothing is rewritten: what reaches the pad is the entry as the history has
   it. A browser journey (`e2e/tests/drug-history.spec.ts`) fails on the
   released rule and passes on this one.
-- [x] **A note on the pad that read like a medicine counted as that
-  medicine.** With `Napa` written as a note, a history entry `Napa` with no
-  dose was reported `already on ℞` and left off. A note is not a medicine's
-  line now. (Found while fixing the above; the looser comparison would have
-  widened it.) **For the physician:** in the one case this changes — a note
-  that reads exactly like a medicine's label, and a history entry of that
-  medicine with no dose, food or duration — the medicine line is now added,
-  and the printed sheet carries the name twice, the note and then the
-  medicine. That agrees with the box; whether it is right is yours to say.
+- [x] **A note on the pad that reads as a medicine.** The fix above first
+  made a note "not a medicine's line": with `Napa` written as a note and a
+  history entry `Napa` with no dose, food or duration, the medicine line was
+  added and the printed sheet carried the name twice. **The physician's
+  answer (2026-10-14): no.** A note that reads as the medicine is a line of
+  it with nothing in its cells, on both screens: that entry is skipped, an
+  entry WITH a dose is still added beside it, the box marks the row On ℞
+  and says the medicine is now on ℞ more than once. A note that only
+  mentions a medicine (`Napa if fever`) is not it. That rule was on `dev`
+  and in one release (the one that carried the fix above).
 - [x] **From the review of this fix, before release:** the key the box and
   Move to Rx share read the point of `.5 mg` as the full stop that ends a
   dosage form, so `Tab Rivotril .5 mg` and `Tab Rivotril. 5 mg` were one
@@ -1043,14 +1045,32 @@ nothing in it was held to block a release; what was done, and what is left:
 - [ ] **Capitals are set aside, and in one place that is not typography:**
   `3 MIU` and `3 mIU` (mega and milli) are one key. No such pair is known in
   a medicine list here; the production table was not read for this.
-- [ ] **The dose, the food and the duration are still compared as written**
-  (less their outer spaces). `After meal` on the pad and `after meal` in the
-  history are two lines, and Move to Rx adds the second. Whether those cells
-  should be compared more loosely — and how far: `1+0+1` and `1 + 0 + 1`? —
-  is the physician's to say; they are the doctor's own words.
-- [ ] **A line typed without its dosage form is another medicine here too**
-  (`Napa 500 mg` beside `Tablet. Napa 500 mg`), as in the box: the same open
-  question as above, under "Add Bulk Medicine".
+- [x] **The dose, the food and the duration were compared as written**
+  (less their outer spaces): `After meal` on the pad and `after meal` in the
+  history were two lines. **Decided by the physician (2026-10-14):** their
+  capitals and spaces are set aside (`instructionKey`) — `1 + 0 + 1` is
+  `1+0+1`, `5 days` is `5days` — on both screens, tapering lines included in
+  the box. Nothing else is: `1-0-1`, `101`, `0.5` for `1/2` or a full stop
+  at the end are other ways of writing, and what they mean is the doctor's.
+  The same caution as the medicine's: `3 MIU` and `3 mIU` are one.
+- [x] **A line typed without its dosage form was another medicine here too**
+  — decided with the box, above.
+- [x] **From the independent review, before release:** a note now stands
+  for a line with nothing in it AND no tapering lines. With a note
+  `Tablet. Prednisolone 5 mg` on the pad, a history entry of it with a
+  blank first line and its doses in two tapering lines was skipped — "1
+  already on ℞" — and the regimen never reached the pad. It is added now,
+  in both screens.
+- [ ] **For the physician: a label without its form matches EVERY form.**
+  Through it, one form can stand for another: with `Napa 500 mg` (meant as
+  the tablet) in the history and `Suppository. Napa 500 mg` on the pad at
+  the same dose, food and duration, Move to Rx skips the history's line as
+  "already on ℞". And with several lines ticked the order can matter:
+  [`Napa 500 mg`, `Tablet. Napa 500 mg`, `Suppository. Napa 500 mg`] at one
+  instruction adds one line, the same three in the other order two. The
+  "Add Bulk Medicine" box does the same (the On ℞ mark and the skip). It
+  needs the same dose, food and duration on two forms to happen. Say if a
+  form-less label should match only when one form of it is in question.
 - [ ] **A skipped medicine's tapering lines are not compared.** If the pad has
   the medicine's first line and the history's entry has tapering lines under
   it that the pad does not, they are not added and `1 already on ℞` does not
@@ -1073,12 +1093,73 @@ nothing in it was held to block a release; what was done, and what is left:
   cleared); an
   older build may still send `showDrugPicker` and `drugSearch`, and nothing
   reads them.
-- [ ] **"Total monthly approximate cost" reads only that 18-item list**, by the
-  exact name (`Tab. Paracetamol 500mg`), notes included (a note typed
-  `Tab. Paracetamol 500mg` is priced). A medicine picked from the medicine
-  list is written as the table writes it (`Tablet. Napa 500 mg`) and is on it
-  only if the table's own label is one of those eighteen letter for letter —
-  the production table was not read for this — so for a real prescription
-  the box shows, as far as is known, `৳0.0`, as it did before this change. Whether
-  the box should go, or be priced from the medicines table, is the
-  physician's to say.
+- [x] **"Total monthly approximate cost" read only that 18-item list**, by the
+  exact name, so for a real prescription it showed `৳0.0`. **Decided by the
+  physician (2026-10-14): price it from the medicine chart — "but remember
+  like Sergel 20 and Sergel 40 mg is not same".** Done; the list is gone.
+  See "Monthly cost from the medicine chart" below.
+
+### Monthly cost from the medicine chart (2026-10-14)
+
+- [x] **Priced from the `medicines` table** (`lib/monthlyCost.ts`,
+  `POST /medicines/by-brand`): a line's medicine is the chart's row by
+  `sameMedicine`, form and strength included — two strengths, two prices;
+  only a `Unit Price: ৳ N` of a tablet, capsule or suppository is used, read
+  whole; the dose as counts (`1+0+1`), the duration in days, weeks or months
+  or Continue; a month is 30 days, tapering lines in order. Every medicine
+  not priced is counted beside the total and named, with why, on a press.
+  A browser journey (`e2e/tests/monthly-cost.spec.ts`) holds 20 mg and 40 mg
+  at their own prices against the real route.
+- [x] **From the independent review, before release:** (1) the food cell
+  was not read, so `1+0+0` with `After meal, once a week` was priced as
+  thirty tablets a month, not four — a food cell that says more than when,
+  beside a meal, now leaves the medicine not priced; (2) a brand's second
+  pack, which the chart's import stores with no form and no strength, could
+  carry another unit price unseen (five such medicines in the source, Sugar
+  Free Gold among them) — a bare pack of the brand at another unit price
+  now leaves the medicine not priced (also when it is the pack of another
+  strength of the brand: which one it belongs to cannot be told); (3) a
+  form of five words (`Dry Powder Inhalation Capsule (DPI).`, 147 rows in
+  the source) was never asked for by its brand, and read "not found in the
+  medicine chart" — the word after the label's first full stop is asked
+  for too. All three pinned in `monthlyCost.test.ts` / `medicineKey.test.ts`.
+- [ ] **For the physician — what the box does NOT price, by choice:** a
+  syrup, a suspension, an injection, a cream, an inhaler or drops (the chart
+  prices the bottle, vial, tube or device, and what one dose of it costs —
+  `2 tsf` of a 100 ml bottle — is not something the app should guess); a
+  medicine the chart has at two unit prices (18 of the 15,073 medicines with
+  a form and a strength in the source workbooks — mostly several companies'
+  products sold under the generic's name); a label
+  typed without its form where the chart has that strength in two forms; a
+  dose like `1 if fever`, a duration like `until review` or `চলবে`, or a
+  food cell other than the ones the pad's shorthand writes (`Before meal`,
+  `After meal`, `With food`, `2 hr before meal`, `2 hr before or after
+  meal`, or blank). Each is shown as "not priced" and named. Whether any
+  should be priced, and how, is yours to say.
+- [ ] **For the physician — food instructions that mean every day but are
+  not read as it (the second review's list).** A doctor who writes the food
+  cell in Bangla — `খাবার পরে`, `খাবার পর`, `খাবারের আগে` — gets nearly every
+  medicine with an instruction shown as not priced; so does `Empty stomach`,
+  `Before breakfast`, `At night`, `At bedtime`, `30 min before meal`, `1/2
+  hr before meal`, `After meals`, `After food`, `Before food`, `With meal`,
+  `Take after meal`, `After meal.`. None of them says how often, and each
+  could be read as every day; the list was kept to what the shorthand
+  writes so that nothing is guessed. Doctors who use the shorthand (`am`,
+  `bm`, `2bm`, `wf`) see little of this. Which of these — and which Bangla
+  spellings — should count as every day is yours to say.
+- [ ] **Known limit: an instruction written on a line of its own is not
+  read.** `Tab X 70 mg — 1+0+0 — — 8 weeks` with a note under it `once a
+  week on Friday` is priced as every day: thirty tablets. A note between
+  medicines is most often about something else (`bed rest`), and which
+  medicine a note qualifies is not something to guess. The box's own
+  explanation says the price is per dose, every day.
+- [ ] **The 30-day month is the app's reading of "monthly"**: a 5-day
+  course is priced for 5 days, a 3-month course and Continue for 30, and a
+  half tablet as half a tablet's price. Say if "monthly" should mean
+  something else.
+- [ ] **The price format was read from the source, not from production.**
+  The workbooks the chart was imported from ("A To Z complete trade", 27,346
+  rows) write every unit price as `Unit Price: ৳ N (…)`; rows the table held
+  before that import were not read. A price in another shape is simply "not
+  priced", never misread. The production table's `price` column (the first
+  ৳ number of the text, a bottle's price for a syrup) is not used.

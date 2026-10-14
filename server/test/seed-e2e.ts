@@ -21,7 +21,16 @@ const ROLES = [
   'restore', 'isoA', 'isoB', 'printDefault', 'printA4', 'gateKeyboard', 'probe',
   'sheetSave', 'sheetKeys', 'sheetEnter', 'headerSwitch', 'noteMirror',
   'invUnits', 'invUnitsPlain', 'loginWait', 'bulkMed', 'bulkKeys', 'bulkOffline', 'bulkPhone', 'bulkMany', 'moveRx',
+  'monthlyCost',
 ] as const;
+
+// The "Total monthly approximate cost" journey prices from the medicine chart:
+// two strengths of one made-up medicine at two prices, written in the chart's
+// own shape. (The six rows of `support/medicines.sql` carry no price.)
+const PRICED: [string, string, string, string][] = [
+  ['e2e-price-20', 'Capsule (Enteric Coated)', '20 mg', 'Unit Price: ৳ 5.00 (10 x 10: ৳ 500.00)'],
+  ['e2e-price-40', 'Capsule (Enteric Coated)', '40 mg', 'Unit Price: ৳ 1,150.00 (2 x 7: ৳ 16,100.00)'],
+];
 
 async function main() {
   assertTestDbUrl(process.env.DATABASE_URL);
@@ -29,6 +38,15 @@ async function main() {
   try {
     await assertTestDatabase(prisma);
     await resetDb(prisma);
+    // `medicines` is reference data that resetDb keeps.
+    await prisma.$executeRawUnsafe(`DELETE FROM medicines WHERE id LIKE 'e2e-price-%'`);
+    for (const [id, form, strength, price] of PRICED) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO medicines (id, "brandName", "genericName", "dosageForm", strength, company, "priceRaw")
+         VALUES ($1, 'Zzcostcap', 'Made-up generic', $2, $3, 'Test Pharma', $4)`,
+        id, form, strength, price,
+      );
+    }
 
     const doctors: Record<string, { email: string; name: string }> = {};
     for (const role of ROLES) {

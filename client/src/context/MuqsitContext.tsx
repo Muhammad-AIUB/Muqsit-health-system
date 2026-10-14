@@ -14,7 +14,6 @@ import React, {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
-import { drugDB } from "@/data/drugs";
 import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { createRxSnapshotGate } from "@/lib/rxSnapshot";
 import { mergeThumbs, safeThumbMap, type ThumbMap } from "@/lib/imageThumbs";
@@ -1512,27 +1511,6 @@ function useMuqsitStore() {
     }
   };
 
-
-  // Cost calculation
-  const monthlyCost = (() => {
-    let total = 0;
-    rxItems.forEach((item) => {
-      const drug = drugDB.find((d) => d.name === item.drug);
-      if (!drug) return;
-      const doseParts = item.dose.split("+").map(Number).filter((n) => !isNaN(n));
-      const perDay = doseParts.reduce((a, b) => a + b, 0) || 1;
-      const durMatch = item.duration.match(/(\d+)/);
-      let days = durMatch ? parseInt(durMatch[1]) : 30;
-      if (item.duration === "Continue") days = 30;
-      if (item.dose.includes("ml")) {
-        total += drug.price * Math.ceil(((parseFloat(item.dose) || 10) * perDay * days) / 100);
-      } else {
-        total += drug.price * perDay * days;
-      }
-    });
-    return total;
-  })();
-
   const allFieldValues: Record<string, StringList> = {
     chiefComplaints, history, investigation, drugHistory, onExamination,
     note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
@@ -1590,7 +1568,7 @@ function useMuqsitStore() {
     hmDrugs, setHmDrugs, oeData, setOeData,
     // handlers + derived
     handleLogin, savePrescription, toggleWatch,
-    resetEditor, flushEditorDraft, saveDraftNow, hasRxContent, loadPatient, loadPatientById, monthlyCost, allFieldValues, leftFields,
+    resetEditor, flushEditorDraft, saveDraftNow, hasRxContent, loadPatient, loadPatientById, allFieldValues, leftFields,
     activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
     can, canEditLabel, isAssistantMode,
     // device mirroring

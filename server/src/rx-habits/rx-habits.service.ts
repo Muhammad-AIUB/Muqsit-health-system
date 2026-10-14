@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CatalogueRow, catalogueRowsByBrandWord } from '../medicines/catalogue';
 import {
   ALGO_VERSION,
   HabitLine,
@@ -143,14 +144,6 @@ interface LookupRow {
   pinned: boolean;
   hidden: boolean;
   hiddenCount: number;
-}
-
-/** One row of the raw `medicines` catalogue, as the generic lookup reads it. */
-interface CatalogueRow {
-  brandName: string;
-  genericName: string | null;
-  dosageForm: string | null;
-  strength: string | null;
 }
 
 /**
@@ -719,43 +712,13 @@ export class RxHabitsService implements OnModuleInit {
 
   /**
    * Every catalogue row whose brand begins with one of these words — in ONE
-   * pass over the table, however many words there are.
-   *
-   * ⚕️ An EQUALITY on the brand's first word, joined against the list of words.
-   * It was a pattern per brand (`"brandName" ILIKE ANY('{napa%,…}')`), which is
-   * fine for the dropdown's four medicines and ruinous for a doctor's whole
-   * list: every pattern is tried against every row. Measured on 2026-10-14 on a
-   * made-up catalogue of 35,000 medicines, that cost 0.8 s per 25 brands — 5 to
-   * 7 s to open the box with 200 medicines, over a minute with 2,000. As one
-   * hash join the query is 0.05 s for 200 and 0.13 s for 2,000 (the whole
-   * service call 0.08 s and 0.32 s), and for the dropdown
-   * it is cheaper than the pattern was.
-   *
-   * It also asks a better question. A prefix needed a row cap, and a cap that
-   * bites drops whichever brands the database reached last — silently, at the
-   * cost of a contraindication warning. A word of one letter could not be
-   * asked for at all (`e%` is every brand beginning with E). An equality needs
-   * neither rule: it returns the brands whose first word IS the word, and the
-   * answer is bounded by the catalogue — a table of medicines, not of patients.
-   *
-   * The first word is taken the way `normaliseDrugKey` would take it: lower
-   * case, leading space ignored, and a tab, a line break or a no-break space
-   * counted as the space a spreadsheet meant.
-   *
-   * `medicines` is a raw table, not a Prisma model (see server/CLAUDE.md). The
-   * words are a BOUND parameter, so the doctor's own text can never reach the
-   * SQL — and being compared, not matched, a `%` or `_` in one means only
-   * itself.
+   * pass over the table, by an EQUALITY on the brand's first word. The query
+   * and why it is asked that way are in `medicines/catalogue.ts`, shared with
+   * the prices of the "Total monthly approximate cost" box: one question of the
+   * catalogue, not two written alike.
    */
   private catalogueRows(words: string[]): Promise<CatalogueRow[]> {
-    return this.prisma.$queryRawUnsafe<CatalogueRow[]>(
-      `SELECT "brandName", "genericName", "dosageForm", strength
-       FROM medicines
-       WHERE lower(split_part(btrim(translate("brandName", E'\\t\\n\\r' || chr(160), '    ')), ' ', 1))
-             IN (SELECT unnest($1::text[]))
-       ORDER BY "brandName", "dosageForm", strength, "genericName"`,
-      words,
-    );
+    return catalogueRowsByBrandWord(this.prisma, words);
   }
 
   // ── Hide / unhide ─────────────────────────────────────────────────────────

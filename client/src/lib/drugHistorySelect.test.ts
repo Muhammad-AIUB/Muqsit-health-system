@@ -245,13 +245,84 @@ describe("appendBlocks", () => {
     });
   });
 
-  // The dose, the food and the duration are the doctor's own words: they are
-  // compared as written, less the spaces round them. (Only the MEDICINE is
-  // compared more loosely than that — see the block above.)
-  it("compares the dose, the food and the duration as written, less their outer spaces", () => {
-    const b = blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")]);
-    const r = appendBlocks(b, [rx({ drug: "Tablet. Napa 500 mg", dose: " 1+1+1 ", instruction: "With food ", duration: " 5 days" })]);
-    expect([r.added, r.skipped]).toEqual([0, 1]);
+  // ⚕️ The dose, the food and the duration are the doctor's own words: how
+  // they were TYPED — capitals and spaces — is set aside, and nothing else
+  // (physician's decision, 2026-10-14). `1 + 0 + 1` and `1+0+1` are one
+  // dose; `1-0-1` is another way of writing one, and that is not this rule's
+  // to decide.
+  describe("the dose, the food and the duration", () => {
+    it.each([
+      [{ dose: " 1+1+1 ", instruction: "With food ", duration: " 5 days" }],
+      [{ dose: "1 + 1 + 1", instruction: "With food", duration: "5 days" }],
+      [{ dose: "1+1+1", instruction: "with food", duration: "5 Days" }],
+      [{ dose: "1+1+1", instruction: "WITH  FOOD", duration: "5days" }],
+    ])("⚕️ typed with other spaces or capitals, it is the same line: skipped — %o", (cells) => {
+      const b = blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")]);
+      const r = appendBlocks(b, [rx({ drug: "Tablet. Napa 500 mg", ...cells })]);
+      expect([r.added, r.skipped]).toEqual([0, 1]);
+    });
+
+    it.each([
+      [{ dose: "1-1-1" }],
+      [{ dose: "111" }],
+      [{ dose: "1+1+2" }],
+      [{ instruction: "With food." }],
+      [{ instruction: "Before meal" }],
+      [{ duration: "5 day" }],
+      [{ duration: "15 days" }],
+    ])("⚕️ written another way, or saying something else, it is another line: added — %o", (other) => {
+      const b = blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")]);
+      const r = appendBlocks(b, [rx({ drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "With food", duration: "5 days", ...other })]);
+      expect([r.added, r.skipped]).toEqual([1, 0]);
+    });
+
+    it("what reaches the pad is the entry as the history has it, spaces and all", () => {
+      const r = appendBlocks(blocks([med("Tablet. Napa 500 mg — 1 + 1 + 1 — with food — 5 Days")]), []);
+      expect(r.items).toEqual([{ drug: "Tablet. Napa 500 mg", dose: "1 + 1 + 1", instruction: "with food", duration: "5 Days", isCont: false }]);
+    });
+  });
+
+  // ⚕️ A medicine typed WITHOUT its dosage form is the same medicine as the one
+  // with it, where the name and the strength are the same (physician's
+  // decision, 2026-10-14) — never another strength: Sergel 20 mg is not
+  // Sergel 40 mg.
+  describe("a medicine written without its dosage form", () => {
+    const NAPA = { dose: "1+1+1", instruction: "With food", duration: "5 days" };
+
+    it("⚕️ history without the form, pad with it: the same line, skipped", () => {
+      const r = appendBlocks(blocks([med("Napa 500 mg — 1+1+1 — With food — 5 days")]), [rx({ drug: "Tablet. Napa 500 mg", ...NAPA })]);
+      expect([r.added, r.skipped, r.items]).toEqual([0, 1, []]);
+    });
+
+    it("⚕️ …and the other way round", () => {
+      const r = appendBlocks(blocks([med("Capsule (Enteric Coated). Sergel 40 mg — 1+0+1 — Before meal — 14 days")]),
+        [rx({ drug: "sergel 40mg", dose: "1+0+1", instruction: "Before meal", duration: "14 days" })]);
+      expect([r.added, r.skipped]).toEqual([0, 1]);
+    });
+
+    it("⚕️ another strength is another medicine, with a form or without: added", () => {
+      const r = appendBlocks(blocks([med("Sergel 20 mg — 1+0+1 — Before meal — 14 days")]),
+        [rx({ drug: "Capsule (Enteric Coated). Sergel 40 mg", dose: "1+0+1", instruction: "Before meal", duration: "14 days" })]);
+      expect([r.added, r.skipped]).toEqual([1, 0]);
+      const r2 = appendBlocks(blocks([med("Capsule (Enteric Coated). Sergel 20 mg — 1+0+1 — Before meal — 14 days")]),
+        [rx({ drug: "Sergel 40 mg", dose: "1+0+1", instruction: "Before meal", duration: "14 days" })]);
+      expect([r2.added, r2.skipped]).toEqual([1, 0]);
+    });
+
+    it("⚕️ two forms are never one: with the tablet on the pad, the suppository is added", () => {
+      const r = appendBlocks(blocks([med("Suppository. Napa 500 mg — 1+1+1 — With food — 5 days")]), [rx({ drug: "Tablet. Napa 500 mg", ...NAPA })]);
+      expect([r.added, r.skipped]).toEqual([1, 0]);
+    });
+
+    it("two ticked rows, one written without its form, are added once — as the first was written", () => {
+      const r = appendBlocks(
+        [...blocks([med("Napa 500 mg — 1+1+1 — With food — 5 days")], "19/09/2026"),
+         ...blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")], "14/09/2026")],
+        [],
+      );
+      expect([r.added, r.skipped]).toEqual([1, 1]);
+      expect(r.items.map((i) => i.drug)).toEqual(["Napa 500 mg"]);
+    });
   });
 
   // A tapering line read back from the server carries its medicine's name.
@@ -266,15 +337,37 @@ describe("appendBlocks", () => {
     expect([r.added, r.skipped]).toEqual([1, 0]);
   });
 
-  // A note on the pad is a line of words, not a medicine: one that reads like
-  // a medicine's name must not make Move to Rx say the medicine is on ℞ and
-  // leave it off. (A tapering line has no medicine name, and matches nothing.)
-  it("⚕️ a note on the pad that reads like the medicine is not the medicine", () => {
-    const b = blocks([med("Napa —  —  — ")]);
-    for (const written of ["Napa", "napa"]) {
-      const r = appendBlocks(b, [rx({ drug: written, isNote: true })]);
-      expect([written, r.added, r.skipped]).toEqual([written, 1, 0]);
+  // ⚕️ A note on the pad that reads as the medicine IS that line, with no
+  // dose, food or duration (physician's decision, 2026-10-14): added again
+  // from the history, the medicine's name was printed twice — once as the
+  // note, once as the line under it. A history entry WITH a dose is another
+  // line, and is added, as it would be beside a line with no dose.
+  it("⚕️ a note on the pad that reads as the medicine is that line, with nothing in its cells: skipped", () => {
+    for (const [history, note] of [["Napa —  —  — ", "Napa"], ["Napa —  —  — ", "napa"], ["Tablet. Napa 500 mg —  —  — ", "Napa 500 mg"]]) {
+      const r = appendBlocks(blocks([med(history)]), [rx({ drug: note, dose: "", instruction: "", duration: "", isNote: true })]);
+      expect([note, r.added, r.skipped]).toEqual([note, 0, 1]);
     }
+  });
+
+  it("…but an entry WITH a dose is another line beside that note: added", () => {
+    const r = appendBlocks(blocks([med("Napa — 1+0+1 —  — 5 days")]), [rx({ drug: "Napa", dose: "", instruction: "", duration: "", isNote: true })]);
+    expect([r.added, r.skipped]).toEqual([1, 0]);
+  });
+
+  // ⚕️ A note stands for a line with NOTHING in it — no dose, no tapering
+  // lines. An entry whose doses are all in its tapering lines is a regimen:
+  // skipped against the note, it never reached the pad, and Move to Rx said
+  // "1 already on ℞" (review, before release).
+  it("⚕️ …but an entry whose doses are in its tapering lines is not that note: added, tapers and all", () => {
+    const b = blocks([med("Tablet. Prednisolone 5 mg —  —  — "), cont("4+0+0 — After meal — 7 days"), cont("2+0+0 — After meal — 7 days")]);
+    const r = appendBlocks(b, [rx({ drug: "Tablet. Prednisolone 5 mg", dose: "", instruction: "", duration: "", isNote: true })]);
+    expect([r.added, r.skipped]).toEqual([1, 0]);
+    expect(r.items.map((i) => [i.drug, i.dose, i.isCont])).toEqual([["Tablet. Prednisolone 5 mg", "", false], ["", "4+0+0", true], ["", "2+0+0", true]]);
+  });
+
+  it("…and a note that only mentions the medicine is not it", () => {
+    const r = appendBlocks(blocks([med("Napa —  —  — ")]), [rx({ drug: "Napa if fever", dose: "", instruction: "", duration: "", isNote: true })]);
+    expect([r.added, r.skipped]).toEqual([1, 0]);
   });
 
   // ⚕️ A taper with no medicine above it is an unreadable instruction on a

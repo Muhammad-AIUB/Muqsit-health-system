@@ -7,6 +7,7 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { useUpdatePatient } from "@/hooks/usePatients";
 import DateField from "@/components/common/DateField";
 import MobileLookupField from "./MobileLookupField";
+import MonthlyCost from "./MonthlyCost";
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 
@@ -30,7 +31,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
     ptName, setPtName, ptAge, setPtAge, ptGender, setPtGender,
     ptAddress, setPtAddress, ptWeight, setPtWeight, ptDate, setPtDate,
     ptHospitalId, setPtHospitalId, setPtInfo, ptInfo, currentPatientId,
-    monthlyCost, watchPatient, toggleWatch, activeTab, setActiveTab,
+    rxItems, watchPatient, toggleWatch, activeTab, setActiveTab,
   } = useMuqsit();
 
   // A patient photo can 404 (deleted upload, flaky clinic network) — fall back
@@ -177,12 +178,7 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
         <div style={{ flex: mobile ? "1 1 110px" : "0 0 130px" }}><label data-caption style={fieldLabel}>Date</label><DateField value={ptDate} onChange={setPtDate} /></div>
         {mobile && address}
         <MobileLookupField mobile={mobile} />
-        <div style={{ flex: mobile ? "1 1 45%" : "0 0 150px" }}>
-          <label data-caption style={fieldLabel}>Total monthly approximate cost</label>
-          <div style={{ padding: "6px 10px", borderRadius: 6, fontSize: 13.5, fontWeight: 600, background: monthlyCost > 0 ? C.pri[50] : C.n[100], border: `0.5px solid ${monthlyCost > 0 ? C.pri[100] : C.n[200]}`, color: monthlyCost > 0 ? C.pri[600] : C.n[500], display: "flex", alignItems: "center", gap: 4, height: 29, boxSizing: "border-box" }}>
-            <span style={{ fontSize: 11, fontWeight: 400 }}>৳</span>{monthlyCost > 0 ? monthlyCost.toFixed(1) : "0.0"}
-          </div>
-        </div>
+        <MonthlyCost items={rxItems} mobile={!!mobile} />
         {/* Hospital ID — a normal inline field, in line with the others */}
         <div style={{ flex: mobile ? "1 1 45%" : "0 0 140px" }}>
           <label data-caption style={fieldLabel}>Hospital ID</label>

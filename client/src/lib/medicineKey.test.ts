@@ -5,9 +5,9 @@
 // (the same line is written twice). The labels are made up.
 
 import { describe, expect, it } from "vitest";
-import { medicineKey } from "@/lib/medicineKey";
+import { brandWordsOf, instructionKey, medicineKey, MedicineMap, sameMedicine } from "@/lib/medicineKey";
 
-const same = (a: string, b: string) => medicineKey(a) === medicineKey(b);
+const same = (a: string, b: string) => sameMedicine(a, b);
 
 describe("medicineKey — the same medicine, however its label was typed", () => {
   const PICKED = "Tablet. Napa 500 mg"; // as the medicine list writes it
@@ -32,7 +32,7 @@ describe("medicineKey — the same medicine, however its label was typed", () =>
     ["a form with a qualifier", "Tablet (Extended Release). Napa 500 mg"],
     ["another brand that begins the same", "Tablet. Napa Extra 500 mg"],
     ["no strength at all", "Tablet. Napa"],
-    ["no dosage form — it is not known to be the tablet", "Napa 500 mg"],
+    ["no dosage form, and another strength", "Napa 665 mg"],
   ])("⚕️ %s is another medicine: %s", (_what, other) => {
     expect(same(other, PICKED)).toBe(false);
   });
@@ -126,5 +126,168 @@ describe("medicineKey — the same medicine, however its label was typed", () =>
   it("never throws on what is not a label", () => {
     expect(medicineKey(undefined as unknown as string)).toBe("");
     expect(medicineKey(null as unknown as string)).toBe("");
+    expect(sameMedicine(undefined as unknown as string, "Tablet. Napa 500 mg")).toBe(false);
+  });
+});
+
+// ⚕️ A label typed WITHOUT its dosage form is the same medicine as one with a
+// form, where the name and the strength are the same (physician's decision,
+// 2026-10-14). The strength is never set aside: Sergel 20 mg and Sergel 40 mg
+// are two medicines, with a form or without one. And two forms are never one —
+// not even through a label that has none.
+describe("sameMedicine — a label with no dosage form", () => {
+  it.each([
+    ["Napa 500 mg", "Tablet. Napa 500 mg"],
+    ["napa 500mg", "Tablet. Napa 500 mg"],
+    ["Napa 500 mg", "Tab Napa 500 mg"],
+    ["Sergel 40 mg", "Capsule (Enteric Coated). Sergel 40 mg"],
+    ["Edeloss 20 mg + 50 mg", "Tablet. Edeloss 20 mg+50 mg"],
+    ["Rivotril .5 mg", "Tablet. Rivotril 0.5 mg"],
+    ["Napa", "Tablet. Napa"],
+    ["Napa 500 mg", "Napa 500mg"],
+  ])("⚕️ %s is %s", (bare, picked) => {
+    expect(same(bare, picked)).toBe(true);
+    expect(same(picked, bare)).toBe(true);
+  });
+
+  it.each([
+    ["Sergel 20 mg", "Capsule (Enteric Coated). Sergel 40 mg"],
+    ["Sergel 40 mg", "Capsule (Enteric Coated). Sergel 20 mg"],
+    ["Sergel 20 mg", "Sergel 40 mg"],
+    ["Napa 500 mg", "Tablet. Napa 665 mg"],
+    ["Napa 500 mg", "Tablet. Napa"],
+    ["Napa", "Tablet. Napa 500 mg"],
+    ["Napa 500 mg", "Tablet. Napa Extra 500 mg"],
+    ["Napa 500 mg", "Tablet. Napa 500 mcg"],
+    ["Edeloss 20 mg+50 mg", "Tablet. Edeloss 20 mg+25 mg"],
+    ["Rivotril 5 mg", "Tablet. Rivotril 0.5 mg"],
+  ])("⚕️ %s is not %s: the strength or the name differs", (a, b) => {
+    expect(same(a, b)).toBe(false);
+    expect(same(b, a)).toBe(false);
+  });
+
+  it("⚕️ two forms are never one medicine — not even through a label with none", () => {
+    expect(same("Tablet. Napa 500 mg", "Napa 500 mg")).toBe(true);
+    expect(same("Napa 500 mg", "Suppository. Napa 500 mg")).toBe(true);
+    expect(same("Tablet. Napa 500 mg", "Suppository. Napa 500 mg")).toBe(false);
+    expect(same("Capsule (Enteric Coated). Sergel 40 mg", "Capsule. Sergel 40 mg")).toBe(false);
+  });
+
+  it("a blank is no medicine, and matches none", () => {
+    expect(same("", "")).toBe(false);
+    expect(same("  ", "Tablet. Napa 500 mg")).toBe(false);
+    expect(same("Tablet.", "Tablet. Napa 500 mg")).toBe(false);
+  });
+});
+
+// The question the pad is asked over many lines at once: is this medicine —
+// and, for a line, this dose, food and duration — among them?
+describe("MedicineMap", () => {
+  it("finds a medicine by the same rule, and gives back what was held under it", () => {
+    const map = new MedicineMap<string>();
+    map.add("Tablet. Napa 500 mg", "a");
+    map.add("Napa 665 mg", "b");
+    expect(map.get("tab napa 500mg")).toEqual(["a"]);
+    expect(map.get("Napa 500 mg")).toEqual(["a"]);
+    expect(map.get("Tablet. Napa 665 mg")).toEqual(["b"]);
+    expect(map.get("Syrup. Napa 500 mg")).toEqual([]);
+    expect(map.has("Syrup. Napa 665 mg")).toBe(true); // "Napa 665 mg" has no form
+    expect(map.has("Tablet. Napa 1000 mg")).toBe(false);
+    expect(map.size).toBe(2);
+  });
+
+  it("a medicine held in two forms: a label with no form finds both, a form finds its own", () => {
+    const map = new MedicineMap<string>();
+    map.add("Tablet. Napa 500 mg", "tablet");
+    map.add("Suppository. Napa 500 mg", "suppository");
+    expect(map.get("Napa 500 mg")).toEqual(["tablet", "suppository"]);
+    expect(map.get("Tablet. Napa 500 mg")).toEqual(["tablet"]);
+  });
+
+  it("with a line's dose, food and duration beside the medicine, both have to match", () => {
+    const map = new MedicineMap<true>();
+    map.add("Tablet. Napa 500 mg", true, "1+0+1|after meal|5 days");
+    expect(map.has("Napa 500 mg", "1+0+1|after meal|5 days")).toBe(true);
+    expect(map.has("Tablet. Napa 500 mg", "1+1+1|after meal|5 days")).toBe(false);
+    expect(map.has("Tablet. Napa 500 mg")).toBe(false);
+  });
+
+  it("holds no blank medicine", () => {
+    const map = new MedicineMap<true>();
+    map.add("", true);
+    map.add("   ", true);
+    expect(map.size).toBe(0);
+    expect(map.has("")).toBe(false);
+  });
+});
+
+// What the medicine chart is asked for, to price a line: the first word of the
+// brand. Taken as written AND with how it was typed set aside, so that the
+// form written out with no full stop (`Tablet Napa`) still finds Napa, and a
+// brand that begins with a number and a letter (`3 G Cef`) still finds `3`.
+describe("brandWordsOf", () => {
+  it.each([
+    ["Tablet. Napa 500 mg", ["napa"]],
+    ["Tab Napa 500mg", ["napa"]],
+    ["Napa 500 mg", ["napa"]],
+    ["Capsule (Enteric Coated). Sergel 40 mg", ["sergel"]],
+    ["  TABLET.   NAPA  500 mg ", ["napa"]],
+    ["Tablet Napa 500 mg", ["tablet", "napa"]],
+    ["Injection. 3 G Cef 1 gm", ["3", "3g"]],
+    // A form of five words is not read as one (`normaliseDrugKey` takes four
+    // at most), so the word after its full stop is asked for too (review).
+    ["Dry Powder Inhalation Capsule (DPI). Seretide 250 mcg", ["dry", "seretide"]],
+  ])("%s → %j", (label, words) => {
+    expect(brandWordsOf(label)).toEqual(words);
+  });
+
+  it("a blank label asks for nothing", () => {
+    expect(brandWordsOf("")).toEqual([]);
+    expect(brandWordsOf(undefined as unknown as string)).toEqual([]);
+  });
+});
+
+// ⚕️ The dose, the food and the duration: how they were TYPED is set aside —
+// capitals and spaces, nothing else (physician's decision, 2026-10-14). A
+// different notation is a different instruction: whether `1-0-1` is `1+0+1`,
+// or `1/2` is `0.5`, is not this function's to decide.
+describe("instructionKey — a dose, a food or a duration, however it was spaced or capitalised", () => {
+  it.each([
+    ["1 + 0 + 1", "1+0+1"],
+    [" 1+0+1 ", "1+0+1"],
+    ["1/2 + 0 + 1/2", "1/2+0+1/2"],
+    ["1 / 2+0+1 / 2", "1/2+0+1/2"],
+    ["After meal", "after meal"],
+    ["AFTER  MEAL", "After meal"],
+    ["2 hr before meal", "2hr before meal"],
+    ["5 days", "5 Days"],
+    ["5 days", "5days"],
+    ["7 দিন", "7দিন"],
+    ["1+0+1 ( চামচ )", "1+0+1 (চামচ)"],
+    ["1+0+1(চামচ)", "1+0+1 (চামচ)"],
+    ["Continue", "continue"],
+  ])("%s is %s", (a, b) => {
+    expect(instructionKey(a)).toBe(instructionKey(b));
+  });
+
+  it.each([
+    ["1+0+1", "1-0-1"],
+    ["1+0+1", "101"],
+    ["1+0+1", "1+0+2"],
+    ["1/2+0+1/2", "0.5+0+0.5"],
+    ["2 2+2", "22+2"],
+    ["After meal", "After meal."],
+    ["After meal", "Before meal"],
+    ["5 days", "5 day"],
+    ["5 days", "15 days"],
+    ["1 month", "1 week"],
+  ])("⚕️ %s is not %s", (a, b) => {
+    expect(instructionKey(a)).not.toBe(instructionKey(b));
+  });
+
+  it("a blank is blank, and never throws", () => {
+    expect(instructionKey("")).toBe("");
+    expect(instructionKey("   ")).toBe("");
+    expect(instructionKey(undefined as unknown as string)).toBe("");
   });
 });

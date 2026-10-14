@@ -316,9 +316,21 @@ describe("BulkMedicineModal", () => {
       expect(rowOf(tickBox(box, "Tablet. Napa 500 mg")).textContent).toContain("On ℞");
     });
 
-    it("a note or a tapering line on the pad marks nothing", () => {
-      const pad: RxItem[] = [{ drug: "Tablet. Napa 500 mg", dose: "", duration: "", instruction: "", isNote: true }];
-      expect(marked(open(listed([NAPA]), pad).box)).toEqual([]);
+    // ⚕️ A note that reads as the medicine names it on the prescription
+    // (physician's decision, 2026-10-14) — and the name written twice is what
+    // the mark is there to show. A tapering line names nothing, even read back
+    // from the server with its medicine's name in it.
+    it("⚕️ a note that reads as the medicine marks it; a tapering line does not", () => {
+      const note: RxItem[] = [{ drug: "Tablet. Napa 500 mg", dose: "", duration: "", instruction: "", isNote: true }];
+      expect(marked(open(listed([NAPA]), note).box)).toEqual(["Tablet. Napa 500 mg"]);
+      cleanup();
+      const taper: RxItem[] = [line("Tablet. Ace 500 mg", "1+0+0", "", ""), { drug: "Tablet. Napa 500 mg", dose: "1+0+0", duration: "", instruction: "", isCont: true }];
+      expect(marked(open(listed([NAPA]), taper).box)).toEqual([]);
+    });
+
+    it("⚕️ a medicine written on the pad without its dosage form marks the one with it — at the same strength only", () => {
+      const pad = [line("Napa 500 mg", "1+0+1", "", ""), line("Sergel 40 mg", "1+0+1", "", "")];
+      expect(marked(open(listed([NAPA, SERGEL]), pad).box)).toEqual(["Tablet. Napa 500 mg"]); // Sergel 20 mg is not 40
     });
 
     // The marks are worked out when the list or the pad changes, not at every

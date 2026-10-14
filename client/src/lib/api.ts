@@ -389,6 +389,9 @@ export interface MedicineHit {
 export const medicinesApi = {
   search: (q: string) =>
     apiFetch<MedicineHit[]>(`/medicines/search?q=${encodeURIComponent(q)}`),
+  /** The medicine chart's rows for these brand words — `{ rows }`, read by `lib/monthlyCost.ts#readChartRows`, never trusted. */
+  byBrand: (words: string[], abort?: AbortSignal) =>
+    apiFetch<unknown>("/medicines/by-brand", { method: "POST", body: JSON.stringify({ words: words }), signal: abort }),
 };
 
 // ── Prescribing habits ("your usual dose") ──────────────────

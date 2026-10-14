@@ -12,7 +12,7 @@ import { splitDrugLabel } from "@/lib/rxShorthand";
 import { lastUsedLabel } from "@/lib/lastUsed";
 import { grouped } from "@/lib/calculators/format";
 import {
-  bulkSummary, bulkToRxItems, instructionOf, medicineKey, medicinesOnPad, nothingAddedNote, patientsLabel, searchBulk,
+  bulkSummary, bulkToRxItems, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel, searchBulk,
   sortBulk, type BulkList, type BulkMedicine, type BulkOrder,
 } from "@/lib/bulkMedicines";
 import type { RxItem } from "@/types";
@@ -185,7 +185,7 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
   const onPad = useMemo(() => {
     const there = medicinesOnPad(existing);
     const ids = new Set<string>();
-    if (there.size) for (const m of all) if (there.has(medicineKey(m.drugLabel))) ids.add(m.id);
+    if (there.size) for (const m of all) if (there.has(m.drugLabel)) ids.add(m.id);
     return ids;
   }, [all, existing]);
 

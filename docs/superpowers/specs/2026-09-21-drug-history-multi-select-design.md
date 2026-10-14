@@ -65,8 +65,13 @@ CLAUDE.md requires.
   the form or the brand; `lib/medicineKey.ts` has the whole list).
   Compared letter for letter, a medicine typed by hand at an earlier visit
   went on the pad beside the same one picked from the list, at the same dose.
-  The other three fields are compared as designed; and a note or a tapering
-  line on the pad is not a medicine's first line.
+  The other three fields are compared with their capitals and spaces set
+  aside (`instructionKey`); a label typed with no dosage form is the same
+  medicine as one with it at the same name and strength (`sameMedicine`);
+  and a note on the pad that reads as the medicine is a line of it with
+  nothing in its cells and no tapering lines (an entry whose doses are in
+  its tapering lines is added beside it), while a tapering line is no first
+  line — the physician's decisions of 2026-10-14.
 - **Notes** (`(note)` rows) and medicine rows with no drug name are not
   selectable. A note is not a medication.
 - **Permission.** The buttons and the checkboxes render only when

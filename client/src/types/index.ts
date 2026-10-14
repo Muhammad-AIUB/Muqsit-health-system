@@ -4,12 +4,6 @@
 
 export type ColorKey = "pri" | "ok" | "warn" | "danger" | "info";
 
-export interface Drug {
-  name: string;
-  cat: string;
-  price: number;
-}
-
 export interface RxItem {
   drug: string;
   dose: string;

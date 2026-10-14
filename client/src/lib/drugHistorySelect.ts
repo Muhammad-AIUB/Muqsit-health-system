@@ -20,14 +20,18 @@
 //     match — drug, dose, instruction, duration — not the three the old button
 //     compared. Two lines differing only in the food instruction are two
 //     different instructions, and both are kept. The DRUG is compared as the
-//     app compares medicines everywhere else (`medicineKey`): how a label is
+//     app compares medicines everywhere else (`sameMedicine`): how a label is
 //     spaced or capitalised, and `Tab` for `Tablet.`, is how it was typed and
 //     not what it says. Compared letter for letter, a medicine typed by hand
 //     at an earlier visit went on the pad beside the same one picked from the
 //     list today, at the same dose (in production until the release that carried
-//     this).
+//     this). A label typed WITHOUT its form is the same medicine as one with
+//     it, at the same name and strength (physician's decision, 2026-10-14).
 //     A strength, a form or a brand of its own is another medicine, as ever —
-//     and what reaches the pad is the entry as the history has it.
+//     and what reaches the pad is the entry as the history has it. The dose,
+//     food and duration are compared with their capitals and spaces set aside
+//     (`instructionKey`, same decision), and a NOTE on the pad that reads as
+//     the medicine is a line of it with nothing in those three.
 //
 // Like `lib/rxDrugHistory.ts`, this deliberately does NOT import the modal's
 // parser: it takes rows that are already split into kind + body, so the entry
@@ -35,7 +39,7 @@
 // RxItem mapping that a test can drive directly.
 
 import type { RxItem } from "@/types";
-import { medicineKey } from "@/lib/medicineKey";
+import { instructionsKey, MedicineMap } from "@/lib/medicineKey";
 
 /** The three row kinds of the stored format, as `DrugHistoryField` parses them. */
 export type HistoryKind = "med" | "note" | "cont";
@@ -112,20 +116,18 @@ export function blocksFromRows(rows: HistoryRow[], keyPrefix: string): HistoryBl
   return out;
 }
 
-const cell = (s: string | undefined): string => (s ?? "").trim();
+/** What, beside the medicine, makes two ℞ lines the same line: its dose, food and duration, typed however. */
+const cellsOf = (it: RxItem): string => instructionsKey(it.dose, it.instruction, it.duration);
 
-/** The four fields that make two ℞ lines the same line: the medicine, and its dose, food and duration as written. */
-const lineKey = (it: RxItem): string =>
-  [medicineKey(it.drug), cell(it.dose), cell(it.instruction), cell(it.duration)].join("|");
-
-// A line of the pad that can be a medicine's FIRST line. Not a note — a line
-// of words, which may read like a medicine's name and is not one: with `Napa`
-// written as a note, Move to Rx said Napa was already on ℞ and left it off.
-// And not a tapering line: on the pad it has no name today, but one read back
-// from the server carries its medicine's, and would then have stood for that
-// medicine's first line. (The "Add Bulk Medicine" box reads the pad to the
-// same rule, in its own `readPad`.)
-const isMedicineLine = (it: RxItem | null | undefined): it is RxItem => !!it && !it.isNote && !it.isCont;
+// What on the pad stands for a medicine's FIRST line. A medicine's own line.
+// A NOTE that reads as the medicine stands for a line of it with no dose, food
+// or duration and NO tapering lines — added again from the history, the name
+// was printed twice (physician's decision, 2026-10-14; one that only mentions
+// the medicine is not it); an entry whose doses are in its tapering lines is a
+// regimen, and is added (review, before release). Never a tapering line: on
+// the pad it has no name today, but one read back from the server carries its
+// medicine's, and would then have stood for that medicine's first line. (The
+// "Add Bulk Medicine" box reads the pad to the same rule, in its own `readPad`.)
 
 /**
  * The lines the ticked blocks contribute to a pad that already holds `existing`.
@@ -140,7 +142,12 @@ export function appendBlocks(
   blocks: HistoryBlock[],
   existing: RxItem[],
 ): { items: RxItem[]; added: number; skipped: number } {
-  const seen = new Set((existing ?? []).filter(isMedicineLine).map(lineKey));
+  const seen = new MedicineMap<true>();
+  const notes = new MedicineMap<true>();
+  for (const it of existing ?? []) {
+    if (!it || it.isCont) continue;
+    (it.isNote ? notes : seen).add(it.drug, true, cellsOf(it));
+  }
   const items: RxItem[] = [];
   let added = 0;
   let skipped = 0;
@@ -148,8 +155,9 @@ export function appendBlocks(
   for (const b of blocks ?? []) {
     const head = b?.items?.[0];
     if (!head) continue;
-    if (seen.has(lineKey(head))) { skipped++; continue; }
-    seen.add(lineKey(head));
+    const asNote = b.items.length === 1 && notes.has(head.drug, cellsOf(head));
+    if (seen.has(head.drug, cellsOf(head)) || asNote) { skipped++; continue; }
+    seen.add(head.drug, true, cellsOf(head));
     items.push(...b.items);
     added++;
   }

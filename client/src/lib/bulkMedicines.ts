@@ -1,5 +1,5 @@
 import type { RxItem } from "@/types";
-import { medicineKey } from "@/lib/medicineKey";
+import { instructionsKey, MedicineMap } from "@/lib/medicineKey";
 import { splitDrugLabel } from "@/lib/rxShorthand";
 
 // The rules of the "Add Bulk Medicine" box: the medicines this doctor has
@@ -145,56 +145,62 @@ export const patientsLabel = (n: number): string => (n === 1 ? "1 patient" : `${
 // "Move to Rx", by the physician's decision). Three things follow from it, and
 // the box has to be honest about each:
 //
-//  • The medicine is compared as the app compares medicines everywhere else —
-//    capitals, spacing, `Tab` for `Tablet.`, never the strength or the form.
-//    The box's label is the medicine as last WRITTEN and the pad's may have
-//    been picked from the list; compared letter for letter, `Tablet. Napa
-//    500mg` went on beside `Tablet. Napa 500 mg`.
+//  • The medicine is compared as the app compares medicines everywhere else
+//    (`sameMedicine`) — capitals, spacing, `Tab` for `Tablet.`, a label
+//    typed without its form (`Napa 500 mg`); never the strength, and never
+//    two forms. The box's label is the medicine as last WRITTEN and the pad's
+//    may have been picked from the list; compared letter for letter, `Tablet.
+//    Napa 500mg` went on beside `Tablet. Napa 500 mg`. The dose, food and
+//    duration — of the first line and of each tapering line — are compared
+//    with their capitals and spaces set aside (`instructionKey`).
 //  • The same medicine at ANOTHER dose is another line, and is added: which
 //    dose is right is the doctor's judgement. It is kept by name (`repeated`),
 //    and the box says which medicine is now on the prescription more than
-//    once. (A line typed on the pad WITHOUT its dosage form — `Napa 500 mg` —
-//    is not known to be the tablet: it is another medicine here, and nothing
-//    is said of it. Whether it is the same one is not this module's to guess.)
+//    once. A NOTE on the pad that reads as the medicine counts as a line of
+//    it with nothing in its cells and no tapering lines (physician's decision,
+//    2026-10-14): beside a medicine with an instruction it is another line;
+//    for one with nothing written it is the same line, and the name is not
+//    printed twice; one whose doses are in its tapering lines is a regimen,
+//    and is added (review, before release).
 //  • Only the FIRST line is compared, so a skipped medicine may stand on the
 //    pad with other tapering lines than the box shows, or none. That is
 //    counted too (`otherTaper`): "the same instruction" is not said of it.
 
 const cell = (s: string | undefined): string => (s ?? "").trim();
 
-// A medicine, strength and form included, however it is spaced or capitalised:
-// the one comparison every surface that writes on the pad uses (lib/medicineKey.ts).
-export { medicineKey };
-
-const lineKey = (drug: string, dose: string, food: string, duration: string): string =>
-  [medicineKey(drug), cell(dose), cell(food), cell(duration)].join("|");
 const taperKey = (lines: BulkLine[]): string =>
-  lines.map((l) => [cell(l.dose), cell(l.food), cell(l.duration)].join("|")).join("\n");
+  lines.map((l) => instructionsKey(l.dose, l.food, l.duration)).join("\n");
 
 interface Pad {
-  /** Every medicine that has a line of its own, at any dose. */
-  medicines: Set<string>;
-  /** Each first line, with the tapering lines found under it (one entry per time it stands there). */
-  lines: Map<string, Set<string>>;
+  /** Every medicine the pad names — its lines and its notes — at any dose. */
+  medicines: MedicineMap<true>;
+  /** Each first line by its medicine and instruction, with the tapering lines found under it (one per time it stands there). */
+  lines: MedicineMap<string>;
+  /** The notes that read as a medicine: each stands for a line of it with nothing in it and no tapering lines. */
+  notes: MedicineMap<true>;
 }
 
 // The pad as blocks: each medicine with the tapering lines directly under it.
 // A line is a taper by the pad's own test (`rowsFromRxItems`): marked `isCont`,
-// or — on a line saved before that mark existed — no drug name. A note belongs
-// to nothing and ends the block above it.
+// or — on a line saved before that mark existed — no drug name. A note is a
+// line of its own, with no dose, food or duration and no tapering lines: it
+// ends the block above it, and a taper after it belongs to nothing.
 function readPad(existing: RxItem[]): Pad {
-  const pad: Pad = { medicines: new Set(), lines: new Map() };
-  let open: { key: string; taper: BulkLine[] } | null = null;
+  const pad: Pad = { medicines: new MedicineMap(), lines: new MedicineMap(), notes: new MedicineMap() };
+  let open: { drug: string; cells: string; taper: BulkLine[] } | null = null;
   const close = () => {
     if (!open) return;
-    const tapers = pad.lines.get(open.key) ?? new Set<string>();
-    tapers.add(taperKey(open.taper));
-    pad.lines.set(open.key, tapers);
+    pad.lines.add(open.drug, taperKey(open.taper), open.cells);
     open = null;
   };
   (existing ?? []).forEach((it, i) => {
     if (!it) return;
-    if (it.isNote) { close(); return; }
+    if (it.isNote) {
+      close();
+      pad.medicines.add(it.drug, true);
+      pad.notes.add(it.drug, true, instructionsKey("", "", ""));
+      return;
+    }
     const isCont = it.isCont ?? (cell(it.drug) === "" && i > 0);
     if (isCont) {
       open?.taper.push({ dose: it.dose, food: it.instruction, duration: it.duration });
@@ -202,15 +208,15 @@ function readPad(existing: RxItem[]): Pad {
     }
     close();
     if (!cell(it.drug)) return;
-    pad.medicines.add(medicineKey(it.drug));
-    open = { key: lineKey(it.drug, it.dose, it.instruction, it.duration), taper: [] };
+    pad.medicines.add(it.drug, true);
+    open = { drug: it.drug, cells: instructionsKey(it.dose, it.instruction, it.duration), taper: [] };
   });
   close();
   return pad;
 }
 
-/** The medicines that stand on the pad at any dose: the box marks their rows. */
-export const medicinesOnPad = (existing: RxItem[]): Set<string> => readPad(existing).medicines;
+/** The medicines the pad names, at any dose: the box marks their rows. Ask it `has(label)`. */
+export const medicinesOnPad = (existing: RxItem[]): MedicineMap<true> => readPad(existing).medicines;
 
 export interface BulkAdd {
   /** The lines to append to the pad, in the order the ticked medicines were given. */
@@ -231,18 +237,18 @@ export function bulkToRxItems(picked: BulkMedicine[], existing: RxItem[]): BulkA
   const out: BulkAdd = { items: [], added: 0, repeated: [], skipped: 0, otherTaper: 0 };
 
   for (const m of picked ?? []) {
-    const key = lineKey(m.drugLabel, m.dose, m.food, m.duration);
+    const cells = instructionsKey(m.dose, m.food, m.duration);
     const taper = taperKey(m.contLines);
-    const there = pad.lines.get(key);
-    if (there) {
+    const there = pad.lines.get(m.drugLabel, cells);
+    const asNote = m.contLines.length === 0 && pad.notes.has(m.drugLabel, cells);
+    if (there.length || asNote) {
       out.skipped++;
-      if (!there.has(taper)) out.otherTaper++;
+      if (!asNote && !there.includes(taper)) out.otherTaper++;
       continue;
     }
-    const medicine = medicineKey(m.drugLabel);
-    if (pad.medicines.has(medicine)) out.repeated.push(m.drugLabel);
-    pad.medicines.add(medicine);
-    pad.lines.set(key, new Set([taper]));
+    if (pad.medicines.has(m.drugLabel)) out.repeated.push(m.drugLabel);
+    pad.medicines.add(m.drugLabel, true);
+    pad.lines.add(m.drugLabel, taper, cells);
     // No `fromHabit`: that flag makes a save write `N of M ℞ lines inserted
     // from "Your usual"` to the activity feed, and these were not.
     out.items.push({

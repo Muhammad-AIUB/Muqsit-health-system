@@ -583,10 +583,23 @@ and nothing is written to the activity feed. Table: `manual-doctor-patient-note.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/medicines/search?q=` | ≥2 chars, max 10 hits |
+| POST | `/medicines/by-brand` | `{ words: string[] }` (≤100, each ≤100 chars) → the chart's rows for those brands; a read, `200` |
 
-→ `{ id, brandName, genericName, dosageForm, strength, company, priceRaw }[]`,
+`search` → `{ id, brandName, genericName, dosageForm, strength, company, priceRaw }[]`,
 ranked brand-prefix → brand-contains → generic-prefix → generic-contains, then by
 dosage form.
+
+`by-brand` (2026-10-14) → `{ rows: { brandName, dosageForm, strength, priceRaw }[] }`:
+every row whose brand's FIRST WORD is one of `words` (lower case; asked once
+each), ordered brand, form, strength. It feeds the "Total monthly approximate
+cost" box on the prescription header: the client sends the first word of each
+brand on the ℞ pad, decides which row IS each line's medicine by its own
+comparison (`client/src/lib/medicineKey.ts#sameMedicine` — form and strength
+included, so Sergel 20 mg is never priced as Sergel 40 mg), and reads `priceRaw`
+itself (`client/src/lib/monthlyCost.ts`). The query is the one the generic
+lookup of `rx-habits` uses (`server/src/medicines/catalogue.ts`): an equality on
+the brand's first word, never a pattern. JWT only, no workstation — the chart is
+not practice data. A failed lookup is a `500`, never an empty list.
 
 ⚠️ Backed by a raw Postgres table `medicines` that is **not in `schema.prisma`** —
 queried with parameterised `$queryRaw`. Don't look for a Prisma model, and keep any

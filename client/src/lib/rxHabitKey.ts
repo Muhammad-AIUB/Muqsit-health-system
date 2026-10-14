@@ -60,7 +60,7 @@ const closeStrengthGap = (s: string): string =>
 // folds into "tablet." and "sc injection." never folds into "injection.".
 // The no-digit / ≤4-word guards stop a decimal strength ("napa 0.5 mg") being
 // mistaken for a dosage form.
-function splitForm(s: string): { form: string; rest: string } {
+export function splitForm(s: string): { form: string; rest: string } {
   const dot = s.indexOf(".");
   if (dot !== -1) {
     const head = s.slice(0, dot).trim();

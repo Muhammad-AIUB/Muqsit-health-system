@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  bulkSummary, bulkToRxItems, instructionOf, medicineKey, medicinesOnPad, nothingAddedNote, patientsLabel,
+  bulkSummary, bulkToRxItems, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel,
   readBulkList, searchBulk, sortBulk, type BulkMedicine,
 } from "./bulkMedicines";
 import type { RxItem } from "@/types";
@@ -194,16 +194,28 @@ describe("what a row says", () => {
 // ⚕️ Which medicines stand on the pad — at ANY dose. The box marks them, so
 // that a doctor about to tick one sees it is there already.
 describe("medicinesOnPad", () => {
-  it("is the medicines of the pad's own lines — not its notes, not its tapering lines", () => {
-    const pad = [note("bed rest"), line("Tablet. Napa 500 mg", "1+1+1", "After meal", "3 days"), line("Tablet. Deltasone 5 mg", "2+0+0", "", ""), taper("1+0+0", { drug: "Tablet. Deltasone 5 mg" }), taper("0.5+0+0")];
-    expect([...medicinesOnPad(pad)].sort()).toEqual([medicineKey("Tablet. Deltasone 5 mg"), medicineKey("Tablet. Napa 500 mg")].sort());
+  // ⚕️ A note that reads as a medicine names it on the prescription, and is
+  // counted (physician's decision, 2026-10-14). A tapering line names nothing.
+  it("is the medicines the pad names — its lines and its notes, not its tapering lines", () => {
+    const pad = [note("bed rest"), note("Tablet. Ace 500 mg"), line("Tablet. Napa 500 mg", "1+1+1", "After meal", "3 days"), line("Tablet. Deltasone 5 mg", "2+0+0", "", ""), taper("1+0+0", { drug: "Tablet. Prednisolone 5 mg" }), taper("0.5+0+0")];
+    const there = medicinesOnPad(pad);
+    expect(["Tablet. Napa 500 mg", "Tablet. Deltasone 5 mg", "Tablet. Ace 500 mg", "Bed rest"].map((m) => there.has(m))).toEqual([true, true, true, true]);
+    expect(there.has("Tablet. Prednisolone 5 mg")).toBe(false);
+    expect(there.size).toBe(4);
   });
 
   it("a medicine is the same medicine however it is spaced or capitalised — and another strength is another", () => {
     const pad = medicinesOnPad([line("tab napa 500MG", "", "", "")]);
-    expect(pad.has(medicineKey("Tablet. Napa 500 mg"))).toBe(true);
-    expect(pad.has(medicineKey("Tablet. Napa 665 mg"))).toBe(false);
-    expect(pad.has(medicineKey("Syrup. Napa 500 mg"))).toBe(false);
+    expect(pad.has("Tablet. Napa 500 mg")).toBe(true);
+    expect(pad.has("Tablet. Napa 665 mg")).toBe(false);
+    expect(pad.has("Syrup. Napa 500 mg")).toBe(false);
+  });
+
+  it("⚕️ a medicine written without its dosage form is the one with it — at the same strength only", () => {
+    const pad = medicinesOnPad([line("Sergel 40 mg", "1+0+1", "", "")]);
+    expect(pad.has("Capsule (Enteric Coated). Sergel 40 mg")).toBe(true);
+    expect(pad.has("Capsule (Enteric Coated). Sergel 20 mg")).toBe(false);
+    expect(medicinesOnPad([line("Capsule (Enteric Coated). Sergel 40 mg", "", "", "")]).has("Sergel 40 mg")).toBe(true);
   });
 
   it("an empty pad, or one that is not there, holds none", () => {
@@ -311,9 +323,61 @@ describe("bulkToRxItems — what is on the pad already", () => {
     expect(out.items.map((it) => it.drug)).toEqual(["Tablet. Napa 500 mg"]);
   });
 
-  it("a note that reads like the medicine is not the medicine", () => {
-    const out = bulkToRxItems([NAPA], [note("Tablet. Napa 500 mg")]);
-    expect([out.added, out.repeated.length, out.skipped]).toEqual([1, 0, 0]);
+  // ⚕️ A note that reads as the medicine IS a line of it — one with no dose,
+  // food or duration (physician's decision, 2026-10-14). Beside a medicine
+  // with an instruction it is another line, and the box says the medicine is
+  // now there more than once; for one with nothing written it is the same
+  // line, and nothing is added: the name would have been printed twice.
+  it("⚕️ a note that reads as the medicine: the same line when nothing is written, another one when a dose is", () => {
+    const withDose = bulkToRxItems([NAPA], [note("Tablet. Napa 500 mg")]);
+    expect([withDose.added, withDose.repeated, withDose.skipped]).toEqual([1, ["Tablet. Napa 500 mg"], 0]);
+    const nothing = bulkToRxItems([ACE], [note("tab ace 500mg")]);
+    expect([nothing.added, nothing.repeated.length, nothing.skipped, nothing.otherTaper]).toEqual([0, 0, 1, 0]);
+  });
+
+  // ⚕️ A note stands for a line with NOTHING in it — no tapering lines either.
+  // A medicine whose doses are all in its tapering lines is added beside it,
+  // tapers and all, and said to be on ℞ more than once (review, before release).
+  it("⚕️ …but a medicine whose doses are in its tapering lines is not that note: added", () => {
+    const TAPER_ONLY = med({ id: "t", drugLabel: "Tablet. Deltasone 5 mg", dose: "", food: "", duration: "", contLines: [{ dose: "4+0+0", food: "After meal", duration: "7 days" }] });
+    const out = bulkToRxItems([TAPER_ONLY], [note("Tablet. Deltasone 5 mg")]);
+    expect([out.added, out.repeated.length, out.skipped, out.otherTaper]).toEqual([1, 1, 0, 0]);
+    expect(out.items.map((it) => [it.dose, it.isCont])).toEqual([["", false], ["4+0+0", true]]);
+  });
+
+  it("…and a note is a line of its own: a taper under it belongs to nothing", () => {
+    const out = bulkToRxItems([DELTA], [note("Tablet. Deltasone 5 mg"), taper("1+0+0")]);
+    expect([out.added, out.repeated.length, out.skipped]).toEqual([1, 1, 0]);
+    // Not the note's own tapering line either: the note stands with none.
+    const ace = bulkToRxItems([ACE], [note("Tablet. Ace 500 mg"), taper("1+0+0")]);
+    expect([ace.added, ace.skipped, ace.otherTaper]).toEqual([0, 1, 0]);
+  });
+
+  // ⚕️ The dose, the food and the duration: capitals and spaces set aside, and
+  // nothing else (physician's decision, 2026-10-14).
+  it("⚕️ the same line typed with other spaces or capitals is skipped — first line and tapering lines alike", () => {
+    for (const over of [{ dose: "1 + 1 + 1" }, { instruction: "after meal" }, { duration: "5 Days" }, { duration: "5days" }]) {
+      const out = bulkToRxItems([NAPA], onPad(over));
+      expect([over, out.added, out.skipped]).toEqual([over, 0, 1]);
+    }
+    const head = line("Tablet. Deltasone 5 mg", "2 + 0 + 0", "after meal", "5 DAYS");
+    const out = bulkToRxItems([DELTA], [head, taper("1 + 0 + 0", { instruction: "AFTER MEAL", duration: "5 days" })]);
+    expect([out.added, out.skipped, out.otherTaper]).toEqual([0, 1, 0]);
+  });
+
+  it("⚕️ another notation is another line: added", () => {
+    for (const over of [{ dose: "1-1-1" }, { dose: "111" }, { instruction: "After meal." }, { duration: "5 day" }]) {
+      const out = bulkToRxItems([NAPA], onPad(over));
+      expect([over, out.added, out.skipped]).toEqual([over, 1, 0]);
+    }
+  });
+
+  it("⚕️ a medicine written without its form on the pad is the same medicine: the same line skipped, another dose a repeat", () => {
+    expect(bulkToRxItems([NAPA], onPad({ drug: "Napa 500 mg" })).skipped).toBe(1);
+    const other = bulkToRxItems([NAPA], onPad({ drug: "Napa 500 mg", dose: "1+0+1" }));
+    expect([other.added, other.repeated]).toEqual([1, ["Tablet. Napa 500 mg"]]);
+    const sergel40 = bulkToRxItems([SERGEL], [line("Sergel 40 mg", "1+0+1", "Before meal", "14 days")]);
+    expect([sergel40.added, sergel40.repeated.length, sergel40.skipped]).toEqual([1, 0, 0]); // Sergel 20 mg is not 40
   });
 });
 

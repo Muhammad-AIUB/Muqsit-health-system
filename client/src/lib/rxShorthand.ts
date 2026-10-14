@@ -3,7 +3,7 @@
 import type { MedicineHit } from "@/lib/api";
 
 // Suggestion / saved label: "Tablet. Napa 500mg"
-export const fmtMedicine = (m: MedicineHit) =>
+export const fmtMedicine = (m: Pick<MedicineHit, "dosageForm" | "brandName" | "strength">) =>
   [m.dosageForm ? `${m.dosageForm}.` : "", m.brandName, m.strength].filter(Boolean).join(" ");
 
 // A free-typed line that begins with a dosage form (full or short) is probably
