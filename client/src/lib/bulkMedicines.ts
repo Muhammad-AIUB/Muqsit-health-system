@@ -1,5 +1,5 @@
 import type { RxItem } from "@/types";
-import { normaliseDrugKey } from "@/lib/rxHabitKey";
+import { medicineKey } from "@/lib/medicineKey";
 import { splitDrugLabel } from "@/lib/rxShorthand";
 
 // The rules of the "Add Bulk Medicine" box: the medicines this doctor has
@@ -162,8 +162,9 @@ export const patientsLabel = (n: number): string => (n === 1 ? "1 patient" : `${
 
 const cell = (s: string | undefined): string => (s ?? "").trim();
 
-/** A medicine, strength and form included, however it is spaced or capitalised. */
-export const medicineKey = (drugLabel: string): string => normaliseDrugKey(drugLabel) || cell(drugLabel).toLowerCase();
+// A medicine, strength and form included, however it is spaced or capitalised:
+// the one comparison every surface that writes on the pad uses (lib/medicineKey.ts).
+export { medicineKey };
 
 const lineKey = (drug: string, dose: string, food: string, duration: string): string =>
   [medicineKey(drug), cell(dose), cell(food), cell(duration)].join("|");

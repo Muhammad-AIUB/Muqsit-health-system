@@ -7,7 +7,13 @@
 // replaced; every medicine is made up.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+// The box is drawn after its list arrives, and under the whole suite on a busy
+// machine that took 2.6 s once: the 1 s every `waitFor` gives by default ran out
+// with nothing wrong in the code. A wait that depends on how busy the machine
+// is makes a flaky suite (vitest.config.ts says the same of the test timeout).
+configure({ asyncUtilTimeout: 10_000 });
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 

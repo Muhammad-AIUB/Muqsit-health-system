@@ -222,6 +222,17 @@ describe("Moving ticked medicines onto today's ℞", () => {
     expect(screen.getByText("0 added · 2 already on ℞")).toBeTruthy();
   });
 
+  // ⚕️ The pad's Napa was picked from the medicine list; the history's was
+  // typed by hand at an earlier visit. One line — it went on the pad twice.
+  it("does not write a line twice because its medicine is spaced or capitalised another way", () => {
+    padItems = [{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "After meal" }];
+    past(["20/07/2026: tab napa 500mg — 1+1+1 — After meal — 5 days", "20/07/2026: Metformin 500mg — 1+0+1 — after food — 1 month"]);
+    fireEvent.click(screen.getByText("Select all"));
+    fireEvent.click(screen.getByText("Move to Rx (2)"));
+    expect(screen.getByText("1 added · 1 already on ℞")).toBeTruthy();
+    expect(appended().map((it) => it.drug)).toEqual(["Tablet. Napa 500 mg", "Metformin 500mg"]);
+  });
+
   it("clears the ticks after a move, so one press cannot become two", () => {
     past(PAST);
     fireEvent.click(screen.getByLabelText("Select Metformin 500mg"));

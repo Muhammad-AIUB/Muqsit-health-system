@@ -901,10 +901,9 @@ was done with it:
   the search and Add), and a press beside the box threw every tick away. The
   list is one Tab stop with arrow keys; the veil closes the box only while
   nothing is ticked.
-- [ ] **"Move to Rx" in Drug history still compares medicines letter for
-  letter**, so `Tablet. Napa 500mg` from the history goes on the pad beside
-  `Tablet. Napa 500 mg`. The box was given the app's own medicine comparison;
-  Drug history was left as released, to be changed on its own.
+- [x] **"Move to Rx" in Drug history compared medicines letter for letter**,
+  so `Tablet. Napa 500mg` from the history went on the pad beside
+  `Tablet. Napa 500 mg` at the same dose. Closed on 2026-10-14 (below).
 - [ ] **The documents for this feature are long for its size**, and several
   comments told the story of its reviews instead of the rule. The client guide's
   section was rewritten shorter; the root `CLAUDE.md` patterns were kept, since
@@ -993,3 +992,69 @@ nothing in it was held to block a release; what was done, and what is left:
   hands the box its patient's id — the rule itself is held, in
   `BulkMedicineButton.test.tsx`; and what is written about this feature in
   the guides is long for its size.
+
+### Drug history — "Move to Rx" (2026-10-14)
+
+- [x] **A line was written twice when its medicine was typed another way.**
+  "Only a line already on the pad is skipped" compared the medicine's label
+  letter for letter: `tab napa 500mg`, typed by hand at an earlier visit, went
+  on the pad beside `Tablet. Napa 500 mg` picked from the list today, at the
+  same dose, food and duration. In production until the release that carried
+  this. The medicine is compared with how its label was TYPED set aside —
+  capitals; spaces round a plus, a stroke or a bracket and after a number;
+  `Tab` / `Cap` / `Inj` / `Syp` / `Syr` / `Susp`, or the form written out with
+  no full stop, for the form with one; a decimal typed `.5`; a trailing
+  `N/A` or full stop. It does not convert a unit (`1 gm` and `1 g` are two
+  medicines here), does not guess a missing form, and keeps the strength,
+  the form, its qualifier and the brand. It is the comparison the "Add Bulk
+  Medicine" box uses, as one function now (`lib/medicineKey.ts`).
+  Nothing is rewritten: what reaches the pad is the entry as the history has
+  it. A browser journey (`e2e/tests/drug-history.spec.ts`) fails on the
+  released rule and passes on this one.
+- [x] **A note on the pad that read like a medicine counted as that
+  medicine.** With `Napa` written as a note, a history entry `Napa` with no
+  dose was reported `already on ℞` and left off. A note is not a medicine's
+  line now. (Found while fixing the above; the looser comparison would have
+  widened it.) **For the physician:** in the one case this changes — a note
+  that reads exactly like a medicine's label, and a history entry of that
+  medicine with no dose, food or duration — the medicine line is now added,
+  and the printed sheet carries the name twice, the note and then the
+  medicine. That agrees with the box; whether it is right is yours to say.
+- [x] **From the review of this fix, before release:** the key the box and
+  Move to Rx share read the point of `.5 mg` as the full stop that ends a
+  dosage form, so `Tab Rivotril .5 mg` and `Tab Rivotril. 5 mg` were one
+  medicine — ticked at the same dose, the second was reported `already on ℞`
+  and left off; and the commoner case, `Tab Rivotril .5 mg` typed and
+  `Tablet. Rivotril 0.5 mg` picked, was still written twice. A decimal with
+  no 0 in front of it, after a space, a plus, a stroke or a bracket, is read
+  as one now. Also from that review: spaces round a plus or a stroke,
+  `Tablet Napa` with no full stop and a full stop at the end were still
+  "another medicine"; and a tapering line on the pad that carries its
+  medicine's name (as one read back from the server does) would have counted
+  as that medicine's first line. Closed and pinned. Its re-check found the
+  first form of the `Tablet Napa` rule giving a SECOND full stop to a form
+  that has one after its qualifier — `Capsule (Enteric Coated). Sergel` no
+  longer matched `Cap (enteric coated). Sergel`; it follows the key's own
+  reading of a form now, and five such pairs are pinned.
+- [ ] **Two limits of the decimal rule stay:** a point glued to a letter
+  (`Rivotril.5 mg`) is still read as the full stop that ends a form — so
+  that label and `Rivotril. 5 mg` are one key — because `Inj.5-FU` is a form
+  and a name; and a decimal in Bangla digits (`.৫`) is not read as one.
+- [ ] **Capitals are set aside, and in one place that is not typography:**
+  `3 MIU` and `3 mIU` (mega and milli) are one key. No such pair is known in
+  a medicine list here; the production table was not read for this.
+- [ ] **The dose, the food and the duration are still compared as written**
+  (less their outer spaces). `After meal` on the pad and `after meal` in the
+  history are two lines, and Move to Rx adds the second. Whether those cells
+  should be compared more loosely — and how far: `1+0+1` and `1 + 0 + 1`? —
+  is the physician's to say; they are the doctor's own words.
+- [ ] **A line typed without its dosage form is another medicine here too**
+  (`Napa 500 mg` beside `Tablet. Napa 500 mg`), as in the box: the same open
+  question as above, under "Add Bulk Medicine".
+- [ ] **A skipped medicine's tapering lines are not compared.** If the pad has
+  the medicine's first line and the history's entry has tapering lines under
+  it that the pad does not, they are not added and `1 already on ℞` does not
+  say so. The box says it (`— its tapering lines differ there`); Move to Rx
+  does not yet.
+- [ ] Small: the line that says what Move to Rx did is in the brand's blue and
+  is not a status region; the box's is green and is one.

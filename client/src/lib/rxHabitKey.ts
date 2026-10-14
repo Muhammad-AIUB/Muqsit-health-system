@@ -30,7 +30,11 @@
 // skipped as "already on ℞" and not added. It folds typography only (case,
 // spacing, the gap before a unit, six form abbreviations, a trailing n/a) and
 // must keep to that: never a strength, never a form qualifier, never a brand.
-// `bulkMedicines.test.ts` holds both directions.
+// `bulkMedicines.test.ts` holds both directions. Since 2026-10-14 both the box
+// and Drug history's "Move to Rx" ask it through `lib/medicineKey.ts`, which
+// first sets aside more of how a label was typed (spaces round a plus or a
+// bracket, a decimal typed `.5`, `Tablet` with no full stop) — what this
+// function reads, and how, is unchanged by that (`medicineKey.test.ts`).
 //
 // `rxHabitKey.test.ts` pins the cases both copies must agree on.
 

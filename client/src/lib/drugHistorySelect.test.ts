@@ -167,6 +167,116 @@ describe("appendBlocks", () => {
     expect(r.items).toHaveLength(1);
   });
 
+  // ⚕️ The history holds a medicine as it was WRITTEN on an earlier visit —
+  // typed by hand, say — and today's pad may hold the same one picked from the
+  // medicine list. Compared letter for letter, `Tablet. Napa 500mg` went on
+  // the pad beside `Tablet. Napa 500 mg` at the same dose: one line, written
+  // twice (in production until the release that carried this). The medicine is
+  // compared as the app compares medicines everywhere else.
+  describe("the same line, with its medicine written another way", () => {
+    const NAPA = { dose: "1+1+1", instruction: "With food", duration: "5 days" };
+    const WAYS = ["Tablet. Napa 500mg", "tablet. napa 500 MG", "Tablet.   Napa  500 mg", "Tab Napa 500 mg", "TAB. NAPA 500MG"];
+
+    it.each(WAYS)("⚕️ is skipped when the pad has it as picked from the list — history: %s", (written) => {
+      const b = blocks([med(`${written} — 1+1+1 — With food — 5 days`)]);
+      const r = appendBlocks(b, [rx({ drug: "Tablet. Napa 500 mg", ...NAPA })]);
+      expect([r.added, r.skipped, r.items]).toEqual([0, 1, []]);
+    });
+
+    it.each(WAYS)("⚕️ …and the other way round — pad: %s", (written) => {
+      const b = blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")]);
+      const r = appendBlocks(b, [rx({ drug: written, ...NAPA })]);
+      expect([r.added, r.skipped, r.items]).toEqual([0, 1, []]);
+    });
+
+    // Which of two doses is right is the doctor's judgement: another dose,
+    // food or duration is another line, however the medicine is written.
+    it("⚕️ at another dose, food or duration it is another line, and is added — as the history has it", () => {
+      for (const other of [{ dose: "1+0+1" }, { instruction: "" }, { duration: "3 days" }]) {
+        const b = blocks([med("Tablet. Napa 500mg — 1+1+1 — With food — 5 days")]);
+        const r = appendBlocks(b, [rx({ drug: "Tablet. Napa 500 mg", ...NAPA, ...other })]);
+        expect([r.added, r.skipped]).toEqual([1, 0]);
+        expect(r.items).toEqual([{ drug: "Tablet. Napa 500mg", ...NAPA, isCont: false }]);
+      }
+    });
+
+    // What the comparison sets aside is how a label is typed — never what it
+    // says. A strength, a form, a qualifier or a brand of its own is another
+    // medicine, and a medicine that is not on the pad must not be reported as
+    // being there.
+    it("⚕️ another strength, another form or another brand is another medicine: added", () => {
+      for (const other of ["Tablet. Napa 665 mg", "Syrup. Napa 500 mg", "Tablet. Napa Extra 500 mg", "Tablet (Extended Release). Napa 500 mg", "Tablet. Napa 500 mcg", "Tablet. Napa 5000 mg"]) {
+        const b = blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")]);
+        const r = appendBlocks(b, [rx({ drug: other, ...NAPA })]);
+        expect([other, r.added, r.skipped]).toEqual([other, 1, 0]);
+      }
+    });
+
+    it("two ticked rows that are one line in two spellings are added once — as the first was written", () => {
+      const r = appendBlocks(
+        [...blocks([med("Tablet. Napa 500mg — 1+1+1 — With food — 5 days")], "19/09/2026"),
+         ...blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")], "14/09/2026")],
+        [],
+      );
+      expect([r.added, r.skipped]).toEqual([1, 1]);
+      expect(r.items.map((i) => i.drug)).toEqual(["Tablet. Napa 500mg"]);
+    });
+
+    it("…and at two doses they are still two lines, each as it was written", () => {
+      const r = appendBlocks(
+        [...blocks([med("Tablet. Napa 500mg — 1+1+1 — With food — 5 days")], "19/09/2026"),
+         ...blocks([med("Tablet. Napa 500 mg — 1+0+1 — With food — 5 days")], "14/09/2026")],
+        [],
+      );
+      expect([r.added, r.skipped]).toEqual([2, 0]);
+      expect(r.items.map((i) => [i.drug, i.dose])).toEqual([["Tablet. Napa 500mg", "1+1+1"], ["Tablet. Napa 500 mg", "1+0+1"]]);
+    });
+
+    it("a taper is not sent when its medicine, written another way, was skipped", () => {
+      const b = blocks([med("capsule. lenva 4mg — 0+0+1 —  — 7 days"), cont("0+0+2 —  — Continue")]);
+      const r = appendBlocks(b, [rx({ drug: "Capsule. Lenva 4 mg", dose: "0+0+1", instruction: "", duration: "7 days" })]);
+      expect([r.added, r.skipped, r.items]).toEqual([0, 1, []]);
+    });
+
+    it("a name with no form and no strength is compared the same way — without its capitals and outer spaces", () => {
+      const b = blocks([med("ORS —  —  — ")]);
+      expect(appendBlocks(b, [rx({ drug: " ors " })]).skipped).toBe(1);
+      expect(appendBlocks(b, [rx({ drug: "ORS-N" })]).added).toBe(1);
+    });
+  });
+
+  // The dose, the food and the duration are the doctor's own words: they are
+  // compared as written, less the spaces round them. (Only the MEDICINE is
+  // compared more loosely than that — see the block above.)
+  it("compares the dose, the food and the duration as written, less their outer spaces", () => {
+    const b = blocks([med("Tablet. Napa 500 mg — 1+1+1 — With food — 5 days")]);
+    const r = appendBlocks(b, [rx({ drug: "Tablet. Napa 500 mg", dose: " 1+1+1 ", instruction: "With food ", duration: " 5 days" })]);
+    expect([r.added, r.skipped]).toEqual([0, 1]);
+  });
+
+  // A tapering line read back from the server carries its medicine's name.
+  // Put on the pad so, it would still not be that medicine's FIRST line — and
+  // the history's `0+0+1` would have been reported as already on ℞.
+  it("a tapering line on the pad that carries its medicine's name is not that medicine's first line", () => {
+    const pad = [
+      rx({ drug: "Tablet. Prednisolone 5 mg", dose: "1+0+0", instruction: "", duration: "7 days" }),
+      rx({ drug: "Tablet. Prednisolone 5 mg", dose: "0+0+1", instruction: "", duration: "7 days", isCont: true }),
+    ];
+    const r = appendBlocks(blocks([med("Tablet. Prednisolone 5 mg — 0+0+1 —  — 7 days")]), pad);
+    expect([r.added, r.skipped]).toEqual([1, 0]);
+  });
+
+  // A note on the pad is a line of words, not a medicine: one that reads like
+  // a medicine's name must not make Move to Rx say the medicine is on ℞ and
+  // leave it off. (A tapering line has no medicine name, and matches nothing.)
+  it("⚕️ a note on the pad that reads like the medicine is not the medicine", () => {
+    const b = blocks([med("Napa —  —  — ")]);
+    for (const written of ["Napa", "napa"]) {
+      const r = appendBlocks(b, [rx({ drug: written, isNote: true })]);
+      expect([written, r.added, r.skipped]).toEqual([written, 1, 0]);
+    }
+  });
+
   // ⚕️ A taper with no medicine above it is an unreadable instruction on a
   // prescription. A skipped block takes its tapering lines with it.
   it("never sends a taper when its medicine was skipped", () => {

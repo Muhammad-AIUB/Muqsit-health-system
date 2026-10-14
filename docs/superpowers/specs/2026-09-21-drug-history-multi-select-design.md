@@ -59,6 +59,14 @@ CLAUDE.md requires.
   instruction are two different instructions and both are kept.
   This one rule also covers ticking two byte-identical rows from different
   dates: the second is identical to the first once added, so it is skipped.
+  **As built since 2026-10-14:** the `drug` is not compared "after trimming"
+  but as the app compares medicines elsewhere (`medicineKey`: spacing,
+  capitals, `Tab` for `Tablet.`, a decimal typed `.5` — never the strength,
+  the form or the brand; `lib/medicineKey.ts` has the whole list).
+  Compared letter for letter, a medicine typed by hand at an earlier visit
+  went on the pad beside the same one picked from the list, at the same dose.
+  The other three fields are compared as designed; and a note or a tapering
+  line on the pad is not a medicine's first line.
 - **Notes** (`(note)` rows) and medicine rows with no drug name are not
   selectable. A note is not a medication.
 - **Permission.** The buttons and the checkboxes render only when

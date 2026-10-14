@@ -108,6 +108,8 @@ then start `api-e2e` and `web-e2e` from `.claude/launch.json` and sign in at
 | `print-sheet.spec.ts` | with a real keyboard, which jsdom cannot give: after Save & print, closing the sheet leaves the focus OFF the button that saves, and Space and Enter afterwards store no second row; saved from the keyboard with Enter then HELD on Close, still one row; "Preview PDF" does get its focus back; with the focus INSIDE the sheet's frame Ctrl+P prints the sheet and not the app, Tab goes Print → Close → the sheet → Print and never out to the editor, and Escape closes it; "Mirror devices" is a switch that a press — or Space — turns on and off without sending the cursor into the patient search |
 | `personal-note.spec.ts` | TWO browsers signed in as one doctor, "Mirror devices" on: device A types in one patient's personal note, device B picks another patient from the search box and A's editor moves on behind the open note — the note on A stays the first patient's, Save writes the words into THAT patient's note (read back through the API, with her details) and nothing into the other's; closed and opened again, it is the patient now in the editor. Fails on the code before 2026-10-12, where the open box showed the second patient's details over the first one's words |
 | `investigation-units.spec.ts` | a result box with two units (HBV DNA, IU/mL or copies/mL): a viral load typed with its groups in the second unit's box leaves the first unit's box EMPTY, and is shown, printed on the sheet and stored through the API exactly as typed in copies/mL — never as a small number of IU/mL; a plain number is still converted. Fails on the code before 2026-10-12, where the first unit's box read `0.18` |
+| `bulk-medicine.spec.ts` | "Add Bulk Medicine", five journeys: a medicine prescribed at one visit is offered at the next with its dose and is added once; from the keyboard alone (search, the list as one Tab stop, a taper with its medicine, its prescribing warning, Enter held on Add); with the connection gone the box says so and loads when it is back; on a phone the box is whole on the screen; and medicines added below the edge of a long pad are brought into view — with, in the box, a list of fifty-four where End and the Page keys land on rows that are on the screen (scroll anchoring switched off) |
+| `drug-history.spec.ts` | "Move to Rx": a medicine typed by hand at an earlier visit (`tab napa 500mg`) is NOT written a second time beside the same one picked from the list today at the same dose — `1 added · 1 already on ℞` — while another ticked medicine goes on as the history has it. Fails on the code before 2026-10-14, where the pad ended with two Napa lines |
 | `defect-probes.spec.ts` | opt-in (`E2E_PROBES=1`), see below |
 
 No clinical content is invented: medicines are rows of the seeded test
@@ -157,3 +159,19 @@ doctor's last draft instead of the gate. It is their own draft.) To run a journe
 times, run the command several times: each run seeds new doctors (found
 2026-10-14, from one failure in four repeats; the trace shows the `PUT` and
 the `GET` of `/prescription-draft` a millisecond apart).
+
+## Seeing a journey fail on the released rule
+
+A journey written for a fix is run once against the code WITHOUT the fix —
+and not by taking the fix out of this checkout, which the developer's own
+servers watch (root `CLAUDE.md`). Make a copy of `client/` ON THE SAME DRIVE
+(an untracked folder at the repository's root will do; it is deleted
+afterwards), without `node_modules` and the `.next*` folders; link
+`node_modules` in (`mklink /J`); put the released file
+into the copy with `git show HEAD:<path> > <copy>/<path>` from Git Bash (a
+PowerShell pipe re-encodes it); and run the journey with a throwaway config
+that only changes the web server's `cwd` to the copy. Unlink `node_modules`
+before deleting the copy. A copy on ANOTHER drive does not work: `next dev`
+follows the link to the real folder and cannot write a relative path to it
+(`Can't resolve './E:/…/node_modules/next/…'`). Unit suites run from a copy
+on any drive.

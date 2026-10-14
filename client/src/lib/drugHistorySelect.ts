@@ -19,7 +19,15 @@
 //  4. **Only a line that is already on the pad is skipped.** Four fields must
 //     match — drug, dose, instruction, duration — not the three the old button
 //     compared. Two lines differing only in the food instruction are two
-//     different instructions, and both are kept.
+//     different instructions, and both are kept. The DRUG is compared as the
+//     app compares medicines everywhere else (`medicineKey`): how a label is
+//     spaced or capitalised, and `Tab` for `Tablet.`, is how it was typed and
+//     not what it says. Compared letter for letter, a medicine typed by hand
+//     at an earlier visit went on the pad beside the same one picked from the
+//     list today, at the same dose (in production until the release that carried
+//     this).
+//     A strength, a form or a brand of its own is another medicine, as ever —
+//     and what reaches the pad is the entry as the history has it.
 //
 // Like `lib/rxDrugHistory.ts`, this deliberately does NOT import the modal's
 // parser: it takes rows that are already split into kind + body, so the entry
@@ -27,6 +35,7 @@
 // RxItem mapping that a test can drive directly.
 
 import type { RxItem } from "@/types";
+import { medicineKey } from "@/lib/medicineKey";
 
 /** The three row kinds of the stored format, as `DrugHistoryField` parses them. */
 export type HistoryKind = "med" | "note" | "cont";
@@ -103,24 +112,35 @@ export function blocksFromRows(rows: HistoryRow[], keyPrefix: string): HistoryBl
   return out;
 }
 
-/** The four fields that make two ℞ lines the same line. */
+const cell = (s: string | undefined): string => (s ?? "").trim();
+
+/** The four fields that make two ℞ lines the same line: the medicine, and its dose, food and duration as written. */
 const lineKey = (it: RxItem): string =>
-  [it.drug, it.dose, it.instruction, it.duration].map((s) => (s ?? "").trim()).join("|");
+  [medicineKey(it.drug), cell(it.dose), cell(it.instruction), cell(it.duration)].join("|");
+
+// A line of the pad that can be a medicine's FIRST line. Not a note — a line
+// of words, which may read like a medicine's name and is not one: with `Napa`
+// written as a note, Move to Rx said Napa was already on ℞ and left it off.
+// And not a tapering line: on the pad it has no name today, but one read back
+// from the server carries its medicine's, and would then have stood for that
+// medicine's first line. (The "Add Bulk Medicine" box reads the pad to the
+// same rule, in its own `readPad`.)
+const isMedicineLine = (it: RxItem | null | undefined): it is RxItem => !!it && !it.isNote && !it.isCont;
 
 /**
  * The lines the ticked blocks contribute to a pad that already holds `existing`.
  *
  * `added` and `skipped` count BLOCKS, not lines — a medicine and its taper are
  * one thing to the doctor who ticked it, so the footer reads "3 added" and not
- * "5 added". Only the head line is tested against the pad: if the medicine is
+ * "5 added". Only the head line is tested against the pad: if that line is
  * already there the whole block is skipped, which is also what makes ticking
- * two byte-identical rows from different dates add the medicine once.
+ * the same line on two dates add it once — as the first of the two wrote it.
  */
 export function appendBlocks(
   blocks: HistoryBlock[],
   existing: RxItem[],
 ): { items: RxItem[]; added: number; skipped: number } {
-  const seen = new Set((existing ?? []).filter(Boolean).map(lineKey));
+  const seen = new Set((existing ?? []).filter(isMedicineLine).map(lineKey));
   const items: RxItem[] = [];
   let added = 0;
   let skipped = 0;
