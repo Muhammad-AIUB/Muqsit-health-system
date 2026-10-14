@@ -6,8 +6,10 @@ import { btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim, shadowDialog
 import { useMuqsit } from "@/context/MuqsitContext";
 import { isoToDdmmyyyy, ddmmyyyyMs } from "@/lib/dateInput";
 import { appendBlocks, blocksFromRows, moveSummary, type HistoryBlock } from "@/lib/drugHistorySelect";
+import { NO_DATE as PAST_MARKER, buildDrugHistoryEntry, type DrugHistoryAddInput } from "@/lib/drugHistoryAdd";
 import HideToggle from "@/components/common/HideToggle";
 import { useDialog } from "@/lib/useDialog";
+import AddMedicineRow from "./AddMedicineRow";
 
 // ── Date-stamped drug history ───────────────────────────────
 // One list, each entry stamped with the visit date it was added on:
@@ -35,7 +37,6 @@ import { useDialog } from "@/lib/useDialog";
 // read the history but not write medicines sees the list exactly as it was.
 const DATE_RE = /^(\d{2}\/\d{2}\/\d{4})(\(note\)|\(cont\))?:\s*(.*)$/;
 const OLD_RE = /^(Current|Past)(\(note\)|\(cont\))?:\s*(.*)$/; // legacy entries
-const PAST_MARKER = "01/01/2000";
 
 type Kind = "med" | "note" | "cont";
 interface Parsed { date: string; kind: Kind; body: string; }
@@ -85,7 +86,7 @@ interface Props {
 }
 
 export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
-  const { setRxItems, rxItems, ptDate, can } = useMuqsit();
+  const { setRxItems, rxItems, ptDate, can, setDrugHistory } = useMuqsit();
   const cd = isoToDdmmyyyy(ptDate); // current visit date, dd/mm/yyyy
   // ⚕️ The ℞ pad's own key. Without it the pad is locked in RightColumn, so the
   // ticks and the Move button must not offer a way around that lock.
@@ -102,6 +103,22 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
   const todays = parsed.filter((p) => p.date === cd && p.body.trim());
   const currentMeds = todays.filter((p) => p.kind === "med");
   const pastParsed = parsed.filter((p) => p.date !== cd);
+
+  // What "+ Add medicine" checks a typed entry against, per tab — the same
+  // four cells `buildDrugHistoryEntry` produces, read back out with the
+  // field's own `cells()` splitter so the duplicate check sees exactly what
+  // the screen shows.
+  const toAddInput = (p: Parsed): DrugHistoryAddInput => {
+    const parts = cells(p.body);
+    return { drug: parts[0] ?? "", dose: parts[1] ?? "", food: parts[2] ?? "", duration: parts[3] ?? "" };
+  };
+  const currentMedEntries = currentMeds.map(toAddInput);
+  const pastMedEntries = pastParsed.filter((p) => p.kind === "med").map(toAddInput);
+
+  const addCurrentMedicine = (input: DrugHistoryAddInput) =>
+    setDrugHistory((prev) => [...prev, buildDrugHistoryEntry(cd, input)]);
+  const addPastMedicine = (input: DrugHistoryAddInput) =>
+    setDrugHistory((prev) => [...prev, buildDrugHistoryEntry(PAST_MARKER, input)]);
   const pastGroups = (() => {
     const map = new Map<string, Parsed[]>();
     for (const p of pastParsed) { const a = map.get(p.date); if (a) a.push(p); else map.set(p.date, [p]); }
@@ -217,26 +234,28 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
 
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px" }}>
               {tab === "current" ? (
-                todays.length === 0 ? (
-                  <>
-                    <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px 6px" }}>
-                      Nothing on today&apos;s prescription yet. Every medicine written on the ℞ appears here.
-                    </div>
-                    {/* Only when the most-recent past entry is from within the last
-                        3 days — i.e. a resumed stale draft whose entries have just
-                        moved to Distant past. A normal returning patient (last visit
-                        weeks ago) would otherwise see it on every new visit. */}
-                    {pastGroups.length > 0 && pastGroups[0].date !== PAST_MARKER &&
-                      ddmmyyyyMs(pastGroups[0].date) > Date.now() - 3 * 86_400_000 && (
-                      <div style={{ fontSize: 12, color: C.n[500], padding: "0 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
-                        <span>Previous visit&apos;s medications are in</span>
-                        <button onClick={() => setTab("past")} style={{ color: C.pri[500], background: "none", border: "none", cursor: "pointer", fontSize: 12, fontFamily: font, padding: 0, textDecoration: "underline" }}>Distant Past →</button>
+                <>
+                  <AddMedicineRow key="current" existing={currentMedEntries} tabLabel="Current medications" onAdd={addCurrentMedicine} />
+                  {todays.length === 0 ? (
+                    <>
+                      <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px 6px" }}>
+                        Nothing on today&apos;s prescription yet. Every medicine written on the ℞ appears here.
                       </div>
-                    )}
-                  </>
-                ) : (
-                  <div style={{ paddingTop: 8 }}>
-                    {todays.map((p, i) => {
+                      {/* Only when the most-recent past entry is from within the last
+                          3 days — i.e. a resumed stale draft whose entries have just
+                          moved to Distant past. A normal returning patient (last visit
+                          weeks ago) would otherwise see it on every new visit. */}
+                      {pastGroups.length > 0 && pastGroups[0].date !== PAST_MARKER &&
+                        ddmmyyyyMs(pastGroups[0].date) > Date.now() - 3 * 86_400_000 && (
+                        <div style={{ fontSize: 12, color: C.n[500], padding: "0 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                          <span>Previous visit&apos;s medications are in</span>
+                          <button onClick={() => setTab("past")} style={{ color: C.pri[500], background: "none", border: "none", cursor: "pointer", fontSize: 12, fontFamily: font, padding: 0, textDecoration: "underline" }}>Distant Past →</button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ paddingTop: 8 }}>
+                      {todays.map((p, i) => {
                       const parts = cells(p.body);
                       const last = i === todays.length - 1;
                       const row = { display: "grid", gridTemplateColumns: canRx ? ROW_COLS_PICK : ROW_COLS, gap: 8, alignItems: "baseline", padding: "8px 0", borderBottom: last ? "none" : `0.5px solid ${C.n[100]}`, fontSize: 12.5 };
@@ -274,13 +293,17 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                         </div>
                       );
                     })}
-                  </div>
-                )
-              ) : pastGroups.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever is prescribed today moves here on the patient&apos;s next visit.</div>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div style={{ paddingTop: 8 }}>
-                  {pastGroups.map((g, gi) => (
+                <>
+                  <AddMedicineRow key="past" existing={pastMedEntries} tabLabel="Distant past medication" onAdd={addPastMedicine} />
+                  {pastGroups.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever is prescribed today moves here on the patient&apos;s next visit.</div>
+                  ) : (
+                    <div style={{ paddingTop: 8 }}>
+                      {pastGroups.map((g, gi) => (
                     <div key={g.date} style={{ marginBottom: 14 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], letterSpacing: "0.03em", textTransform: "uppercase", paddingBottom: 4, borderBottom: `0.5px solid ${C.n[100]}` }}>
                         {g.date === PAST_MARKER ? "Earlier (no date)" : g.date}
@@ -309,8 +332,10 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                         );
                       })}
                     </div>
-                  ))}
-                </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

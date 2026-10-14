@@ -21,6 +21,7 @@ import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import type { RxItem } from "@/types";
 
 const setRxItems = vi.fn();
+const setDrugHistory = vi.fn();
 // What the ℞ pad is holding, and whether this user may write to it. Both are
 // read at render time, so a test sets them before it opens the modal.
 let padItems: RxItem[] = [];
@@ -31,10 +32,16 @@ vi.mock("@/context/MuqsitContext", () => ({
     get rxItems() { return padItems; },
     ptDate: "2026-09-07",
     can: (key: string) => (key === "rx.medicines" ? mayWriteRx : true),
+    setDrugHistory,
   }),
 }));
+// "+ Add medicine" searches the real medicines catalogue; no test in this
+// file needs real suggestions, so it is kept quiet and off the network.
+vi.mock("@/hooks/useMedicineSearch", () => ({
+  useMedicineSearch: () => ({ results: [], isLoading: false }),
+}));
 
-afterEach(() => { cleanup(); setRxItems.mockClear(); padItems = []; mayWriteRx = true; });
+afterEach(() => { cleanup(); setRxItems.mockClear(); setDrugHistory.mockReset(); padItems = []; mayWriteRx = true; });
 
 /** The array `setRxItems` would have produced, given the pad it was called on. */
 const appended = (prev: RxItem[] = padItems): RxItem[] => {
@@ -305,5 +312,81 @@ describe("⊘ Hide — keeping Drug history off the printed sheet", () => {
   it("offers nothing to hide when the patient has no drug history", () => {
     render(<DrugHistoryField items={[]} hidden={false} onHidden={vi.fn()} />);
     expect(screen.queryByRole("button", { name: HIDE_BTN })).toBeNull();
+  });
+});
+
+// ⚕️ The physician's 2026-10-14 addition: a typed, DB-suggested way to add a
+// brand-new line to either tab. This does NOT reopen "two writable surfaces
+// over one list" — it never edits or removes a stored row, so "offers
+// nothing to type into" above still holds with the add-row collapsed; these
+// tests open it on purpose.
+describe("+ Add medicine — a new line, never a correction", () => {
+  const openWith = (items: string[]) => {
+    const r = render(<DrugHistoryField items={items} />);
+    openModal();
+    return r;
+  };
+  const openAddRow = () => fireEvent.click(screen.getByText("+ Add medicine"));
+  const fillName = (v: string) => fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: v } });
+  const pressAdd = () => fireEvent.click(screen.getByText("Add"));
+
+  it("renders its own + Add medicine row on each tab, independently", () => {
+    openWith(PAST);
+    expect(screen.getByText("+ Add medicine")).toBeTruthy();
+    openAddRow();
+    expect(screen.getByLabelText("Medicine name")).toBeTruthy();
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    // Switching tabs remounts the row — Current's open draft is gone, and
+    // Distant past's own copy is collapsed, same as on first open.
+    expect(screen.queryByLabelText("Medicine name")).toBeNull();
+    expect(screen.getByText("+ Add medicine")).toBeTruthy();
+  });
+
+  it("stamps a Current-medications addition with the visit date", () => {
+    openWith(PAST);
+    openAddRow();
+    fillName("Tablet. Napa 500 mg");
+    pressAdd();
+    expect(setDrugHistory).toHaveBeenCalledTimes(1);
+    const next = (setDrugHistory.mock.calls[0][0] as (p: string[]) => string[])(PAST);
+    expect(next).toEqual([...PAST, "07/09/2026: Tablet. Napa 500 mg —  —  — "]);
+  });
+
+  it("stamps a Distant-past addition with no date", () => {
+    openWith(PAST);
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    openAddRow();
+    fillName("Tablet. Napa 500 mg");
+    pressAdd();
+    const next = (setDrugHistory.mock.calls[0][0] as (p: string[]) => string[])(PAST);
+    expect(next).toEqual([...PAST, "01/01/2000: Tablet. Napa 500 mg —  —  — "]);
+  });
+
+  it("shows the newly added line immediately, in the right tab", () => {
+    let items = [...PAST];
+    setDrugHistory.mockImplementation((updater: (p: string[]) => string[]) => { items = updater(items); });
+    const { rerender } = render(<DrugHistoryField items={items} />);
+    openModal();
+    openAddRow();
+    fillName("Tablet. Napa 500 mg");
+    pressAdd();
+    rerender(<DrugHistoryField items={items} />);
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    expect(screen.getByText("Metformin 500mg")).toBeTruthy(); // still there
+    fireEvent.click(screen.getByText(/Current medications/));
+    expect(screen.getByText("Tablet. Napa 500 mg")).toBeTruthy();
+  });
+
+  it("refuses an exact duplicate already shown on the same tab", () => {
+    const todaysNapa = "07/09/2026: Tablet. Napa 500 mg — 1+1+1 — After meal — 5 days";
+    openWith([...PAST, todaysNapa]);
+    openAddRow();
+    fillName("Tablet. Napa 500 mg");
+    fireEvent.change(screen.getByLabelText("Dose"), { target: { value: "1+1+1" } });
+    fireEvent.change(screen.getByLabelText("Food"), { target: { value: "After meal" } });
+    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "5 days" } });
+    pressAdd();
+    expect(setDrugHistory).not.toHaveBeenCalled();
+    expect(screen.getByText("Already in Current medications")).toBeTruthy();
   });
 });
