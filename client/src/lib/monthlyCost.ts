@@ -37,6 +37,7 @@
 import type { RxItem } from "@/types";
 import { brandWordsOf, instructionKey, MedicineMap } from "@/lib/medicineKey";
 import { fmtMedicine } from "@/lib/rxShorthand";
+import { rxCellIn } from "@/lib/rxLanguage";
 
 export const MONTH_DAYS = 30;
 
@@ -148,9 +149,11 @@ function unitsForMonth(lines: RxItem[]): number | "dose" | "duration" | "instruc
   let units = 0;
   for (const line of lines) {
     if (left <= 0) break;
-    const perDay = dosesPerDay(line.dose);
+    // A cell BAN wrote in Bangla is priced as its English (the food cell is
+    // read that way already, by `instructionKey`).
+    const perDay = dosesPerDay(rxCellIn(line.dose, "en"));
     if (perDay === null) return "dose";
-    const days = durationDays(line.duration);
+    const days = durationDays(rxCellIn(line.duration, "en"));
     if (days === null) return "duration";
     if (!saysOnlyWhen(line.instruction)) return "instruction";
     const used = days === "continue" ? left : Math.min(days, left);

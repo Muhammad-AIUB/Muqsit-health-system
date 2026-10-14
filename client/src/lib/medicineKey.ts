@@ -1,4 +1,5 @@
 import { normaliseDrugKey, splitForm } from "@/lib/rxHabitKey";
+import { rxCellIn } from "@/lib/rxLanguage";
 
 // The dosage forms the key knows by their short words (`Tab`, `Cap`, `Inj`,
 // `Syp`/`Syr`, `Susp`), written out.
@@ -191,7 +192,10 @@ export function brandWordsOf(drugLabel: string): string[] {
  * same caution as the medicine's: `3 MIU` and `3 mIU` are one.
  */
 export function instructionKey(cell: string): string {
-  return (cell ?? "")
+  // BAN writes these cells in Bangla (2026-10-14): a cell with Bangla in it is
+  // read as its English first, so `খাবারের আগে` is `Before meal`. An English
+  // cell passes through untouched — what is set aside for it is unchanged.
+  return rxCellIn(cell ?? "", "en")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\s*([+/])\s*/g, "$1")

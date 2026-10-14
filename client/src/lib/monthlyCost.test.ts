@@ -141,6 +141,14 @@ describe("monthlyCost — a medicine's month, priced", () => {
     expect(only([line("Tablet. Zzprice 20 mg", "1+0+1", "5 days")])).toEqual({ label: "Tablet. Zzprice 20 mg", taka: 2 * 5 * 7 });
   });
 
+  // BAN writes the three cells in Bangla (physician's decision, 2026-10-14).
+  it("prices a line written in Bangla exactly as the same line in English", () => {
+    const en = only([line("Tablet. Zzprice 20 mg", "1+0+1", "7 days")]);
+    const bn = only([line("Tablet. Zzprice 20 mg", "১+০+১", "৭ দিন", { instruction: "খাবারের পরে" })]);
+    expect(bn).toEqual(en);
+    expect(only([line("Tablet. Zzprice 20 mg", "১+০+০", "চলবে", { instruction: "খাবারের ২ ঘণ্টা আগে" })]).taka).toBe(30 * 7);
+  });
+
   it(`a month is ${MONTH_DAYS} days: a longer course is priced for ${MONTH_DAYS}, Continue too`, () => {
     expect(only([line("Tablet. Zzprice 20 mg", "1+0+0", "3 months")]).taka).toBe(30 * 7);
     expect(only([line("Tablet. Zzprice 20 mg", "1+0+0", "Continue")]).taka).toBe(30 * 7);

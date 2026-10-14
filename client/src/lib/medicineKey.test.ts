@@ -291,3 +291,29 @@ describe("instructionKey — a dose, a food or a duration, however it was spaced
     expect(instructionKey(undefined as unknown as string)).toBe("");
   });
 });
+
+// ⚕️ BAN writes the ℞ cells in Bangla (physician's decision, 2026-10-14), so the
+// same instruction can stand on the pad in either language — and "already on
+// ℞" must still see one instruction, or Move to Rx writes the line twice.
+describe("instructionKey — the same instruction written in Bangla", () => {
+  it.each([
+    ["খাবারের আগে", "Before meal"],
+    ["খাবারের ২ ঘণ্টা পরে", "2 hr after meal"],
+    ["১+০+১", "1+0+1"],
+    ["১/২+০+১/২", "1/2+0+1/2"],
+    ["৭ দিন", "7 days"],
+    ["২ সপ্তাহ", "2 week"],
+    ["চলবে", "Continue"],
+    ["রাতে", "at night"],
+  ])("%s is %s", (a, b) => {
+    expect(instructionKey(a)).toBe(instructionKey(b));
+  });
+
+  it.each([
+    ["খাবারের আগে", "After meal"],
+    ["১+০+১", "1+0+2"],
+    ["৭ দিন", "7 week"],
+  ])("⚕️ %s is not %s", (a, b) => {
+    expect(instructionKey(a)).not.toBe(instructionKey(b));
+  });
+});
