@@ -51,3 +51,23 @@ describe("OePopup — BP line", () => {
     expect(saved({ dbp: "80" }).some((l) => l.startsWith("BP:"))).toBe(false);
   });
 });
+
+describe("OePopup — weight unit conversion display", () => {
+  it("shows the lb equivalent under Weight (kg)", () => {
+    oeData = { ...blankOe, weightKg: "70" };
+    render(<OePopup />);
+    expect(screen.getByText("154.3 lb")).toBeTruthy();
+  });
+
+  it("shows the kg equivalent under Weight (lb)", () => {
+    oeData = { ...blankOe, weightLb: "150" };
+    render(<OePopup />);
+    expect(screen.getByText("68 kg")).toBeTruthy();
+  });
+
+  it("shows neither conversion when both weight boxes are blank", () => {
+    render(<OePopup />);
+    expect(screen.queryByText(/ lb$/)).toBeNull();
+    expect(screen.queryByText(/ kg$/)).toBeNull();
+  });
+});

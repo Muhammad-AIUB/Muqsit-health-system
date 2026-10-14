@@ -41,6 +41,7 @@ export default function OePopup() {
   const calcFt = Math.floor(calcTotalIn / 12);
   const calcIn = Math.round((calcTotalIn - calcFt * 12) * 10) / 10;
   const calcKgFromLb = Math.round(wLb * 0.453592 * 10) / 10;
+  const calcLbFromKg = Math.round(wKg * 2.20462 * 10) / 10;
   // Effective height/weight — use the entered unit, or derive it from the other
   // (ft/in → cm, lb → kg) so BMI & ideal body weight compute either way.
   const effHCm = hCm > 0 ? hCm : calcCmFromFtIn;
@@ -111,7 +112,7 @@ export default function OePopup() {
             <div style={{ flex: "1 1 60px" }}><label data-caption style={oeLbl}>Height (ft)</label><input aria-label="Height (ft)" style={oeInp} value={oeD.heightFt} onChange={(e) => setOe("heightFt", e.target.value)} placeholder="feet" /></div>
             <div style={{ flex: "1 1 60px" }}><label data-caption style={oeLbl}>Height (in)</label><input aria-label="Height (in)" style={oeInp} value={oeD.heightIn} onChange={(e) => setOe("heightIn", e.target.value)} placeholder="inch" />{(hFt > 0 || hIn > 0) && <div style={oeCalc}>{calcCmFromFtIn} cm</div>}</div>
             <div style={{ flex: "1 1 80px" }}><label data-caption style={oeLbl}>Weight (lb)</label><input aria-label="Weight (lb)" style={oeInp} value={oeD.weightLb} onChange={(e) => setOe("weightLb", e.target.value)} placeholder="lb" />{wLb > 0 && <div style={oeCalc}>{calcKgFromLb} kg</div>}</div>
-            <div style={{ flex: "1 1 80px" }}><label data-caption style={oeLbl}>Weight (kg)</label><input aria-label="Weight (kg)" style={oeInp} value={oeD.weightKg} onChange={(e) => setOe("weightKg", e.target.value)} placeholder="kg" /></div>
+            <div style={{ flex: "1 1 80px" }}><label data-caption style={oeLbl}>Weight (kg)</label><input aria-label="Weight (kg)" style={oeInp} value={oeD.weightKg} onChange={(e) => setOe("weightKg", e.target.value)} placeholder="kg" />{wKg > 0 && <div style={oeCalc}>{calcLbFromKg} lb</div>}</div>
           </div>
           <div style={oeRow}>
             <div style={{ flex: "1 1 100px" }}><div style={oeLbl}>BMI (auto)</div><div style={{ padding: "7px 8px", borderRadius: 6, fontSize: 13, fontWeight: 500, background: bmi > 0 ? (bmi < 18.5 ? C.warn[50] : bmi > 25 ? C.danger[50] : C.ok[50]) : C.n[100], color: bmi > 0 ? (bmi < 18.5 ? C.warn[800] : bmi > 25 ? C.danger[800] : C.ok[600]) : C.n[500] }}>{bmi > 0 ? bmi : "—"}</div></div>
