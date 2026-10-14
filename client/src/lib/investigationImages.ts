@@ -59,6 +59,42 @@ export function testImageKeys(
     .map((x) => x.k);
 }
 
+/** One image attached to a test on the day being looked at. */
+export interface DayImage {
+  key: string;
+  test: string;
+  /** 1-based place among THIS test's images. */
+  n: number;
+  /** How many images this test holds that day. */
+  of: number;
+  url: string;
+}
+
+/**
+ * Every image attached to a TEST on one date — the set the Investigation
+ * popup's image viewer steps through with ‹ › (physician's request,
+ * 2026-10-15). Tests in the order their first image was attached (the map's
+ * own order), each test's images in slot order. Pool reports ("Report N",
+ * not yet tagged to a test) and keys of other dates are not in it; a key with
+ * no image behind it is skipped.
+ */
+export function dayImages(images: Record<string, string>, date: string): DayImage[] {
+  const prefix = `${date}:`;
+  const tests: string[] = [];
+  for (const k of Object.keys(images)) {
+    if (!k.startsWith(prefix)) continue;
+    const test = k.slice(prefix.length).replace(/#\d+$/, "");
+    // No catalog test name holds "#": one left after the slot is stripped is a
+    // malformed suffix ("CBC#2x"), not a test of its own.
+    if (!test || test.includes("#") || /^Report \d+$/.test(test) || tests.includes(test)) continue;
+    tests.push(test);
+  }
+  return tests.flatMap((test) => {
+    const keys = testImageKeys(images, date, test).filter((k) => images[k]);
+    return keys.map((key, i) => ({ key, test, n: i + 1, of: keys.length, url: images[key] }));
+  });
+}
+
 /** The URLs behind `testImageKeys`, in the same order. */
 export function testImageUrls(
   images: Record<string, string>,

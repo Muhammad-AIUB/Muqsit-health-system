@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  dayImages,
   hasImageUrl,
   hasValueLine,
   imageKeyFor,
@@ -150,5 +151,37 @@ describe("imageKeyFor", () => {
   it("never emits #1", () => {
     expect(imageKeyFor(D, "CBC", 1)).toBe(`${D}:CBC`);
     expect(imageKeyFor(D, "CBC", 2)).toBe(`${D}:CBC#2`);
+  });
+});
+
+describe("dayImages — what the image viewer steps through", () => {
+  const D = "15/10/2026";
+  const images: Record<string, string> = {
+    [`${D}:CBC`]: "u-cbc-1",
+    [`${D}:Report 1`]: "u-pool",          // a report not yet tagged to a test
+    [`14/10/2026:CBC`]: "u-other-day",
+    [`${D}:ESR`]: "u-esr",
+    [`${D}:CBC#3`]: "u-cbc-3",            // a gap at #2 is left as it is
+    [`${D}:CBC#2x`]: "u-not-a-slot",
+    [`${D}:LFT`]: "",                     // no image behind it
+  };
+
+  it("every test image of the day, tests in the order first attached, each in slot order", () => {
+    expect(dayImages(images, D).map((x) => [x.test, x.n, x.of, x.url])).toEqual([
+      ["CBC", 1, 2, "u-cbc-1"],
+      ["CBC", 2, 2, "u-cbc-3"],
+      ["ESR", 1, 1, "u-esr"],
+    ]);
+  });
+
+  it("leaves out pool reports, other days, and keys with no image", () => {
+    const urls = dayImages(images, D).map((x) => x.url);
+    expect(urls).not.toContain("u-pool");
+    expect(urls).not.toContain("u-other-day");
+    expect(urls).not.toContain("");
+  });
+
+  it("is empty for a day with nothing attached", () => {
+    expect(dayImages(images, "01/01/2026")).toEqual([]);
   });
 });

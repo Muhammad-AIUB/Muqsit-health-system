@@ -8,7 +8,7 @@ import { INV_CATS } from "@/data/investigations";
 import type { InvTest } from "@/types";
 import { uploadImage } from "@/lib/api";
 import { parseFlexibleDate } from "@/lib/dateInput";
-import { hasImageUrl, hasValueLine, markerFor, nextImageKey, parseFindingKey, testImageKeys } from "@/lib/investigationImages";
+import { dayImages, hasImageUrl, hasValueLine, markerFor, nextImageKey, parseFindingKey, testImageKeys } from "@/lib/investigationImages";
 import CalcRenderer from "./CalcRenderer";
 import { useActivityLog } from "@/hooks/useActivity";
 import { useInvestigationPrefs } from "@/hooks/useInvestigationPrefs";
@@ -17,6 +17,7 @@ import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
 import { useDialog } from "@/lib/useDialog";
 import { useMediaQuery } from "@/lib/useMediaQuery";
+import ReportViewerPane from "./ReportViewerPane";
 import { zoomScale } from "@/lib/dropdownAnchor";
 import { readFinding } from "@/lib/findingParts";
 import { resultBoxName } from "@/lib/resultBoxName";
@@ -54,6 +55,8 @@ export default function InvestigationPopup() {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [showReports, setShowReports] = useState(true);
+  // The test image open in the viewer beside the form, by its image key — or none.
+  const [viewerKey, setViewerKey] = useState<string | null>(null);
   // Inline edit of an added result (keyed by the result string).
   const [editItem, setEditItem] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
@@ -384,6 +387,8 @@ export default function InvestigationPopup() {
   // about to go.
   const monthWrapRef = useRef<HTMLDivElement | null>(null);
   const handleEscape = () => {
+    // The image viewer beside the form closes first; the popup stays open.
+    if (viewerKey) { setViewerKey(null); return; }
     if (!showMonthPicker) { handleCloseInvPopup(); return; }
     const onTheList = !!monthWrapRef.current?.contains(document.activeElement);
     setShowMonthPicker(false);
@@ -397,6 +402,8 @@ export default function InvestigationPopup() {
   // the date, the typed-date box and the ±M / ±Y / Today jumps stay. The query
   // reads the window itself, which the page zoom does not scale.
   const shortScreen = useMediaQuery("(max-height: 850px)");
+  // A closed popup takes its image viewer with it.
+  useEffect(() => { if (!showInvPopup) setViewerKey(null); }, [showInvPopup]);
   const [daysOpen, setDaysOpen] = useState(false);
   const showDays = !shortScreen || daysOpen;
 
@@ -479,9 +486,13 @@ export default function InvestigationPopup() {
   // Uploaded report images (date-independent pool) shown in the left viewer.
   const reportImages = investigation.filter(isPoolEntry);
   const repIdx = Math.min(reportIdx, Math.max(0, reportImages.length - 1));
+  // The image viewer's set: every test image of the chosen day. A key that has
+  // left it (untagged, another day chosen) closes the viewer by itself.
+  const viewItems = dayImages(invImages, formatCalDate(calDate));
+  const viewIdx = viewerKey ? viewItems.findIndex((it) => it.key === viewerKey) : -1;
   // Added (text) results — shown in a right-side panel; the popup widens to fit.
   const textResults = investigation.filter((it) => it.indexOf("[image attached]") < 0);
-  const modalWidth = (reportImages.length > 0 && showReports ? 1500 : 860) + (textResults.length > 0 ? 320 : 0);
+  const modalWidth = (reportImages.length > 0 && showReports ? 1500 : 860) + (textResults.length > 0 ? 320 : 0) + (viewIdx >= 0 ? 700 : 0);
   const navBtn = (disabled: boolean): CSSProperties => ({
     padding: "4px 10px", borderRadius: 6, fontSize: 11, fontFamily: "inherit",
     border: `0.5px solid ${C.n[200]}`, background: C.n[0],
@@ -492,7 +503,7 @@ export default function InvestigationPopup() {
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: scrim, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 1000, overflow: "auto" }}
       onClick={handleCloseInvPopup}>
-      <div role="dialog" aria-modal="true" aria-label="Investigation report findings" {...dialog} onClick={(e) => e.stopPropagation()} className="invModal" style={{ width: modalWidth, maxWidth: "100%", height: reportImages.length > 0 && showReports ? "100%" : undefined, maxHeight: "100%", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
+      <div role="dialog" aria-modal="true" aria-label="Investigation report findings" {...dialog} onClick={(e) => e.stopPropagation()} className="invModal" style={{ position: "relative", width: modalWidth, maxWidth: "100%", height: (reportImages.length > 0 && showReports) || viewIdx >= 0 ? "100%" : undefined, maxHeight: "100%", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 }}>
         <style>{`
           @media (max-width: 820px) {
             .invModal { flex-direction: column !important; width: 100% !important; }
@@ -509,6 +520,9 @@ export default function InvestigationPopup() {
             .invSidebar > button { display: inline-block !important; width: auto !important; flex-shrink: 0; white-space: nowrap; padding: 6px 12px !important; border: 1px solid ${C.n[200]} !important; border-radius: 999px; font-size: 12.5px !important; }
             .invFooter { position: sticky; bottom: 0; z-index: 2; }
             .invResults { width: 100% !important; flex-shrink: 1 !important; border-left: none !important; border-top: 0.5px solid ${C.n[200]}; }
+            /* No room beside the form on a phone: the image viewer covers it,
+               and its × gives the form back. */
+            .invViewer { position: absolute; inset: 0; z-index: 6; border-left: none !important; }
           }
         `}</style>
 
@@ -532,12 +546,15 @@ export default function InvestigationPopup() {
                     onMouseMove={onPanMove}
                     onMouseUp={onPanEnd}
                     onMouseLeave={onPanEnd}
-                    style={{ position: "absolute", inset: 0, overflow: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", cursor: "grab", userSelect: "none" }}
+                    style={{ position: "absolute", inset: 0, overflow: "auto", display: "flex", alignItems: "flex-start", cursor: "grab", userSelect: "none" }}
                   >
+                    {/* `margin: auto`, not `justify-content: center`: centred by
+                        its box, a zoomed report spilled out on the left where no
+                        scroll reaches (found beside the new viewer, 2026-10-15). */}
                     {invImages[imgKey] && (
                       <img src={invImages[imgKey]} alt={name} draggable
                         onDragStart={(e) => { e.dataTransfer.setData("text/mhs-report-image", invImages[imgKey] || ""); e.dataTransfer.effectAllowed = "copy"; }}
-                        style={{ width: `${zoom * 100}%`, maxWidth: "none", height: "auto", display: "block", flexShrink: 0, transform: `rotate(${rotation}deg)`, transition: "width 0.12s, transform 0.15s", cursor: "grab" }} />
+                        style={{ width: `${zoom * 100}%`, maxWidth: "none", height: "auto", display: "block", flexShrink: 0, margin: "0 auto", transform: `rotate(${rotation}deg)`, transition: "width 0.12s, transform 0.15s", cursor: "grab" }} />
                     )}
                   </div>
                   {/* Zoom + rotate controls */}
@@ -784,10 +801,12 @@ export default function InvestigationPopup() {
                         doctor can see each drop land and take any one back off. */}
                     {taggedKeysFor(test.name).map((k) => (
                       <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 4px 2px 2px", borderRadius: 6, border: `1px solid ${C.pri[100]}`, background: C.pri[50] }}>
-                        <a href={invImages[k]} target="_blank" rel="noreferrer" title="Open this report" style={{ display: "inline-flex", lineHeight: 0 }}>
+                        {/* Opens beside the form, large (was: a new browser tab). */}
+                        <button type="button" onClick={() => setViewerKey(k)} aria-label={`View ${test.name} report image`} title="View this report beside the form"
+                          style={{ display: "inline-flex", lineHeight: 0, padding: 0, border: "none", background: "none", cursor: "zoom-in", borderRadius: 4, outline: viewerKey === k ? `2px solid ${C.pri[400]}` : "none", outlineOffset: 1 }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={invImages[k]} alt="" style={{ width: 22, height: 22, objectFit: "cover", borderRadius: 4, display: "block" }} />
-                        </a>
+                        </button>
                         <button onClick={() => untagImageKey(k)} title="Remove this report image from this test" aria-label="Remove this report image from this test"
                           style={{ width: 18, height: 18, borderRadius: "50%", border: "none", background: C.danger[100], color: C.danger[800], fontSize: 11, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", padding: 0 }}>✕</button>
                       </span>
@@ -1025,6 +1044,18 @@ export default function InvestigationPopup() {
           <button onClick={handleCloseInvPopup} style={btnPrimary("md")}>Done</button>
         </div>
         </div>{/* /Main column */}
+
+        {/* A test's report image, large, beside the form (physician's request,
+            2026-10-15). ‹ › step through every test image of the day. */}
+        {viewIdx >= 0 && (
+          <ReportViewerPane
+            items={viewItems}
+            index={viewIdx}
+            onIndex={(i) => setViewerKey(viewItems[i]?.key ?? null)}
+            onClose={() => setViewerKey(null)}
+            date={formatCalDate(calDate)}
+          />
+        )}
       </div>
     </div>
   );

@@ -488,6 +488,13 @@ Two rules `ImageGallery.test.tsx` pins: a file dropped ON a tile uploads ONCE (t
 
 **A short screen is its own case, not only a narrow one (2026-10-15).** On a 1366×768 laptop (about 650px of window) the Investigation popup's month of days took so much height that the tests below were one row of boxes tall (physician's report). On a window `max-height: 850px` (`useMediaQuery`, `lib/useMediaQuery.ts`, which reads the window, unaffected by the page zoom), the days fold away behind a **Days ▾** button. The typed-date box, the chosen date and the ±M / ±Y / Today jumps stay in view. A tall screen is unchanged. The popup also took `maxHeight: 85vh` (95% of the screen under the zoom) and now takes `100%` of its veil, per the page-zoom rule below. Pinned in `InvestigationPopup.shortScreen.test.tsx`.
 
+**A test's report image opens BESIDE the Investigation form (physician's request, 2026-10-15).** Clicking a test's thumbnail used to open a new browser tab. It now opens `ReportViewerPane`, a column to the right of the form:
+- the image large, with zoom (− / + / Fit, also `+` / `-`), rotate ↺ ↻ and drag to move about;
+- ‹ › and ← → through **every test image of the chosen day** (`dayImages` in `lib/investigationImages.ts`; pool reports not yet tagged to a test are not in it), with thumbnails to jump;
+- its own × (Escape closes the viewer first and leaves the popup open);
+- on a phone it covers the form instead of standing beside it.
+A zoomed image is centred with `margin: auto`, never `justify-content: center`: centred by its box, it spilled out on the LEFT, where no scroll reaches, and the start of every line was cut off. The older reports pane on the left had the same fault and was fixed with it. Pinned in `ReportViewerPane.test.tsx` and `InvestigationPopup.viewer.test.tsx`. In the sandbox an upload's URL carries `:4100` while the API serves on `:4200`, so its images show broken there: that is the sandbox, not the viewer.
+
 The app adapts to the real device viewport, not just the manual preview toggle:
 
 - `Muqsit.tsx` derives `effectiveView` from `matchMedia("(max-width: 767px)")` — phones always render `MobileShell`, regardless of the manual Desktop/Mobile toggle (hidden on real phones). It does **not** mutate the shared `view` state, since `view` is part of the mirrored snapshot (`mirrorSnapshot`/`applyMirrorSnapshot` in MuqsitContext) — device mirroring must stay unaffected.
