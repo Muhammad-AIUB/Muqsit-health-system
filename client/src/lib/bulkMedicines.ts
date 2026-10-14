@@ -1,6 +1,7 @@
 import type { RxItem } from "@/types";
 import { instructionsKey, MedicineMap } from "@/lib/medicineKey";
 import { splitDrugLabel } from "@/lib/rxShorthand";
+import { rxCellIn, type RxLang } from "@/lib/rxLanguage";
 
 // The rules of the "Add Bulk Medicine" box: the medicines this doctor has
 // prescribed before, each with its usual instruction, ticked and added to the
@@ -132,9 +133,17 @@ export function searchBulk(list: BulkMedicine[], q: string): BulkMedicine[] {
   });
 }
 
-/** A line's instruction as the row shows it: only the cells that were written. */
-export const instructionOf = (line: BulkLine): string =>
-  [line.dose, line.food, line.duration].map((s) => s.trim()).filter(Boolean).join(" · ");
+/**
+ * A line's instruction as the row shows it: only the cells that were written —
+ * in `lang` when one is given (BAN shows Bangla, EN English: physician's
+ * request, 2026-10-15), as the line would be added. Display only.
+ */
+export const instructionOf = (line: BulkLine, lang?: RxLang): string =>
+  [line.dose, line.food, line.duration]
+    .map((s) => s.trim())
+    .map((s) => (lang ? rxCellIn(s, lang) : s))
+    .filter(Boolean)
+    .join(" · ");
 
 /** DISTINCT patients — the word is always written out, never "×". */
 export const patientsLabel = (n: number): string => (n === 1 ? "1 patient" : `${n} patients`);

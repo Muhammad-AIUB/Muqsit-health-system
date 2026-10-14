@@ -11,7 +11,7 @@ import HideToggle from "@/components/common/HideToggle";
 import { useDialog } from "@/lib/useDialog";
 import AddMedicineRow from "./AddMedicineRow";
 import { useKbdLang } from "@/lib/kbdLang";
-import { rxItemsIn } from "@/lib/rxLanguage";
+import { rxCellIn, rxItemsIn } from "@/lib/rxLanguage";
 
 // ── Date-stamped drug history ───────────────────────────────
 // One list, each entry stamped with the visit date it was added on:
@@ -90,6 +90,10 @@ interface Props {
 export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
   const { setRxItems, rxItems, ptDate, can, addDrugHistoryEntry } = useMuqsit();
   const lang = useKbdLang();
+  // A line's dose / food / duration is SHOWN in the current language — Bangla in
+  // BAN, English in EN (physician's request, 2026-10-15). Display only: the
+  // entries, the ticks and Move to Rx read the record as it was written.
+  const shown = (s: string) => rxCellIn(s, lang);
   const cd = isoToDdmmyyyy(ptDate); // current visit date, dd/mm/yyyy
   // ⚕️ The ℞ pad's own key. Without it the pad is locked in RightColumn, so the
   // ticks and the Move button must not offer a way around that lock.
@@ -284,9 +288,9 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                       const isCont = p.kind === "cont";
                       // A tapering line repeats the medicine above it with another
                       // dose, so its three values sit in the same three columns.
-                      const [dose, food, duration] = isCont
+                      const [dose, food, duration] = (isCont
                         ? [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""]
-                        : [parts[1] ?? "", parts[2] ?? "", parts[3] ?? ""];
+                        : [parts[1] ?? "", parts[2] ?? "", parts[3] ?? ""]).map(shown);
                       return (
                         <div key={i} style={row}>
                           {tickCell}
@@ -314,7 +318,9 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                         {g.date === PAST_MARKER ? "Earlier (no date)" : g.date}
                       </div>
                       {g.list.map((p, i) => {
-                        const parts = cells(p.body);
+                        // The medicine's name stays as written; a tapering line has
+                        // no name, only its three cells.
+                        const parts = cells(p.body).map((x, k) => (k === 0 && p.kind !== "cont" ? x : shown(x)));
                         const tick = canRx ? pastTicks[gi]?.get(i) : undefined;
                         return (
                           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < g.list.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>

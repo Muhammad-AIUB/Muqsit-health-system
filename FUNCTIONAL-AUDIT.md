@@ -1182,11 +1182,14 @@ nothing in it was held to block a release; what was done, and what is left:
   2. The fold itself has therefore only been run against the test database
   (`server/test/rx-habits-bangla.int-spec.ts`), not against real Bangla
   prescriptions in production.
-- [ ] **A folded habit shows the wording of whichever was written first on the
-  live path, and the newest after a rebuild** — the same instruction, Bangla or
-  English. Lines inserted from "Your usual" are written in the current
-  language on arrival, so the pad is right either way; only the text in the
-  dropdown row can be in the other language.
+- [x] **A folded habit is stored in the wording written first on the live path,
+  and the newest after a rebuild** — Bangla or English. Since 2026-10-15 it does
+  not show: the three columns are SHOWN in the current language wherever they
+  appear — "Your usual" (and its hidden list and Undo bar), Add Bulk Medicine,
+  and Drug history's Current / Distant past rows — and inserted in it. Display
+  only; the stored text is untouched. Not covered: a past prescription opened
+  from "Patient's Prescriptions and reports" is shown as it was saved — it is
+  the record of that visit.
 - [ ] **Shorthand does not work in BAN** (`bm`, `am`, `7d`, `c`): the letters
   are Bangla as they are typed. Unchanged since 2026-09-23 — switch to EN to
   use it. Digits are unaffected (`101` still becomes `১+০+১`).

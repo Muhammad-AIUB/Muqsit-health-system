@@ -129,20 +129,23 @@ function AutoCell({ value, onChange, onBlur, onKeyDown, placeholder, title, bang
 // "Add Bulk Medicine" box.
 export { lastUsedLabel };
 
-// The instruction, exactly as saved. A blank field is simply absent — never
-// filled in with a guess.
-const instructionLine = (dose: unknown, food: unknown, duration: unknown): string =>
+// The instruction as saved, in the pad's language (`cellIn`, OPD only: BAN shows
+// a line learned in English in Bangla, and EN the reverse — exactly what a pick
+// inserts). A blank field is simply absent — never filled in with a guess.
+const asIs = (s: string) => s;
+const instructionLine = (dose: unknown, food: unknown, duration: unknown, cellIn: (s: string) => string = asIs): string =>
   [safeHabitText(dose), safeHabitText(food), safeHabitText(duration)]
-    .map((v) => v.trim())
+    .map((v) => cellIn(v.trim()))
     .filter(Boolean)
     .join(" · ");
 
-function HabitRow({ habit, dim, onPick, onHide, onRestore }: {
+function HabitRow({ habit, dim, onPick, onHide, onRestore, cellIn }: {
   habit: RxHabitItem;
   dim?: boolean;
   onPick?: () => void;
   onHide?: () => void;
   onRestore?: () => void;
+  cellIn?: (s: string) => string;
 }) {
   const cont = safeContLines(habit?.contLines);
   const n = Number(habit?.patientCount);
@@ -167,14 +170,14 @@ function HabitRow({ habit, dim, onPick, onHide, onRestore }: {
         <span style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>{safeHabitText(habit?.drugLabel)}</span>
           <span style={{ fontSize: 12.5, color: C.n[700] }}>
-            {instructionLine(habit?.dose, habit?.food, habit?.duration)}
+            {instructionLine(habit?.dose, habit?.food, habit?.duration, cellIn)}
           </span>
         </span>
         {/* Tapering lines preview with the same ↳ the pad uses, so what is shown
             is literally what gets inserted. */}
         {cont.map((c, i) => (
           <span key={i} style={{ display: "block", fontSize: 12, color: C.n[600], paddingLeft: 12 }}>
-            ↳ {instructionLine(c.dose, c.food, c.duration)}
+            ↳ {instructionLine(c.dose, c.food, c.duration, cellIn)}
           </span>
         ))}
         {meta && <span style={{ display: "block", fontSize: 11, color: C.n[500], marginTop: 2 }}>{meta}</span>}
@@ -370,6 +373,10 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // is committed — the moment its shorthand is expanded — never mid-typing.
   const lang = useKbdLang();
   const commit = (s: string) => (bangla && lang === "bn" ? rxCellIn(s, "bn") : s);
+  // A learned line is SHOWN in the pad's language too — Bangla in BAN, English
+  // in EN (physician's request, 2026-10-15) — as it would be inserted. Display
+  // only: what is stored is untouched.
+  const cellIn = bangla ? (s: string) => rxCellIn(s, lang) : asIs;
   // Learned lines wait for 3 letters (lib/rxSuggest.ts); the medicine list above does not.
   const { groups: habitGroups, refresh: refreshHabits } = useRxHabits(showHabits && rxSuggestReady(acQuery) ? acQuery : "");
   // ⚕️ Free-typed NOTE lines this doctor has written before ("Insulin as
@@ -398,7 +405,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   const setHabitHidden = (habit: RxHabitItem, hidden: boolean) => {
     const id = safeHabitText(habit?.id);
     if (!id) return;
-    const label = [safeHabitText(habit?.drugLabel), instructionLine(habit?.dose, habit?.food, habit?.duration)]
+    const label = [safeHabitText(habit?.drugLabel), instructionLine(habit?.dose, habit?.food, habit?.duration, cellIn)]
       .filter(Boolean)
       .join("  ");
     // Optimistic, then reconciled against the server. The failure is NOT
@@ -706,13 +713,14 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                                 habit={h}
                                 onPick={() => pickHabit(idx, h, g.generic)}
                                 onHide={() => setHabitHidden(h, true)}
+                                cellIn={cellIn}
                               />
                             ))}
                             {g.hiddenCount > 0 && (
                               showHiddenFor === g.drugKey ? (
                                 <>
                                   {g.hidden.map((h) => (
-                                    <HabitRow key={h.id} habit={h} dim onRestore={() => setHabitHidden(h, false)} />
+                                    <HabitRow key={h.id} habit={h} dim onRestore={() => setHabitHidden(h, false)} cellIn={cellIn} />
                                   ))}
                                   <button
                                     type="button"

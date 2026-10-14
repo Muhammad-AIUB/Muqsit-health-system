@@ -184,6 +184,13 @@ describe("what a row says", () => {
     expect(instructionOf(ACE)).toBe("");
   });
 
+  it("is shown in the language asked for, as it would be added (2026-10-15)", () => {
+    expect(instructionOf(NAPA, "bn")).toBe("১+১+১ · খাবারের পরে · ৫ দিন");
+    expect(instructionOf({ dose: "১+০+০", food: "", duration: "চলবে" }, "en")).toBe("1+0+0 · Continue");
+    expect(instructionOf({ dose: "1+0+1", food: "after lunch", duration: "" }, "bn")).toBe("১+০+১ · after lunch");
+    expect(instructionOf(NAPA)).toBe("1+1+1 · After meal · 5 days"); // no language: as stored
+  });
+
   it("the count is of PATIENTS", () => {
     expect(patientsLabel(30)).toBe("30 patients");
     expect(patientsLabel(1)).toBe("1 patient");

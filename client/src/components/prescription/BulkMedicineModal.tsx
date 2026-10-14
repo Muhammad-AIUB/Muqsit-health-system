@@ -10,6 +10,7 @@ import { Loading, LoadError } from "@/components/common/ListState";
 import EmptyState from "@/components/common/EmptyState";
 import { splitDrugLabel } from "@/lib/rxShorthand";
 import { lastUsedLabel } from "@/lib/lastUsed";
+import { useKbdLang } from "@/lib/kbdLang";
 import { grouped } from "@/lib/calculators/format";
 import {
   bulkSummary, bulkToRxItems, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel, searchBulk,
@@ -105,7 +106,9 @@ const BulkRow = memo(function BulkRow({ m, on, onPad, tabStop, onToggle, onReach
   // The text is the label's, unchanged.
   const strength = after.trimStart();
   const gap = after.slice(0, after.length - strength.length);
-  const instruction = instructionOf(m);
+  // Shown in the current language (BAN Bangla, EN English), as it will be added.
+  const lang = useKbdLang();
+  const instruction = instructionOf(m, lang);
   const when = lastUsedLabel(m.lastUsedAt);
   return (
     <label style={{ ...ROW_OUT_OF_SIGHT, display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 20px", cursor: "pointer", borderBottom: `0.5px solid ${C.n[200]}`, background: on ? C.pri[50] : "transparent" }}>
@@ -128,7 +131,7 @@ const BulkRow = memo(function BulkRow({ m, on, onPad, tabStop, onToggle, onReach
           {instruction || "No dose recorded"}
         </span>
         {m.contLines.map((c, i) => (
-          <span key={i} style={{ display: "block", fontSize: 12, color: C.n[700], marginTop: 1, overflowWrap: "anywhere" }}>↳ {instructionOf(c)}</span>
+          <span key={i} style={{ display: "block", fontSize: 12, color: C.n[700], marginTop: 1, overflowWrap: "anywhere" }}>↳ {instructionOf(c, lang)}</span>
         ))}
       </span>
       <span style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: C.n[500], whiteSpace: "nowrap", marginTop: 2 }}>
