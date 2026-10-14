@@ -1185,3 +1185,13 @@ nothing in it was held to block a release; what was done, and what is left:
   the three cells (`after food`, `2.5 ml`, `1m`) is left exactly as written,
   in either mode. Each phrase to add is the physician's wording, added to
   `lib/rxLanguage.ts` and its test.
+- [x] **Typing in BAN could stop the ℞ screen** (fixed 2026-10-15, before
+  release). In the browser pass, `b`, `m` typed in a food cell in BAN made
+  "This screen stopped working". Two key presses landed in one render, and the
+  pad's two sync effects took the pad's own older copy for a change made
+  elsewhere. Each effect kept putting back what the other had written until
+  React stopped. The sync code is unchanged since September and the BAN
+  keyboard handler since 2026-09-23, so production very likely has it too;
+  the old build was not run to confirm. Now one effect, `lib/usePadSync.ts`:
+  in a render where the pad moved, the pad's edit wins. Pinned by
+  `usePadSync.test.tsx`, red on the old logic.

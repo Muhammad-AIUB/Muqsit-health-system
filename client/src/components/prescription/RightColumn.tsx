@@ -9,7 +9,7 @@ import InvestigationDirectory from "@/components/investigation/InvestigationDire
 import InvestigationGroups from "@/components/investigation/InvestigationGroups";
 import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
-import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
+import { usePadSync } from "@/lib/usePadSync";
 import { useKbdLang } from "@/lib/kbdLang";
 import { rxItemsIn } from "@/lib/rxLanguage";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -42,8 +42,9 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     open: (row: Row) => setAdviceBox({ drug: row.drug.trim(), generic: row.generic }),
   };
 
-  const [rows, setRows] = useState<Row[]>(() => fromRxItems(rxItems));
-  const lastSync = useRef<string>(JSON.stringify(toRxItems(fromRxItems(rxItems))));
+  // Pad edits → prescription model, and changes made elsewhere (templates,
+  // prescribe-clear, Move to Rx, the BAN/EN switch) → pad: lib/usePadSync.ts.
+  const [rows, setRows] = usePadSync(rxItems, setRxItems);
 
   // Quick templates: only the doctor's own saved OPD templates (from the server).
   const [tplSearch, setTplSearch] = useState("");
@@ -84,23 +85,6 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   }, [rows, added]);
   // Another patient's pad is not scrolled for what was added to the last one's.
   useEffect(() => setAdded(null), [currentPatientId]);
-
-  // Pad edits → prescription model.
-  useEffect(() => {
-    const items = toRxItems(rows);
-    const sig = JSON.stringify(items);
-    lastSync.current = sig;
-    setRxItems((prev) => (JSON.stringify(prev) === sig ? prev : items));
-  }, [rows, setRxItems]);
-
-  // External changes (templates, prescribe-clear, drug history's "↻ Rx") → pad.
-  useEffect(() => {
-    const sig = JSON.stringify(rxItems);
-    if (sig !== lastSync.current) {
-      lastSync.current = sig;
-      setRows(fromRxItems(rxItems));
-    }
-  }, [rxItems]);
 
   return (
     <div ref={columnRef} style={{ display: "flex", flexDirection: "column", gap: mobile ? 8 : 10 }}>
