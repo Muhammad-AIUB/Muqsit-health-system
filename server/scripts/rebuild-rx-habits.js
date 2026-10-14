@@ -229,10 +229,20 @@ function contentKey(doctorId, row) {
           const key = [rx.doctorId, b.drugKey, b.signature].join(GS);
           let acc = habits.get(key);
           if (!acc) {
-            acc = { doctorId: rx.doctorId, patients: new Set(), lastUsedAt: rx.createdAt, block: b };
+            acc = {
+              doctorId: rx.doctorId,
+              patients: new Set(),
+              lastUsedAt: rx.createdAt,
+              block: b,
+              variants: new Set(),
+            };
             habits.set(key, acc);
           }
           acc.patients.add(rx.patientId);
+          // Every wording that landed on this habit, not only the newest: when a
+          // rule folds two wordings into one (ALGO_VERSION 2: the same dose
+          // written in Bangla and in English), a flag set on either must follow.
+          acc.variants.add(contentKey(rx.doctorId, b));
           // patientCount counts DISTINCT PATIENTS, not prescriptions.
           if (rx.createdAt >= acc.lastUsedAt) {
             acc.lastUsedAt = rx.createdAt;
@@ -264,12 +274,18 @@ function contentKey(doctorId, row) {
         pinned: false,
         hidden: false,
       };
-      const f = flags.get(contentKey(acc.doctorId, row));
-      if (f) {
-        row.pinned = f.pinned;
-        row.hidden = f.hidden;
+      // ⚕️ A flag set on ANY wording that folded into this habit is kept, and
+      // `hidden` wins over a wording that was not hidden: a dose the doctor
+      // deliberately suppressed must not come back because the same dose was
+      // also written another way. (Before ALGO_VERSION 2 one signature meant one
+      // wording per stored row, and the newest wording's flag was enough.)
+      for (const k of acc.variants) {
+        const f = flags.get(k);
+        if (!f) continue;
+        row.pinned = row.pinned || f.pinned;
+        row.hidden = row.hidden || f.hidden;
         reapplied += 1;
-        flags.delete(contentKey(acc.doctorId, row));
+        flags.delete(k);
       }
       if (!byDoctor.has(acc.doctorId)) byDoctor.set(acc.doctorId, []);
       byDoctor.get(acc.doctorId).push(row);

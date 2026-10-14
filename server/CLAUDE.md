@@ -213,6 +213,31 @@ seam — `PrescriptionsService.create` calls `phrases.recordFrom(...)` beside
   orphans, and every deliberately suppressed dose comes back silently. The
   script loads `normalise.ts` from `dist/` (or via ts-node) rather than
   reimplementing it, and must stay `.js` — see the `rootDir` trap below.
+- **⚕️ A Bangla dose / food / duration is the same instruction as its English
+  (`ALGO_VERSION` 2, 2026-10-15).** BAN writes the ℞ columns in Bangla
+  (physician's decision, 2026-10-14), so `১+০+১ · খাবারের আগে · ৭ দিন` and
+  `1+0+1 · Before meal · 7 days` reached the habit table as two rows and split
+  one dose's distinct-patient count. `signatureOf` now reads each cell through
+  `rx-habits/rxLanguage.ts#cellInEnglish` first — the physician's table, a
+  COPY of `client/src/lib/rxLanguage.ts#rxCellIn(…, "en")`, pinned against it by
+  one literal table in `normalise.spec.ts` ⇄ `rxLanguage.test.ts`. Three things
+  about it are safety, not style:
+  - **A cell with no Bangla in it is returned untouched,** so no English
+    habit's signature moved; only a habit saved with Bangla changes key.
+  - **Nothing outside the table is read:** `খাবারের পর`, `২.৫ মিলি` stay as typed
+    and are their own instruction; a decimal point stays a point (`০.৫` is
+    `0.5`, never `5`); a 3→1 taper is still not a 1→3 taper.
+  - **The rebuild keeps a flag set on ANY wording that folded in,** `hidden`
+    winning over a wording that was not hidden. Before this, one signature was
+    one wording per stored row and the newest wording's flag was enough; now
+    two stored rows (Bangla, English) become one, and taking only the newest
+    wording's flags would bring back a dose the doctor had hidden.
+  `server/test/rx-habits-bangla.int-spec.ts` runs it for real: both languages
+  through `POST /prescriptions` into one row, the same patient in the other
+  language not counted twice, and the repair script against rows learned under
+  version 1. **After the deploy, run the rebuild once** (`--dry-run` first) —
+  until then rows already learned in Bangla stay as separate rows, and a new
+  Bangla prescription lands on the English row and not on its hidden Bangla twin.
 
 ## `drug-advice` — the doctor's own standing advice (2026-09-24)
 

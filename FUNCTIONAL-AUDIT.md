@@ -1166,15 +1166,24 @@ nothing in it was held to block a release; what was done, and what is left:
 
 ### BAN writes the ℞ dose / food / duration in Bangla (2026-10-14)
 
-- [ ] **"Your usual" learns a Bangla and an English instruction as two
-  habits.** A prescription saved in BAN carries `খাবারের আগে`, `১+০+১`;
-  the server's habit key (`server/src/rx-habits/normalise.ts`) folds
-  typography only, so the same dose is learned twice and its distinct-patient
-  count is split between the two rows. The client already reads both as one
-  for "already on ℞" (`instructionKey`). Closing it is a server change: read a
-  Bangla cell as its English in the habit key (the same table as
-  `client/src/lib/rxLanguage.ts`, pinned side by side), then
-  `node server/scripts/rebuild-rx-habits.js` to fold the rows already learned.
+- [x] **"Your usual" learned a Bangla and an English instruction as two
+  habits** (code fixed 2026-10-15; **needs the deploy, then one run of the
+  rebuild**). A prescription saved in BAN carries `খাবারের আগে`, `১+০+১`; the
+  habit key folded typography only, so the same dose was learned twice and its
+  distinct-patient count split between two rows. `signatureOf` now reads a
+  Bangla cell as its English (`server/src/rx-habits/rxLanguage.ts`, the
+  physician's table, pinned against the client copy by one literal table),
+  `ALGO_VERSION` is 2, and the rebuild keeps a `hidden`/`pinned` flag set on any
+  wording that folds in. **Still to do on the VPS, after the deploy:**
+  `cd /root/muqsit/server && node scripts/rebuild-rx-habits.js --dry-run`, read
+  it, then without `--dry-run`. Until then rows already learned in Bangla stay
+  separate. Not run against production: the dry run there is the first look at
+  how many rows fold.
+- [ ] **A folded habit shows the wording of whichever was written first on the
+  live path, and the newest after a rebuild** — the same instruction, Bangla or
+  English. Lines inserted from "Your usual" are written in the current
+  language on arrival, so the pad is right either way; only the text in the
+  dropdown row can be in the other language.
 - [ ] **Shorthand does not work in BAN** (`bm`, `am`, `7d`, `c`): the letters
   are Bangla as they are typed. Unchanged since 2026-09-23 — switch to EN to
   use it. Digits are unaffected (`101` still becomes `১+০+১`).

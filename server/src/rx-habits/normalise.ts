@@ -12,11 +12,18 @@
 // twenty-five: the form token is taken STRUCTURALLY (everything up to and
 // including the first `.`), and only an abbreviation needs a lookup.
 
+import { cellInEnglish } from './rxLanguage';
+
 // Bumped whenever anything in this file changes the key or the signature it
 // produces. A DoctorRxHabit row whose `algoVersion` is behind this constant was
 // built by an older algorithm and is due a rebuild — see
 // `server/scripts/rebuild-rx-habits.js`.
-export const ALGO_VERSION = 1;
+//
+//   1  typography only: case and outer whitespace of dose / food / duration.
+//   2  (2026-10-15) a Bangla dose / food / duration is read as its English
+//      (`rxLanguage.ts`), so BAN and EN prescriptions are one habit. Only a
+//      habit saved with Bangla in it changes its signature.
+export const ALGO_VERSION = 2;
 
 export interface HabitLine {
   dose: string;
@@ -141,16 +148,28 @@ const RS = '\u001E'; // ASCII Record Separator
  * Order is part of the key — a taper that goes 3 → 1 is NOT the same
  * instruction as 1 → 3.
  *
- * Only case and outer whitespace are folded. The pad canonicalises dose/food/
- * duration on blur (`parseDose` / `parseFood` / `parseDuration`), so `101`
- * arrives as `1+0+1`; in the rare case a value reaches the server unblurred it
- * simply forms its own habit row, which the doctor can hide. Do NOT
- * re-implement those parsers here — two copies of clinical shorthand parsing
- * that can drift is a worse hazard than a stray low-count row.
+ * Case and outer whitespace are folded, and — since ALGO_VERSION 2 — a cell
+ * written in Bangla is read as the English the app writes for it
+ * (`rxLanguage.ts#cellInEnglish`, the physician's table of 2026-10-14): a
+ * prescription saved in BAN (`১+০+১`, `খাবারের আগে`, `৭ দিন`) is the same
+ * instruction as one saved in EN (`1+0+1`, `Before meal`, `7 days`), so it is
+ * one habit with one distinct-patient count and not two. A cell with no Bangla
+ * in it is untouched, which is why no English habit's signature moved.
+ *
+ * The pad canonicalises dose/food/duration on blur (`parseDose` / `parseFood` /
+ * `parseDuration`), so `101` arrives as `1+0+1`; in the rare case a value
+ * reaches the server unblurred it simply forms its own habit row, which the
+ * doctor can hide. Do NOT re-implement those parsers here — two copies of
+ * clinical shorthand parsing that can drift is a worse hazard than a stray
+ * low-count row. The Bangla table is a different thing: a fixed list of
+ * phrases, not a parser, pinned against its client copy by a shared literal
+ * table (`normalise.spec.ts` ⇄ `client/src/lib/rxLanguage.test.ts`).
  */
 export function signatureOf(head: HabitLine, contLines: HabitLine[] = []): string {
   const line = (l: HabitLine) =>
-    [l.dose, l.food, l.duration].map((v) => (v ?? '').trim().toLowerCase()).join(US);
+    [l.dose, l.food, l.duration]
+      .map((v) => cellInEnglish(v ?? '').trim().toLowerCase())
+      .join(US);
   return [line(head), ...contLines.map(line)].join(RS);
 }
 

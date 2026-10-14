@@ -89,6 +89,47 @@ describe("rxCellIn — what it does not touch", () => {
   });
 });
 
+// ⚕️ THE SERVER'S COPY MUST AGREE. `server/src/rx-habits/rxLanguage.ts` reads a
+// Bangla cell as its English so that BAN and EN prescriptions are ONE habit in
+// "Your usual" (`signatureOf`). This table is duplicated VERBATIM in
+// `server/src/rx-habits/normalise.spec.ts`, which runs the server's copy. Edit
+// one and the other goes red; change an expectation only on the physician's say.
+const SERVER_MIRROR: [string, string][] = [
+  ["খাবারের আগে", "Before meal"],
+  ["খাবারের পরে", "After meal"],
+  ["খাবারের সাথে", "With food"],
+  ["খাবারের ২ ঘণ্টা আগে", "2 hr before meal"],
+  ["খাবারের ২ ঘণ্টা পরে", "2 hr after meal"],
+  ["খাবারের ২ ঘণ্টা আগে বা পরে", "2 hr before or after meal"],
+  ["খাবারের ১.৫ ঘণ্টা আগে", "1.5 hr before meal"],
+  ["চলবে", "Continue"],
+  ["৭ দিন", "7 days"],
+  ["১ দিন", "1 days"],
+  ["২ সপ্তাহ", "2 week"],
+  ["২ মাস", "2 month"],
+  ["রাতে", "at night"],
+  ["১+০+১", "1+0+1"],
+  ["১/২+০+১/২", "1/2+0+1/2"],
+  ["০.৫", "0.5"],
+  ["১ + ০ + ১", "1 + 0 + 1"],
+  ["৭ days", "7 days"],
+  // Not in the table: left exactly as written. English cells: never rewritten.
+  ["২.৫ মিলি", "২.৫ মিলি"],
+  ["খাবারের পর", "খাবারের পর"],
+  ["নিজে লেখা", "নিজে লেখা"],
+  ["After food", "After food"],
+  ["7 Days", "7 Days"],
+  ["after meal", "after meal"],
+  ["1-0-1", "1-0-1"],
+  ["", ""],
+];
+
+describe("rxCellIn — the server's copy must agree (BAN and EN are one habit)", () => {
+  it.each(SERVER_MIRROR)("%j → %j", (input, english) => {
+    expect(rxCellIn(input, "en")).toBe(english);
+  });
+});
+
 const item = (over: Partial<RxItem>): RxItem => ({ drug: "Tablet. Napa 500 mg", dose: "", instruction: "", duration: "", ...over });
 
 describe("rxItemsIn", () => {

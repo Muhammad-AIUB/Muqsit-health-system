@@ -1,4 +1,5 @@
 import { normaliseDrugKey, searchKeyOf, signatureOf, ALGO_VERSION } from './normalise';
+import { cellInEnglish } from './rxLanguage';
 
 // ⚕️ These are CLINICAL assertions, not string-formatting ones. A failure here
 // means two medicines that must stay apart have been folded into one habit — a
@@ -171,6 +172,115 @@ describe('signatureOf', () => {
   });
 });
 
+describe('signatureOf — a Bangla cell is the same instruction as its English', () => {
+  const line = (dose: string, food: string, duration: string) => ({ dose, food, duration });
+  const US = '\u001F';
+
+  it('BAN and EN of the same instruction are ONE signature', () => {
+    expect(signatureOf(line('১+০+১', 'খাবারের আগে', '৭ দিন'))).toBe(
+      signatureOf(line('1+0+1', 'Before meal', '7 days')),
+    );
+    expect(signatureOf(line('০+০+১', 'রাতে', '২ সপ্তাহ'))).toBe(
+      signatureOf(line('0+0+1', 'at night', '2 week')),
+    );
+  });
+
+  it('…tapering lines included, in the same order', () => {
+    const bn = signatureOf(line('০+০+৩', 'খাবারের পরে', '১ মাস'), [line('০+০+১', '', 'চলবে')]);
+    const en = signatureOf(line('0+0+3', 'After meal', '1 month'), [line('0+0+1', '', 'Continue')]);
+    expect(bn).toBe(en);
+  });
+
+  it('⚕️ an English habit keeps exactly the signature it always had', () => {
+    // No Bangla in the cells → untouched, so no learned row moved with ALGO_VERSION 2.
+    expect(signatureOf(line('1+0+1', 'After meal', '7 days'))).toBe(
+      ['1+0+1', 'after meal', '7 days'].join(US),
+    );
+    expect(signatureOf(line(' 1+1+1 ', 'After Meal', '7 Days'))).toBe(
+      ['1+1+1', 'after meal', '7 days'].join(US),
+    );
+  });
+
+  describe('⚕️ and still apart where the instruction is different', () => {
+    it('before a meal is not after a meal', () => {
+      expect(signatureOf(line('১+০+১', 'খাবারের আগে', '৭ দিন'))).not.toBe(
+        signatureOf(line('১+০+১', 'খাবারের পরে', '৭ দিন')),
+      );
+    });
+
+    it('days are not weeks', () => {
+      expect(signatureOf(line('১+০+১', '', '৭ দিন'))).not.toBe(
+        signatureOf(line('১+০+১', '', '৭ সপ্তাহ')),
+      );
+    });
+
+    it('0.5 is not 5 — a decimal point is never dropped', () => {
+      expect(signatureOf(line('০.৫', '', ''))).not.toBe(signatureOf(line('৫', '', '')));
+      expect(signatureOf(line('০.৫', '', ''))).toBe(signatureOf(line('0.5', '', '')));
+    });
+
+    it('a 3→1 taper is not a 1→3 taper in Bangla either', () => {
+      const down = signatureOf(line('০+০+৩', '', '১ মাস'), [line('০+০+১', '', 'চলবে')]);
+      const up = signatureOf(line('০+০+১', '', '১ মাস'), [line('০+০+৩', '', 'চলবে')]);
+      expect(down).not.toBe(up);
+    });
+
+    it('text the table does not cover is its own instruction', () => {
+      expect(signatureOf(line('', 'খাবারের পর', ''))).not.toBe(
+        signatureOf(line('', 'After meal', '')),
+      );
+      expect(signatureOf(line('২.৫ মিলি', '', ''))).not.toBe(
+        signatureOf(line('2.5 ml', '', '')),
+      );
+    });
+  });
+});
+
+describe('cellInEnglish — the client copy must agree', () => {
+  // ⚕️ This table is duplicated VERBATIM in client/src/lib/rxLanguage.test.ts
+  // ("the server's copy must agree"), which runs the client's copy of this
+  // function (`rxCellIn(text, "en")`). If either copy is edited alone, one of
+  // the two suites goes red. The words are the physician's (2026-10-14).
+  const cases: Array<[string, string]> = [
+    ['খাবারের আগে', 'Before meal'],
+    ['খাবারের পরে', 'After meal'],
+    ['খাবারের সাথে', 'With food'],
+    ['খাবারের ২ ঘণ্টা আগে', '2 hr before meal'],
+    ['খাবারের ২ ঘণ্টা পরে', '2 hr after meal'],
+    ['খাবারের ২ ঘণ্টা আগে বা পরে', '2 hr before or after meal'],
+    ['খাবারের ১.৫ ঘণ্টা আগে', '1.5 hr before meal'],
+    ['চলবে', 'Continue'],
+    ['৭ দিন', '7 days'],
+    ['১ দিন', '1 days'],
+    ['২ সপ্তাহ', '2 week'],
+    ['২ মাস', '2 month'],
+    ['রাতে', 'at night'],
+    ['১+০+১', '1+0+1'],
+    ['১/২+০+১/২', '1/2+0+1/2'],
+    ['০.৫', '0.5'],
+    ['১ + ০ + ১', '1 + 0 + 1'],
+    ['৭ days', '7 days'],
+    // Not in the table: left exactly as written. English cells: never rewritten.
+    ['২.৫ মিলি', '২.৫ মিলি'],
+    ['খাবারের পর', 'খাবারের পর'],
+    ['নিজে লেখা', 'নিজে লেখা'],
+    ['After food', 'After food'],
+    ['7 Days', '7 Days'],
+    ['after meal', 'after meal'],
+    ['1-0-1', '1-0-1'],
+    ['', ''],
+  ];
+
+  it.each(cases)('%j → %j', (input, expected) => {
+    expect(cellInEnglish(input)).toBe(expected);
+  });
+
+  it('is safe on a missing value', () => {
+    expect(cellInEnglish(undefined)).toBe('');
+    expect(cellInEnglish(null)).toBe('');
+  });
+});
+
 describe('normaliseDrugKey — the client mirror must agree', () => {
   // ⚕️ This table is duplicated VERBATIM in
   // client/src/lib/rxHabitKey.test.ts, which runs the client's copy of this
@@ -211,5 +321,10 @@ describe('ALGO_VERSION', () => {
   it('is an integer that rows are stamped with', () => {
     expect(Number.isInteger(ALGO_VERSION)).toBe(true);
     expect(ALGO_VERSION).toBeGreaterThanOrEqual(1);
+  });
+
+  it('is at least 2 — the version that reads a Bangla cell as its English', () => {
+    // A row stamped 1 was built without reading Bangla and is due a rebuild.
+    expect(ALGO_VERSION).toBeGreaterThanOrEqual(2);
   });
 });
