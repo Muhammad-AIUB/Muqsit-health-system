@@ -6,6 +6,8 @@ import { shadowCard, shadowMenu } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput";
 import { savedKbdLang, setKbdLang, useKbdLang, type KbdLang } from "@/lib/kbdLang";
+import { rxItemsIn } from "@/lib/rxLanguage";
+import { useMuqsit } from "@/context/MuqsitContext";
 
 // BAN / EN — the header switch and the keyboard handler behind it
 // (physician's decision, 2026-09-23). The conversion rules and why they never
@@ -24,17 +26,28 @@ export { setKbdLang, type KbdLang } from "@/lib/kbdLang";
 // ── Header switch ─────────────────────────────────────────────
 export function LanguageToggle() {
   const { user } = useAuth();
+  const { setRxItems } = useMuqsit();
   const lang = useKbdLang();
 
-  // Restore this user's last choice; anything unreadable is English.
+  // Restore this user's last choice; anything unreadable is English. Only the
+  // MODE is restored — the pad is converted by a press, never by a page load.
   useEffect(() => { setKbdLang(savedKbdLang(user?.id)); }, [user?.id]);
+
+  // ⚕️ A press writes the ℞ pad's dose / food / duration in that language
+  // (physician's decision, 2026-10-14): Bangla for BAN, English for EN, by the
+  // physician's own table (`lib/rxLanguage.ts`). Only on THIS device's press —
+  // a pad arriving from a mirrored device is left as that device wrote it.
+  const choose = (value: KbdLang) => {
+    setKbdLang(value, user?.id);
+    setRxItems((prev) => rxItemsIn(prev, value));
+  };
 
   const opt = (value: KbdLang, label: string, title: string) => {
     const active = lang === value;
     return (
       <button
         type="button"
-        onClick={() => setKbdLang(value, user?.id)}
+        onClick={() => choose(value)}
         aria-pressed={active}
         title={title}
         style={{
@@ -51,7 +64,7 @@ export function LanguageToggle() {
 
   return (
     <div role="group" aria-label="Typing language" style={{ display: "flex", gap: 2, padding: 2, borderRadius: 8, background: C.n[100], flexShrink: 0 }}>
-      {opt("bn", "BAN", "Type Bangla phonetically (Avro style: ami → আমি) in Chief complaints, Previous complaints, Note, Plan, Advice and the ℞ dose / food / duration")}
+      {opt("bn", "BAN", "Type Bangla phonetically (Avro style: ami → আমি) in Chief complaints, Previous complaints, Note, Plan, Advice and the ℞ dose / food / duration — and write the ℞ dose / food / duration in Bangla")}
       {opt("en", "EN", "Type English")}
     </div>
   );

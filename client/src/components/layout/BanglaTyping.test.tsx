@@ -8,10 +8,12 @@
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { BanglaTyping, setKbdLang } from "./BanglaTyping";
+import { BanglaTyping, LanguageToggle, setKbdLang } from "./BanglaTyping";
 import ExpandableField from "@/components/common/ExpandableField";
 import { BANGLA_ATTR, BANGLA_FIELDS } from "@/lib/banglaInput";
+import type { RxItem } from "@/types";
 
+const setRxItems = vi.hoisted(() => vi.fn());
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("@/hooks/useFieldRecents", () => ({
   useFieldRecents: () => ({ getRecents: () => [], addRecents: vi.fn() }),
@@ -20,12 +22,38 @@ vi.mock("@/hooks/useDoctorPhrases", () => ({
   useDoctorPhrases: () => ({ phrases: [], refresh: vi.fn() }),
 }));
 vi.mock("@/context/MuqsitContext", () => ({
-  useMuqsit: () => ({ canEditLabel: () => true, can: () => true }),
+  useMuqsit: () => ({ canEditLabel: () => true, can: () => true, setRxItems }),
 }));
 
 afterEach(() => {
   cleanup();
+  setRxItems.mockClear();
+  try { window.localStorage.removeItem("mhs_kbd_lang:u1"); } catch { /* none */ }
   act(() => setKbdLang("en"));
+});
+
+// ⚕️ BAN writes the ℞ pad's dose / food / duration in Bangla, EN writes them
+// back (physician's decision, 2026-10-14). The wording is pinned in
+// lib/rxLanguage.test.ts; this pins that pressing the switch is what does it.
+describe("LanguageToggle — the switch writes the ℞ columns in its language", () => {
+  const pad: RxItem[] = [{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "Before meal", duration: "7 days" }];
+  const lastUpdate = () => setRxItems.mock.calls.at(-1)![0] as (p: RxItem[]) => RxItem[];
+
+  it("BAN turns them Bangla, and EN turns them back", () => {
+    render(<LanguageToggle />);
+    fireEvent.click(screen.getByText("BAN"));
+    const bn = lastUpdate()(pad);
+    expect(bn[0]).toEqual({ drug: "Tablet. Napa 500 mg", dose: "১+০+১", instruction: "খাবারের আগে", duration: "৭ দিন" });
+    fireEvent.click(screen.getByText("EN"));
+    expect(lastUpdate()(bn)[0]).toEqual(pad[0]);
+  });
+
+  it("restoring a remembered BAN does not touch the pad — only a press does", () => {
+    window.localStorage.setItem("mhs_kbd_lang:u1", "bn");
+    render(<LanguageToggle />);
+    expect(screen.getByText("BAN").getAttribute("aria-pressed")).toBe("true");
+    expect(setRxItems).not.toHaveBeenCalled();
+  });
 });
 
 // A controlled box, the way every field in the app holds its text.
