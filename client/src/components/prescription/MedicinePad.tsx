@@ -11,6 +11,8 @@ import { lastUsedLabel } from "@/lib/lastUsed";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
+import { useKbdLang } from "@/lib/kbdLang";
+import { habitIn, rxCellIn } from "@/lib/rxLanguage";
 import { blockOf, canMove, moveBlock } from "@/lib/rxRowMove";
 import { rxHabitsApi, type RxHabitGroup, type RxHabitItem } from "@/lib/api";
 import {
@@ -363,6 +365,11 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     };
   }, [acRow, rows]);
   const { results: acItems } = useMedicineSearch(acQuery);
+  // ⚕️ BAN writes the dose / food / duration in Bangla (physician's decision,
+  // 2026-10-14) on the OPD pad only (`bangla`). A typed cell is written when it
+  // is committed — the moment its shorthand is expanded — never mid-typing.
+  const lang = useKbdLang();
+  const commit = (s: string) => (bangla && lang === "bn" ? rxCellIn(s, "bn") : s);
   // Learned lines wait for 3 letters (lib/rxSuggest.ts); the medicine list above does not.
   const { groups: habitGroups, refresh: refreshHabits } = useRxHabits(showHabits && rxSuggestReady(acQuery) ? acQuery : "");
   // ⚕️ Free-typed NOTE lines this doctor has written before ("Insulin as
@@ -415,7 +422,9 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     // as a fallback for a response that predates the field.
     const generic =
       safeHabitText(groupGeneric) || resolveGeneric(safeHabitText(habit?.drugLabel), acItems);
-    setRows((prev) => insertHabitRows(prev, idx, habit, generic));
+    // A learned line lands in the pad's current language, whichever language
+    // it was learned in (OPD only).
+    setRows((prev) => insertHabitRows(prev, idx, bangla ? habitIn(habit, lang) : habit, generic));
     setAcRow(null);
     setShowHiddenFor(null);
     const next = focusIndexAfterInsert(idx, habit);
@@ -816,8 +825,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     refCb={(el) => { doseRefs.current[idx] = el; }}
                     value={row.dose}
                     onChange={(v) => updateRow(idx, { dose: v })}
-                    onBlur={() => updateRow(idx, { dose: parseDose(row.dose) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: parseDose(row.dose) }); foodRefs.current[idx]?.focus(); } }}
+                    onBlur={() => updateRow(idx, { dose: commit(parseDose(row.dose)) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: commit(parseDose(row.dose)) }); foodRefs.current[idx]?.focus(); } }}
                     placeholder="dose"
                     bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.dose.length)} 1 0`, minWidth: 52 }}
@@ -826,8 +835,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     refCb={(el) => { foodRefs.current[idx] = el; }}
                     value={row.food}
                     onChange={(v) => updateRow(idx, { food: v })}
-                    onBlur={() => updateRow(idx, { food: parseFood(row.food) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: parseFood(row.food) }); durRefs.current[idx]?.focus(); } }}
+                    onBlur={() => updateRow(idx, { food: commit(parseFood(row.food)) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: commit(parseFood(row.food)) }); durRefs.current[idx]?.focus(); } }}
                     placeholder="food"
                     bangla={bangla}
                     title={FOOD_HINT}
@@ -837,8 +846,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                     refCb={(el) => { durRefs.current[idx] = el; }}
                     value={row.duration}
                     onChange={(v) => updateRow(idx, { duration: v })}
-                    onBlur={() => updateRow(idx, { duration: parseDuration(row.duration) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: parseDuration(row.duration) }); drugRefs.current[idx + 1]?.focus(); } }}
+                    onBlur={() => updateRow(idx, { duration: commit(parseDuration(row.duration)) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: commit(parseDuration(row.duration)) }); drugRefs.current[idx + 1]?.focus(); } }}
                     placeholder="duration"
                     bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.duration.length)} 1 0`, minWidth: 52 }}

@@ -15,9 +15,10 @@
 // "Move to Rx", which write to the ℞ pad and never to the history.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import DrugHistoryField from "./DrugHistoryField";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
+import { setKbdLang } from "@/lib/kbdLang";
 import type { RxItem } from "@/types";
 
 const setRxItems = vi.fn();
@@ -41,7 +42,7 @@ vi.mock("@/hooks/useMedicineSearch", () => ({
   useMedicineSearch: () => ({ results: [], isLoading: false }),
 }));
 
-afterEach(() => { cleanup(); setRxItems.mockClear(); addDrugHistoryEntry.mockReset(); padItems = []; mayWriteRx = true; });
+afterEach(() => { cleanup(); setRxItems.mockClear(); addDrugHistoryEntry.mockReset(); padItems = []; mayWriteRx = true; act(() => setKbdLang("en")); });
 
 /** The array `setRxItems` would have produced, given the pad it was called on. */
 const appended = (prev: RxItem[] = padItems): RxItem[] => {
@@ -386,5 +387,34 @@ describe("+ Add medicine — a new line, never a correction", () => {
     pressAdd();
     expect(addDrugHistoryEntry).not.toHaveBeenCalled();
     expect(screen.getByText("Already in Current medications")).toBeTruthy();
+  });
+});
+
+// ⚕️ BAN writes the ℞ pad's dose / food / duration in Bangla (physician's
+// decision, 2026-10-14) — a line moved from the history lands that way too.
+describe("Move to Rx in BAN", () => {
+  it("writes the moved line in Bangla, the record left as it was", () => {
+    render(<DrugHistoryField items={PAST} />);
+    openModal();
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    act(() => setKbdLang("bn"));
+    fireEvent.click(screen.getByLabelText("Select Metformin 500mg"));
+    fireEvent.click(screen.getByText(/^Move to Rx/));
+    // "after food" is not in the physician's table, so it stays as recorded.
+    expect(appended([])).toEqual([
+      { drug: "Metformin 500mg", dose: "১+০+১", instruction: "after food", duration: "১ মাস", isCont: false },
+    ]);
+  });
+
+  it("does not write the line twice when the pad already holds it in Bangla", () => {
+    padItems = [{ drug: "Metformin 500mg", dose: "১+০+১", instruction: "after food", duration: "১ মাস" }];
+    render(<DrugHistoryField items={PAST} />);
+    openModal();
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    act(() => setKbdLang("bn"));
+    fireEvent.click(screen.getByLabelText("Select Metformin 500mg"));
+    fireEvent.click(screen.getByText(/^Move to Rx/));
+    // One line — "already on ℞" reads the two languages as one instruction.
+    expect(screen.getByText("0 added · 1 already on ℞")).toBeTruthy();
   });
 });

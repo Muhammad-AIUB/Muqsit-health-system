@@ -10,6 +10,8 @@ import InvestigationGroups from "@/components/investigation/InvestigationGroups"
 import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { rowsFromRxItems as fromRxItems, rxItemsFromRows as toRxItems } from "@/lib/rxRows";
+import { useKbdLang } from "@/lib/kbdLang";
+import { rxItemsIn } from "@/lib/rxLanguage";
 import { useTemplates } from "@/hooks/useTemplates";
 import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
 import BulkMedicineButton from "@/components/prescription/BulkMedicineButton";
@@ -48,10 +50,14 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   const { data: allTemplates = [] } = useTemplates("opd");
   const shownTemplates = allTemplates.filter((t) => t.name.toLowerCase().includes(tplSearch.trim().toLowerCase()));
 
+  // Lines added from a template or the bulk box land in the pad's current
+  // language — BAN writes the dose / food / duration in Bangla (2026-10-14).
+  const lang = useKbdLang();
+
   // Clicking a template ADDS its medicines to the current prescription.
   const addTemplate = (items: RxItem[]) => {
     if (!items.length) return;
-    setRxItems((prev) => [...prev, ...items.map((it) => ({ ...it }))]);
+    setRxItems((prev) => [...prev, ...rxItemsIn(items.map((it) => ({ ...it })), lang)]);
   };
 
   // "Add Bulk Medicine" appends after the pad's last line, and the pad shows
@@ -140,7 +146,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           existing={rxItems}
           onAppend={(items) => {
             setAdded({ first: rxItems.length, last: rxItems.length + items.length - 1, from: rows });
-            setRxItems((prev) => [...prev, ...items]);
+            setRxItems((prev) => [...prev, ...rxItemsIn(items, lang)]);
           }}
         />
       </div>

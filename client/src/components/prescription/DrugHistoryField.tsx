@@ -10,6 +10,8 @@ import { NO_DATE as PAST_MARKER, buildDrugHistoryEntry, type DrugHistoryAddInput
 import HideToggle from "@/components/common/HideToggle";
 import { useDialog } from "@/lib/useDialog";
 import AddMedicineRow from "./AddMedicineRow";
+import { useKbdLang } from "@/lib/kbdLang";
+import { rxItemsIn } from "@/lib/rxLanguage";
 
 // ── Date-stamped drug history ───────────────────────────────
 // One list, each entry stamped with the visit date it was added on:
@@ -87,6 +89,7 @@ interface Props {
 
 export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
   const { setRxItems, rxItems, ptDate, can, addDrugHistoryEntry } = useMuqsit();
+  const lang = useKbdLang();
   const cd = isoToDdmmyyyy(ptDate); // current visit date, dd/mm/yyyy
   // ⚕️ The ℞ pad's own key. Without it the pad is locked in RightColumn, so the
   // ticks and the Move button must not offer a way around that lock.
@@ -170,7 +173,9 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
     const { added, skipped } = appendBlocks(chosen, rxItems);
     setRxItems((prev) => {
       const r = appendBlocks(chosen, prev);
-      return r.items.length ? [...prev, ...r.items] : prev;
+      // In the pad's current language: BAN writes the dose / food / duration
+      // in Bangla (2026-10-14), whichever language the history recorded.
+      return r.items.length ? [...prev, ...rxItemsIn(r.items, lang)] : prev;
     });
     setSel(new Set());
     setRxMsg(moveSummary(added, skipped));
