@@ -883,3 +883,28 @@ git commit -m "fix(rx): address browser-verification findings for Add medicine"
 ```
 
 If Step 3 found nothing to fix, no commit is needed here — Tasks 1–5 already carry everything.
+
+---
+
+**As built, 2026-10-14 (Step 3 found something).** The first browser pass surfaced
+a real, pre-existing data-loss hazard the plan did not anticipate: the
+background `patientsApi.get(pid)` fetch beside the ℞ → Drug history mirror
+(`MuqsitContext.tsx`) overwrote `drugHistory` with `p.drugHistory` outright on
+arrival. That was safe for every writer that existed before this feature —
+each was either that same fetch's own last answer, or the ℞ mirror, which
+re-derives itself from `rxItems` the moment it is disturbed. A line from
+"+ Add medicine", or one an `incompleteRx` draft had just restored on reload,
+is neither, and this fetch is slow enough on a brand-new or just-edited
+patient to land after either has happened: a Distant-past addition vanished
+on the very next reload. Fixed by merging the fetch's answer against live
+state (`setDrugHistory((liveNow) => [...fromRecord, ...liveNow.filter((e) =>
+!fromRecord.includes(e))])`) instead of overwriting — the record's own order
+first, anything live beyond it appended, nothing duplicated once the record
+catches up. This is a strictly more general fix than tracking "+ Add
+medicine"'s own writes alone (the first attempt, since reverted): merging
+against live state protects the draft-restore path too, with no separate
+tracking ref needed. Pinned in `MuqsitContext.test.tsx`, three cases: the
+live-add race, the draft-restore race, and no duplicate once the record has
+caught up. `client/CLAUDE.md` and the root `CLAUDE.md`'s "Patterns We Do Not
+Use" both carry the lesson. Verified by two consecutive reloads in the
+sandbox after the fix, not one.

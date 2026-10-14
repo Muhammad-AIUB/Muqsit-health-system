@@ -86,7 +86,7 @@ interface Props {
 }
 
 export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
-  const { setRxItems, rxItems, ptDate, can, setDrugHistory } = useMuqsit();
+  const { setRxItems, rxItems, ptDate, can, addDrugHistoryEntry } = useMuqsit();
   const cd = isoToDdmmyyyy(ptDate); // current visit date, dd/mm/yyyy
   // ⚕️ The ℞ pad's own key. Without it the pad is locked in RightColumn, so the
   // ticks and the Move button must not offer a way around that lock.
@@ -116,9 +116,9 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
   const pastMedEntries = pastParsed.filter((p) => p.kind === "med").map(toAddInput);
 
   const addCurrentMedicine = (input: DrugHistoryAddInput) =>
-    setDrugHistory((prev) => [...prev, buildDrugHistoryEntry(cd, input)]);
+    addDrugHistoryEntry(buildDrugHistoryEntry(cd, input));
   const addPastMedicine = (input: DrugHistoryAddInput) =>
-    setDrugHistory((prev) => [...prev, buildDrugHistoryEntry(PAST_MARKER, input)]);
+    addDrugHistoryEntry(buildDrugHistoryEntry(PAST_MARKER, input));
   const pastGroups = (() => {
     const map = new Map<string, Parsed[]>();
     for (const p of pastParsed) { const a = map.get(p.date); if (a) a.push(p); else map.set(p.date, [p]); }

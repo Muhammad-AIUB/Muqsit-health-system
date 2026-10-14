@@ -612,8 +612,19 @@ function useMuqsitStore() {
           setFamilyMembers((p.familyMembers as FamilyMember[]) ?? []);
           setInvestigationSummary((p.investigationSummary as InvFinding[]) ?? []);
           setOnExaminationSummary((p.onExaminationSummary as OeFinding[]) ?? []);
-          setDrugHistory((p.drugHistory as string[]) ?? []);
-          drugHistoryBaselineRef.current = (p.drugHistory as string[]) ?? [];
+          // ⚕️ Merge, never overwrite: anything already live in the editor —
+          // restored from a draft by `applyEditorSnapshot`, or just typed
+          // through "+ Add medicine" — is not yet in `p.drugHistory` while
+          // this fetch is in flight, and nothing else ever reconstructs it
+          // (unlike an ℞-mirrored entry, which the mirror effect re-derives
+          // from `rxItems` on its own). The record's own order comes first;
+          // whatever the live list carries beyond it is appended, never
+          // dropped. The functional updater reads state at the moment this
+          // resolves — not a value closed over when the fetch was issued —
+          // so it is correct whether the extra line arrived before or after.
+          const fromRecord = (p.drugHistory as string[]) ?? [];
+          setDrugHistory((liveNow) => [...fromRecord, ...liveNow.filter((e) => !fromRecord.includes(e))]);
+          drugHistoryBaselineRef.current = fromRecord;
           drugHistoryHydratedRef.current = pid;
           recordHydratedRef.current = pid;
         }
@@ -1092,6 +1103,13 @@ function useMuqsitStore() {
     if (!sameEntries(merged, drugHistory)) setDrugHistory(merged);
   }, [rxItems, ptDate, currentPatientId, drugHistory]);
 
+  // ⚕️ "+ Add medicine" (Drug history, 2026-10-14). A plain append — the
+  // background patient fetch above is what protects it from being lost to a
+  // slow network response (it merges against live state, never overwrites).
+  const addDrugHistoryEntry = useCallback((entry: string) => {
+    setDrugHistory((prev) => [...prev, entry]);
+  }, []);
+
   // ⚕️ Special advice mirror (℞ pad •••, physician's design 2026-09-24). While a
   // medicine with saved advice is on the pad, its ticked lines sit in Advice;
   // they leave when the medicine or the tick does. Rules (lib/rxDrugAdvice.ts):
@@ -1544,7 +1562,7 @@ function useMuqsitStore() {
     history, setHistory, investigation, setInvestigation,
     hiddenInvestigation, setHiddenInvestigation,
     hideDrugHistory, setHideDrugHistory,
-    drugHistory, setDrugHistory, onExamination, setOnExamination, note, setNote, plan, setPlan,
+    drugHistory, setDrugHistory, addDrugHistoryEntry, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,
     rxItems, setRxItems, advice, setAdvice, adviceTest, setAdviceTest,

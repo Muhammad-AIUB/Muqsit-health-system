@@ -94,6 +94,64 @@ describe("opening a patient with stored medication (E5)", () => {
   });
 });
 
+// ⚕️ Regression, 2026-10-14 — found in the browser pass of the "Add medicine"
+// (Drug history) feature: a line added through `addDrugHistoryEntry` (the
+// "+ Add medicine" row), or already restored from an `incompleteRx` draft,
+// on a patient whose background `patientsApi.get` was still in flight was
+// silently wiped the instant that fetch landed, because its handler used to
+// overwrite `drugHistory` with `p.drugHistory` outright. Nothing reconstructs
+// such a line afterward — unlike an ℞-mirrored entry, which the mirror effect
+// re-derives from `rxItems` on its own. Fixed by merging the fetch's answer
+// against whatever is LIVE at the moment it resolves, whichever of the two
+// paths put it there, rather than tracking one path specifically.
+describe("a manually added Drug-history line survives a slow patient fetch", () => {
+  it("is merged into the record's own list, not overwritten by it", async () => {
+    const { result } = await setup();
+    let resolveFetch!: (p: Patient) => void;
+    api.patientGet.mockImplementation(() => new Promise<Patient>((resolve) => { resolveFetch = resolve; }));
+    act(() => result.current.loadPatient(patient({ drugHistory: STORED })));
+    // The fetch is still in flight — add a brand-new line now, exactly as
+    // "+ Add medicine" does.
+    const added = "01/01/2000: Tablet. Barcavir 0.5 mg —  —  — ";
+    act(() => result.current.addDrugHistoryEntry(added));
+    // The fetch now lands, with the record's own (older) drugHistory — it
+    // must not discard the line just added while it was in flight.
+    await act(async () => { resolveFetch(patient({ drugHistory: STORED })); await Promise.resolve(); });
+    expect(result.current.drugHistory).toEqual([...STORED, added]);
+  });
+
+  it("does not duplicate the line once the fetch's own record has caught up with it", async () => {
+    const { result } = await setup();
+    let resolveFetch!: (p: Patient) => void;
+    api.patientGet.mockImplementation(() => new Promise<Patient>((resolve) => { resolveFetch = resolve; }));
+    act(() => result.current.loadPatient(patient({ drugHistory: STORED })));
+    const added = "01/01/2000: Tablet. Barcavir 0.5 mg —  —  — ";
+    act(() => result.current.addDrugHistoryEntry(added));
+    // This time the save beat the fetch: the record itself already carries it.
+    await act(async () => { resolveFetch(patient({ drugHistory: [...STORED, added] })); await Promise.resolve(); });
+    expect(result.current.drugHistory).toEqual([...STORED, added]);
+  });
+
+  // The exact shape of the browser-caught bug: a reload restores the line
+  // from the parked draft (`applyEditorSnapshot`, inside `loadPatient`)
+  // synchronously, well before the background record fetch — which still
+  // holds the pre-save, older history — resolves.
+  it("preserves a line already restored from an incomplete-prescription draft", async () => {
+    const { result } = await setup();
+    let resolveFetch!: (p: Patient) => void;
+    api.patientGet.mockImplementation(() => new Promise<Patient>((resolve) => { resolveFetch = resolve; }));
+    const added = "01/01/2000: Tablet. Barcavir 0.5 mg —  —  — ";
+    act(() => result.current.loadPatient(patient({
+      drugHistory: STORED, // the bare record's own, not-yet-caught-up copy
+      incompleteRx: { drugHistory: [...STORED, added] },
+    })));
+    // Restored synchronously from the draft — before the fetch resolves at all.
+    expect(result.current.drugHistory).toEqual([...STORED, added]);
+    await act(async () => { resolveFetch(patient({ drugHistory: STORED })); await Promise.resolve(); });
+    expect(result.current.drugHistory).toEqual([...STORED, added]);
+  });
+});
+
 describe("re-opening the patient already loaded (E4)", () => {
   it("re-hydrates their drug history instead of leaving it blank", async () => {
     const { result } = await setup();

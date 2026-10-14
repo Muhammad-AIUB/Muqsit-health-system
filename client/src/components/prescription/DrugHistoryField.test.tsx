@@ -21,7 +21,7 @@ import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import type { RxItem } from "@/types";
 
 const setRxItems = vi.fn();
-const setDrugHistory = vi.fn();
+const addDrugHistoryEntry = vi.fn();
 // What the ℞ pad is holding, and whether this user may write to it. Both are
 // read at render time, so a test sets them before it opens the modal.
 let padItems: RxItem[] = [];
@@ -32,7 +32,7 @@ vi.mock("@/context/MuqsitContext", () => ({
     get rxItems() { return padItems; },
     ptDate: "2026-09-07",
     can: (key: string) => (key === "rx.medicines" ? mayWriteRx : true),
-    setDrugHistory,
+    addDrugHistoryEntry,
   }),
 }));
 // "+ Add medicine" searches the real medicines catalogue; no test in this
@@ -41,7 +41,7 @@ vi.mock("@/hooks/useMedicineSearch", () => ({
   useMedicineSearch: () => ({ results: [], isLoading: false }),
 }));
 
-afterEach(() => { cleanup(); setRxItems.mockClear(); setDrugHistory.mockReset(); padItems = []; mayWriteRx = true; });
+afterEach(() => { cleanup(); setRxItems.mockClear(); addDrugHistoryEntry.mockReset(); padItems = []; mayWriteRx = true; });
 
 /** The array `setRxItems` would have produced, given the pad it was called on. */
 const appended = (prev: RxItem[] = padItems): RxItem[] => {
@@ -347,9 +347,8 @@ describe("+ Add medicine — a new line, never a correction", () => {
     openAddRow();
     fillName("Tablet. Napa 500 mg");
     pressAdd();
-    expect(setDrugHistory).toHaveBeenCalledTimes(1);
-    const next = (setDrugHistory.mock.calls[0][0] as (p: string[]) => string[])(PAST);
-    expect(next).toEqual([...PAST, "07/09/2026: Tablet. Napa 500 mg —  —  — "]);
+    expect(addDrugHistoryEntry).toHaveBeenCalledTimes(1);
+    expect(addDrugHistoryEntry).toHaveBeenCalledWith("07/09/2026: Tablet. Napa 500 mg —  —  — ");
   });
 
   it("stamps a Distant-past addition with no date", () => {
@@ -358,13 +357,12 @@ describe("+ Add medicine — a new line, never a correction", () => {
     openAddRow();
     fillName("Tablet. Napa 500 mg");
     pressAdd();
-    const next = (setDrugHistory.mock.calls[0][0] as (p: string[]) => string[])(PAST);
-    expect(next).toEqual([...PAST, "01/01/2000: Tablet. Napa 500 mg —  —  — "]);
+    expect(addDrugHistoryEntry).toHaveBeenCalledWith("01/01/2000: Tablet. Napa 500 mg —  —  — ");
   });
 
   it("shows the newly added line immediately, in the right tab", () => {
     let items = [...PAST];
-    setDrugHistory.mockImplementation((updater: (p: string[]) => string[]) => { items = updater(items); });
+    addDrugHistoryEntry.mockImplementation((entry: string) => { items = [...items, entry]; });
     const { rerender } = render(<DrugHistoryField items={items} />);
     openModal();
     openAddRow();
@@ -386,7 +384,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
     fireEvent.change(screen.getByLabelText("Food"), { target: { value: "After meal" } });
     fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "5 days" } });
     pressAdd();
-    expect(setDrugHistory).not.toHaveBeenCalled();
+    expect(addDrugHistoryEntry).not.toHaveBeenCalled();
     expect(screen.getByText("Already in Current medications")).toBeTruthy();
   });
 });
