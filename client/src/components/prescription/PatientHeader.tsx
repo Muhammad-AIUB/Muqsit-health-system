@@ -10,6 +10,7 @@ import MobileLookupField from "./MobileLookupField";
 import MonthlyCost from "./MonthlyCost";
 import Icon from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
+import { photoPlaceholder } from "@/lib/sex";
 
 // The three views of one patient. "Selected" is the brand's selected look on
 // all three — it used to be amber on one and blue on the other two, and amber
@@ -150,7 +151,9 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={ptInfo.picture} alt="Patient" onError={() => setPhotoError(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
-              <Icon name="user" size={mobile ? 20 : 24} style={{ color: C.n[400] }} />
+              // No photo yet: a man's or a woman's picture by the sex recorded,
+              // the plain person when it is Other or not recorded.
+              <Icon name={photoPlaceholder(ptGender)} size={mobile ? 20 : 24} style={{ color: C.n[500] }} />
             )}
           </div>
         </div>

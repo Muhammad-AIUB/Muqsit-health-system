@@ -14,6 +14,10 @@ import type { CSSProperties } from "react";
 // tapering line, ▲ ▼, ✓, ×, ℞. Do not "tidy" those into icons.
 const PATHS = {
   user: ["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"],
+  // A patient with no photo yet (physician's request, 2026-10-15): a collar and
+  // tie for a man, long hair for a woman — read apart at 20px, in both modes.
+  male: ["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M9.5 15l2.5 3 2.5-3", "M12 18v3"],
+  female: ["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z", "M7.6 13.5C7.2 12.4 7 10.9 7 8.5 7 5.5 9.2 3 12 3s5 2.5 5 5.5c0 2.4-.2 3.9-.6 5"],
   userEdit: ["M14 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1", "M8 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z", "M18.4 11.6a1.4 1.4 0 0 1 2 2L16 18l-2.6.6.6-2.6z"],
   userCheck: ["M14 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1", "M8 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z", "M16 11l2 2 4-4"],
   users: ["M15 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1", "M9 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z", "M21 19v-1a4 4 0 0 0-3-3.87", "M15.5 3.13a3.5 3.5 0 0 1 0 6.75"],
@@ -61,7 +65,7 @@ interface IconProps {
 // with NO text must name itself with `aria-label`.
 export default function Icon({ name, size = 16, style }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false" style={{ flexShrink: 0, ...style }}>
+    <svg data-icon={name} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false" style={{ flexShrink: 0, ...style }}>
       {PATHS[name].map((d) => <path key={d} d={d} />)}
     </svg>
   );

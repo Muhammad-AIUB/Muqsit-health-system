@@ -29,6 +29,16 @@ export function normaliseSex(raw: string | null | undefined): Sex | "" {
   return "";
 }
 
+/**
+ * The picture standing in for a patient's photo until one is uploaded
+ * (physician's request, 2026-10-15): a man's for Male, a woman's for Female,
+ * and the plain person for Other or a sex not recorded — never a guess.
+ */
+export function photoPlaceholder(raw: string | null | undefined): "male" | "female" | "user" {
+  const s = normaliseSex(raw);
+  return s === "Male" ? "male" : s === "Female" ? "female" : "user";
+}
+
 // For display where a blank would read as a layout bug rather than "not recorded".
 export function sexLabel(raw: string | null | undefined, fallback = "—"): string {
   return normaliseSex(raw) || fallback;

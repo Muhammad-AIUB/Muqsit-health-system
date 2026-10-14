@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { normaliseSex, sexLabel } from "./sex";
+import { normaliseSex, photoPlaceholder, sexLabel } from "./sex";
+
+// A patient with no photo shows a man's or a woman's picture by the sex
+// recorded (physician's request, 2026-10-15) — and the plain person where the
+// record does not say, never a guess.
+describe("photoPlaceholder", () => {
+  it("a man's picture for Male, in either stored spelling", () => {
+    expect(photoPlaceholder("Male")).toBe("male");
+    expect(photoPlaceholder("M")).toBe("male");
+    expect(photoPlaceholder(" male ")).toBe("male");
+  });
+  it("a woman's picture for Female, in either stored spelling", () => {
+    expect(photoPlaceholder("Female")).toBe("female");
+    expect(photoPlaceholder("f")).toBe("female");
+  });
+  it("the plain person for Other, nothing, or anything unread", () => {
+    for (const s of ["Other", "", null, undefined, "unknown"]) expect(photoPlaceholder(s)).toBe("user");
+  });
+});
 
 // The stored column really does hold both spellings: MuqsitContext writes the
 // full word onto an OPD row from the editor, PatientsView writes the letter.
