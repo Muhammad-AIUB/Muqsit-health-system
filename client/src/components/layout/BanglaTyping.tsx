@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { C, font } from "@/theme";
-import { shadowMenu } from "@/theme/styles";
+import { shadowCard, shadowMenu } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput";
 
@@ -57,11 +57,12 @@ export function LanguageToggle() {
         aria-pressed={active}
         title={title}
         style={{
-          padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontFamily: font,
-          fontSize: 11, fontWeight: active ? 600 : 400, lineHeight: 1.3, whiteSpace: "nowrap",
-          background: active ? C.n[0] : "transparent",
-          color: active ? C.pri[600] : C.n[600],
-          boxShadow: active ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+          padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontFamily: font,
+          fontSize: 11, fontWeight: active ? 700 : 400, lineHeight: 1.3, whiteSpace: "nowrap",
+          background: active ? C.pri[50] : "transparent",
+          color: active ? C.pri[600] : C.n[500],
+          border: active ? `1px solid ${C.pri[400]}` : "1px solid transparent",
+          boxShadow: active ? shadowCard : "none",
         }}
       >{label}</button>
     );
