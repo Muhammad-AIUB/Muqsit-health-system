@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { shadowCard, shadowMenu } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput";
+import { savedKbdLang, setKbdLang, useKbdLang, type KbdLang } from "@/lib/kbdLang";
 
 // BAN / EN — the header switch and the keyboard handler behind it
 // (physician's decision, 2026-09-23). The conversion rules and why they never
@@ -16,25 +17,9 @@ import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput"
 // keeps typing English and says so once — silently typing Bangla into a medicine
 // search or a date would just find nothing.
 
-export type KbdLang = "en" | "bn";
-
-// ── Mode store ────────────────────────────────────────────────
-// Module-level so the switch and the handler share one value without widening
-// MuqsitContext. Remembered per signed-in user on this device, like the IPD
-// view choice: a shared ward PC must not hand the next doctor BAN mode.
-let mode: KbdLang = "en";
-const listeners = new Set<() => void>();
-const storageKey = (userId: string) => `mhs_kbd_lang:${userId}`;
-
-function setMode(next: KbdLang, userId?: string) {
-  mode = next;
-  try { if (userId) window.localStorage.setItem(storageKey(userId), next); } catch { /* private mode */ }
-  listeners.forEach((l) => l());
-}
-/** Exported for tests; the app changes mode only through the header switch. */
-export const setKbdLang = (next: KbdLang) => setMode(next);
-const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
-const useKbdLang = () => useSyncExternalStore(subscribe, () => mode, () => "en" as KbdLang);
+// The mode store lives in `lib/kbdLang.ts` (the ℞ pad reads it too). Re-exported
+// so existing imports keep working; the app changes mode only through the switch.
+export { setKbdLang, type KbdLang } from "@/lib/kbdLang";
 
 // ── Header switch ─────────────────────────────────────────────
 export function LanguageToggle() {
@@ -42,18 +27,14 @@ export function LanguageToggle() {
   const lang = useKbdLang();
 
   // Restore this user's last choice; anything unreadable is English.
-  useEffect(() => {
-    let saved: string | null = null;
-    try { if (user?.id) saved = window.localStorage.getItem(storageKey(user.id)); } catch { /* private mode */ }
-    setMode(saved === "bn" ? "bn" : "en");
-  }, [user?.id]);
+  useEffect(() => { setKbdLang(savedKbdLang(user?.id)); }, [user?.id]);
 
   const opt = (value: KbdLang, label: string, title: string) => {
     const active = lang === value;
     return (
       <button
         type="button"
-        onClick={() => setMode(value, user?.id)}
+        onClick={() => setKbdLang(value, user?.id)}
         aria-pressed={active}
         title={title}
         style={{
