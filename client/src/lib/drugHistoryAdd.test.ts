@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildDrugHistoryEntry, isDuplicateDrugHistoryEntry, NO_DATE, type DrugHistoryAddInput } from "./drugHistoryAdd";
+import { buildDrugHistoryEntry, drugHistoryEntriesFromPad, isDuplicateDrugHistoryEntry, NO_DATE, type DrugHistoryAddInput } from "./drugHistoryAdd";
+import { contRow, emptyRow, type Row } from "@/components/prescription/MedicinePad";
 
 describe("buildDrugHistoryEntry", () => {
   it("joins the four cells with the stored separator", () => {
@@ -46,5 +47,63 @@ describe("isDuplicateDrugHistoryEntry", () => {
 
   it("is never a duplicate against an empty tab", () => {
     expect(isDuplicateDrugHistoryEntry({ drug: "Tablet. Napa 500 mg", dose: "1+1+1", food: "After meal", duration: "5 days" }, [])).toBe(false);
+  });
+});
+
+// ⚕️ "+ Add medicine" types into the ℞ pad's own rows since the physician's
+// sheet of 15/10/2026 (item 1: "2 jaigai e add medicine er philosophy
+// prescription er idea follow korbe"). What the doctor typed there becomes
+// history entries exactly as the ℞ → Drug-history mirror writes them: a
+// medicine, its >>> tapering lines under it as (cont), a note as (note) — every
+// character as typed, nothing invented, all stamped with the tab's date.
+describe("drugHistoryEntriesFromPad", () => {
+  const med = (drug: string, dose = "", food = "", duration = ""): Row => ({ ...emptyRow(), drug, dose, food, duration, isMedicine: true });
+  const taper = (dose: string, food = "", duration = ""): Row => ({ ...contRow(), dose, food, duration });
+  const note = (text: string): Row => ({ ...emptyRow(), drug: text });
+
+  it("writes each medicine line as typed, in pad order, under the tab's date", () => {
+    const r = drugHistoryEntriesFromPad([med("Tablet. Napa 500 mg", "1+0+1", "After meal", "5 days"), med("Capsule. Sergel 20 mg", "1+0+0"), emptyRow()], "15/10/2026", []);
+    expect(r.entries).toEqual([
+      "15/10/2026: Tablet. Napa 500 mg — 1+0+1 — After meal — 5 days",
+      "15/10/2026: Capsule. Sergel 20 mg — 1+0+0 —  — ",
+    ]);
+    expect(r.skipped).toEqual([]);
+  });
+
+  it("keeps a tapering line with its medicine, as (cont)", () => {
+    const r = drugHistoryEntriesFromPad([med("Tablet. Lenva 4 mg", "0+0+1", "", "7 days"), taper("0+0+2", "", "Continue"), emptyRow()], NO_DATE, []);
+    expect(r.entries).toEqual([
+      "01/01/2000: Tablet. Lenva 4 mg — 0+0+1 —  — 7 days",
+      "01/01/2000(cont): 0+0+2 —  — Continue",
+    ]);
+  });
+
+  it("writes a note as a note — a line the pad did not take for a medicine is not made one", () => {
+    const r = drugHistoryEntriesFromPad([note("No regular medication"), emptyRow()], "15/10/2026", []);
+    expect(r.entries).toEqual(["15/10/2026(note): No regular medication"]);
+  });
+
+  it("writes nothing for blank lines", () => {
+    expect(drugHistoryEntriesFromPad([emptyRow(), med("   "), taper(""), emptyRow()], "15/10/2026", []).entries).toEqual([]);
+  });
+
+  it("skips an exact repeat of what the tab already holds, and names it", () => {
+    const existing: DrugHistoryAddInput[] = [{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", food: "After meal", duration: "5 days" }];
+    const r = drugHistoryEntriesFromPad([med("tab napa 500mg", "1 + 0 + 1", "after meal", "5 days"), med("Tablet. Napa 500 mg", "1+1+1")], "15/10/2026", existing);
+    expect(r.entries).toEqual(["15/10/2026: Tablet. Napa 500 mg — 1+1+1 —  — "]);
+    expect(r.skipped).toEqual(["tab napa 500mg"]);
+  });
+
+  it("the same line typed twice in one go is written once", () => {
+    const r = drugHistoryEntriesFromPad([med("Tablet. Napa 500 mg", "1+0+1"), med("Tablet. Napa 500 mg", "1+0+1")], "15/10/2026", []);
+    expect(r.entries).toHaveLength(1);
+    expect(r.skipped).toEqual(["Tablet. Napa 500 mg"]);
+  });
+
+  it("⚕️ a medicine with tapering lines is never skipped — the regimen is more than its first line", () => {
+    const existing: DrugHistoryAddInput[] = [{ drug: "Tablet. Lenva 4 mg", dose: "0+0+1", food: "", duration: "7 days" }];
+    const r = drugHistoryEntriesFromPad([med("Tablet. Lenva 4 mg", "0+0+1", "", "7 days"), taper("0+0+2", "", "Continue")], NO_DATE, existing);
+    expect(r.entries).toHaveLength(2);
+    expect(r.skipped).toEqual([]);
   });
 });
