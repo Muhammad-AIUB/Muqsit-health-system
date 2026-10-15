@@ -553,11 +553,13 @@ describe("BulkMedicineModal", () => {
     const options = (box: HTMLElement, name: string) =>
       within(within(box).getByRole("listbox", { name: `Last instructions for ${name}` })).getAllByRole("option");
 
-    it("each medicine is a chip, and the chips stand side by side and wrap", () => {
+    it("each medicine is a chip, and the chips stand side by side, as many to a line as fit", () => {
       const { box } = open(listed([NAPA, SERGEL3, DELTA]));
+      // The group is the scrolling list, as before; the chips wrap inside it.
       const group = within(box).getByRole("group", { name: /^Medicines/ });
-      expect(group.style.display).toBe("flex");
-      expect(group.style.flexWrap).toBe("wrap");
+      const chips = group.querySelector("[data-chips]") as HTMLElement;
+      expect(chips.style.display).toBe("grid");
+      expect(chips.style.gridTemplateColumns).toContain("auto-fill");
       expect(ticks(box).map((c) => c.closest("[data-chip]"))).not.toContain(null);
     });
 

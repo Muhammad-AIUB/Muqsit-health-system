@@ -291,12 +291,16 @@ test('medicines added below the edge of a long pad are brought into view — and
     (c as Element & { checkVisibility(o: { contentVisibilityAuto: boolean }): boolean }).checkVisibility({ contentVisibilityAuto: true }));
   expect(await drawn(names[0])).toBe(true);
   expect(await drawn(last)).toBe(false);
-  // Until it is drawn it is given the height of a row with a generic and no
-  // tapering lines (67px with its padding). A number written without the
-  // padding in mind made it 85.
-  const standIn = await tickOf(page, last).evaluate((c) => (c.closest('label') as HTMLElement).offsetHeight);
-  expect(standIn).toBeGreaterThanOrEqual(65);
-  expect(standIn).toBeLessThanOrEqual(68);
+  // A row used to be given a stand-in height until it was drawn (67px — a
+  // number written without the padding in mind once made it 85). The chips of
+  // 15/10/2026 are not drawn either, but Chromium lays them out at their own
+  // height all the same (measured: a never-drawn chip with two tapering lines
+  // stands 101px, as it does drawn). What that must keep is the point of the
+  // stand-in: nothing moves when a chip is drawn. Its height undrawn is held
+  // here and compared once End has drawn it.
+  const chipHeight = (name: string) => tickOf(page, name).evaluate((c) => (c.closest('[data-chip]') as HTMLElement).getBoundingClientRect().height);
+  const undrawnHeight = await chipHeight(last);
+  expect(undrawnHeight).toBeGreaterThan(60);
 
   // ⚕️ The row a key lands on is on the screen: one that has the focus and is
   // out of sight is ticked unseen. The rows a key brings near are drawn a
@@ -320,6 +324,7 @@ test('medicines added below the edge of a long pad are brought into view — and
   await expect(tickOf(page, last)).toBeFocused();
   expect(await onScreen(last)).toBe(true);
   expect(await drawn(last)).toBe(true);
+  expect(Math.abs((await chipHeight(last)) - undrawnHeight)).toBeLessThanOrEqual(1);
   await page.keyboard.press('Space');
   await expect(tickOf(page, last)).toBeChecked();
   await expect(bulkBox(page)).toContainText('1 selected');

@@ -108,10 +108,16 @@ interface RowProps {
 // generic and no tapering lines measures 67 with its padding and its rule.
 // (Not 67: the padding is added to this number, and written as 67 every row
 // not yet drawn stood 18px taller than it is — caught in review.)
-// (The chips of 15/10/2026 keep the rule; a chip with a generic and one line of
-// instruction stands about 96px. The 2,000-medicine timing above was taken on
-// the rows and was not taken again on the chips.)
-const ROW_OUT_OF_SIGHT = { contentVisibility: "auto", containIntrinsicSize: "auto 96px" } as const;
+// The chips of 15/10/2026 keep the rule. Measured in Chromium at the box's
+// width (chips 270px wide): a chip with a generic and no tapering lines is
+// 82px with its 1px border, one without a generic 68, one with two tapering
+// lines 101 — so the stand-in is that of the first, 80 + the border. But in
+// Chromium 153 a chip that is not drawn was measured at its OWN height, not
+// the stand-in's (a row was given the stand-in): the paint is skipped, the
+// layout apparently is not, and nothing moves when it is drawn (the browser
+// journey holds that). So the 2,000-medicine timing above, taken on rows,
+// cannot be carried over to chips; it was not taken again.
+const ROW_OUT_OF_SIGHT = { contentVisibility: "auto", containIntrinsicSize: "auto 80px" } as const;
 
 const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabStop, listOpen, onToggle, onReach, onList, onChoose }: RowProps) {
   // What the chip shows is what a tick adds: the chosen instruction.
@@ -144,7 +150,7 @@ const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabSto
     opts[Math.max(0, Math.min(opts.length - 1, to))]?.focus();
   };
   return (
-    <div data-chip={medicine.id} style={{ ...ROW_OUT_OF_SIGHT, flex: "1 1 250px", minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", borderRadius: 10, border: `1px solid ${on ? C.pri[400] : C.n[200]}`, background: on ? C.pri[50] : C.n[0] }}>
+    <div data-chip={medicine.id} style={{ ...ROW_OUT_OF_SIGHT, minWidth: 0, display: "flex", flexDirection: "column", borderRadius: 10, border: `1px solid ${on ? C.pri[400] : C.n[200]}`, background: on ? C.pri[50] : C.n[0] }}>
     <div style={{ display: "flex", alignItems: "flex-start" }}>
     <label style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 4px 8px 10px", cursor: "pointer" }}>
       <input type="checkbox" checked={on} tabIndex={tabStop ? 0 : -1} onChange={() => onToggle(medicine.id)} onFocus={() => onReach(medicine.id)}
@@ -425,7 +431,8 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
             style={{ ...inputSm, flex: "1 1 160px", width: "auto", minWidth: 0 }} />
         </div>
 
-        <div ref={listRef} onKeyDown={moveAlongList} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <div ref={listRef} onKeyDown={moveAlongList} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}
+          {...(shown.length ? { role: "group", "aria-label": "Medicines. The arrow keys move along the list; Space ticks; Enter shows a medicine's last instructions." } : null)}>
           {state.status === "asking" ? (
             <Loading label="Loading the medicine list…" />
           ) : state.status === "failed" ? (
@@ -444,10 +451,10 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
                   No medicine matches “{sought.trim()}”{list?.truncated ? ` among the ${grouped(all.length)} shown` : ""}.
                 </div>
               ) : (
-                // Side by side and wrapping, as on the desktop program the
-                // physician uses: three to a line on a computer, one on a phone.
-                <div role="group" aria-label="Medicines. The arrow keys move along the list; Space ticks; Enter shows a medicine's last instructions."
-                  style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 8, padding: "12px 16px" }}>
+                // Side by side, as on the desktop program the physician uses:
+                // as many 250px-or-wider chips to a line as fit — three on a
+                // computer, one on a phone — every chip of a line one width.
+                <div data-chips style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(250px, 100%), 1fr))", alignItems: "start", gap: 8, padding: "12px 16px" }}>
                   {shown.map((m) => (
                     <BulkRow key={m.id} m={m} choiceId={choice.get(m.id)} on={picked.has(m.id)} onPad={onPad.has(m.id)} tabStop={m.id === tabStop}
                       listOpen={listFor === m.id} onToggle={toggle} onReach={setReached} onList={showList} onChoose={choose} />
