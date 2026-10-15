@@ -38,9 +38,13 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "doc1" } }) }));
-vi.mock("@/hooks/useDrugAdvice", () => ({ useDrugAdvice: () => ({ data: [], isSuccess: true }) }));
+// The doctor's saved special advice. ONE array for the whole run of a test, as
+// React Query hands out: a fresh array on every call would re-run the mirror for ever.
+const savedAdvice = vi.hoisted(() => ({ list: [] as unknown[] }));
+vi.mock("@/hooks/useDrugAdvice", () => ({ useDrugAdvice: () => ({ data: savedAdvice.list, isSuccess: true }) }));
 
 import { MuqsitProvider, useMuqsit } from "./MuqsitContext";
+import { drugKeyOf } from "@/lib/rxDrugAdvice";
 
 const STORED = ["01/01/2026: Tablet. Napa 500 mg — 1+0+1 — After meal — 5 days"];
 const patient = (over: Partial<Patient> = {}): Patient =>
@@ -465,5 +469,27 @@ describe("the legacy drug picker and the static templates are gone", () => {
     const { result } = await setup();
     expect(result.current.mirrorSnapshot).not.toHaveProperty("showDrugPicker");
     expect(result.current.mirrorSnapshot).not.toHaveProperty("drugSearch");
+  });
+});
+
+// ⚕️ Physician's sheet of 15/10/2026, item 4: the advice a doctor saved for a
+// FINAL DIAGNOSIS joins the visit's Advice the moment the diagnosis is written,
+// after the medicines' advice, and leaves with the diagnosis.
+describe("advice saved for a final diagnosis", () => {
+  afterEach(() => { savedAdvice.list = []; });
+
+  it("joins Advice when the diagnosis is written, after the medicines' advice, and leaves with it", async () => {
+    savedAdvice.list = [
+      { id: "d1", scope: "diagnosis", key: "pregnant", label: "Pregnant", lines: ["Take folic acid daily"] },
+      { id: "m1", scope: "medicine", key: drugKeyOf("Tablet. Napa 500 mg"), label: "Tablet. Napa 500 mg", lines: ["Take after meal"] },
+    ];
+    const r = await setup();
+    act(() => r.result.current.setAdvice(["Drink plenty of water"]));
+    act(() => r.result.current.setFinalDiagnosis(["pregnant"]));
+    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Take folic acid daily"]);
+    act(() => r.result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "", duration: "5 days" }]));
+    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Take after meal", "Take folic acid daily"]);
+    act(() => r.result.current.setFinalDiagnosis([]));
+    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Take after meal"]);
   });
 });

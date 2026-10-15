@@ -1,6 +1,9 @@
 import { BadRequestException, Logger } from '@nestjs/common';
 import { DrugAdviceService } from './drug-advice.service';
-import { adviceKey, cleanLines, genericKey } from './keys';
+import { ADVICE_SCOPES, adviceKey, cleanLines, diagnosisKey, genericKey } from './keys';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
+import { SaveDrugAdviceDto } from './dto/drug-advice.dto';
 import type { PrismaService } from '../prisma/prisma.service';
 
 // ⚕️ The key decides which medicines a doctor's advice is offered on. Folding
@@ -30,6 +33,29 @@ describe('drug advice keys', () => {
   });
 });
 
+// ⚕️ Advice per FINAL DIAGNOSIS (physician's sheet, 15/10/2026, item 4): the
+// doctor writes it once in the same ••• box, and it is offered whenever that
+// diagnosis is written again. The diagnosis is matched as written — case and
+// spacing folded, nothing else: "Pregnant 32 weeks" is not "Pregnant".
+describe('drug advice keys — a final diagnosis', () => {
+  it('is a third scope', () => {
+    expect(ADVICE_SCOPES).toEqual(['medicine', 'generic', 'diagnosis']);
+  });
+
+  it('folds case and spacing only', () => {
+    expect(diagnosisKey('  Pregnant ')).toBe('pregnant');
+    expect(adviceKey('diagnosis', 'Type 2   DM')).toBe('type 2 dm');
+    expect(adviceKey('diagnosis', 'Pregnant 32 weeks')).not.toBe(adviceKey('diagnosis', 'Pregnant'));
+  });
+
+  it('the DTO lets the scope through, and still refuses one it does not know', async () => {
+    const ok = await validate(plainToInstance(SaveDrugAdviceDto, { scope: 'diagnosis', label: 'Pregnant', lines: ['Take folic acid'] }));
+    expect(ok).toHaveLength(0);
+    const bad = await validate(plainToInstance(SaveDrugAdviceDto, { scope: 'symptom', label: 'Fever', lines: [] }));
+    expect(bad.map((e) => e.property)).toContain('scope');
+  });
+});
+
 describe('DrugAdviceService.save', () => {
   const upsert = jest.fn(async (args: { create: Record<string, unknown> }) => ({ id: 'a1', updatedAt: new Date(), ...args.create }));
   const prisma = { doctorDrugAdvice: { upsert } } as unknown as PrismaService;
@@ -45,6 +71,17 @@ describe('DrugAdviceService.save', () => {
     expect(arg.where.doctorId_scope_key).toEqual({ doctorId: 'doc-1', scope: 'medicine', key: adviceKey('medicine', 'Tablet. Napa 500 mg') });
     expect(arg.create.label).toBe('Tablet. Napa 500 mg');
     expect(arg.create.lines).toEqual(['Take after meal']);
+  });
+
+  it('stores a diagnosis under its folded name', async () => {
+    await svc.save('doc-1', { scope: 'diagnosis', label: ' Pregnant ', lines: ['Take folic acid daily'] });
+    const arg = upsert.mock.calls[0][0] as unknown as {
+      where: { doctorId_scope_key: { doctorId: string; scope: string; key: string } };
+      create: { lines: string[]; label: string };
+    };
+    expect(arg.where.doctorId_scope_key).toEqual({ doctorId: 'doc-1', scope: 'diagnosis', key: 'pregnant' });
+    expect(arg.create.label).toBe('Pregnant');
+    expect(arg.create.lines).toEqual(['Take folic acid daily']);
   });
 
   it('refuses a label with nothing to key on', async () => {
