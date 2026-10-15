@@ -44,6 +44,16 @@ export const pageTitle: CSSProperties = { fontSize: 18, fontWeight: 600, color: 
 // The name of a popup. They ran from 14px/500 to 16px/700.
 export const dialogTitle: CSSProperties = { fontSize: 16, fontWeight: 600, color: C.n[900], lineHeight: 1.3 };
 
+// ── Tabs and switches ─────────────────────────────────────────
+// The chosen tab is FILLED and every tab is written black (physician's sheet,
+// 15/10/2026: "tabgulo vitore color koro, lekha black koro"). It was a pale
+// tint with blue words beside grey ones, and on BAN / EN or Inch / cm the side
+// that was on could not be told at a glance. Blue, because blue is what is
+// pressed or selected; a tab that cannot be pressed stays grey (`n[400]`).
+// One look for the main tabs, the switches and the tab strips inside screens.
+export const tabInk = C.n[900];
+export const tabOn: CSSProperties = { background: C.pri[100], color: tabInk };
+
 // ── Buttons ───────────────────────────────────────────────────
 // One scale for the whole app, so the same action is the same size on every
 // screen (the primary button alone had 16 hand-written paddings). Height comes

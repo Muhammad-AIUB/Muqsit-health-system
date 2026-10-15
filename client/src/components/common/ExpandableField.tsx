@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
-import { btnPrimary, btnSecondary, scrim, shadowDialog, btnClose, dialogTitle } from "@/theme/styles";
+import { btnPrimary, btnSecondary, scrim, shadowDialog, btnClose, dialogTitle, tabInk, tabOn } from "@/theme/styles";
 import { useFieldRecents } from "@/hooks/useFieldRecents";
 import { useDoctorPhrases } from "@/hooks/useDoctorPhrases";
 import type { PhraseSource } from "@/lib/api";
@@ -393,8 +393,9 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                     aria-selected={tab === id}
                     onClick={() => setTab(id)}
                     style={{
-                      padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit",
-                      fontSize: 13, fontWeight: tab === id ? 600 : 400, color: tab === id ? C.pri[600] : C.n[600],
+                      padding: "10px 14px", border: "none", cursor: "pointer", fontFamily: "inherit",
+                      ...(tab === id ? tabOn : { background: "transparent", color: tabInk }),
+                      fontSize: 13, fontWeight: tab === id ? 600 : 400,
                       borderBottom: `2px solid ${tab === id ? C.pri[400] : "transparent"}`, marginBottom: -0.5,
                     }}
                   >{name}</button>

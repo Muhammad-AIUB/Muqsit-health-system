@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { C, font } from "@/theme";
-import { shadowCard } from "@/theme/styles";
+import { shadowCard, tabInk, tabOn } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import Icon from "@/components/common/Icon";
 import { setTheme, userTheme, useTheme, type ThemeMode } from "@/lib/theme";
@@ -33,8 +33,7 @@ export default function ThemeToggle() {
         style={{
           padding: "4px 8px", borderRadius: 6, cursor: "pointer", fontFamily: font, lineHeight: 1,
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          background: active ? C.pri[50] : "transparent",
-          color: active ? C.pri[600] : C.n[500],
+          ...(active ? tabOn : { background: "transparent", color: tabInk }),
           border: active ? `1px solid ${C.pri[400]}` : "1px solid transparent",
           boxShadow: active ? shadowCard : "none",
         }}

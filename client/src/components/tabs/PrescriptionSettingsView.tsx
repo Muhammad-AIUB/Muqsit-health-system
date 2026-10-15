@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { effectVar } from "@/theme/palette";
-import { btnPrimary, btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
+import { btnPrimary, btnSecondary, pageTitle, btnDisabled, tabInk, tabOn } from "@/theme/styles";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
 import { ApiError, prescriptionLayoutApi } from "@/lib/api";
 import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
@@ -647,7 +647,7 @@ function PagePreview({ form, unitShort }: { form: PageForm; unitShort: string })
 }
 
 // Inch / cm toggle pill.
-function UnitToggle({ unit, onChange }: { unit: "in" | "cm"; onChange: (u: "in" | "cm") => void }) {
+export function UnitToggle({ unit, onChange }: { unit: "in" | "cm"; onChange: (u: "in" | "cm") => void }) {
   const opt = (id: "in" | "cm", label: string) => (
     <button
       onClick={() => onChange(id)}
@@ -659,8 +659,7 @@ function UnitToggle({ unit, onChange }: { unit: "in" | "cm"; onChange: (u: "in" 
         fontSize: 12,
         fontWeight: 500,
         fontFamily: "inherit",
-        background: unit === id ? C.n[0] : "transparent",
-        color: unit === id ? C.pri[600] : C.n[600],
+        ...(unit === id ? tabOn : { background: "transparent", color: tabInk }),
         boxShadow: unit === id ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
       }}
     >

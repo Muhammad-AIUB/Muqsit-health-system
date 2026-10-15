@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
-import { inputSm, fieldLabel, btnSecondary } from "@/theme/styles";
+import { inputSm, fieldLabel, btnSecondary, tabInk, tabOn } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useUpdatePatient } from "@/hooks/usePatients";
 import DateField from "@/components/common/DateField";
@@ -18,9 +18,9 @@ import { photoPlaceholder } from "@/lib/sex";
 // On a phone the three sit one under another, so they are the same width and
 // start at the same edge: three different widths down a column read as a
 // ragged list, not as a set of buttons.
-const subNav = (active: boolean, mobile?: boolean): CSSProperties => ({
+export const subNav = (active: boolean, mobile?: boolean): CSSProperties => ({
   ...btnSecondary("sm"),
-  ...(active ? { border: `1px solid ${C.pri[400]}`, background: C.pri[50], color: C.pri[600], fontWeight: 600 } : { color: C.n[700] }),
+  ...(active ? { border: `1px solid ${C.pri[400]}`, ...tabOn, fontWeight: 600 } : { color: tabInk }),
   // …and the longest label may take a second line: held to one, it made the
   // whole set 10px wider than the boxes above it, out to the edge of the card
   // (measured at 360px: 286 in a 276px row).

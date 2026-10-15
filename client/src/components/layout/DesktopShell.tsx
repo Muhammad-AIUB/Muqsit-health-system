@@ -2,7 +2,7 @@
 
 import { Fragment } from "react";
 import { C, font } from "@/theme";
-import { shadowCard } from "@/theme/styles";
+import { shadowCard, tabInk, tabOn } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import TabIcon from "./TabIcon";
@@ -47,7 +47,7 @@ export default function DesktopShell() {
               const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab));
               return (
                 <Fragment key={t.id}>
-                  <button onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} aria-current={active ? "page" : undefined} style={{ minHeight: 34, padding: "0 12px", borderRadius: 8, border: "none", cursor: t.disabled ? "not-allowed" : "pointer", fontSize: 13, background: active ? C.pri[50] : "transparent", color: t.disabled ? C.n[400] : active ? C.pri[600] : C.n[600], fontWeight: active ? 600 : 500, display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: font }}><span className="nav-ico"><TabIcon id={t.id} /></span>{t.label}</button>
+                  <button onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} aria-current={active ? "page" : undefined} style={{ minHeight: 34, padding: "0 12px", borderRadius: 8, border: "none", cursor: t.disabled ? "not-allowed" : "pointer", fontSize: 13, background: active ? tabOn.background : "transparent", color: t.disabled ? C.n[400] : tabInk, fontWeight: active ? 600 : 500, display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: font }}><span className="nav-ico"><TabIcon id={t.id} /></span>{t.label}</button>
                   {/* Flashing emergency beacon right after OPD when any IPD patient is Critical. */}
                   {t.id === "opd" && <CriticalAlert onClick={() => setActiveTab("ipd")} />}
                 </Fragment>

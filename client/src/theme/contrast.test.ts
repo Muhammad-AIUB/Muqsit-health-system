@@ -36,6 +36,7 @@ const PAIRS: [Ref, Ref, string][] = [
   [["n", 500], ["n", 0], "age / sex / mobile on a card"],
   [["n", 500], ["n", 50], "muted text on a panel"],
   [["pri", 600], ["pri", 50], "selected tab / pri chip"],
+  [["n", 900], ["pri", 100], "chosen tab / switch (filled, black words)"],
   [["ok", 600], ["ok", 50], "ok chip"],
   [["warn", 800], ["warn", 50], "warn chip"],
   [["danger", 800], ["danger", 50], "danger chip"],

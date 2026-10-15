@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { shadowCard, shadowMenu } from "@/theme/styles";
+import { shadowCard, shadowMenu, tabInk, tabOn } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput";
 import { savedKbdLang, setKbdLang, useKbdLang, type KbdLang } from "@/lib/kbdLang";
@@ -53,8 +53,7 @@ export function LanguageToggle() {
         style={{
           padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontFamily: font,
           fontSize: 11, fontWeight: active ? 700 : 400, lineHeight: 1.3, whiteSpace: "nowrap",
-          background: active ? C.pri[50] : "transparent",
-          color: active ? C.pri[600] : C.n[500],
+          ...(active ? tabOn : { background: "transparent", color: tabInk }),
           border: active ? `1px solid ${C.pri[400]}` : "1px solid transparent",
           boxShadow: active ? shadowCard : "none",
         }}
