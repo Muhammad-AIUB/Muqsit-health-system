@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, startTransition, useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
 import { C, font } from "@/theme";
 import { btnClose, btnDisabled, btnPrimary, btnSecondary, dialogTitle, inputSm, scrim, shadowDialog } from "@/theme/styles";
@@ -13,8 +13,8 @@ import { lastUsedLabel } from "@/lib/lastUsed";
 import { useKbdLang } from "@/lib/kbdLang";
 import { grouped } from "@/lib/calculators/format";
 import {
-  bulkSummary, bulkToRxItems, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel, searchBulk,
-  sortBulk, type BulkList, type BulkMedicine, type BulkOrder,
+  bulkSummary, bulkToRxItems, choicesOf, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel, searchBulk,
+  sortBulk, withChoice, type BulkList, type BulkMedicine, type BulkOrder,
 } from "@/lib/bulkMedicines";
 import type { RxItem } from "@/types";
 
@@ -27,6 +27,12 @@ import type { RxItem } from "@/types";
 // `lib/bulkMedicines.ts`; this component holds the ticks, the order and the
 // search. It is mounted only while it is open, so every opening starts clean:
 // a tick left from the last one is not a choice made for this prescription.
+//
+// The physician's sheet of 15/10/2026, item 2: the top of the box stays as it
+// was ("red area ok ase"); below it each medicine is a CHIP, side by side and
+// wrapping as on the desktop program they use, and its ▼ offers the doctor's
+// last instructions for it (`choicesOf`). The chip starts on the usual and
+// always shows the instruction it will add; choosing another ticks it.
 
 /**
  * What the box has to show: the list is on its way, it did not arrive, or it
@@ -63,7 +69,7 @@ const ORDERS: { key: BulkOrder; label: string }[] = [
   { key: "popular", label: "Popular" },
   { key: "alphabetical", label: "Alphabetical" },
 ];
-const PAGE = 10; // rows a Page key moves by
+const PAGE = 10; // chips a Page key moves by
 const SETTLE_FRAMES = 4; // frames over which the row a key has reached is asked into view
 
 // A mouse or a trackpad: someone who can type at once. Not asked on a touch
@@ -73,13 +79,19 @@ const hasKeyboardAtHand = (): boolean =>
 
 interface RowProps {
   m: BulkMedicine;
+  /** The instruction the chip stands on (`withChoice`): what a tick adds. */
+  choiceId: string | undefined;
   on: boolean;
   /** This medicine already has a line on the pad, at this dose or another. */
   onPad: boolean;
-  /** The one row Tab lands on; the arrows move along the rest. */
+  /** The one chip Tab lands on; the arrows move along the rest. */
   tabStop: boolean;
+  /** Its ▼ list is open. */
+  listOpen: boolean;
   onToggle: (id: string) => void;
   onReach: (id: string) => void;
+  onList: (id: string | null) => void;
+  onChoose: (id: string, choiceId: string) => void;
 }
 
 // One medicine. Its own component so that a tick redraws ONE row: the list can
@@ -96,9 +108,14 @@ interface RowProps {
 // generic and no tapering lines measures 67 with its padding and its rule.
 // (Not 67: the padding is added to this number, and written as 67 every row
 // not yet drawn stood 18px taller than it is — caught in review.)
-const ROW_OUT_OF_SIGHT = { contentVisibility: "auto", containIntrinsicSize: "auto 48px" } as const;
+// (The chips of 15/10/2026 keep the rule; a chip with a generic and one line of
+// instruction stands about 96px. The 2,000-medicine timing above was taken on
+// the rows and was not taken again on the chips.)
+const ROW_OUT_OF_SIGHT = { contentVisibility: "auto", containIntrinsicSize: "auto 96px" } as const;
 
-const BulkRow = memo(function BulkRow({ m, on, onPad, tabStop, onToggle, onReach }: RowProps) {
+const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabStop, listOpen, onToggle, onReach, onList, onChoose }: RowProps) {
+  // What the chip shows is what a tick adds: the chosen instruction.
+  const m = withChoice(medicine, choiceId);
   const { before, name, after } = splitDrugLabel(m.drugLabel);
   // The strength is one piece: a long name wraps, and wrapped anywhere a
   // combination's strength turned in its middle — "… 10" at a line's end and
@@ -110,9 +127,27 @@ const BulkRow = memo(function BulkRow({ m, on, onPad, tabStop, onToggle, onReach
   const lang = useKbdLang();
   const instruction = instructionOf(m, lang);
   const when = lastUsedLabel(m.lastUsedAt);
+  const listName = `Last instructions for ${m.drugLabel}`;
+  const options = listOpen ? choicesOf(medicine) : [];
+  const chosen = choiceId ?? medicine.id;
+  // The keyboard inside the open list: ↑ ↓ move, Enter / Space choose (the
+  // option is a button), Escape closes the LIST — not the box: the box's own
+  // Escape reads `defaultPrevented` and leaves it alone.
+  const listKeys = (e: KeyboardEvent<HTMLDivElement>) => {
+    const opts = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+    const at = opts.indexOf(e.target as HTMLButtonElement);
+    if (e.key === "Escape") { e.preventDefault(); onList(null); return; }
+    const to = e.key === "ArrowDown" ? at + 1 : e.key === "ArrowUp" ? at - 1 : e.key === "Home" ? 0 : e.key === "End" ? opts.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    e.stopPropagation(); // the chips' own arrows are not these
+    opts[Math.max(0, Math.min(opts.length - 1, to))]?.focus();
+  };
   return (
-    <label style={{ ...ROW_OUT_OF_SIGHT, display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 20px", cursor: "pointer", borderBottom: `0.5px solid ${C.n[200]}`, background: on ? C.pri[50] : "transparent" }}>
-      <input type="checkbox" checked={on} tabIndex={tabStop ? 0 : -1} onChange={() => onToggle(m.id)} onFocus={() => onReach(m.id)}
+    <div data-chip={medicine.id} style={{ ...ROW_OUT_OF_SIGHT, flex: "1 1 250px", minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", borderRadius: 10, border: `1px solid ${on ? C.pri[400] : C.n[200]}`, background: on ? C.pri[50] : C.n[0] }}>
+    <div style={{ display: "flex", alignItems: "flex-start" }}>
+    <label style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 4px 8px 10px", cursor: "pointer" }}>
+      <input type="checkbox" checked={on} tabIndex={tabStop ? 0 : -1} onChange={() => onToggle(medicine.id)} onFocus={() => onReach(medicine.id)}
         style={{ marginTop: 3, flexShrink: 0, cursor: "pointer" }} />
       <span style={{ flex: 1, minWidth: 0 }}>
         {/* Only the brand in bold, as on the pad and the printed sheet. */}
@@ -133,18 +168,48 @@ const BulkRow = memo(function BulkRow({ m, on, onPad, tabStop, onToggle, onReach
         {m.contLines.map((c, i) => (
           <span key={i} style={{ display: "block", fontSize: 12, color: C.n[700], marginTop: 1, overflowWrap: "anywhere" }}>↳ {instructionOf(c, lang)}</span>
         ))}
-      </span>
-      <span style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: C.n[500], whiteSpace: "nowrap", marginTop: 2 }}>
-        {onPad && (
-          <span data-on-pad title="This medicine is already on the prescription. Ticked, it is added as another line — unless its first line there is the same."
-            style={{ padding: "1px 7px", borderRadius: 999, background: C.warn[50], color: C.warn[800], fontWeight: 600 }}>On ℞</span>
-        )}
         {/* The count and the date together: a dose given to many patients two
             years ago must not read like the dose of last week. */}
-        <span>{patientsLabel(m.patientCount)}</span>
-        {when && <span>{when}</span>}
+        <span style={{ display: "block", fontSize: 11, color: C.n[500], marginTop: 2 }}>
+          {patientsLabel(m.patientCount)}{when ? ` · ${when}` : ""}
+        </span>
       </span>
+      {onPad && (
+        <span data-on-pad title="This medicine is already on the prescription. Ticked, it is added as another line — unless its first line there is the same."
+          style={{ flexShrink: 0, marginTop: 2, padding: "1px 7px", borderRadius: 999, fontSize: 11, whiteSpace: "nowrap", background: C.warn[50], color: C.warn[800], fontWeight: 600 }}>On ℞</span>
+      )}
     </label>
+    {/* Out of the Tab order: the list is ONE Tab stop, and Enter on a chip
+        opens this from the keyboard. */}
+    <button type="button" tabIndex={-1} aria-label={listName} aria-haspopup="listbox" aria-expanded={listOpen}
+      title="Your last instructions for this medicine (Enter)"
+      onClick={() => onList(listOpen ? null : medicine.id)}
+      style={{ flexShrink: 0, alignSelf: "stretch", width: 30, border: "none", borderLeft: `0.5px solid ${C.n[200]}`, background: "transparent", color: C.n[700], fontSize: 11, cursor: "pointer", fontFamily: font, borderRadius: "0 10px 10px 0" }}>▼</button>
+    </div>
+    {listOpen && (
+      <div role="listbox" aria-label={listName} onKeyDown={listKeys}
+        style={{ borderTop: `0.5px solid ${C.n[200]}`, padding: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+        {options.map((o) => {
+          const sel = o.id === chosen;
+          const oWhen = lastUsedLabel(o.lastUsedAt);
+          return (
+            <button key={o.id} type="button" role="option" aria-selected={sel} tabIndex={-1}
+              onClick={() => onChoose(medicine.id, o.id)}
+              style={{ textAlign: "left", padding: "6px 8px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: font, background: sel ? C.pri[100] : "transparent", color: C.n[900] }}>
+              <span style={{ display: "block", fontSize: 12, overflowWrap: "anywhere" }}>
+                {instructionOf(o, lang) || "No dose recorded"}
+                {o.usual && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: C.n[600] }}>usual</span>}
+              </span>
+              {o.contLines.map((c, i) => (
+                <span key={i} style={{ display: "block", fontSize: 11.5, color: C.n[700], overflowWrap: "anywhere" }}>↳ {instructionOf(c, lang)}</span>
+              ))}
+              <span style={{ display: "block", fontSize: 10.5, color: C.n[500] }}>{patientsLabel(o.patientCount)}{oWhen ? ` · ${oWhen}` : ""}</span>
+            </button>
+          );
+        })}
+      </div>
+    )}
+    </div>
   );
 });
 
@@ -159,6 +224,11 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
   // A mouse or a trackpad at hand: asked once, when the box opens.
   const [keys] = useState(hasKeyboardAtHand);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  // The instruction each medicine stands on, where the doctor chose one from
+  // its ▼ (otherwise its usual); and the one chip whose list is open.
+  const [choice, setChoice] = useState<ReadonlyMap<string, string>>(new Map());
+  const [listFor, setListFor] = useState<string | null>(null);
+  const listForNow = useRef<string | null>(null);
   const [note, setNote] = useState("");
   const [reached, setReached] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -202,10 +272,38 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
     });
   }, []);
 
+  // A chip by its medicine, compared as a value: an id is never built into a selector.
+  const chipOf = (id: string) => Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-chip]") ?? []).find((el) => el.dataset.chip === id) ?? null;
+  const chipBox = (id: string) => chipOf(id)?.querySelector<HTMLInputElement>('input[type="checkbox"]') ?? null;
+  // Closing a list from inside it hands the keyboard back to its chip.
+  const showList = useCallback((id: string | null) => {
+    const was = listForNow.current;
+    if (id === null && was && chipOf(was)?.querySelector('[role="listbox"]')?.contains(document.activeElement)) chipBox(was)?.focus();
+    listForNow.current = id;
+    setListFor(id);
+  }, []);
+  // ⚕️ Choosing an instruction ticks its medicine: the doctor chose what to
+  // add. The chip then shows that instruction, and it is what Add adds.
+  const choose = useCallback((id: string, choiceId: string) => {
+    setNote("");
+    setChoice((prev) => new Map(prev).set(id, choiceId));
+    setPicked((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    listForNow.current = null;
+    setListFor(null);
+    chipBox(id)?.focus();
+  }, []);
+  // A list opened from the keyboard takes the keyboard: onto the option the chip stands on.
+  useEffect(() => {
+    if (!listFor) return;
+    const list = chipOf(listFor)?.querySelector<HTMLElement>('[role="listbox"]');
+    (list?.querySelector<HTMLElement>('[aria-selected="true"]') ?? list?.querySelector<HTMLElement>('[role="option"]'))?.focus();
+  }, [listFor]);
+
   // Counted over the whole list, in the order on screen — not over what a
   // search leaves in view: a tick on a row that is filtered out is still a
-  // tick. A tick whose row is no longer in the list is not one.
-  const chosen = sorted.filter((m) => picked.has(m.id));
+  // tick. A tick whose row is no longer in the list is not one. Each goes
+  // with the instruction its chip stands on.
+  const chosen = sorted.filter((m) => picked.has(m.id)).map((m) => withChoice(m, choice.get(m.id)));
   const count = chosen.length;
   // Ticks a search has put out of sight are added all the same, so the footer
   // says they are there: a medicine must not reach the pad unseen.
@@ -219,7 +317,14 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
     const boxes = Array.from(listRef.current?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]') ?? []);
     const at = boxes.indexOf(e.target as HTMLInputElement);
     if (at === -1) return;
-    const to = e.key === "ArrowDown" ? at + 1 : e.key === "ArrowUp" ? at - 1
+    // Enter (or Alt + ↓) on a chip opens its ▼ list.
+    if (e.key === "Enter" || (e.key === "ArrowDown" && e.altKey)) {
+      const id = (e.target as HTMLElement).closest("[data-chip]")?.getAttribute("data-chip");
+      if (id) { e.preventDefault(); showList(id); }
+      return;
+    }
+    // The chips stand side by side, so the arrows to the side move along them too.
+    const to = e.key === "ArrowDown" || e.key === "ArrowRight" ? at + 1 : e.key === "ArrowUp" || e.key === "ArrowLeft" ? at - 1
       : e.key === "PageDown" ? at + PAGE : e.key === "PageUp" ? at - PAGE
       : e.key === "Home" ? 0 : e.key === "End" ? boxes.length - 1 : null;
     if (to === null) return;
@@ -287,7 +392,7 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
       onMouseDown={(e) => { pressedVeil.current = e.target === e.currentTarget; }}
       onClick={(e) => { if (e.target === e.currentTarget) veilPressed(); }}>
       <div role="dialog" aria-modal="true" aria-label="Add Bulk Medicine" {...dialog}
-        style={{ width: "min(640px, 100%)", maxWidth: "100%", height: 620, maxHeight: "100%", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: font }}>
+        style={{ width: "min(860px, 100%)", maxWidth: "100%", height: 620, maxHeight: "100%", background: C.n[0], borderRadius: 14, border: `0.5px solid ${C.n[200]}`, boxShadow: shadowDialog, display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: font }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "16px 20px 12px" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ ...dialogTitle }}>Add Bulk Medicine</div>
@@ -320,8 +425,7 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
             style={{ ...inputSm, flex: "1 1 160px", width: "auto", minWidth: 0 }} />
         </div>
 
-        <div ref={listRef} onKeyDown={moveAlongList} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}
-          {...(shown.length ? { role: "group", "aria-label": "Medicines. The arrow keys move along the list; Space ticks." } : null)}>
+        <div ref={listRef} onKeyDown={moveAlongList} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
           {state.status === "asking" ? (
             <Loading label="Loading the medicine list…" />
           ) : state.status === "failed" ? (
@@ -340,9 +444,15 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
                   No medicine matches “{sought.trim()}”{list?.truncated ? ` among the ${grouped(all.length)} shown` : ""}.
                 </div>
               ) : (
-                shown.map((m) => (
-                  <BulkRow key={m.id} m={m} on={picked.has(m.id)} onPad={onPad.has(m.id)} tabStop={m.id === tabStop} onToggle={toggle} onReach={setReached} />
-                ))
+                // Side by side and wrapping, as on the desktop program the
+                // physician uses: three to a line on a computer, one on a phone.
+                <div role="group" aria-label="Medicines. The arrow keys move along the list; Space ticks; Enter shows a medicine's last instructions."
+                  style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 8, padding: "12px 16px" }}>
+                  {shown.map((m) => (
+                    <BulkRow key={m.id} m={m} choiceId={choice.get(m.id)} on={picked.has(m.id)} onPad={onPad.has(m.id)} tabStop={m.id === tabStop}
+                      listOpen={listFor === m.id} onToggle={toggle} onReach={setReached} onList={showList} onChoose={choose} />
+                  ))}
+                </div>
               )}
             </>
           )}

@@ -17,6 +17,18 @@ import { rxCellIn, type RxLang } from "@/lib/rxLanguage";
 /** One `>>>` line of a tapering block. */
 export interface BulkLine { dose: string; food: string; duration: string }
 
+/**
+ * One instruction the doctor has written for a medicine — what its ▼ offers
+ * (physician's sheet, 15/10/2026, item 2: "last use 3ta option").
+ */
+export interface BulkChoice extends BulkLine {
+  /** The habit row it stands for. */
+  id: string;
+  contLines: BulkLine[];
+  patientCount: number;
+  lastUsedAt?: string;
+}
+
 export interface BulkMedicine extends BulkLine {
   /** The habit row it stands for; what a tick is kept by. */
   id: string;
@@ -28,6 +40,8 @@ export interface BulkMedicine extends BulkLine {
   patientCount: number;
   /** When this instruction was last written (ISO), shown beside the count. */
   lastUsedAt?: string;
+  /** The doctor's last instructions for it, newest first (the ▼); absent from an older server. */
+  recent?: BulkChoice[];
 }
 
 export interface BulkList {
@@ -83,6 +97,7 @@ export function readBulkList(value: unknown): BulkList | null {
     seen.add(id);
     const generic = text(r.generic).trim();
     const lastUsedAt = text(r.lastUsedAt);
+    const recent = choicesRead(r.recent);
     const n = r.patientCount;
     medicines.push({
       id,
@@ -92,11 +107,62 @@ export function readBulkList(value: unknown): BulkList | null {
       food: text(r.food),
       duration: text(r.duration),
       contLines,
-      patientCount: typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0,
+      patientCount: count(n),
       ...(lastUsedAt ? { lastUsedAt } : {}),
+      ...(recent.length ? { recent } : {}),
     });
   }
   return { medicines, truncated: root.truncated === true, unreadable };
+}
+
+const count = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
+
+// A medicine's last instructions, read without trusting them. An entry that
+// cannot be read WHOLE is left out of the choices — never the medicine, whose
+// own row was read above: half a schedule offered as a choice is worse than
+// one choice fewer.
+function choicesRead(value: unknown): BulkChoice[] {
+  if (!Array.isArray(value)) return [];
+  const out: BulkChoice[] = [];
+  for (const raw of value) {
+    const r = record(raw);
+    if (!r) continue;
+    const id = text(r.id);
+    const contLines = linesOf(r.contLines);
+    if (!id || contLines === null || typeof r.dose !== "string" || typeof r.food !== "string" || typeof r.duration !== "string") continue;
+    if (out.some((c) => c.id === id)) continue;
+    const lastUsedAt = text(r.lastUsedAt);
+    out.push({ id, dose: r.dose, food: r.food, duration: r.duration, contLines, patientCount: count(r.patientCount), ...(lastUsedAt ? { lastUsedAt } : {}) });
+  }
+  return out;
+}
+
+/** One choice of a medicine's ▼, and whether it is the usual the chip starts on. */
+export interface BulkOption extends BulkChoice { usual: boolean }
+
+/**
+ * What a medicine's ▼ offers: its last instructions, newest first, and its
+ * usual (the row the box shows by default) — marked, and first when it is not
+ * among them. Never one instruction twice.
+ */
+export function choicesOf(m: BulkMedicine): BulkOption[] {
+  const recent = m.recent ?? [];
+  const usual: BulkOption = { id: m.id, dose: m.dose, food: m.food, duration: m.duration, contLines: m.contLines, patientCount: m.patientCount, ...(m.lastUsedAt ? { lastUsedAt: m.lastUsedAt } : {}), usual: true };
+  if (!recent.some((c) => c.id === m.id)) return [usual, ...recent.map((c) => ({ ...c, usual: false }))];
+  return recent.map((c) => (c.id === m.id ? usual : { ...c, usual: false }));
+}
+
+/**
+ * The medicine as it will be added with the instruction `choiceId` — dose,
+ * food, duration, taper, count and date all from that one instruction; the
+ * name and the generic stay the medicine's. Nothing chosen, or a choice the
+ * list no longer has: the medicine as it is (its usual).
+ */
+export function withChoice(m: BulkMedicine, choiceId: string | undefined): BulkMedicine {
+  if (!choiceId || choiceId === m.id) return m;
+  const c = (m.recent ?? []).find((x) => x.id === choiceId);
+  if (!c) return m;
+  return { ...m, dose: c.dose, food: c.food, duration: c.duration, contLines: c.contLines, patientCount: c.patientCount, lastUsedAt: c.lastUsedAt };
 }
 
 // ── Order and search ──────────────────────────────────────────────────────────
