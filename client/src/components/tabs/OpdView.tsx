@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary, inputMd, pageTitle, btnDisabled, fieldLabel } from "@/theme/styles";
+import { btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
+import type { Patient } from "@/lib/api";
 import { useAddOpdVisit, useOpdQueue, useSetOpdStatus } from "@/hooks/useOpd";
 import { displayAge } from "@/lib/age";
 import { normaliseSex, sexLabel } from "@/lib/sex";
@@ -22,37 +23,40 @@ export default function OpdView() {
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
 
-  // Add-to-queue form
+  // Add-to-queue form. It asks for the mobile number and nothing else
+  // (physician's sheet, 15/10/2026: "Add patient a sudhu number dia suru
+  // korbe"): a patient saved on the number is chosen from the list, and "Add
+  // New" opens the same new-patient box the prescription header uses. Whoever
+  // is chosen or created joins the queue at once, tied to their record — the
+  // name / age / sex / visit-type boxes and their Add button were crossed out.
   const [showAdd, setShowAdd] = useState(false);
-  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [age, setAge] = useState("");
-  // Blank, not "M". This defaulted every walk-in to male, and the select offered
-  // only M and F — so an unknown or other sex could not be recorded at all.
-  const [gender, setGender] = useState("");
-  const [type, setType] = useState("New");
-  // Set when a patient is chosen from the mobile lookup — ties the visit to them.
-  const [patientId, setPatientId] = useState<string | undefined>(undefined);
+  const [addError, setAddError] = useState("");
 
   const waiting = queue.filter((v) => v.status === "waiting").length;
   const done = queue.filter((v) => v.status === "done").length;
 
-  const submitAdd = async () => {
-    if (!name.trim()) return;
-    await addVisit.mutateAsync({
-      name: name.trim(),
-      patientId,
-      phone: phone.trim() || undefined,
-      age: age ? Number(age) : undefined,
-      // Omit rather than store "" — an unrecorded sex should be null on the row.
-      gender: gender || undefined,
-      type,
-    });
-    setName(""); setPhone(""); setAge(""); setGender(""); setType("New"); setPatientId(undefined);
+  const addToQueue = async (p: Patient) => {
+    setAddError("");
+    const age = displayAge(p);
+    try {
+      await addVisit.mutateAsync({
+        name: p.name,
+        patientId: p.id,
+        phone: p.mobile || phone || undefined,
+        // Only a whole number of years is an age the queue row can hold.
+        age: /^\d+$/.test(age) ? Number(age) : undefined,
+        // Omit rather than store "" — an unrecorded sex stays unrecorded.
+        gender: normaliseSex(p.sex) || undefined,
+      });
+    } catch {
+      // The number stays in the box: choosing the patient again retries.
+      setAddError(`Could not add ${p.name} to the queue. Choose them again to retry.`);
+      return;
+    }
+    setPhone("");
     setShowAdd(false);
   };
-
-  const inp = { ...inputMd, width: undefined } as const;
 
   return (
     <div>
@@ -67,56 +71,21 @@ export default function OpdView() {
           placeholder, which is gone the moment something is typed. */}
       {showAdd && (
         <div className="form-row" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 10, rowGap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-            <label data-caption style={fieldLabel}>Patient name *</label>
-            <input aria-label="Patient name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, width: "100%" }} />
-          </div>
           <PatientMobileLookup
             value={phone}
-            onChange={(d) => { setPhone(d); setPatientId(undefined); }}
-            onPick={(p) => {
-              setName(p.name);
-              setPhone(p.mobile ?? "");
-              setAge(displayAge(p));
-              // Blank stays blank. The old `startsWith("f") ? "F" : "M"` put an
-              // M on the queue row for every patient whose sex was never entered.
-              setGender(normaliseSex(p.sex));
-              setPatientId(p.id);
-            }}
+            onChange={(d) => { setPhone(d); setAddError(""); }}
+            onPick={(p) => { void addToQueue(p); }}
             label="Mobile"
             placeholder="01XXXXXXXXX"
-            wrapStyle={{ flex: "0 0 150px" }}
-            inputStyle={{ ...inp, width: "100%", boxSizing: "border-box" }}
+            wrapStyle={{ flex: "0 1 220px", minWidth: 0 }}
+            inputStyle={{ ...inputMd, width: "100%", boxSizing: "border-box" }}
           />
-          <div style={{ flex: "0 0 70px" }}>
-            <label data-caption style={fieldLabel}>Age</label>
-            <input aria-label="Age" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Years" style={{ ...inp, width: "100%" }} />
+          <div style={{ flex: "1 1 220px", minWidth: 0, alignSelf: "flex-end", fontSize: 12, color: C.n[600], paddingBottom: 9 }}>
+            {addVisit.isPending
+              ? "Adding to the queue…"
+              : "Type the patient's 11-digit mobile number, then choose them — or Add New."}
           </div>
-          {/* Same words as the prescription header and Patient Settings, so one
-              vocabulary reaches the queue instead of M/F alongside Male/Female. */}
-          <div style={{ flex: "0 0 100px" }}>
-            <label data-caption style={fieldLabel}>Sex</label>
-          <select aria-label="Sex" value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inp, width: "100%" }}>
-            <option value="">—</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-          </select>
-          </div>
-          <div style={{ flex: "0 0 120px" }}>
-            <label data-caption style={fieldLabel}>Visit type</label>
-          <select aria-label="Visit type" value={type} onChange={(e) => setType(e.target.value)} style={{ ...inp, width: "100%" }}>
-            <option>New</option>
-            <option>Follow-up</option>
-            <option>Urgent</option>
-          </select>
-          </div>
-          <div className="form-submit">
-            <div style={fieldLabel} aria-hidden>&nbsp;</div>
-            <button onClick={submitAdd} disabled={addVisit.isPending || !name.trim()} title={name.trim() ? undefined : "Enter the patient's name first"} style={{ ...btnPrimary("md"), ...(addVisit.isPending || !name.trim() ? btnDisabled : null) }}>
-              {addVisit.isPending ? "Adding…" : "Add"}
-            </button>
-          </div>
+          {addError && <div role="alert" style={{ flex: "1 1 100%", fontSize: 12, color: C.danger[800] }}>{addError}</div>}
         </div>
       )}
 
