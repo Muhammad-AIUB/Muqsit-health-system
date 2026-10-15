@@ -14,6 +14,8 @@
 
 import { SEP } from "@/lib/rxDrugHistory";
 import { MedicineMap, instructionsKey } from "@/lib/medicineKey";
+import { rxItemsFromRows } from "@/lib/rxRows";
+import type { Row } from "@/components/prescription/MedicinePad";
 
 export interface DrugHistoryAddInput {
   drug: string;
@@ -46,4 +48,51 @@ export function isDuplicateDrugHistoryEntry(input: DrugHistoryAddInput, existing
   const map = new MedicineMap<true>();
   for (const e of existing) map.add(e.drug, true, instructionsKey(e.dose, e.food, e.duration));
   return map.has(input.drug, instructionsKey(input.dose, input.food, input.duration));
+}
+
+/**
+ * What the doctor typed into "+ Add medicine" — the ℞ pad's own rows since the
+ * physician's sheet of 15/10/2026 ("add medicine er philosophy prescription er
+ * idea follow korbe") — as Drug-history entries stamped with `date`.
+ *
+ * Read through `rxItemsFromRows`, the ℞ pad's own reading of its rows, and
+ * written in the format the ℞ → Drug-history mirror writes: a medicine
+ * `date: drug — dose — food — duration`, each >>> tapering line under it
+ * `date(cont): dose — food — duration`, a note `date(note): text`. Every
+ * character as typed; a blank cell stays blank.
+ *
+ * A medicine whose first line repeats one the tab already holds — or one
+ * written earlier in the same go — is skipped and named in `skipped`, by the
+ * rule above. A medicine WITH tapering lines is never skipped: its regimen is
+ * more than its first line, and losing a typed taper is worse than a line
+ * shown twice.
+ */
+export function drugHistoryEntriesFromPad(
+  rows: Row[],
+  date: string,
+  existing: DrugHistoryAddInput[],
+): { entries: string[]; skipped: string[] } {
+  const items = rxItemsFromRows(rows);
+  const seen = [...existing];
+  const entries: string[] = [];
+  const skipped: string[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it.isNote) {
+      entries.push(`${date}(note): ${it.drug.trim()}`);
+      continue;
+    }
+    if (it.isCont) continue; // written with its medicine below; one with none above has nothing to qualify
+    const tapers = [];
+    while (items[i + 1]?.isCont) tapers.push(items[++i]);
+    const head: DrugHistoryAddInput = { drug: it.drug, dose: it.dose, food: it.instruction, duration: it.duration };
+    if (!tapers.length && isDuplicateDrugHistoryEntry(head, seen)) {
+      skipped.push(it.drug.trim());
+      continue;
+    }
+    seen.push(head);
+    entries.push(buildDrugHistoryEntry(date, head));
+    for (const t of tapers) entries.push(`${date}(cont): ${t.dose.trim()}${SEP}${t.instruction.trim()}${SEP}${t.duration.trim()}`);
+  }
+  return { entries, skipped };
 }

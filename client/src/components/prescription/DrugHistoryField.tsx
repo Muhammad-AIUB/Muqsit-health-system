@@ -122,10 +122,6 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
   const currentMedEntries = currentMeds.map(toAddInput);
   const pastMedEntries = pastParsed.filter((p) => p.kind === "med").map(toAddInput);
 
-  const addCurrentMedicine = (input: DrugHistoryAddInput) =>
-    addDrugHistoryEntry(buildDrugHistoryEntry(cd, input));
-  const addPastMedicine = (input: DrugHistoryAddInput) =>
-    addDrugHistoryEntry(buildDrugHistoryEntry(PAST_MARKER, input));
   const pastGroups = (() => {
     const map = new Map<string, Parsed[]>();
     for (const p of pastParsed) { const a = map.get(p.date); if (a) a.push(p); else map.set(p.date, [p]); }
@@ -244,7 +240,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px" }}>
               {tab === "current" ? (
                 <>
-                  <AddMedicineRow key="current" existing={currentMedEntries} tabLabel="Current medications" onAdd={addCurrentMedicine} />
+                  <AddMedicineRow key="current" existing={currentMedEntries} tabLabel="Current medications" date={cd} onAdd={addDrugHistoryEntry} />
                   {todays.length === 0 ? (
                     <>
                       <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px 6px" }}>
@@ -307,7 +303,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                 </>
               ) : (
                 <>
-                  <AddMedicineRow key="past" existing={pastMedEntries} tabLabel="Distant past medication" onAdd={addPastMedicine} />
+                  <AddMedicineRow key="past" existing={pastMedEntries} tabLabel="Distant past medication" date={PAST_MARKER} onAdd={addDrugHistoryEntry} />
                   {pastGroups.length === 0 ? (
                     <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever is prescribed today moves here on the patient&apos;s next visit.</div>
                   ) : (

@@ -341,7 +341,8 @@ describe("+ Add medicine — a new line, never a correction", () => {
   const pickNapa = () => {
     fireEvent.focus(typing());
     fireEvent.change(typing(), { target: { value: "napa" } });
-    fireEvent.mouseDown(screen.getByText("Tablet. Napa 500 mg"));
+    // The list may show the same name: the one to press is in the medicine dropdown.
+    fireEvent.mouseDown(screen.getAllByText("Tablet. Napa 500 mg").find((el) => el.closest("button"))!);
   };
   const cell = (placeholder: string) => screen.getAllByPlaceholderText(placeholder)[0] as HTMLTextAreaElement;
   const write = (placeholder: string, value: string) => {

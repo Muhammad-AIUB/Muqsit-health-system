@@ -5,6 +5,11 @@
 // is what lets DrugHistoryField.test.tsx's "offers nothing to type into, on
 // either tab" keep passing unchanged: this row is the ONE typeable thing in
 // the modal, and it is opt-in.
+//
+// Since the physician's sheet of 15/10/2026 (item 1) it is the ℞ pad itself:
+// the same typing line and medicine list, dose / food / duration that open on
+// a medicine line and read the pad's shorthand. Add writes what was typed as
+// history entries under the tab's date.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -16,114 +21,126 @@ const HITS: MedicineHit[] = [
   { id: "2", brandName: "Napa Extra", genericName: "Paracetamol+Caffeine", dosageForm: "Tablet", strength: "500 mg+65 mg", company: null, priceRaw: null },
 ];
 vi.mock("@/hooks/useMedicineSearch", () => ({
-  useMedicineSearch: (q: string) => ({ results: q.trim().length >= 2 ? HITS : [], isLoading: false }),
+  useMedicineSearch: (q: string) => ({ results: (q ?? "").trim().length >= 2 ? HITS : [], isLoading: false }),
 }));
+vi.mock("@/hooks/useRxHabits", () => ({ useRxHabits: () => ({ groups: [], refresh: vi.fn() }) }));
+vi.mock("@/hooks/useDoctorPhrases", () => ({ useDoctorPhrases: () => ({ phrases: [], refresh: vi.fn() }) }));
 
 afterEach(() => cleanup());
 
+const DATE = "15/10/2026";
 const openRow = (existing: { drug: string; dose: string; food: string; duration: string }[] = []) => {
   const onAdd = vi.fn();
-  render(<AddMedicineRow existing={existing} tabLabel="Current medications" onAdd={onAdd} />);
+  render(<AddMedicineRow existing={existing} tabLabel="Current medications" date={DATE} onAdd={onAdd} />);
   fireEvent.click(screen.getByText("+ Add medicine"));
   return { onAdd };
 };
+const typing = () => screen.getByPlaceholderText("Start typing a medicine or note…") as HTMLInputElement;
+const type = (v: string) => { fireEvent.focus(typing()); fireEvent.change(typing(), { target: { value: v } }); };
+const pick = (label: string) => fireEvent.mouseDown(screen.getByText(label));
+const cell = (placeholder: string) => screen.getAllByPlaceholderText(placeholder)[0] as HTMLTextAreaElement;
+const write = (placeholder: string, value: string) => { fireEvent.change(cell(placeholder), { target: { value } }); fireEvent.blur(cell(placeholder)); };
+const addBtn = () => screen.getByRole("button", { name: "Add to Drug history" }) as HTMLButtonElement;
 
 describe("AddMedicineRow — collapsed by default", () => {
   it("shows only the + Add medicine button, nothing typeable", () => {
-    render(<AddMedicineRow existing={[]} tabLabel="Current medications" onAdd={vi.fn()} />);
+    render(<AddMedicineRow existing={[]} tabLabel="Current medications" date={DATE} onAdd={vi.fn()} />);
     expect(screen.getByText("+ Add medicine")).toBeTruthy();
-    expect(document.querySelectorAll("input")).toHaveLength(0);
+    expect(document.querySelectorAll("input, textarea")).toHaveLength(0);
   });
 });
 
-describe("AddMedicineRow — opened", () => {
-  it("offers four boxes: medicine name, dose, food, duration", () => {
+describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
+  it("offers the pad's typing line; dose, food and duration open on a medicine line", () => {
     openRow();
-    expect(screen.getByLabelText("Medicine name")).toBeTruthy();
-    expect(screen.getByLabelText("Dose")).toBeTruthy();
-    expect(screen.getByLabelText("Food")).toBeTruthy();
-    expect(screen.getByLabelText("Duration")).toBeTruthy();
+    expect(typing()).toBeTruthy();
+    expect(screen.queryByPlaceholderText("dose")).toBeNull();
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    expect(cell("dose")).toBeTruthy();
+    expect(cell("food")).toBeTruthy();
+    expect(cell("duration")).toBeTruthy();
   });
 
-  it("shows database suggestions once two letters are typed", () => {
+  it("shows the medicine list, with each generic, once two letters are typed", () => {
     openRow();
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "na" } });
+    type("na");
     expect(screen.getByText("Tablet. Napa 500 mg")).toBeTruthy();
     expect(screen.getByText("Tablet. Napa Extra 500 mg+65 mg")).toBeTruthy();
+    expect(screen.getByText("Paracetamol+Caffeine")).toBeTruthy();
   });
 
-  it("shows no suggestions under two letters", () => {
+  it("shows no list under two letters", () => {
     openRow();
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "n" } });
+    type("n");
     expect(screen.queryByText("Tablet. Napa 500 mg")).toBeNull();
   });
 
-  it("picking a suggestion fills the medicine name box", () => {
+  it("Add waits until something is typed", () => {
     openRow();
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "na" } });
-    fireEvent.click(screen.getByText("Tablet. Napa 500 mg"));
-    expect((screen.getByLabelText("Medicine name") as HTMLInputElement).value).toBe("Tablet. Napa 500 mg");
-  });
-
-  it("Add is disabled until a medicine name is typed", () => {
-    openRow();
-    expect((screen.getByText("Add") as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "Tablet. Napa 500 mg" } });
-    expect((screen.getByText("Add") as HTMLButtonElement).disabled).toBe(false);
+    expect(addBtn().disabled).toBe(true);
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    expect(addBtn().disabled).toBe(false);
   });
 
   it("adds with blanks kept blank — nothing invented", () => {
     const { onAdd } = openRow();
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "Tablet. Napa 500 mg" } });
-    fireEvent.click(screen.getByText("Add"));
-    expect(onAdd).toHaveBeenCalledWith({ drug: "Tablet. Napa 500 mg", dose: "", food: "", duration: "" });
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    fireEvent.click(addBtn());
+    expect(onAdd).toHaveBeenCalledWith("15/10/2026: Tablet. Napa 500 mg —  —  — ");
   });
 
-  it("adds with dose, food and duration filled in", () => {
+  it("reads the pad's shorthand in dose, food and duration", () => {
     const { onAdd } = openRow();
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "Tablet. Napa 500 mg" } });
-    fireEvent.change(screen.getByLabelText("Dose"), { target: { value: "1+0+1" } });
-    fireEvent.change(screen.getByLabelText("Food"), { target: { value: "After meal" } });
-    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "5 days" } });
-    fireEvent.click(screen.getByText("Add"));
-    expect(onAdd).toHaveBeenCalledWith({ drug: "Tablet. Napa 500 mg", dose: "1+0+1", food: "After meal", duration: "5 days" });
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    write("dose", "101");
+    write("duration", "5d");
+    fireEvent.click(addBtn());
+    expect(onAdd).toHaveBeenCalledWith("15/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 5 days");
   });
 
-  it("clears the boxes and keeps the row open after a successful add", () => {
+  it("empties the pad and stays open after an add", () => {
     const { onAdd } = openRow();
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "Tablet. Napa 500 mg" } });
-    fireEvent.click(screen.getByText("Add"));
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    fireEvent.click(addBtn());
     expect(onAdd).toHaveBeenCalledTimes(1);
-    expect((screen.getByLabelText("Medicine name") as HTMLInputElement).value).toBe("");
+    expect(typing().value).toBe("");
     expect(screen.queryByText("+ Add medicine")).toBeNull(); // still open
   });
 
-  it("refuses an exact duplicate and does not call onAdd", () => {
+  it("refuses an exact duplicate, names it, and does not call onAdd", () => {
     const existing = [{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", food: "After meal", duration: "5 days" }];
     const { onAdd } = openRow(existing);
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "Tablet. Napa 500 mg" } });
-    fireEvent.change(screen.getByLabelText("Dose"), { target: { value: "1+1+1" } });
-    fireEvent.change(screen.getByLabelText("Food"), { target: { value: "After meal" } });
-    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "5 days" } });
-    fireEvent.click(screen.getByText("Add"));
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    write("dose", "1+1+1");
+    write("food", "After meal");
+    write("duration", "5 days");
+    fireEvent.click(addBtn());
     expect(onAdd).not.toHaveBeenCalled();
-    expect(screen.getByText("Already in Current medications")).toBeTruthy();
+    expect(screen.getByText("Already in Current medications: Tablet. Napa 500 mg")).toBeTruthy();
   });
 
   it("allows the same medicine at a different dose", () => {
     const existing = [{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", food: "After meal", duration: "5 days" }];
     const { onAdd } = openRow(existing);
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "Tablet. Napa 500 mg" } });
-    fireEvent.change(screen.getByLabelText("Dose"), { target: { value: "1+0+1" } });
-    fireEvent.click(screen.getByText("Add"));
-    expect(onAdd).toHaveBeenCalledWith({ drug: "Tablet. Napa 500 mg", dose: "1+0+1", food: "", duration: "" });
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    write("dose", "1+0+1");
+    fireEvent.click(addBtn());
+    expect(onAdd).toHaveBeenCalledWith("15/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — ");
   });
 
-  it("✕ collapses the row and clears what was typed", () => {
+  it("Cancel collapses the row and clears what was typed", () => {
     openRow();
-    fireEvent.change(screen.getByLabelText("Medicine name"), { target: { value: "Tablet. Napa 500 mg" } });
-    fireEvent.click(screen.getByLabelText("Cancel adding a medicine"));
-    expect(screen.queryByLabelText("Medicine name")).toBeNull();
-    expect(screen.getByText("+ Add medicine")).toBeTruthy();
+    type("Tablet. Napa 500 mg");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByPlaceholderText("Start typing a medicine or note…")).toBeNull();
+    fireEvent.click(screen.getByText("+ Add medicine"));
+    expect(typing().value).toBe("");
   });
 });
