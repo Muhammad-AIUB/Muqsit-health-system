@@ -539,6 +539,106 @@ describe("BulkMedicineModal", () => {
   // The list is ONE Tab stop: with a stop on every row, two hundred presses of
   // Tab stood between the search and Add. Inside it the arrows MOVE and Space
   // ticks — a key that moves does not also choose.
+  // ── The chips and their ▼ (physician's sheet, 15/10/2026, item 2) ────────
+  // "Red area ok ase, nicher format change hobe … Computer er screen er moto
+  // stack kora thakbe … down arrow dia last use 3ta option select kora jabe."
+  // The top of the box stays as it was; below it each medicine is a chip, side
+  // by side and wrapping as on the desktop program, and its ▼ offers the
+  // doctor's last instructions for it.
+  describe("the chips and their ▼", () => {
+    const R1 = { id: "r1", dose: "1+0+1", food: "Before meal", duration: "2 month", contLines: [], patientCount: 3, lastUsedAt: "2026-10-14T00:00:00.000Z" };
+    const R2 = { id: "r2", dose: "1+0+0", food: "Before meal", duration: "Continue", contLines: [], patientCount: 5, lastUsedAt: "2026-10-10T00:00:00.000Z" };
+    const SERGEL3 = { ...SERGEL, recent: [R1, R2] };
+    const arrow = (box: HTMLElement, name: string) => within(box).getByRole("button", { name: `Last instructions for ${name}` });
+    const options = (box: HTMLElement, name: string) =>
+      within(within(box).getByRole("listbox", { name: `Last instructions for ${name}` })).getAllByRole("option");
+
+    it("each medicine is a chip, and the chips stand side by side and wrap", () => {
+      const { box } = open(listed([NAPA, SERGEL3, DELTA]));
+      const group = within(box).getByRole("group", { name: /^Medicines/ });
+      expect(group.style.display).toBe("flex");
+      expect(group.style.flexWrap).toBe("wrap");
+      expect(ticks(box).map((c) => c.closest("[data-chip]"))).not.toContain(null);
+    });
+
+    it("every chip has a ▼ — out of the Tab order, since the list is one Tab stop", () => {
+      const { box } = open(listed([NAPA, SERGEL3]));
+      expect(arrow(box, "Tablet. Napa 500 mg").tabIndex).toBe(-1);
+      expect(arrow(box, "Capsule. Sergel 20 mg").getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("▼ shows the last instructions newest first, each with its patients and date — and the usual, marked", () => {
+      const { box } = open(listed([SERGEL3]));
+      fireEvent.click(arrow(box, "Capsule. Sergel 20 mg"));
+      expect(arrow(box, "Capsule. Sergel 20 mg").getAttribute("aria-expanded")).toBe("true");
+      const texts = options(box, "Capsule. Sergel 20 mg").map((o) => o.textContent);
+      expect(texts).toHaveLength(3);
+      expect(texts[0]).toContain("1+0+1 · Before meal · 14 days");
+      expect(texts[0]).toContain("usual");
+      expect(texts[0]).toContain("22 patients");
+      expect(texts[1]).toContain("1+0+1 · Before meal · 2 month");
+      expect(texts[1]).toContain("3 patients");
+      expect(texts[2]).toContain("1+0+0 · Before meal · Continue");
+      // The one the chip stands on now is the one shown as chosen.
+      expect(options(box, "Capsule. Sergel 20 mg")[0].getAttribute("aria-selected")).toBe("true");
+    });
+
+    it("⚕️ choosing one ticks the medicine, shows it on the chip, and is what Add adds", () => {
+      const { box, onAdd } = open(listed([NAPA, SERGEL3]));
+      fireEvent.click(arrow(box, "Capsule. Sergel 20 mg"));
+      fireEvent.click(options(box, "Capsule. Sergel 20 mg")[2]);
+      expect(tickBox(box, "Capsule. Sergel 20 mg").checked).toBe(true);
+      expect(within(box).queryByRole("listbox")).toBeNull();
+      const chip = tickBox(box, "Capsule. Sergel 20 mg").closest("[data-chip]") as HTMLElement;
+      expect(chip.textContent).toContain("1+0+0 · Before meal · Continue");
+      expect(chip.textContent).not.toContain("14 days");
+      fireEvent.click(addButton(box));
+      const [items] = onAdd.mock.calls[0] as [RxItem[], string];
+      expect(items.map((it) => [it.drug, it.dose, it.instruction, it.duration])).toEqual([
+        ["Capsule. Sergel 20 mg", "1+0+0", "Before meal", "Continue"],
+      ]);
+    });
+
+    it("a medicine ticked without a choice adds its usual, as before", () => {
+      const { box, onAdd } = open(listed([SERGEL3]));
+      tick(box, "Capsule. Sergel 20 mg");
+      fireEvent.click(addButton(box));
+      const [items] = onAdd.mock.calls[0] as [RxItem[], string];
+      expect(items[0].dose).toBe("1+0+1");
+      expect(items[0].duration).toBe("14 days");
+    });
+
+    it("Enter on a medicine opens its list from the keyboard; Escape closes the list and not the box", () => {
+      const { box, onClose } = open(listed([NAPA, SERGEL3]));
+      act(() => tickBox(box, "Capsule. Sergel 20 mg").focus());
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Enter" });
+      expect(document.activeElement).toBe(options(box, "Capsule. Sergel 20 mg")[0]);
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowDown" });
+      expect(document.activeElement).toBe(options(box, "Capsule. Sergel 20 mg")[1]);
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Escape" });
+      expect(within(box).queryByRole("listbox")).toBeNull();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(tickBox(box, "Capsule. Sergel 20 mg"));
+    });
+
+    it("the arrows to the side move along the chips, as up and down do", () => {
+      const { box } = open(listed([NAPA, SERGEL3, DELTA]));
+      act(() => tickBox(box, "Tablet. Napa 500 mg").focus());
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowRight" });
+      expect(document.activeElement).toBe(tickBox(box, "Capsule. Sergel 20 mg"));
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowLeft" });
+      expect(document.activeElement).toBe(tickBox(box, "Tablet. Napa 500 mg"));
+    });
+
+    it("the top of the box is as it was: the title, its line, Popular / Alphabetical and the search", () => {
+      const { box } = open(listed([NAPA]));
+      expect(box.textContent).toContain("Medicines prescribed here before, each with its usual instruction. Tick, then Add.");
+      expect(within(box).getByRole("button", { name: "Popular" })).toBeTruthy();
+      expect(within(box).getByRole("button", { name: "Alphabetical" })).toBeTruthy();
+      expect(searchBox(box).placeholder).toBe("Search by name or generic…");
+    });
+  });
+
   describe("the list from the keyboard", () => {
     const stops = (box: HTMLElement) => ticks(box).filter((c) => c.tabIndex === 0).map((c) => rowOf(c).querySelector("[data-name]")?.textContent);
     const focused = () => rowOf(document.activeElement as HTMLElement).querySelector("[data-name]")?.textContent;

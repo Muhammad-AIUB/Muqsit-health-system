@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  bulkSummary, bulkToRxItems, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel,
-  readBulkList, searchBulk, sortBulk, type BulkMedicine,
+  bulkSummary, bulkToRxItems, choicesOf, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel,
+  readBulkList, searchBulk, sortBulk, withChoice, type BulkChoice, type BulkMedicine,
 } from "./bulkMedicines";
 import type { RxItem } from "@/types";
 
@@ -472,5 +472,63 @@ describe("what is said after Add", () => {
     expect(nothingAddedNote(3, 0)).toBe("Those medicines are already on ℞ with the same instructions — nothing was added.");
     expect(nothingAddedNote(1, 1)).toBe("That medicine is already on ℞, but its tapering lines there are not the ones shown here — nothing was added. Change them on the pad.");
     expect(nothingAddedNote(3, 1)).toBe("Those medicines are already on ℞ — nothing was added. The tapering lines of 1 are not the ones shown here: change them on the pad.");
+  });
+});
+
+// ⚕️ The ▼ on a medicine in the box (physician's sheet, 15/10/2026, item 2:
+// "down arrow dia select kora jabe ami last je format use korsi tar moddho
+// theke … last use 3ta option"). The server sends the doctor's last three
+// instructions for each medicine (`recent`, newest first); the box offers them,
+// and the usual it shows by default stays one of the choices. What is added is
+// the instruction CHOSEN, exactly as it was written — nothing mixed from two.
+describe("the last instructions of a medicine — the ▼", () => {
+  const choice = (over: Partial<BulkChoice>): BulkChoice => ({
+    id: "r1", dose: "1+0+1", food: "Before meal", duration: "2 month", contLines: [], patientCount: 3, lastUsedAt: "2026-10-14T00:00:00.000Z", ...over,
+  });
+  const R1 = choice({});
+  const R2 = choice({ id: "r2", dose: "1+0+0", duration: "Continue", patientCount: 5, lastUsedAt: "2026-10-10T00:00:00.000Z" });
+  const USUAL_AS_RECENT = choice({ id: "h2", dose: SERGEL.dose, food: SERGEL.food, duration: SERGEL.duration, patientCount: 22, lastUsedAt: "2026-09-01T00:00:00.000Z" });
+
+  it("reads `recent` from the server, in its order, leaving out an entry it cannot read whole — never the medicine", () => {
+    const out = readBulkList({
+      medicines: [{ ...SERGEL, recent: [R1, { ...R2, contLines: "1+0+0" }, { id: "", dose: "x", food: "", duration: "" }, null, R2] }],
+    });
+    expect(out?.medicines[0].recent).toEqual([R1, R2]);
+    expect(out?.unreadable).toBe(0);
+  });
+
+  it("a server that sends no `recent` leaves the medicine as it was", () => {
+    expect(readBulkList({ medicines: [SERGEL] })?.medicines[0]).toEqual(SERGEL);
+    expect(readBulkList({ medicines: [{ ...SERGEL, recent: "no" }] })?.medicines[0]).toEqual(SERGEL);
+  });
+
+  it("offers the last ones newest first — and the usual too, marked, when it is not among them", () => {
+    const m = { ...SERGEL, recent: [R1, R2] };
+    expect(choicesOf(m).map((c) => [c.id, c.usual])).toEqual([["h2", true], ["r1", false], ["r2", false]]);
+  });
+
+  it("the usual is not offered twice when it is among the last ones", () => {
+    const m = { ...SERGEL, recent: [R1, USUAL_AS_RECENT, R2] };
+    expect(choicesOf(m).map((c) => [c.id, c.usual])).toEqual([["r1", false], ["h2", true], ["r2", false]]);
+  });
+
+  it("a medicine with no `recent` offers its usual alone", () => {
+    expect(choicesOf(SERGEL).map((c) => c.id)).toEqual(["h2"]);
+  });
+
+  it("⚕️ the chosen instruction is the one added — dose, food, duration and taper together", () => {
+    const tapering = choice({ id: "r3", dose: "2+0+0", food: "After meal", duration: "5 days", contLines: [{ dose: "1+0+0", food: "After meal", duration: "5 days" }] });
+    const m = { ...SERGEL, recent: [R1, tapering] };
+    const chosen = withChoice(m, "r3");
+    expect(bulkToRxItems([chosen], []).items).toEqual([
+      { drug: SERGEL.drugLabel, dose: "2+0+0", duration: "5 days", instruction: "After meal", isCont: false, generic: "Esomeprazole" },
+      { drug: "", dose: "1+0+0", duration: "5 days", instruction: "After meal", isCont: true },
+    ]);
+  });
+
+  it("with nothing chosen, or a choice the list no longer has, the usual is added — as before", () => {
+    const m = { ...SERGEL, recent: [R1] };
+    expect(withChoice(m, undefined)).toBe(m);
+    expect(withChoice(m, "gone")).toBe(m);
   });
 });
