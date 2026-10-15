@@ -14,7 +14,11 @@ import { normaliseDrugKey } from '../rx-habits/normalise';
 // written again. The column is plain text, so the third scope needs no change
 // to the table.
 export type AdviceScope = 'medicine' | 'generic' | 'diagnosis';
-export const ADVICE_SCOPES: readonly AdviceScope[] = ['medicine', 'generic', 'diagnosis'];
+export const ADVICE_SCOPES: readonly AdviceScope[] = [
+  'medicine',
+  'generic',
+  'diagnosis',
+];
 
 /** A generic name, folded for case and whitespace only. */
 export function genericKey(generic: string): string {

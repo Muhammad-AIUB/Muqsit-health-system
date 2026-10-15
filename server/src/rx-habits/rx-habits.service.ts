@@ -660,7 +660,10 @@ export class RxHabitsService implements OnModuleInit {
    * (half a schedule is worse than none); the medicine stays listed. Throws,
    * like `listAll`: the box says the list could not be loaded.
    */
-  private async attachRecent(doctorId: string, medicines: HabitMedicine[]): Promise<void> {
+  private async attachRecent(
+    doctorId: string,
+    medicines: HabitMedicine[],
+  ): Promise<void> {
     if (!medicines.length) return;
     const rows = await this.prisma.$queryRaw<RecentRow[]>`
       SELECT "id", "drugKey", "dose", "food", "duration", "contLines", "patientCount", "lastUsedAt"
@@ -679,7 +682,9 @@ export class RxHabitsService implements OnModuleInit {
       if (!m) continue; // a medicine past the list's cap
       const contLines = sanitiseContLines(r.contLines);
       if (contLines === null) {
-        this.log.warn(`habit ${r.id} has unreadable contLines — left out of the bulk list's choices`);
+        this.log.warn(
+          `habit ${r.id} has unreadable contLines — left out of the bulk list's choices`,
+        );
         continue;
       }
       m.recent.push({

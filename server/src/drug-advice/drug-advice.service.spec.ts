@@ -1,6 +1,12 @@
 import { BadRequestException, Logger } from '@nestjs/common';
 import { DrugAdviceService } from './drug-advice.service';
-import { ADVICE_SCOPES, adviceKey, cleanLines, diagnosisKey, genericKey } from './keys';
+import {
+  ADVICE_SCOPES,
+  adviceKey,
+  cleanLines,
+  diagnosisKey,
+  genericKey,
+} from './keys';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { SaveDrugAdviceDto } from './dto/drug-advice.dto';
@@ -45,13 +51,27 @@ describe('drug advice keys — a final diagnosis', () => {
   it('folds case and spacing only', () => {
     expect(diagnosisKey('  Pregnant ')).toBe('pregnant');
     expect(adviceKey('diagnosis', 'Type 2   DM')).toBe('type 2 dm');
-    expect(adviceKey('diagnosis', 'Pregnant 32 weeks')).not.toBe(adviceKey('diagnosis', 'Pregnant'));
+    expect(adviceKey('diagnosis', 'Pregnant 32 weeks')).not.toBe(
+      adviceKey('diagnosis', 'Pregnant'),
+    );
   });
 
   it('the DTO lets the scope through, and still refuses one it does not know', async () => {
-    const ok = await validate(plainToInstance(SaveDrugAdviceDto, { scope: 'diagnosis', label: 'Pregnant', lines: ['Take folic acid'] }));
+    const ok = await validate(
+      plainToInstance(SaveDrugAdviceDto, {
+        scope: 'diagnosis',
+        label: 'Pregnant',
+        lines: ['Take folic acid'],
+      }),
+    );
     expect(ok).toHaveLength(0);
-    const bad = await validate(plainToInstance(SaveDrugAdviceDto, { scope: 'symptom', label: 'Fever', lines: [] }));
+    const bad = await validate(
+      plainToInstance(SaveDrugAdviceDto, {
+        scope: 'symptom',
+        label: 'Fever',
+        lines: [],
+      }),
+    );
     expect(bad.map((e) => e.property)).toContain('scope');
   });
 });
@@ -74,12 +94,22 @@ describe('DrugAdviceService.save', () => {
   });
 
   it('stores a diagnosis under its folded name', async () => {
-    await svc.save('doc-1', { scope: 'diagnosis', label: ' Pregnant ', lines: ['Take folic acid daily'] });
+    await svc.save('doc-1', {
+      scope: 'diagnosis',
+      label: ' Pregnant ',
+      lines: ['Take folic acid daily'],
+    });
     const arg = upsert.mock.calls[0][0] as unknown as {
-      where: { doctorId_scope_key: { doctorId: string; scope: string; key: string } };
+      where: {
+        doctorId_scope_key: { doctorId: string; scope: string; key: string };
+      };
       create: { lines: string[]; label: string };
     };
-    expect(arg.where.doctorId_scope_key).toEqual({ doctorId: 'doc-1', scope: 'diagnosis', key: 'pregnant' });
+    expect(arg.where.doctorId_scope_key).toEqual({
+      doctorId: 'doc-1',
+      scope: 'diagnosis',
+      key: 'pregnant',
+    });
     expect(arg.create.label).toBe('Pregnant');
     expect(arg.create.lines).toEqual(['Take folic acid daily']);
   });
