@@ -500,13 +500,19 @@ medicine whose doses are all hidden is not listed:
 
 ```ts
 {
-  medicines: [{ id, drugKey, drugLabel, generic?, dose, food, duration, contLines, patientCount, lastUsedAt }],
+  medicines: [{ id, drugKey, drugLabel, generic?, dose, food, duration, contLines, patientCount, lastUsedAt,
+                 recent: [{ id, dose, food, duration, contLines, patientCount, lastUsedAt }] }],
   truncated: boolean,  // the doctor has more than 2,000; the most used are returned
   unreadable: number   // medicines left out because their row could not be read
 }
 ```
 
-Ordered most patients first. `generic` is looked up as above. ⚠️ **Unlike `?q=`,
+Ordered most patients first. `generic` is looked up as above. `recent` (15/10/2026,
+the box's ▼) is the doctor's last three instructions for that medicine, newest
+first, from the same rows (`hidden = false`, this doctor only); an instruction
+whose `contLines` cannot be read is left out of it, the medicine is not. A
+client that does not read it loses nothing — the medicine's own row is chosen
+as before. ⚠️ **Unlike `?q=`,
 a failure here is a 500, not an empty list** — the box that reads it was opened
 on purpose and has to be able to say "could not be loaded". **That includes a
 failed generic lookup**: `?q=` returns its suggestions without a generic,

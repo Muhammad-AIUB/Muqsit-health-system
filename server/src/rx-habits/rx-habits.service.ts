@@ -98,6 +98,17 @@ export interface HabitGroup {
  * read — the dropdown offers the next, the list leaves the medicine out and
  * counts it.
  */
+/** One instruction the doctor has written for a medicine (the bulk box's ▼). */
+export interface HabitChoice {
+  id: string;
+  dose: string;
+  food: string;
+  duration: string;
+  contLines: HabitLine[];
+  patientCount: number;
+  lastUsedAt: Date;
+}
+
 export interface HabitMedicine {
   id: string;
   drugKey: string;
@@ -110,6 +121,13 @@ export interface HabitMedicine {
   contLines: HabitLine[];
   patientCount: number;
   lastUsedAt: Date;
+  /**
+   * The doctor's LAST instructions for this medicine, newest first, at most
+   * `MAX_RECENT`, hidden ones never (physician's sheet, 15/10/2026, item 2:
+   * "down arrow dia last use 3ta option select kora jabe"). The medicine's own
+   * row above is still the usual, chosen as before.
+   */
+  recent: HabitChoice[];
 }
 
 export interface HabitMedicineList {
@@ -129,6 +147,7 @@ const MAX_MEDICINES = 4; // eng review: ≤12 rows above a 10-row medicine list
 const MAX_HIDDEN_PER_MEDICINE = 20; // bounded payload; hiddenCount is the true number
 const MIN_QUERY = 2; // mirrors useMedicineSearch
 const MAX_ALL_MEDICINES = 2000; // the bulk list; `truncated` says when it bit
+const MAX_RECENT = 3; // physician's sheet, 15/10/2026: "last use 3ta option"
 
 /** Raw row shape returned by the windowed lookup. */
 interface LookupRow {
@@ -178,6 +197,9 @@ interface AllRow {
   patientCount: number;
   lastUsedAt: Date;
 }
+
+/** One of a medicine's latest instructions (`listAll`'s second question). */
+type RecentRow = Omit<AllRow, 'drugLabel'>;
 
 /**
  * `contLines` comes out of a Json column, so it is UNKNOWN at this boundary —
@@ -617,8 +639,10 @@ export class RxHabitsService implements OnModuleInit {
         contLines,
         patientCount: Number(r.patientCount),
         lastUsedAt: r.lastUsedAt,
+        recent: [],
       });
     }
+    await this.attachRecent(doctorId, medicines);
     // ⚕️ NOT caught, unlike in `list()`: the box has no second source for a
     // generic. Offered without the one the catalogue holds for it, a medicine
     // goes onto the pad with its contraindication warning switched off —
@@ -626,6 +650,48 @@ export class RxHabitsService implements OnModuleInit {
     // "could not be loaded" instead, and Try again asks the catalogue again.
     await this.attachGenerics(medicines);
     return { medicines, truncated: rows.length > MAX_ALL_MEDICINES, unreadable };
+  }
+
+  /**
+   * Each listed medicine's last `MAX_RECENT` instructions, newest first — the
+   * ▼ of the bulk box. The same doctor's rows and the same `hidden = false` as
+   * the list itself, so a dose the doctor hid is never offered here either.
+   * An instruction whose taper cannot be read is left out of the choices
+   * (half a schedule is worse than none); the medicine stays listed. Throws,
+   * like `listAll`: the box says the list could not be loaded.
+   */
+  private async attachRecent(doctorId: string, medicines: HabitMedicine[]): Promise<void> {
+    if (!medicines.length) return;
+    const rows = await this.prisma.$queryRaw<RecentRow[]>`
+      SELECT "id", "drugKey", "dose", "food", "duration", "contLines", "patientCount", "lastUsedAt"
+      FROM (
+        SELECT h."id", h."drugKey", h."dose", h."food", h."duration", h."contLines", h."patientCount", h."lastUsedAt",
+               ROW_NUMBER() OVER (PARTITION BY h."drugKey" ORDER BY h."lastUsedAt" DESC, h."id" ASC) AS rr
+        FROM "DoctorRxHabit" h
+        WHERE h."doctorId" = ${doctorId} AND h."hidden" = false
+      ) latest
+      WHERE rr <= ${MAX_RECENT}
+      ORDER BY "drugKey" ASC, rr ASC
+    `;
+    const byKey = new Map(medicines.map((m) => [m.drugKey, m] as const));
+    for (const r of rows ?? []) {
+      const m = byKey.get(r.drugKey);
+      if (!m) continue; // a medicine past the list's cap
+      const contLines = sanitiseContLines(r.contLines);
+      if (contLines === null) {
+        this.log.warn(`habit ${r.id} has unreadable contLines — left out of the bulk list's choices`);
+        continue;
+      }
+      m.recent.push({
+        id: r.id,
+        dose: r.dose,
+        food: r.food,
+        duration: r.duration,
+        contLines,
+        patientCount: Number(r.patientCount),
+        lastUsedAt: r.lastUsedAt,
+      });
+    }
   }
 
   /**

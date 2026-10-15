@@ -127,6 +127,15 @@ these are the ones that live in this app's code and are easy to break.
   and COUNTED (`unreadable`), and the box says the number — the dropdown would
   offer that medicine's next instruction, so in that one case the two surfaces
   differ.
+  **Since 15/10/2026 each medicine also carries `recent`** — the doctor's last
+  three instructions for it, newest first (physician's sheet, item 2: the ▼ on
+  a medicine in the box). A second query over the SAME rows (this doctor,
+  `hidden = false`), `ROW_NUMBER() … ORDER BY "lastUsedAt" DESC, "id"`, `rr <= 3`
+  (`attachRecent`); an instruction whose `contLines` cannot be read is left out
+  of the choices and the medicine stays. Timed on `muqsit_load_test` with made-up
+  rows (one doctor with 2,000 medicines × 4 instructions among 68,000): median
+  ~10 ms, the same as the list's own query; the production table was not timed.
+  Held against a real Postgres in `rx-habits-all.int-spec.ts`.
 - **⚕️ `attachGenerics` THROWS on a failed catalogue lookup: `list()` catches
   it, `listAll()` does not** (first review, 2026-10-13, before release). The
   first version wrapped the lookup in the dropdown's try/catch and returned the
