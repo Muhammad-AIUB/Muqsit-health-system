@@ -58,12 +58,20 @@ interface ExpandableFieldProps {
   // Opt-in content of the "Investigations group" tab. `apply` stages several
   // items at once (a group's tests) into the same Added list.
   renderGroups?: (selected: string[], apply: (add: string[], remove: string[]) => void) => ReactNode;
-  // Opt-in (OPD clinical sidebar, 2026-09-25): a × beside each line removes
-  // that one line, with an Undo bar to put it back where it was.
+  // Opt-in (OPD clinical sidebar, 2026-09-25): a line can be taken off by
+  // itself, with an Undo bar to put it back where it was. Since the
+  // physician's sheet of 15/10/2026 ("cross delete koro … accidental delete hoa
+  // jabe") the ✕ is shown only inside ✎ Edit, beside each box of a field
+  // corrected in place; a line being READ carries no ✕. A popup field takes a
+  // line off from its chip in the popup, as it always has.
   removable?: boolean;
+  // Opt-in (Final diagnosis only, physician's sheet of 15/10/2026): ••• left of
+  // each line opens the Special advice box for it, green once advice is saved —
+  // the same ••• the ℞ pad has beside a medicine.
+  lineAdvice?: { has: (item: string) => boolean; open: (item: string) => void };
 }
 
-export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla, investigationTabs, renderDirectory, renderGroups, removable }: ExpandableFieldProps) {
+export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla, investigationTabs, renderDirectory, renderGroups, removable, lineAdvice }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"items" | "groups">("items");
   const [inputVal, setInputVal] = useState("");
@@ -238,10 +246,12 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
 
   const cancelInlineEdit = () => setEditOpen(false);
 
-  // --- × on a line ---------------------------------------------------------
+  // --- ✕ on a line (inside ✎ Edit) ---------------------------------------
   // Removes that ONE line (by position, so a repeated line only loses the copy
   // clicked). The Undo bar stays until the doctor undoes or dismisses it, or
   // removes another line: a mis-click beside a diagnosis must be recoverable.
+  // While the boxes are open the staged copy loses the same line, so what is
+  // typed in the other boxes stays with its own line.
   const [removed, setRemoved] = useState<{ item: string; idx: number } | null>(null);
   // ⚕️ This field stays mounted when the doctor switches patient (it is keyed
   // by label), so an Undo left showing would put one patient's line into the
@@ -251,12 +261,14 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     const item = items[idx];
     if (item === undefined) return;
     setItems((prev) => prev.filter((_, i) => i !== idx));
+    if (editOpen) setEditLines((prev) => prev.filter((_, i) => i !== idx));
     setRemoved({ item, idx });
   };
   const undoRemove = () => {
     if (!removed) return;
     const { item, idx } = removed;
     setItems((prev) => [...prev.slice(0, idx), item, ...prev.slice(idx)]);
+    if (editOpen) setEditLines((prev) => [...prev.slice(0, idx), item, ...prev.slice(idx)]);
     setRemoved(null);
   };
 
@@ -296,6 +308,16 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
         <div data-inline-edit-group={groupId} style={{ paddingLeft: 14, marginTop: 1, marginBottom: 4 }}>
           {items.map((item, idx) => (
             <div key={idx} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.n[800], padding: "1.5px 0" }}>
+              {lineAdvice && !editOpen && (
+                <button
+                  type="button"
+                  data-has-advice={lineAdvice.has(item) ? "yes" : undefined}
+                  title={lineAdvice.has(item) ? "Special advice saved for this diagnosis — click to view" : "Add special advice to this diagnosis"}
+                  aria-label={`Special advice for ${item}`}
+                  onClick={() => lineAdvice.open(item)}
+                  style={{ width: 22, flexShrink: 0, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 13, lineHeight: 1, letterSpacing: -1, fontWeight: 700, color: lineAdvice.has(item) ? C.ok[400] : C.n[800], fontFamily: "inherit" }}
+                >•••</button>
+              )}
               <span style={{ color: C.n[500], lineHeight: 1.45, flexShrink: 0 }}>•</span>
               {editOpen ? (
                 <input
@@ -337,23 +359,23 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   style={{ flex: 1, minWidth: 0, marginLeft: 4, padding: "3px 8px", borderRadius: 5, border: `1px solid ${C.n[300]}`, fontSize: 11.5, fontFamily: "inherit", color: C.n[900], outline: "none", background: editable ? C.n[0] : C.n[50] }}
                 />
               )}
-              {removable && editable && !editOpen && (
+              {removable && editable && editOpen && (
+                // Inside the edit group, so pressing it does not trip the boxes'
+                // "left the group → save" blur.
                 <button
                   type="button"
                   aria-label={`Remove "${item}"`}
                   title="Remove this line"
                   onClick={() => removeLine(idx)}
-                  style={{ width: 18, height: 18, flexShrink: 0, borderRadius: "50%", border: "none", background: "transparent", color: C.n[400], fontSize: 13, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, fontFamily: "inherit" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = C.danger[50]; e.currentTarget.style.color = C.danger[800]; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.n[400]; }}
-                >×</button>
+                  style={{ width: 20, height: 20, flexShrink: 0, borderRadius: "50%", border: "none", background: C.danger[50], color: C.danger[800], fontSize: 11, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, fontFamily: "inherit" }}
+                >✕</button>
               )}
             </div>
           ))}
         </div>
       )}
-      {removed && editable && !editOpen && (
-        <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px 14px", padding: "4px 8px", borderRadius: 6, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 11.5, color: C.n[700] }}>
+      {removed && editable && (
+        <div role="status" data-inline-edit-group={groupId} style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px 14px", padding: "4px 8px", borderRadius: 6, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 11.5, color: C.n[700] }}>
           <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>Removed “{removed.item}”</span>
           <button type="button" onClick={undoRemove} style={{ border: "none", background: "none", color: C.pri[600], fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Undo</button>
           <button type="button" aria-label="Dismiss" onClick={() => setRemoved(null)} style={{ border: "none", background: "none", color: C.n[500], fontSize: 13, cursor: "pointer", padding: 0, lineHeight: 1, fontFamily: "inherit" }}>×</button>

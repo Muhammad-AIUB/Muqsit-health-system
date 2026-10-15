@@ -17,13 +17,17 @@
 // Nothing here writes to the prescription directly: the Advice-section mirror
 // in MuqsitContext (lib/rxDrugAdvice.ts) does that from the saved lines and
 // the ticks, and it only ever withdraws lines it added itself.
+//
+// Opened from the ••• beside a FINAL DIAGNOSIS (physician's sheet, 15/10/2026,
+// item 4) it is the same box with one scope: Instruction names the diagnosis,
+// and the advice is saved for that diagnosis as written (scope "diagnosis").
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { btnTonal, btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, btnClose } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useSaveDrugAdvice } from "@/hooks/useDrugAdvice";
-import { adviceLines, drugKeyOf, offKey, savedAdviceFor, type AdviceScope } from "@/lib/rxDrugAdvice";
+import { adviceLines, diagnosisOwner, drugKeyOf, offKey, savedAdviceFor, savedAdviceForDiagnosis, type AdviceScope } from "@/lib/rxDrugAdvice";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
 import { ApiError } from "@/lib/api";
 import { useDialog } from "@/lib/useDialog";
@@ -32,34 +36,50 @@ interface Line { text: string; checked: boolean }
 
 const MAX_LINES = 30;
 
-export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string; generic?: string; onClose: () => void }) {
+type Props =
+  | { drug: string; generic?: string; diagnosis?: undefined; onClose: () => void }
+  | { diagnosis: string; drug?: undefined; generic?: undefined; onClose: () => void };
+
+const NONE: Record<AdviceScope, boolean> = { medicine: false, generic: false, diagnosis: false };
+
+export default function DrugAdviceBox({ drug, generic, diagnosis, onClose }: Props) {
   const { savedDrugAdvice, rxAdviceOff, setRxAdviceOff, can } = useMuqsit();
   const save = useSaveDrugAdvice();
   const mayEdit = can("rx.advice");
-  const dk = drugKeyOf(drug);
+  const forDiagnosis = diagnosis !== undefined;
+  // What the box is opened for, as written: a medicine line or a diagnosis.
+  const subject = (forDiagnosis ? diagnosis : drug ?? "").trim();
+  // Whose ticks these are: the medicine's key, or the diagnosis's own.
+  const dk = forDiagnosis ? diagnosisOwner(subject) : drugKeyOf(subject);
   const genericName = (generic ?? "").trim();
 
-  const saved = useMemo(() => savedAdviceFor({ drug, generic: genericName }, savedDrugAdvice), [drug, genericName, savedDrugAdvice]);
+  const saved = useMemo(
+    () => (forDiagnosis
+      ? { medicine: null, generic: null, diagnosis: savedAdviceForDiagnosis(subject, savedDrugAdvice) }
+      : { ...savedAdviceFor({ drug: subject, generic: genericName }, savedDrugAdvice), diagnosis: null }),
+    [forDiagnosis, subject, genericName, savedDrugAdvice],
+  );
   const offSet = useMemo(() => new Set(rxAdviceOff), [rxAdviceOff]);
   const fromSaved = (scope: AdviceScope): Line[] =>
-    adviceLines(scope === "medicine" ? saved.medicine : saved.generic).map((text) => ({ text, checked: !offSet.has(offKey(dk, text)) }));
+    adviceLines(saved[scope]).map((text) => ({ text, checked: !offSet.has(offKey(dk, text)) }));
+  const allFromSaved = (): Record<AdviceScope, Line[]> => ({ medicine: fromSaved("medicine"), generic: fromSaved("generic"), diagnosis: fromSaved("diagnosis") });
 
-  const [scope, setScope] = useState<AdviceScope>(() => (!saved.medicine && saved.generic ? "generic" : "medicine"));
+  const [scope, setScope] = useState<AdviceScope>(() => (forDiagnosis ? "diagnosis" : !saved.medicine && saved.generic ? "generic" : "medicine"));
   const [editing, setEditing] = useState(false);
   // One working copy per scope, so switching the radio never loses typing.
-  const [drafts, setDrafts] = useState<Record<AdviceScope, Line[]>>(() => ({ medicine: fromSaved("medicine"), generic: fromSaved("generic") }));
-  const [dirty, setDirty] = useState<Record<AdviceScope, boolean>>({ medicine: false, generic: false });
+  const [drafts, setDrafts] = useState<Record<AdviceScope, Line[]>>(allFromSaved);
+  const [dirty, setDirty] = useState<Record<AdviceScope, boolean>>(NONE);
   const [error, setError] = useState("");
   const [confirmClose, setConfirmClose] = useState(false);
   const focusLast = useRef(false);
-  const anyDirty = dirty.medicine || dirty.generic;
+  const anyDirty = dirty.medicine || dirty.generic || dirty.diagnosis;
   const listRef = useRef<HTMLDivElement>(null);
 
   // While NOT editing, the view follows what is stored — a tick changed here
   // or on another device shows up straight away.
   useEffect(() => {
     if (editing || anyDirty) return;
-    setDrafts({ medicine: fromSaved("medicine"), generic: fromSaved("generic") });
+    setDrafts(allFromSaved());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved, offSet, editing, anyDirty]);
 
@@ -102,19 +122,19 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
 
   const doSave = async () => {
     setError("");
-    const scopes = (["medicine", "generic"] as AdviceScope[]).filter((s) => dirty[s]);
+    const scopes = (["medicine", "generic", "diagnosis"] as AdviceScope[]).filter((s) => dirty[s]);
     try {
       for (const s of scopes) {
         if (s === "generic" && !genericName) continue;
         const clean = drafts[s].map((l) => ({ ...l, text: l.text.trim() })).filter((l) => l.text);
-        await save.mutateAsync({ scope: s, label: s === "medicine" ? drug : genericName, lines: clean.map((l) => l.text) });
+        await save.mutateAsync({ scope: s, label: s === "generic" ? genericName : subject, lines: clean.map((l) => l.text) });
       }
     } catch (e) {
       setError(e instanceof ApiError ? `Advice NOT saved: ${e.message}` : "Advice NOT saved. Is the connection up?");
       return; // box stays open with every line — nothing is lost
     }
     // Stored — now this visit's ticks for the lines just written.
-    const all = [...drafts.medicine, ...drafts.generic].map((l) => ({ ...l, text: l.text.trim() })).filter((l) => l.text);
+    const all = [...drafts.medicine, ...drafts.generic, ...drafts.diagnosis].map((l) => ({ ...l, text: l.text.trim() })).filter((l) => l.text);
     setRxAdviceOff((prev) => {
       const next = new Set(prev);
       for (const l of all) {
@@ -153,9 +173,10 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
         <div style={{ padding: "12px 18px", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: C.n[500], textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>Instruction</div>
-            <div style={{ padding: "8px 10px", borderRadius: 7, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 13.5, color: C.n[900] }}>{drug}</div>
+            <div style={{ padding: "8px 10px", borderRadius: 7, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 13.5, color: C.n[900] }}>{subject}</div>
           </div>
 
+          {!forDiagnosis && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 22px" }}>
             {radio("medicine", "Only for this medicine", false)}
             {radio(
@@ -165,7 +186,8 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
               genericName ? undefined : "No generic is on record for this line — pick the medicine from the list to give advice to its whole group.",
             )}
           </div>
-          {!genericName && (
+          )}
+          {!forDiagnosis && !genericName && (
             <div style={{ fontSize: 11.5, color: C.n[500], marginTop: -6 }}>
               No generic is on record for this line, so group advice is not available. Pick the medicine from the medicine list to use it.
             </div>
@@ -175,7 +197,7 @@ export default function DrugAdviceBox({ drug, generic, onClose }: { drug: string
           <div ref={listRef} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {lines.length === 0 && (
               <div style={{ fontSize: 12.5, color: C.n[500], padding: "6px 0" }}>
-                {scope === "medicine" ? "No advice for this medicine yet." : "No advice for this group yet."}
+                {scope === "diagnosis" ? "No advice for this diagnosis yet." : scope === "medicine" ? "No advice for this medicine yet." : "No advice for this group yet."}
               </div>
             )}
             {lines.map((l, i) => (

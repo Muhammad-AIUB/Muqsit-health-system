@@ -18,12 +18,18 @@
 // Same shape as `rxDrugHistory.ts`, and the same rule that makes writing into a
 // clinical list from a keystroke safe: the mirror remembers what it added
 // (`owned`) and withdraws only that.
+//
+// ⚕️ Advice per FINAL DIAGNOSIS (physician's sheet, 15/10/2026, item 4) rides
+// the same mirror: the doctor writes it in the same box, from the ••• beside a
+// Final diagnosis line (scope "diagnosis"), and it joins Advice while that
+// diagnosis is written. The medicines' advice comes first and the diagnoses'
+// after it ("osudh er advice and final diagnosis er advice … por por thakbe").
 
 import type { RxItem } from "@/types";
 import { rowsFromRxItems } from "@/lib/rxRows";
 import { normaliseDrugKey } from "@/lib/rxHabitKey";
 
-export type AdviceScope = "medicine" | "generic";
+export type AdviceScope = "medicine" | "generic" | "diagnosis";
 
 export interface DrugAdvice {
   id: string;
@@ -48,6 +54,24 @@ export function genericKey(generic: string | undefined | null): string {
 /** The per-medicine key a tick is remembered under (strength included). */
 export function drugKeyOf(drug: string): string {
   return normaliseDrugKey(drug ?? "");
+}
+
+/**
+ * A final diagnosis, folded for case and spacing only — mirrors the server's
+ * `diagnosisKey`. "Pregnant 32 weeks" is not "Pregnant", and "Not pregnant" is
+ * not either: nothing is matched on part of a diagnosis.
+ */
+export function diagnosisKey(diagnosis: string | undefined | null): string {
+  return (diagnosis ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * Who a diagnosis's advice line belongs to, for this visit's ticks — in the
+ * place a medicine's key stands. The \u0002 keeps it apart from every medicine
+ * key, so unticking a line for a diagnosis never unticks it for a medicine.
+ */
+export function diagnosisOwner(diagnosis: string): string {
+  return `\u0002dx:${diagnosisKey(diagnosis)}`;
 }
 
 /** How a single unticked line is remembered for this visit. */
@@ -75,6 +99,15 @@ export function savedAdviceFor(
   return { medicine, generic };
 }
 
+/** The doctor's saved advice for this final diagnosis, if any. */
+export function savedAdviceForDiagnosis(diagnosis: string, saved: readonly DrugAdvice[]): DrugAdvice | null {
+  const k = diagnosisKey(diagnosis);
+  if (!k) return null;
+  let found: DrugAdvice | null = null;
+  for (const a of saved ?? []) if (hasLines(a) && a.scope === "diagnosis" && a.key === k) found = a;
+  return found;
+}
+
 /** The lines of one advice, as they should be offered (blanks skipped). */
 export function adviceLines(a: DrugAdvice | null): string[] {
   if (!a || !Array.isArray(a.lines)) return [];
@@ -90,8 +123,10 @@ export function padMedicines(rxItems: RxItem[]): PadMedicine[] {
 
 export interface DerivedLine {
   line: string;
-  /** Every medicine on the pad this line is advice for. */
+  /** Every medicine on the pad (or `diagnosisOwner`) this line is advice for. */
   drugKeys: string[];
+  /** Whose advice it is: a medicine's stands before a diagnosis's in Advice. */
+  kind?: "medicine" | "diagnosis";
 }
 
 /**
@@ -115,10 +150,62 @@ export function rxAdviceLines(
       const d = byLine.get(line);
       if (d) {
         if (!d.drugKeys.includes(dk)) d.drugKeys.push(dk);
-      } else byLine.set(line, { line, drugKeys: [dk] });
+      } else byLine.set(line, { line, drugKeys: [dk], kind: "medicine" });
     }
   }
   return [...byLine.values()];
+}
+
+/**
+ * The advice lines today's FINAL DIAGNOSES ask for, in the order they are
+ * written. A line two diagnoses share appears once; a line unticked for a
+ * diagnosis this visit is not asked for by that diagnosis.
+ */
+export function diagnosisAdviceLines(
+  diagnoses: readonly string[],
+  saved: readonly DrugAdvice[],
+  off: readonly string[],
+): DerivedLine[] {
+  const offSet = new Set(off ?? []);
+  const byLine = new Map<string, DerivedLine>();
+  for (const dx of diagnoses ?? []) {
+    if (typeof dx !== "string" || !diagnosisKey(dx)) continue;
+    const owner = diagnosisOwner(dx);
+    for (const line of adviceLines(savedAdviceForDiagnosis(dx, saved))) {
+      if (offSet.has(offKey(owner, line))) continue;
+      const d = byLine.get(line);
+      if (d) {
+        if (!d.drugKeys.includes(owner)) d.drugKeys.push(owner);
+      } else byLine.set(line, { line, drugKeys: [owner], kind: "diagnosis" });
+    }
+  }
+  return [...byLine.values()];
+}
+
+/**
+ * Everything the visit's Advice is asked to carry: the medicines' advice, then
+ * the final diagnoses'. A line both ask for is written once, with the
+ * medicines', and belongs to all of them (so deleting it by hand unticks it for
+ * every one).
+ */
+export function adviceLinesFor(
+  meds: readonly PadMedicine[],
+  diagnoses: readonly string[],
+  saved: readonly DrugAdvice[],
+  off: readonly string[],
+): DerivedLine[] {
+  const out = rxAdviceLines(meds, saved, off);
+  const byLine = new Map(out.map((d) => [d.line, d] as const));
+  for (const d of diagnosisAdviceLines(diagnoses, saved, off)) {
+    const have = byLine.get(d.line);
+    if (have) {
+      for (const k of d.drugKeys) if (!have.drugKeys.includes(k)) have.drugKeys.push(k);
+      continue;
+    }
+    byLine.set(d.line, d);
+    out.push(d);
+  }
+  return out;
 }
 
 /**
@@ -134,6 +221,10 @@ export function rxAdviceLines(
  *     being put straight back.
  *  3. **Additive and order-stable**, and **idempotent** — the same inputs give
  *     equal arrays, which lets the caller skip a write when nothing changed.
+ *  4. **The medicines' advice stands before the diagnoses'** (physician's sheet,
+ *     15/10/2026). Only the mirror's own lines are put in that order, among the
+ *     places they already hold — a line the doctor typed never moves — so a
+ *     diagnosis written before its medicine still prints after it.
  */
 export function syncRxAdvice(
   stored: readonly string[],
@@ -164,5 +255,11 @@ export function syncRxAdvice(
     advice.push(line);
     nextOwned.push(line);
   }
+  // Rule 4: the mirror's own lines, medicines' first, in the places they hold.
+  const rank = (l: string) => (want.get(l)?.kind === "diagnosis" ? 1 : 0);
+  const mine = new Set(nextOwned);
+  const slots = advice.flatMap((l, i) => (mine.has(l) ? [i] : []));
+  const ordered = slots.map((i) => advice[i]).sort((a, b) => rank(a) - rank(b)); // stable
+  slots.forEach((slot, n) => { advice[slot] = ordered[n]; });
   return { advice, owned: nextOwned, newlyOff };
 }

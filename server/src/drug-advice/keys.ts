@@ -9,16 +9,31 @@
 
 import { normaliseDrugKey } from '../rx-habits/normalise';
 
-export type AdviceScope = 'medicine' | 'generic';
-export const ADVICE_SCOPES: readonly AdviceScope[] = ['medicine', 'generic'];
+// "diagnosis" (physician's sheet, 15/10/2026, item 4): advice the doctor writes
+// for a FINAL DIAGNOSIS in the same ••• box, offered whenever that diagnosis is
+// written again. The column is plain text, so the third scope needs no change
+// to the table.
+export type AdviceScope = 'medicine' | 'generic' | 'diagnosis';
+export const ADVICE_SCOPES: readonly AdviceScope[] = ['medicine', 'generic', 'diagnosis'];
 
 /** A generic name, folded for case and whitespace only. */
 export function genericKey(generic: string): string {
   return (generic ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+/**
+ * A final diagnosis, folded for case and whitespace only: "Pregnant" and
+ * " pregnant " are one diagnosis, "Pregnant 32 weeks" is another. Nothing is
+ * matched on part of a diagnosis — that would put one condition's advice on
+ * another ("Not pregnant").
+ */
+export function diagnosisKey(diagnosis: string): string {
+  return (diagnosis ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 export function adviceKey(scope: AdviceScope, label: string): string {
-  return scope === 'medicine' ? normaliseDrugKey(label) : genericKey(label);
+  if (scope === 'medicine') return normaliseDrugKey(label);
+  return scope === 'diagnosis' ? diagnosisKey(label) : genericKey(label);
 }
 
 /**

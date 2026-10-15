@@ -735,7 +735,8 @@ model DoctorDrugAdvice {
   doctorId String
   doctor   User   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 
-  /// "medicine" | "generic"
+  /// "medicine" | "generic" | "diagnosis" (a final diagnosis, case/space-folded
+  /// — physician's sheet 15/10/2026; plain text, so no change to the table)
   scope String
   /// The matching key (see above). Typography-folded only.
   key   String

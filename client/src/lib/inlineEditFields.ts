@@ -21,7 +21,8 @@
 // Widening this further is a product decision, not a tidy-up. The two safety
 // rules of the in-place edit hold for every field on the list: a blanked box is
 // a mis-key and keeps what the line had (removal stays a deliberate act: the
-// `+` popup, or the line's own × with Undo), and the boxes are a staged copy, so nothing reaches the field
+// `+` popup, or the ✕ beside the line's box inside ✎ Edit, with Undo —
+// physician's sheet 15/10/2026), and the boxes are a staged copy, so nothing reaches the field
 // until the edit is finished.
 //
 // The "Previous diagnosis" side panel (`previousItems`) is a SEPARATE opt-in

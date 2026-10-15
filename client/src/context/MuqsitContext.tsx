@@ -25,7 +25,7 @@ import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries } from "@/lib/rxDrugHistory";
-import { padMedicines, rxAdviceLines, syncRxAdvice } from "@/lib/rxDrugAdvice";
+import { adviceLinesFor, padMedicines, syncRxAdvice } from "@/lib/rxDrugAdvice";
 import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
@@ -1121,17 +1121,19 @@ function useMuqsitStore() {
   //  • nothing runs until the saved advice has actually LOADED. Before that the
   //    list is unknown, not empty — treating it as empty would withdraw every
   //    line this visit already carries the moment the page reloads.
+  //  • the advice saved for a FINAL DIAGNOSIS (its ••• box, physician's sheet
+  //    15/10/2026) rides the same mirror, after the medicines' advice.
   const drugAdviceQuery = useDrugAdvice(activeWorkstation?.doctorId ?? null);
   const savedDrugAdvice = useMemo(() => drugAdviceQuery.data ?? [], [drugAdviceQuery.data]);
   const savedDrugAdviceReady = drugAdviceQuery.isSuccess;
   useEffect(() => {
     if (!savedDrugAdviceReady) return;
-    const derived = rxAdviceLines(padMedicines(rxItems), savedDrugAdvice, rxAdviceOff);
+    const derived = adviceLinesFor(padMedicines(rxItems), finalDiagnosis, savedDrugAdvice, rxAdviceOff);
     const r = syncRxAdvice(advice, rxAdviceOwned, derived);
     if (!sameEntries(r.advice, advice)) setAdvice(r.advice);
     if (!sameEntries(r.owned, rxAdviceOwned)) setRxAdviceOwned(r.owned);
     if (r.newlyOff.length) setRxAdviceOff((prev) => [...prev, ...r.newlyOff.filter((k) => !prev.includes(k))]);
-  }, [savedDrugAdviceReady, savedDrugAdvice, rxItems, rxAdviceOff, advice, rxAdviceOwned]);
+  }, [savedDrugAdviceReady, savedDrugAdvice, rxItems, finalDiagnosis, rxAdviceOff, advice, rxAdviceOwned]);
 
   // "Add" on the records page opens the investigation popup in SUMMARY mode:
   // whatever is entered goes only to the patient's investigation history, not

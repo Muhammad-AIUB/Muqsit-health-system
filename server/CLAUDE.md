@@ -248,7 +248,10 @@ nothing learns into it. `PUT /drug-advice` replaces a key's lines (empty =
 cleared). Scope is `@WorkstationDoctorId()`; an assistant needs `rx.advice` to
 write. Keys (`drug-advice/keys.ts`): scope `medicine` reuses
 `rx-habits/normalise.ts#normaliseDrugKey` (strength included), scope `generic`
-folds case and spacing only. The client mirrors both in `lib/rxDrugAdvice.ts`.
+folds case and spacing only, and scope `diagnosis` (a final diagnosis, the •••
+beside its line — physician's sheet 15/10/2026) folds case and spacing only too.
+`scope` is a plain text column, so the third scope needed no SQL. The client
+mirrors all three in `lib/rxDrugAdvice.ts`.
 Boot check logs one ERROR naming the SQL file if the table is unreadable.
 
 ## ⚠️ `patient-notes` — keyed by the SIGNED-IN USER, on purpose (2026-09-24)

@@ -6,7 +6,7 @@ import { ADVICE_SCOPES, AdviceScope } from '../keys';
 export class SaveDrugAdviceDto {
   @IsIn(ADVICE_SCOPES as unknown as string[]) scope!: AdviceScope;
 
-  /** The medicine line (scope "medicine") or the generic name (scope "generic"). */
+  /** The medicine line ("medicine"), the generic name ("generic") or the final diagnosis ("diagnosis"). */
   @IsString() @MinLength(1) @MaxLength(300) label!: string;
 
   /** The whole list after the edit — an empty list clears the advice. */

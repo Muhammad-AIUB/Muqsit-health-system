@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { suggestionDB } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
@@ -8,16 +9,26 @@ import InvestigationFindingsField from "@/components/investigation/Investigation
 import DrugHistoryField from "@/components/prescription/DrugHistoryField";
 import PreviousComplaintsField from "@/components/prescription/PreviousComplaintsField";
 import { PersonalNoteSection } from "@/components/prescription/PersonalNote";
+import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
+import { savedAdviceForDiagnosis } from "@/lib/rxDrugAdvice";
 import { useActivityLog } from "@/hooks/useActivity";
 import { usePreviousDiagnoses } from "@/hooks/usePreviousDiagnoses";
 import { isInlineEditField } from "@/lib/inlineEditFields";
 import { BANGLA_FIELDS } from "@/lib/banglaInput";
 
 export default function LeftColumn() {
-  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory } = useMuqsit();
+  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory, savedDrugAdvice } = useMuqsit();
   const logActivity = useActivityLog();
   // "P.D" — offered inside the Final diagnosis popup only.
   const previousDiagnoses = usePreviousDiagnoses();
+  // ••• special advice per Final diagnosis (physician's sheet, 15/10/2026):
+  // which diagnosis's box is open. The saved lines reach Advice through the
+  // mirror in MuqsitContext, after the medicines' advice.
+  const [adviceFor, setAdviceFor] = useState<string | null>(null);
+  const diagnosisAdvice = {
+    has: (dx: string) => !!savedAdviceForDiagnosis(dx, savedDrugAdvice),
+    open: (dx: string) => setAdviceFor(dx.trim()),
+  };
 
   return (
     <div>
@@ -67,6 +78,7 @@ export default function LeftColumn() {
             permKey={f.permKey}
             bangla={BANGLA_FIELDS.includes(f.label)}
             previousItems={f.label === "Final diagnosis" ? previousDiagnoses : undefined}
+            lineAdvice={f.label === "Final diagnosis" ? diagnosisAdvice : undefined}
             onAdd={(item) => logActivity(f.label, item)}
           />
         );
@@ -75,6 +87,7 @@ export default function LeftColumn() {
           with the prescription, and not gated by assistant keys: each user
           only ever reaches their own note (server/src/patient-notes). */}
       <PersonalNoteSection />
+      {adviceFor !== null && <DrugAdviceBox diagnosis={adviceFor} onClose={() => setAdviceFor(null)} />}
     </div>
   );
 }

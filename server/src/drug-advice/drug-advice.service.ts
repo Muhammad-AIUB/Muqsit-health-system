@@ -14,7 +14,8 @@ export interface DrugAdviceRow {
 
 /**
  * The doctor's own special advice per medicine / per generic (the ℞ pad's •••
- * box). Every line is written by the doctor — nothing here is learned or
+ * box), and since 15/10/2026 per final diagnosis (the ••• beside each Final
+ * diagnosis line, scope "diagnosis"). Every line is written by the doctor — nothing here is learned or
  * inferred — and it never touches a prescription: the client copies the lines
  * into the visit's Advice section, and `Prescription.advice` is what prints.
  *
@@ -55,7 +56,7 @@ export class DrugAdviceService implements OnModuleInit {
   async save(doctorId: string, dto: SaveDrugAdviceDto): Promise<DrugAdviceRow> {
     const label = dto.label.replace(/\s+/g, ' ').trim();
     const key = adviceKey(dto.scope, label);
-    if (!key) throw new BadRequestException('Name the medicine or generic this advice is for.');
+    if (!key) throw new BadRequestException('Name the medicine, generic or diagnosis this advice is for.');
     const lines = cleanLines(dto.lines);
     return this.prisma.doctorDrugAdvice.upsert({
       where: { doctorId_scope_key: { doctorId, scope: dto.scope, key } },
