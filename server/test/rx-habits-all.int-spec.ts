@@ -171,6 +171,92 @@ describe('GET /api/rx-habits/all', () => {
   });
 });
 
+// ⚕️ The ▼ on a medicine in the "Add Bulk Medicine" box (physician's sheet,
+// 15/10/2026, item 2: "down arrow dia last use 3ta option select kora jabe"):
+// each medicine carries the doctor's LAST THREE instructions for it, newest
+// first — only the doctor's own, never a hidden one. The medicine's row (the
+// usual) is chosen exactly as before. Every dose here is made up.
+describe('GET /api/rx-habits/all — the last three instructions of each medicine', () => {
+  let t: TestApp;
+  let C: User, D: User;
+  let c: Browser;
+  const SERGEL20 = 'Capsule (Enteric Coated). Sergel 20 mg';
+  const ACE = 'Tablet. Ace 500 mg';
+
+  interface Choice { id: string; dose: string; food: string; duration: string; contLines: unknown; patientCount: number; lastUsedAt: string }
+  const habit = (
+    doctorId: string,
+    drugLabel: string,
+    line: { dose: string; food: string; duration: string },
+    over: { patientCount?: number; hidden?: boolean; contLines?: unknown; lastUsedAt: string },
+  ) =>
+    t.prisma.doctorRxHabit.create({
+      data: {
+        doctorId,
+        drugKey: normaliseDrugKey(drugLabel),
+        searchKey: searchKeyOf(drugLabel),
+        drugLabel,
+        signature: signatureOf(line, []),
+        dose: line.dose,
+        food: line.food,
+        duration: line.duration,
+        contLines: (over.contLines ?? []) as never,
+        patientCount: over.patientCount ?? 1,
+        lastUsedAt: new Date(over.lastUsedAt),
+        hidden: over.hidden ?? false,
+        pinned: false,
+      },
+    });
+
+  beforeAll(async () => {
+    t = await createTestApp();
+    await resetDb(t.prisma);
+    [C, D] = await Promise.all([makeDoctor(t.prisma), makeDoctor(t.prisma)]);
+    // The usual is the one given to most patients; the last three are by date.
+    await habit(C.id, SERGEL20, { dose: '0+0+1', food: 'Before meal', duration: '7 days' }, { patientCount: 9, lastUsedAt: '2026-09-01T00:00:00Z' });
+    await habit(C.id, SERGEL20, { dose: '1+0+1', food: 'Before meal', duration: '2 month' }, { patientCount: 3, lastUsedAt: '2026-10-14T00:00:00Z' });
+    await habit(C.id, SERGEL20, { dose: '1+0+0', food: 'Before meal', duration: 'Continue' }, { patientCount: 5, lastUsedAt: '2026-10-10T00:00:00Z' });
+    await habit(C.id, SERGEL20, { dose: '1+1+0', food: '', duration: '5 days' }, { patientCount: 1, lastUsedAt: '2026-08-01T00:00:00Z' });
+    // The newest of all, but hidden: never offered.
+    await habit(C.id, SERGEL20, { dose: '2+0+2', food: 'Before meal', duration: '1 month' }, { patientCount: 1, hidden: true, lastUsedAt: '2026-10-15T00:00:00Z' });
+    // Another doctor's newer Sergel: never C's.
+    await habit(D.id, SERGEL20, { dose: '3+3+3', food: '', duration: '1 day' }, { patientCount: 1, lastUsedAt: '2026-10-16T00:00:00Z' });
+    // A newer instruction whose taper cannot be read is left out of the choices — the medicine stays.
+    await habit(C.id, ACE, { dose: '1+1+1', food: 'After meal', duration: '3 days' }, { patientCount: 4, lastUsedAt: '2026-09-20T00:00:00Z' });
+    await habit(C.id, ACE, { dose: '0+0+1', food: '', duration: '' }, { patientCount: 1, contLines: 'not a list', lastUsedAt: '2026-10-12T00:00:00Z' });
+    c = await loginAs(t, C);
+  });
+  afterAll(async () => {
+    await t.close();
+  });
+
+  const medicine = async (label: string) =>
+    ((await c.get('/api/rx-habits/all')).body as { medicines: (Listed & { recent: Choice[] })[] }).medicines.find((m) => m.drugLabel === label)!;
+
+  it('the usual is chosen as before, and the last three come newest first', async () => {
+    const m = await medicine(SERGEL20);
+    expect([m.dose, m.patientCount]).toEqual(['0+0+1', 9]);
+    expect(m.recent.map((r) => [r.dose, r.food, r.duration, r.patientCount])).toEqual([
+      ['1+0+1', 'Before meal', '2 month', 3],
+      ['1+0+0', 'Before meal', 'Continue', 5],
+      ['0+0+1', 'Before meal', '7 days', 9],
+    ]);
+    expect(m.recent.every((r) => typeof r.id === 'string' && !Number.isNaN(Date.parse(r.lastUsedAt)))).toBe(true);
+  });
+
+  it('⚕️ never a hidden instruction, and never another doctor\'s', async () => {
+    const body = JSON.stringify((await c.get('/api/rx-habits/all')).body);
+    expect(body).not.toContain('2+0+2');
+    expect(body).not.toContain('3+3+3');
+  });
+
+  it('an instruction whose taper cannot be read is left out of the choices; the medicine is still listed', async () => {
+    const m = await medicine(ACE);
+    expect(m.dose).toBe('1+1+1');
+    expect(m.recent.map((r) => r.dose)).toEqual(['1+1+1']);
+  });
+});
+
 // ⚕️ The catalogue is asked in SQL for the brands whose FIRST WORD is one of the
 // doctor's brand words (rx-habits.service.ts#catalogueRows). A unit test can
 // only read that SQL; whether it finds the right rows is a question for a real
