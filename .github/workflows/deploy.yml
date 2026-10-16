@@ -32,8 +32,16 @@ jobs:
             # right below regenerates them anyway.
             git checkout -- client/package-lock.json server/package-lock.json admin/package-lock.json 2>/dev/null || true
             git pull origin main
-            cd client && npm install && npm run build && cd ..
-            cd server && npm install && npx prisma generate && npm run build && cd ..
+            # ⚠️ Each build runs in a SUBSHELL, so that a failed step STOPS the
+            # script before `pm2 restart all` and this Action goes red. Until
+            # 2026-10-16 they were written `cd client && … && npm run build && cd ..`,
+            # and a failed build did not stop anything: `set -e` ignores a failure
+            # inside an && list, so the script carried on from the wrong directory,
+            # skipped the builds after it, restarted everything onto the failed one
+            # and reported success. The API is built first: a failure there leaves
+            # the doctor app's build untouched and nothing restarted.
+            (cd server && npm install && npx prisma generate && npm run build)
+            (cd client && npm install && npm run build)
             # Admin build is non-fatal so it can never block the core client/server deploy.
             (cd admin && npm install && npm run build) || echo "admin build failed — continuing"
             pm2 restart all
