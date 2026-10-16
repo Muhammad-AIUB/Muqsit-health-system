@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { C, colorOf, font } from "@/theme";
 import { btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
@@ -36,7 +36,17 @@ export default function OpdView() {
   const waiting = queue.filter((v) => v.status === "waiting").length;
   const done = queue.filter((v) => v.status === "done").length;
 
+  // ⚕️ One add at a time (independent review, 17/10/2026): a pick goes straight
+  // to the queue and the server gives a new token each time, so a second pick
+  // while the first is on its way put one patient on the queue twice. A ref,
+  // not `isPending`: two picks can land in one render, before it changes.
+  const adding = useRef(false);
   const addToQueue = async (p: Patient) => {
+    if (adding.current) return;
+    adding.current = true;
+    try { await addOnce(p); } finally { adding.current = false; }
+  };
+  const addOnce = async (p: Patient) => {
     setAddError("");
     const age = displayAge(p);
     try {

@@ -102,6 +102,24 @@ describe("OPD — a patient is added by mobile number first", () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: "Karim", mobile: "01722222222" }));
   });
 
+  // Found in the independent review before release (17/10/2026): a pick goes
+  // straight to the queue, and the server gives a new token every time — so a
+  // second pick while the first is on its way put one patient on the queue
+  // twice. The old Add button was disabled while it was pending.
+  it("⚕️ a second pick while the first is on its way adds the patient once", async () => {
+    byMobile.mockResolvedValue([SAVED]);
+    let land: (v: unknown) => void = () => undefined;
+    addVisit.mockImplementation(() => new Promise((r) => { land = r; }));
+    render(<OpdView />);
+    openForm();
+    typeNumber("01827115684");
+    const row = await screen.findByText("mr shahariar", {}, { timeout: 3000 });
+    act(() => { fireEvent.click(row); fireEvent.click(row); });
+    expect(addVisit).toHaveBeenCalledTimes(1);
+    await act(async () => { land({}); });
+    expect(addVisit).toHaveBeenCalledTimes(1);
+  });
+
   it("a failed add says so and keeps the number, so it can be tried again", async () => {
     byMobile.mockResolvedValue([SAVED]);
     addVisit.mockRejectedValueOnce(new Error("Network down"));
