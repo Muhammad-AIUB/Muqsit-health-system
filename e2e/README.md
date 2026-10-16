@@ -161,6 +161,18 @@ times, run the command several times: each run seeds new doctors (found
 2026-10-14, from one failure in four repeats; the trace shows the `PUT` and
 the `GET` of `/prescription-draft` a millisecond apart).
 
+## A journey that resizes the page waits for the layout it asked for
+
+The app chooses its desktop or phone layout from the window's width
+(`Muqsit.tsx`, `matchMedia`), and it does so a render AFTER the resize: for that
+moment the desktop layout is still on the page. "On a phone the + is there"
+looked for the + straight after `setViewportSize`, found the DESKTOP one 2 ms
+later, and had it taken away under the next step — "Element is not attached to
+the DOM", one run in three (2026-10-16, read from the trace; twelve runs in a
+row green once fixed). The "Layout preview" strip is drawn only off a phone, in
+the same render as the desktop layout, so a journey that goes to a phone width
+waits for it to be gone before it looks for anything.
+
 ## Seeing a journey fail on the released rule
 
 A journey written for a fix is run once against the code WITHOUT the fix —

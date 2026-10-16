@@ -230,6 +230,14 @@ test('on a phone the + is there, the box is whole on the screen, and it adds', a
   await createPatient(page, uniqueMobile(), 'Bulk Phone Patient');
 
   await page.setViewportSize({ width: 375, height: 812 });
+  // The app swaps to its phone layout a render AFTER the resize (Muqsit.tsx
+  // follows matchMedia), and until then the DESKTOP + is still on the page.
+  // Found first, it was taken away under the next step — "Element is not
+  // attached to the DOM", one run in three (2026-10-16, read from the trace:
+  // the + was "visible" 2 ms after the resize). The layout-preview strip is
+  // drawn only off a phone, in the same render as the desktop shell, so its
+  // going is the phone layout's arrival.
+  await expect(page.getByRole('group', { name: 'Layout preview' })).toHaveCount(0, { timeout: 30_000 });
   await expect(plus(page)).toBeVisible({ timeout: 30_000 });
   await plus(page).scrollIntoViewIfNeeded();
   await plus(page).click();
