@@ -252,7 +252,20 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   // removes another line: a mis-click beside a diagnosis must be recoverable.
   // While the boxes are open the staged copy loses the same line, so what is
   // typed in the other boxes stays with its own line.
-  const [removed, setRemoved] = useState<{ item: string; idx: number } | null>(null);
+  //
+  // ⚕️ Undo never writes a line twice (browser pass, 16/10/2026): "Pregnant"
+  // taken off, written again from +, and the bar — still up — pressed, left
+  // "Pregnant" AND "pregnant". `left` is how many copies of the line (capitals
+  // and spacing set aside) the list kept at the removal; once it holds more,
+  // the line is back: the bar is not drawn and Undo does nothing. (Derived on
+  // each render, not cleared by an effect: a list that reaches this field a
+  // render after the ✕ must not take the Undo away.) A line that was
+  // in the list twice can still be put back, because that count includes the
+  // copy that stayed.
+  const [removed, setRemoved] = useState<{ item: string; idx: number; left: number } | null>(null);
+  const sameLine = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
+  const copiesOf = (list: readonly string[], item: string) => list.filter((l) => sameLine(l, item)).length;
+  const writtenBack = !!removed && copiesOf(items, removed.item) > removed.left;
   // ⚕️ This field stays mounted when the doctor switches patient (it is keyed
   // by label), so an Undo left showing would put one patient's line into the
   // next patient's list. A new patient drops it.
@@ -262,10 +275,10 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     if (item === undefined) return;
     setItems((prev) => prev.filter((_, i) => i !== idx));
     if (editOpen) setEditLines((prev) => prev.filter((_, i) => i !== idx));
-    setRemoved({ item, idx });
+    setRemoved({ item, idx, left: copiesOf(items, item) - 1 });
   };
   const undoRemove = () => {
-    if (!removed) return;
+    if (!removed || writtenBack) { setRemoved(null); return; }
     const { item, idx } = removed;
     setItems((prev) => [...prev.slice(0, idx), item, ...prev.slice(idx)]);
     if (editOpen) setEditLines((prev) => [...prev.slice(0, idx), item, ...prev.slice(idx)]);
@@ -374,7 +387,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
           ))}
         </div>
       )}
-      {removed && editable && (
+      {removed && !writtenBack && editable && (
         <div role="status" data-inline-edit-group={groupId} style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px 14px", padding: "4px 8px", borderRadius: 6, background: C.n[50], border: `0.5px solid ${C.n[200]}`, fontSize: 11.5, color: C.n[700] }}>
           <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>Removed “{removed.item}”</span>
           <button type="button" onClick={undoRemove} style={{ border: "none", background: "none", color: C.pri[600], fontWeight: 600, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Undo</button>

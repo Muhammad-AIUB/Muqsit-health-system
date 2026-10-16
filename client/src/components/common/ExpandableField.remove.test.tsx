@@ -135,10 +135,52 @@ describe("ExpandableField — inside ✎ Edit, a ✕ takes ONE line off", () => 
     const { rerender } = render(<ExpandableField label="Chief complaints" items={["HIV", "Fever"]} setItems={vi.fn()} removable inlineEdit />);
     edit();
     fireEvent.click(xFor("HIV"));
+    // What the parent holds once the line is off.
+    rerender(<ExpandableField label="Chief complaints" items={["Fever"]} setItems={vi.fn()} removable inlineEdit />);
     expect(screen.getByText(/Removed/)).toBeTruthy();
     patientId = "B";
     rerender(<ExpandableField label="Chief complaints" items={["Cough"]} setItems={vi.fn()} removable inlineEdit />);
     expect(screen.queryByText("Undo")).toBeNull();
+  });
+
+  // Found in the browser pass of 16/10/2026: "Pregnant" taken off with its ✕,
+  // written again from +, and the Undo bar — still up — pressed. The list
+  // then read "Pregnant" AND "pregnant": one diagnosis written twice.
+  const addFromPopup = (text: string) => {
+    fireEvent.click(screen.getByLabelText("Add Final diagnosis"));
+    const dialog = screen.getByRole("dialog", { name: "Final diagnosis" });
+    const box = dialog.querySelector("input") as HTMLInputElement;
+    fireEvent.change(box, { target: { value: text } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  };
+
+  it("⚕️ a line written again after its removal takes the Undo away — it is never written twice", () => {
+    render(<Field label="Final diagnosis" initial={["Pregnant", "Test diagnosis"]} />);
+    edit();
+    fireEvent.click(xFor("Pregnant"));
+    fireEvent.click(screen.getByText("✓ Done"));
+    addFromPopup("pregnant");
+    expect(latest).toEqual(["Test diagnosis", "pregnant"]);
+    expect(screen.queryByText("Undo")).toBeNull();
+  });
+
+  it("⚕️ …the same when it is written back exactly as it was", () => {
+    render(<Field label="Final diagnosis" initial={["Pregnant", "Test diagnosis"]} />);
+    edit();
+    fireEvent.click(xFor("Pregnant"));
+    fireEvent.click(screen.getByText("✓ Done"));
+    addFromPopup("Pregnant");
+    expect(screen.queryByText("Undo")).toBeNull();
+    expect(latest.filter((l) => l.toLowerCase() === "pregnant")).toHaveLength(1);
+  });
+
+  it("a line that was in the list twice can still be put back by Undo", () => {
+    render(<Field initial={["Fever", "Fever", "Cough"]} />);
+    edit();
+    fireEvent.click(screen.getAllByLabelText('Remove "Fever"')[1]);
+    fireEvent.click(screen.getByText("Undo"));
+    expect(latest).toEqual(["Fever", "Fever", "Cough"]);
   });
 
   it("a field that did not opt in has no ✕, even in ✎ Edit", () => {
