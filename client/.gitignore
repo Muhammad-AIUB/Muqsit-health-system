@@ -2,8 +2,12 @@ node_modules/
 .DS_Store
 *.log
 
-# Next.js
-/.next/
+# Next.js — EVERY build folder, whatever NEXT_DIST_DIR named it: `.next`,
+# `.next-e2e` (the browser suite), `.next-verify` (a production build beside a
+# running dev server), or any other `.next…`. Until 2026-10-16 only the first
+# two were listed, and a build into `.next-share` went into a commit: 203 MB,
+# nearly all of it webpack cache, pushed.
+/.next*/
 /out/
 /build
 next-env.d.ts
@@ -12,5 +16,4 @@ next-env.d.ts
 
 # Env
 .env*.local
-/.next-e2e/
 /coverage/

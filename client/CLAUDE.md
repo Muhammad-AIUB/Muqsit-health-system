@@ -4,6 +4,8 @@ The doctor-facing SPA. App Router pages are thin shells; almost everything rende
 
 **Env trap:** `NEXT_PUBLIC_API_URL` must be set in both `.env.local` (dev, gitignored) and **`.env.production` (committed — the deployed build uses it)**. A missing prod value silently points the live site at `localhost:4000`.
 
+**Build folders:** `.gitignore` ignores every `/.next*/` (`.next`, `.next-e2e`, `.next-verify`, or any other `NEXT_DIST_DIR`); never commit one (2026-10-16 — a 203 MB build in `.next-share` was committed and pushed once).
+
 ## ⚕️ Clinical-accuracy rules specific to the client
 
 - **Calculators (`src/lib/calculators/`, ~77 of them, wired via `calculator-registry.ts`):** each implements a published clinical score/formula. Never alter a formula, cutoff, unit, or interpretation without the published source; keep severity labels (`success/warning/danger`) consistent with the source. New calculators register in the registry and appear in Investigation "Special Scores".
