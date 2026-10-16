@@ -52,7 +52,7 @@ npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.pri
 - Reply to the user (a physician) in Bangla; code and comments stay English.
 
 ## Patterns We Do Not Use
-- We do not run `npm run prisma:migrate` / Prisma Migrate. Edit `schema.prisma`, write an idempotent `server/prisma/manual-<name>.sql` (`IF NOT EXISTS`), apply with `db execute`, regenerate — the DB is shared with production, so only additive changes.
+- We do not run Prisma Migrate (`prisma migrate …`), and there is no `prisma:migrate` script to run by habit any more (removed 2026-10-16): against this database `migrate dev` finds a schema with no migration history and offers to reset it. Edit `schema.prisma`, write an idempotent `server/prisma/manual-<name>.sql` (`IF NOT EXISTS`), apply with `db execute`, regenerate — the DB is shared with production, so only additive changes.
 - We do not run `prisma generate` with the API up. Kill the :4000 process first — Windows locks the query-engine DLL (EPERM).
 - We do not take the doctor from `req.user.id` or a request body. Use `@WorkstationDoctorId()` — `WorkstationGuard` is the only place that decides whose practice a request acts on.
 - We do not resolve a practice again inside a service. Pass the resolved `doctorId` in — a second resolver leaked another practice's activity feed (fixed 2026-08-27).
