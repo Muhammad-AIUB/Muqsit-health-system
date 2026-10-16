@@ -117,7 +117,12 @@ interface RowProps {
 // layout apparently is not, and nothing moves when it is drawn (the browser
 // journey holds that). So the 2,000-medicine timing above, taken on rows,
 // cannot be carried over to chips; it was not taken again.
-const ROW_OUT_OF_SIGHT = { contentVisibility: "auto", containIntrinsicSize: "auto 80px" } as const;
+// Since 17/10/2026 a chip carries the medicine's name only (its doses are in
+// the ▼), and an undrawn chip WAS given the stand-in: at 80px it stood 52.7
+// screen px taller than the same chip drawn (the browser journey caught it).
+// A one-line name with its padding is 33 + the border; a name that wraps grows
+// when it is drawn, which the keyboard's settling frames already allow for.
+const ROW_OUT_OF_SIGHT = { contentVisibility: "auto", containIntrinsicSize: "auto 33px" } as const;
 
 const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabStop, listOpen, onToggle, onReach, onList, onChoose }: RowProps) {
   // What the chip shows is what a tick adds: the chosen instruction.
@@ -133,6 +138,16 @@ const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabSto
   const lang = useKbdLang();
   const instruction = instructionOf(m, lang);
   const when = lastUsedLabel(m.lastUsedAt);
+  // 17/10/2026: "just keep the medicine name, no need to add extra things like
+  // dose, duration". The chip shows the name; what a tick adds — the
+  // instruction it stands on, its taper — the generic and the count are in
+  // the ▼ list and in this tooltip.
+  const tooltip = [
+    m.generic,
+    instruction || "No dose recorded",
+    ...m.contLines.map((c) => `↳ ${instructionOf(c, lang)}`),
+    `${patientsLabel(m.patientCount)}${when ? ` · ${when}` : ""}`,
+  ].filter(Boolean).join("\n");
   const listName = `Last instructions for ${m.drugLabel}`;
   const options = listOpen ? choicesOf(medicine) : [];
   const chosen = choiceId ?? medicine.id;
@@ -152,7 +167,7 @@ const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabSto
   return (
     <div data-chip={medicine.id} style={{ ...ROW_OUT_OF_SIGHT, minWidth: 0, display: "flex", flexDirection: "column", borderRadius: 10, border: `1px solid ${on ? C.pri[400] : C.n[200]}`, background: on ? C.pri[50] : C.n[0] }}>
     <div style={{ display: "flex", alignItems: "flex-start" }}>
-    <label style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 4px 8px 10px", cursor: "pointer" }}>
+    <label title={tooltip} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 4px 8px 10px", cursor: "pointer" }}>
       <input type="checkbox" checked={on} tabIndex={tabStop ? 0 : -1} onChange={() => onToggle(medicine.id)} onFocus={() => onReach(medicine.id)}
         style={{ marginTop: 3, flexShrink: 0, cursor: "pointer" }} />
       <span style={{ flex: 1, minWidth: 0 }}>
@@ -161,23 +176,6 @@ const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabSto
           {name ? (
             <>{before}<b>{name}</b>{gap}{strength && <span data-strength style={{ display: "inline-block", maxWidth: "100%" }}>{strength}</span>}</>
           ) : <b>{m.drugLabel}</b>}
-        </span>
-        {/* The generic is what the prescribing warnings are written against. A
-            row without one is a medicine they will not see — as when it is typed
-            by hand — and here that can be seen before it is ticked. */}
-        {m.generic && <span data-generic style={{ display: "block", fontSize: 11, color: C.n[500], overflowWrap: "anywhere" }}>{m.generic}</span>}
-        {/* A blank cell is simply absent. A first line saved with nothing
-            beside it says so: it is added with nothing beside it. */}
-        <span style={{ display: "block", fontSize: 12, color: instruction ? C.n[700] : C.n[500], marginTop: 2, overflowWrap: "anywhere" }}>
-          {instruction || "No dose recorded"}
-        </span>
-        {m.contLines.map((c, i) => (
-          <span key={i} style={{ display: "block", fontSize: 12, color: C.n[700], marginTop: 1, overflowWrap: "anywhere" }}>↳ {instructionOf(c, lang)}</span>
-        ))}
-        {/* The count and the date together: a dose given to many patients two
-            years ago must not read like the dose of last week. */}
-        <span style={{ display: "block", fontSize: 11, color: C.n[500], marginTop: 2 }}>
-          {patientsLabel(m.patientCount)}{when ? ` · ${when}` : ""}
         </span>
       </span>
       {onPad && (

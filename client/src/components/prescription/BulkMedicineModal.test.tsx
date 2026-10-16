@@ -63,20 +63,36 @@ describe("BulkMedicineModal", () => {
   });
 
   // ── What a row shows ───────────────────────────────────────────────────────
-  it("lists each medicine with its instruction, its taper and how many patients", () => {
+  // 17/10/2026: "just keep the medicine name, no need to add extra things like
+  // dose, duration". A chip carries the name and its ▼; the instruction, its
+  // taper, the generic and the count are in the ▼ list and the chip's tooltip.
+  it("a chip shows the medicine's name and nothing else", () => {
     const { box } = open(listed([NAPA, DELTA, ACE]));
     expect(rowNames(box)).toEqual(["Tablet. Napa 500 mg", "Tablet. Deltasone 5 mg", "Tablet. Ace 500 mg"]);
-    expect(box.textContent).toContain("1+1+1 · After meal · 5 days");
-    expect(box.textContent).toContain("30 patients");
-    expect(box.textContent).toContain("↳ 1+0+0 · After meal · 5 days");
-    expect(box.textContent).toContain("1 patient");
+    for (const name of ["Tablet. Napa 500 mg", "Tablet. Deltasone 5 mg", "Tablet. Ace 500 mg"]) {
+      const label = tickBox(box, name).closest("label") as HTMLElement;
+      expect(label.textContent).toBe(name);
+    }
+    expect(box.textContent).not.toContain("After meal");
+    expect(box.textContent).not.toContain("patient");
+    expect(box.textContent).not.toContain("↳");
   });
 
-  it("⚕️ a medicine saved with nothing beside it says so, and is not given a dose", () => {
+  it("the chip's tooltip carries the generic, the instruction with its taper, and the count", () => {
+    const { box } = open(listed([DELTA, SERGEL]));
+    const tip = (name: string) => (tickBox(box, name).closest("label") as HTMLElement).title;
+    expect(tip("Tablet. Deltasone 5 mg")).toContain("↳ 1+0+0 · After meal · 5 days");
+    expect(tip("Capsule. Sergel 20 mg")).toContain("Esomeprazole");
+    expect(tip("Capsule. Sergel 20 mg")).toContain("1+0+1 · Before meal · 14 days");
+    expect(tip("Capsule. Sergel 20 mg")).toContain("22 patients");
+  });
+
+  it("⚕️ a medicine saved with nothing beside it says so in its ▼, and is not given a dose", () => {
     const { box } = open(listed([ACE]));
-    const row = rowOf(tickBox(box, "Tablet. Ace 500 mg"));
-    expect(row.textContent).toContain("No dose recorded");
-    expect(row.textContent).not.toMatch(/\d\+\d/);
+    fireEvent.click(within(box).getByRole("button", { name: "Last instructions for Tablet. Ace 500 mg" }));
+    const opts = within(within(box).getByRole("listbox")).getAllByRole("option");
+    expect(opts[0].textContent).toContain("No dose recorded");
+    expect(opts[0].textContent).not.toMatch(/\d\+\d/);
   });
 
   it("only the brand is in bold, as on the pad, and the name reads exactly as written", () => {
@@ -105,23 +121,30 @@ describe("BulkMedicineModal", () => {
 
   // The warnings are written against generics. A row with none is a medicine
   // they will not see — and that is visible before it is ticked.
-  it("⚕️ shows the generic under the name — and nothing in its place where the medicine has none", () => {
+  it("⚕️ the tooltip names the generic — and has none where the medicine has none", () => {
     const { box } = open(listed([NAPA, SERGEL]));
-    expect(rowOf(tickBox(box, "Capsule. Sergel 20 mg")).querySelector("[data-generic]")?.textContent).toBe("Esomeprazole");
-    expect(rowOf(tickBox(box, "Tablet. Napa 500 mg")).querySelector("[data-generic]")).toBeNull();
+    const tip = (name: string) => (tickBox(box, name).closest("label") as HTMLElement).title;
+    expect(tip("Capsule. Sergel 20 mg").split("\n")[0]).toBe("Esomeprazole");
+    expect(tip("Tablet. Napa 500 mg")).not.toContain("Esomeprazole");
+    expect(tip("Tablet. Napa 500 mg").split("\n")[0]).toBe("1+1+1 · After meal · 5 days");
   });
 
-  it("⚕️ shows when the instruction was last written beside its count — with the year once it is not this one", () => {
+  it("⚕️ the ▼ says when each instruction was last written beside its count — with the year once it is not this one", () => {
     const thisYear = new Date().getFullYear();
     const { box } = open(listed([
       med({ id: "a", drugLabel: "Tablet. Recent 5 mg", lastUsedAt: `${thisYear}-01-15T06:00:00.000Z` }),
       med({ id: "b", drugLabel: "Tablet. Stale 5 mg", lastUsedAt: "2024-08-15T06:00:00.000Z" }),
       med({ id: "c", drugLabel: "Tablet. Undated 5 mg" }),
     ]));
-    expect(rowOf(tickBox(box, "Tablet. Recent 5 mg")).textContent).toContain("last 15 Jan");
-    expect(rowOf(tickBox(box, "Tablet. Recent 5 mg")).textContent).not.toContain(String(thisYear));
-    expect(rowOf(tickBox(box, "Tablet. Stale 5 mg")).textContent).toContain("last 15 Aug 2024");
-    expect(rowOf(tickBox(box, "Tablet. Undated 5 mg")).textContent).not.toContain("last");
+    const firstOption = (name: string) => {
+      fireEvent.click(within(box).getByRole("button", { name: `Last instructions for ${name}` }));
+      return within(within(box).getByRole("listbox")).getAllByRole("option")[0].textContent ?? "";
+    };
+    const recent = firstOption("Tablet. Recent 5 mg");
+    expect(recent).toContain("last 15 Jan");
+    expect(recent).not.toContain(String(thisYear));
+    expect(firstOption("Tablet. Stale 5 mg")).toContain("last 15 Aug 2024");
+    expect(firstOption("Tablet. Undated 5 mg")).not.toContain("last");
   });
 
   // ── Order and search ───────────────────────────────────────────────────────
@@ -585,15 +608,19 @@ describe("BulkMedicineModal", () => {
       expect(options(box, "Capsule. Sergel 20 mg")[0].getAttribute("aria-selected")).toBe("true");
     });
 
-    it("⚕️ choosing one ticks the medicine, shows it on the chip, and is what Add adds", () => {
+    it("⚕️ choosing one ticks the medicine, is marked as chosen when the ▼ opens again, and is what Add adds", () => {
       const { box, onAdd } = open(listed([NAPA, SERGEL3]));
       fireEvent.click(arrow(box, "Capsule. Sergel 20 mg"));
       fireEvent.click(options(box, "Capsule. Sergel 20 mg")[2]);
       expect(tickBox(box, "Capsule. Sergel 20 mg").checked).toBe(true);
       expect(within(box).queryByRole("listbox")).toBeNull();
-      const chip = tickBox(box, "Capsule. Sergel 20 mg").closest("[data-chip]") as HTMLElement;
-      expect(chip.textContent).toContain("1+0+0 · Before meal · Continue");
-      expect(chip.textContent).not.toContain("14 days");
+      // The chip's tooltip names the instruction it now stands on.
+      const label = tickBox(box, "Capsule. Sergel 20 mg").closest("label") as HTMLElement;
+      expect(label.title).toContain("1+0+0 · Before meal · Continue");
+      expect(label.title).not.toContain("14 days");
+      fireEvent.click(arrow(box, "Capsule. Sergel 20 mg"));
+      expect(options(box, "Capsule. Sergel 20 mg")[2].getAttribute("aria-selected")).toBe("true");
+      fireEvent.click(arrow(box, "Capsule. Sergel 20 mg"));
       fireEvent.click(addButton(box));
       const [items] = onAdd.mock.calls[0] as [RxItem[], string];
       expect(items.map((it) => [it.drug, it.dose, it.instruction, it.duration])).toEqual([

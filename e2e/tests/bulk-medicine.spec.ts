@@ -43,8 +43,14 @@ test('a medicine prescribed before is added to the next prescription from the + 
 
   await plus(page).click();
   await expect(napaRow(page)).toBeVisible();
-  await expect(bulkBox(page)).toContainText(`${NAPA.dose} · ${NAPA.duration}`);
-  await expect(bulkBox(page)).toContainText('1 patient');
+  // The chip carries the name only (17/10/2026); what was written is in its ▼.
+  const napaArrow = bulkBox(page).getByRole('button', { name: `Last instructions for ${NAPA.label}` });
+  await napaArrow.click();
+  const usual = bulkBox(page).getByRole('listbox').getByRole('option').first();
+  await expect(usual).toContainText(`${NAPA.dose} · ${NAPA.duration}`);
+  await expect(usual).toContainText('1 patient');
+  await napaArrow.click();
+  await expect(bulkBox(page).getByRole('listbox')).toHaveCount(0);
 
   // The keyboard stays in the box, and Escape closes it without adding.
   await page.keyboard.press('Escape');
@@ -136,7 +142,8 @@ test('from the keyboard alone: search, move, tick and Add — a taper goes with 
   await expect(search(page)).toBeFocused();
   await page.keyboard.type('entecavir');
   await expect(bulkBox(page).getByRole('checkbox')).toHaveCount(1);
-  await expect(bulkBox(page)).toContainText('Entecavir');
+  // The generic is no longer written on the chip (17/10/2026): it is in its tooltip.
+  await expect(tickOf(page, 'Barcavir').locator('xpath=ancestor::label[1]')).toHaveAttribute('title', /Entecavir/);
 
   // The list is ONE Tab stop; Space ticks.
   await page.keyboard.press('Tab');
@@ -265,14 +272,13 @@ test('on a phone the + is there, the box is whole on the screen, and it adds', a
 test('medicines added below the edge of a long pad are brought into view — and a long list in the box costs the keyboard nothing', async ({ page }) => {
   await login(page, 'bulkMany');
   const names = Array.from({ length: 14 }, (_, i) => `Tablet. Longlist${String(i + 1).padStart(2, '0')} 10 mg`);
-  // Forty more for the box alone, so that the end of its list is far out of
-  // sight — and all but the first four with two tapering lines, so that a row
-  // drawn is a good deal TALLER than the space kept for it before it is.
-  const more = Array.from({ length: 40 }, (_, i) => `Tablet. Zzlist${String(i + 1).padStart(2, '0')} 10 mg`);
+  // More for the box alone, so that the end of its list is far out of sight.
+  // Since 17/10/2026 a chip carries the medicine's name only — its tapering
+  // lines are in its ▼ — so chips are short and many fit near the top: forty
+  // (when a chip held its doses) are a hundred and twenty now.
+  const more = Array.from({ length: 120 }, (_, i) => `Tablet. Zzlist${String(i + 1).padStart(3, '0')} 10 mg`);
   await teach(page, names.map((n) => [med(n, '1+0+1', 'After meal', '7 days')]));
-  await teach(page, more.map((n, i) => (i < 4
-    ? [med(n, '1+0+1', 'After meal', '7 days')]
-    : [med(n, '1+0+1', 'After meal', '7 days'), then('1+0+0', 'After meal', '7 days'), then('0+0+1', 'After meal', '7 days')])));
+  await teach(page, more.map((n) => [med(n, '1+0+1', 'After meal', '7 days')]));
   await createPatient(page, uniqueMobile(), 'Bulk Long Pad Patient');
 
   // Eleven lines: one more than the pad shows before it scrolls.
@@ -293,8 +299,8 @@ test('medicines added below the edge of a long pad are brought into view — and
 
   // A row out of sight is not laid out or painted until it is scrolled to: that
   // is what keeps a list of two thousand quick to open and to re-order. It must
-  // cost the keyboard nothing. The box now lists fifty-four medicines.
-  const last = more[39];
+  // cost the keyboard nothing. The box now lists a hundred and thirty-four.
+  const last = more[more.length - 1];
   const drawn = (name: string) => tickOf(page, name).evaluate((c) =>
     (c as Element & { checkVisibility(o: { contentVisibilityAuto: boolean }): boolean }).checkVisibility({ contentVisibilityAuto: true }));
   expect(await drawn(names[0])).toBe(true);
@@ -303,12 +309,13 @@ test('medicines added below the edge of a long pad are brought into view — and
   // number written without the padding in mind once made it 85). The chips of
   // 15/10/2026 are not drawn either, but Chromium lays them out at their own
   // height all the same (measured: a never-drawn chip with two tapering lines
-  // stands 101px, as it does drawn). What that must keep is the point of the
-  // stand-in: nothing moves when a chip is drawn. Its height undrawn is held
-  // here and compared once End has drawn it.
+  // stood 101px, as it did drawn; since 17/10/2026 a chip is its name alone).
+  // What that must keep is the point of the stand-in: nothing moves when a
+  // chip is drawn. Its height undrawn is held here and compared once End has
+  // drawn it — and it is a chip's height, not nothing.
   const chipHeight = (name: string) => tickOf(page, name).evaluate((c) => (c.closest('[data-chip]') as HTMLElement).getBoundingClientRect().height);
   const undrawnHeight = await chipHeight(last);
-  expect(undrawnHeight).toBeGreaterThan(60);
+  expect(undrawnHeight).toBeGreaterThan(30);
 
   // ⚕️ The row a key lands on is on the screen: one that has the focus and is
   // out of sight is ticked unseen. The rows a key brings near are drawn a
