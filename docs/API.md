@@ -657,6 +657,14 @@ images **before any account exists**, so no JWT guard can apply. Abuse is bounde
 the global throttler, the 8 MB limit and a magic-byte check (iPhone report photos
 are routinely 3–8 MB, so the limit is deliberately not lower).
 
+**One part, named `file` (2026-10-16).** A text field is refused with `400`
+(`limits.fields: 0`): the one caller sends none, and the multer advisories this
+public route was exposed to are carried in text fields' names. `413` over 8 MB;
+`400` for no file, a file under another field name, or a file that is not an
+accepted image — never `500` for a malformed request
+(`server/src/uploads/multer-error.filter.ts`; held in
+`server/test/uploads.int-spec.ts`).
+
 **Accepted formats (2026-09-20): JPEG, PNG, GIF, BMP, WEBP, AVIF, HEIC/HEIF, TIFF.**
 Decided by the file's own signature — the multipart `Content-Type` is not consulted
 at all (it is caller-supplied, and a HEIC picked on Windows arrives as

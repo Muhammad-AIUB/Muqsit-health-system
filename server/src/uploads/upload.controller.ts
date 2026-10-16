@@ -3,9 +3,11 @@ import {
   Controller,
   Post,
   UploadedFile,
+  UseFilters,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MulterErrorFilter } from './multer-error.filter';
 import { UploadService } from './upload.service';
 
 @Controller('uploads')
@@ -17,6 +19,9 @@ export class UploadController {
   // JwtAuthGuard cannot be applied here. Abuse is bounded by the global
   // throttler plus the size limit and magic-byte content validation below.
   @Post('image')
+  // A malformed request is answered 4xx by multer's error CODE, not 500 —
+  // see multer-error.filter.ts for why Nest 10 cannot do it alone.
+  @UseFilters(MulterErrorFilter)
   @UseInterceptors(
     FileInterceptor('file', {
       // 8 MB, deliberately NOT lowered. compressImage() on the client falls back
@@ -26,7 +31,14 @@ export class UploadController {
       // purpose. iPhone report photos are routinely 3-8 MB, so a tighter ceiling
       // rejects real uploads. The hardening that matters is the magic-byte check,
       // not the last 3 MB.
-      limits: { fileSize: 8 * 1024 * 1024 },
+      //
+      // `fields: 0` (2026-10-16): the one caller (client lib/api.ts#uploadImage)
+      // sends a single part, the file — no text field at all. This route is
+      // public, and the multer advisories it was exposed to (GHSA-72gw-mp4g-v24j,
+      // GHSA-535w-7cp7-47q4, GHSA-wc9g-mqfw-jrwm) are carried in text fields'
+      // NAMES; with no text field accepted, such a name is refused (400) before
+      // it is parsed.
+      limits: { fileSize: 8 * 1024 * 1024, fields: 0 },
       // ⚠️ Deliberately NOT a MIME allowlist any more (2026-09-20). It used to
       // refuse anything whose Content-Type did not start with `image/`, which
       // threw away real uploads: a HEIC photo picked on Windows arrives as
