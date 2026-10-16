@@ -1234,3 +1234,23 @@ Looked at in the browser, in night mode (sandbox, Chromium):
 - [ ] **Safari / Firefox not run.** `var()` inside SVG presentation attributes (`fill={C.…}`) was confirmed in Chromium only.
 - [ ] **The print preview's grey surround** comes from the print document's own HTML (`prescriptionDoc.ts`, untouched by rule). At night the preview is a bright page in a dark app. That is accepted: it is the paper.
 - [ ] **The admin console (:3001) has no night mode.** It is out of scope by the physician's choice.
+
+### Dependency advisories and the deploy script (2026-10-16)
+
+Fixed on `siam` (before release):
+- **The deploy restarted production onto a failed build and reported success.** `set -e` ignores a failure inside an `&&` chain. Each build now runs in a subshell, the API first, and a failure stops the script before `pm2 restart all` (`deploy.yml`; the workflow's own script was run with stubbed commands for each failure, before and after).
+- **The image optimizer is off in both Next apps** (`images.unoptimized`). It closes GHSA-2xp9-vwfh-vxw4 (critical, remote code execution when an AVIF file is optimized), GHSA-h64f-5h5j-jqjh and GHSA-3x4c-7xq6-9pq8 on an endpoint nothing used.
+- **multer 2.4 under Nest 10** (`overrides`), for the eight DoS advisories on the public upload route. The route now takes one file and no text field, and a malformed request gets a 4xx, not a 500.
+- **The server build fails on a `.ts` outside `src/`** (`rootDir`) instead of moving its output and 502ing.
+
+Open — each needs its own upgrade and its own verification pass:
+- [ ] **Next.js 14 → 15.5.24+, both apps.** On 14.2.35, `npm audit` lists advisories with no 14.x fix. Two matter most:
+  - Unauthenticated remote code execution on **Windows-hosted** servers (GHSA-p293-qw3h-jr36, critical, "no known workaround"). Production runs on Linux, but a Windows development machine whose `next dev` port the network can reach is exposed.
+  - Denial of service through React Server Components (GHSA-h25m-26qc-wcjf, GHSA-q4gf-8mx6-v5v3, GHSA-8h8q-6873-q5fj, high), which apply to any App Router app.
+
+  Next 15 brings React 19 and async request APIs: a major upgrade of the screen doctors prescribe through.
+- [ ] **Nest 10 → 12:** `@nestjs/core` (an injection advisory, moderate), `body-parser` (low), and `lodash` through `@nestjs/config` (`_.template` and `_.unset` / `_.omit`; this app hands `@nestjs/config` env-var names, not request data). The multer override is a stopgap that comes out with this upgrade.
+- [ ] **nodemailer 6.10.1 → 10.1.2+.** Seventeen advisories. The high ones are DoS in its address parser, plus file read / SSRF through `raw` messages and OAuth2 TLS validation (neither is used here). Every address that reaches it has passed `@IsEmail()` first (register / verify-OTP DTOs), which turns away the crafted address lists the DoS needs. Exposure is low, but it is a major version, and it needs a real SMTP send to verify.
+- [ ] **Non-breaking fixes, not applied:** `qs` (request-parsing DoS, moderate); `proxy-addr` (critical, but only with a trusted SUBNET — `trust proxy 1` is a hop count and does not reach that code); `file-type` (only `@nestjs/common`'s file validators use it, and this app has its own check); `nanoid` and `source-map-js` (build time). `npm audit fix` without `--force` takes them: one lockfile change per app, with its own verification.
+- **`xlsx` 0.18.5 is not exposed; recorded so it is not looked at again.** npm has no fix. Both advisories (prototype pollution, ReDoS) are in READING a sheet, and the app only writes one (`InvestigationDownload.tsx`: `aoa_to_sheet`, `writeFile`). A feature that reads an uploaded spreadsheet in the browser would change that.
+- [ ] **The public upload route can fill the disk:** 100 requests a minute per address × 8 MB, and every accepted image is kept for ever. Bounding it — a quota, a cap per address, or authentication once an account exists — is a product decision.
