@@ -4,6 +4,8 @@ The doctor-facing SPA. App Router pages are thin shells; almost everything rende
 
 **Env trap:** `NEXT_PUBLIC_API_URL` must be set in both `.env.local` (dev, gitignored) and **`.env.production` (committed — the deployed build uses it)**. A missing prod value silently points the live site at `localhost:4000`.
 
+**⚠️ The image optimizer is off (`images: { unoptimized: true }` in `next.config.mjs`, 2026-10-16) — a security setting.** Nothing here uses `next/image`, but `next start` answers `/_next/image` for anyone, and on Next 14 that endpoint carries advisories with no 14.x fix: remote code execution when an AVIF file is optimized (GHSA-2xp9-vwfh-vxw4, critical), a denial of service and a disk-filling cache. With the setting on, the route answers 404 before reading anything. `src/lib/imageOptimizerOff.test.ts` pins it for this app and `admin/`, and fails if a source file imports `next/image` (an image would then be shown unoptimized). Keep it until Next is past those advisories (15.5.24+) — and then drop it only if an image is meant to be optimized.
+
 **Build folders:** `.gitignore` ignores every `/.next*/` (`.next`, `.next-e2e`, `.next-verify`, or any other `NEXT_DIST_DIR`); never commit one (2026-10-16 — a 203 MB build in `.next-share` was committed and pushed once).
 
 ## ⚕️ Clinical-accuracy rules specific to the client
