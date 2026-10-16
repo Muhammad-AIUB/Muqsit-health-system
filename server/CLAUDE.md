@@ -367,8 +367,10 @@ No `dist/main.js` means the deploy will 502.
 **Since 2026-10-16 `tsconfig.build.json` sets `"rootDir": "./src"`**, and the silent
 move is a compile error: `TS6059: File 'tools/stray.ts' is not under 'rootDir'`,
 `nest build` exits 1, and the deploy stops before `pm2 restart all` (it builds each
-app in a subshell — `deploy.yml`). TypeScript still writes `dist/main.js` in the
-right place, so a later restart finds it. Checked in a copy of `server/` with a
+app in a subshell — `deploy.yml`). In THIS failure TypeScript still writes
+`dist/main.js` in the right place, so a later restart finds it — not in every
+failed build: `nest build` empties `dist` first, so a build that fails before
+writing leaves a later restart with nothing to start (root `CLAUDE.md`, Deploy). Checked in a copy of `server/` with a
 stray `tools/stray.ts`: without the setting the build was GREEN with its output at
 `dist/src/main.js`; with it, red. Two things about it are load-bearing:
 

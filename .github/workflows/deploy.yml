@@ -39,7 +39,10 @@ jobs:
             # inside an && list, so the script carried on from the wrong directory,
             # skipped the builds after it, restarted everything onto the failed one
             # and reported success. The API is built first: a failure there leaves
-            # the doctor app's build untouched and nothing restarted.
+            # the doctor app's build untouched and nothing restarted. A red run
+            # is still NOT safe: `next build` empties `.next` and `nest build`
+            # empties `dist` before compiling, so the running app may already be
+            # missing files — fix or revert at once (root CLAUDE.md, Deploy).
             (cd server && npm install && npx prisma generate && npm run build)
             (cd client && npm install && npm run build)
             # Admin build is non-fatal so it can never block the core client/server deploy.
