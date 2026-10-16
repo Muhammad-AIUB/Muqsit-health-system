@@ -4,7 +4,7 @@ import { useState } from "react";
 import { C, font } from "@/theme";
 import { btnPrimary, btnSecondary, btnDisabled } from "@/theme/styles";
 import MedicinePad, { emptyRow, type Row } from "@/components/prescription/MedicinePad";
-import { drugHistoryEntriesFromPad, type DrugHistoryAddInput } from "@/lib/drugHistoryAdd";
+import { drugHistoryEntriesFromPad, unwritableLines, type DrugHistoryAddInput } from "@/lib/drugHistoryAdd";
 
 // ⚕️ The "+ Add medicine" row on one Drug-history tab (physician's decision,
 // 2026-10-14). Collapsed by default — nothing here is typeable until the
@@ -39,7 +39,9 @@ export default function AddMedicineRow({ existing, tabLabel, date, onAdd }: Prop
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>(fresh);
   const [msg, setMsg] = useState("");
-  const typed = rows.some((r) => r.drug.trim() || (r.continuation && (r.dose.trim() || r.food.trim() || r.duration.trim())));
+  // Anything typed at all, so that Add can be pressed and say what is wrong
+  // with a line it cannot write rather than sit greyed out with no reason.
+  const typed = rows.some((r) => r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim());
 
   const close = () => {
     setOpen(false);
@@ -48,6 +50,13 @@ export default function AddMedicineRow({ existing, tabLabel, date, onAdd }: Prop
   };
 
   const add = () => {
+    // ⚕️ A line the history cannot write is never dropped in silence: nothing
+    // is added and nothing is cleared until it is fixed.
+    const lost = unwritableLines(rows);
+    if (lost) {
+      setMsg(`Nothing added: ${lost === 1 ? "a line has" : `${lost} lines have`} a dose, food or duration but no medicine. Write the medicine's name, or clear ${lost === 1 ? "that line" : "those lines"}.`);
+      return;
+    }
     const { entries, skipped } = drugHistoryEntriesFromPad(rows, date, existing);
     for (const e of entries) onAdd(e);
     if (entries.length) setRows(fresh());

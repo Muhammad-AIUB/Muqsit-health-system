@@ -51,6 +51,29 @@ export function isDuplicateDrugHistoryEntry(input: DrugHistoryAddInput, existing
 }
 
 /**
+ * How many lines of the pad Drug history cannot write: a dose, food or
+ * duration with no medicine name, and a >>> line with something in it and no
+ * medicine above it (at the top, or under a note). `rxItemsFromRows` drops
+ * such a line, so "+ Add medicine" refuses to add while one is on the pad —
+ * found in the independent review before release (17/10/2026): Add used to
+ * clear the pad with those typed cells in it, and say nothing.
+ */
+export function unwritableLines(rows: Row[]): number {
+  const filled = (r: Row) => !!(r.dose.trim() || r.food.trim() || r.duration.trim());
+  let n = 0;
+  let head: Row | null = null; // the line a >>> line belongs to
+  for (const r of rows) {
+    if (r.continuation) {
+      if (filled(r) && !(head && head.isMedicine && head.drug.trim())) n++;
+      continue;
+    }
+    head = r;
+    if (!r.drug.trim() && filled(r)) n++;
+  }
+  return n;
+}
+
+/**
  * What the doctor typed into "+ Add medicine" — the ℞ pad's own rows since the
  * physician's sheet of 15/10/2026 ("add medicine er philosophy prescription er
  * idea follow korbe") — as Drug-history entries stamped with `date`.

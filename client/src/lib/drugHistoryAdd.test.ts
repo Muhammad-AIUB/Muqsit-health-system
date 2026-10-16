@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDrugHistoryEntry, drugHistoryEntriesFromPad, isDuplicateDrugHistoryEntry, NO_DATE, type DrugHistoryAddInput } from "./drugHistoryAdd";
+import { buildDrugHistoryEntry, drugHistoryEntriesFromPad, isDuplicateDrugHistoryEntry, NO_DATE, unwritableLines, type DrugHistoryAddInput } from "./drugHistoryAdd";
 import { contRow, emptyRow, type Row } from "@/components/prescription/MedicinePad";
 
 describe("buildDrugHistoryEntry", () => {
@@ -105,5 +105,35 @@ describe("drugHistoryEntriesFromPad", () => {
     const r = drugHistoryEntriesFromPad([med("Tablet. Lenva 4 mg", "0+0+1", "", "7 days"), taper("0+0+2", "", "Continue")], NO_DATE, existing);
     expect(r.entries).toHaveLength(2);
     expect(r.skipped).toEqual([]);
+  });
+});
+
+// ⚕️ Independent review before release (17/10/2026): the pad's own reading
+// drops a line it cannot write — a dose with no medicine name, a >>> line
+// with no medicine above it — and Add then cleared the pad: typed cells gone,
+// nothing said. Such a line is counted, and Add adds nothing until it is fixed.
+describe("unwritableLines", () => {
+  const med = (drug: string, dose = "", food = "", duration = ""): Row => ({ ...emptyRow(), drug, dose, food, duration, isMedicine: true });
+  const taper = (dose: string, food = "", duration = ""): Row => ({ ...contRow(), dose, food, duration });
+  const note = (text: string): Row => ({ ...emptyRow(), drug: text });
+
+  it("a pad of medicines, their tapers and notes has none", () => {
+    expect(unwritableLines([med("Tablet. Napa 500 mg", "1+1+1"), taper("1+0+1"), note("bed rest"), emptyRow()])).toBe(0);
+  });
+
+  it("⚕️ a dose, a food or a duration with no medicine name is one", () => {
+    expect(unwritableLines([med("", "1+0+1")])).toBe(1);
+    expect(unwritableLines([med("  ", "", "After meal")])).toBe(1);
+    expect(unwritableLines([{ ...emptyRow(), duration: "7 days" }])).toBe(1);
+  });
+
+  it("⚕️ a >>> line with no medicine above it is one — at the top, or under a note", () => {
+    expect(unwritableLines([taper("1+0+1")])).toBe(1);
+    expect(unwritableLines([note("bed rest"), taper("1+0+1")])).toBe(1);
+    expect(unwritableLines([med("", ""), taper("1+0+1")])).toBe(1);
+  });
+
+  it("an empty >>> line or an empty row is nothing to lose", () => {
+    expect(unwritableLines([taper(""), emptyRow()])).toBe(0);
   });
 });

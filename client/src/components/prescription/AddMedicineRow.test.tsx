@@ -144,3 +144,22 @@ describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
     expect(typing().value).toBe("");
   });
 });
+
+// ⚕️ Independent review before release (17/10/2026): a line with a dose but
+// no medicine name was dropped, and the pad cleared, with nothing said.
+describe("AddMedicineRow — a line it cannot write", () => {
+  it("⚕️ adds nothing, clears nothing, and says why", () => {
+    const { onAdd } = openRow();
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    write("dose", "1+0+1");
+    // The medicine's name taken back off, the dose left beside it.
+    const name = screen.getByDisplayValue("Tablet. Napa 500 mg") as HTMLInputElement;
+    fireEvent.change(name, { target: { value: "" } });
+    expect(addBtn().disabled).toBe(false);
+    fireEvent.click(addBtn());
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("status").textContent).toMatch(/Nothing added: a line has a dose, food or duration but no medicine/);
+    expect(screen.getByDisplayValue("1+0+1")).toBeTruthy();
+  });
+});
