@@ -13,12 +13,14 @@
 
 import { describe, expect, it } from "vitest";
 import { join } from "path";
-import { pathToFileURL } from "url";
 
 const repo = join(__dirname, "..", "..", "..");
 
+// A plain absolute path, not `pathToFileURL(...).href`: the URL writes a space
+// as %20, and Vite then looks for a folder named `Muqsit%20health%20system`
+// and fails — this checkout's own path has spaces (found 2026-10-17).
 const loadConfig = async (app: "client" | "admin") => {
-  const mod = await import(/* @vite-ignore */ pathToFileURL(join(repo, app, "next.config.mjs")).href);
+  const mod = await import(/* @vite-ignore */ join(repo, app, "next.config.mjs"));
   return mod.default as { images?: { unoptimized?: boolean } };
 };
 
