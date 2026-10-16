@@ -36,7 +36,7 @@ cd client && npx tsc --noEmit             # same in admin/
 npx prisma db execute --file prisma/manual-<name>.sql --schema prisma/schema.prisma   # from server/
 ```
 - `client`/`admin` `npm run lint` is `next lint` but no ESLint config exists there — TODO: verify before relying on it.
-- New `.ts` outside `server/src/` moves the build output and 502s prod: run `cd server && rm -rf dist && npm run build && ls dist/main.js`.
+- New `.ts` outside `server/src/` used to move the build output silently and 502 prod; since 2026-10-16 `server/tsconfig.build.json` sets `rootDir`, so it fails the build instead (TS6059, `server/CLAUDE.md`). After adding one, still run `cd server && rm -rf dist && npm run build && ls dist/main.js`.
 
 ## Architecture & Conventions
 - **Server:** one Nest module per domain in `server/src/<domain>/` (`*.controller.ts`, `*.service.ts`, `*.module.ts`, `dto/`). `ValidationPipe({ whitelist: true })` drops any field not declared on the DTO.

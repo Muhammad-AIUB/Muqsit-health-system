@@ -362,9 +362,28 @@ and check the artifact:
 cd server && rm -rf dist && npm run build && ls dist/main.js
 ```
 
-No `dist/main.js` means the deploy will 502. The permanent fix is an explicit
-`"rootDir": "./src"` in `tsconfig.json`, which turns the silent move into a compile
-error; not done yet because it needs its own verification pass.
+No `dist/main.js` means the deploy will 502.
+
+**Since 2026-10-16 `tsconfig.build.json` sets `"rootDir": "./src"`**, and the silent
+move is a compile error: `TS6059: File 'tools/stray.ts' is not under 'rootDir'`,
+`nest build` exits 1, and the deploy stops before `pm2 restart all` (it builds each
+app in a subshell — `deploy.yml`). TypeScript still writes `dist/main.js` in the
+right place, so a later restart finds it. Checked in a copy of `server/` with a
+stray `tools/stray.ts`: without the setting the build was GREEN with its output at
+`dist/src/main.js`; with it, red. Two things about it are load-bearing:
+
+- **It is in the BUILD config, not `tsconfig.json`.** `tsconfig.json` has no
+  `include`, so it also reads `test/`, `prisma/seed.ts` and `scripts/*.ts` — the
+  CI typecheck (`tsc --noEmit -p tsconfig.json`) checks them, and a `rootDir`
+  there would refuse them.
+- **`tsBuildInfoFile` keeps the incremental cache inside `dist/`.** `incremental`
+  is on, and given a `rootDir`, TypeScript puts its cache beside the config
+  (`server/tsconfig.build.tsbuildinfo`) instead of in `dist/`. `nest build`
+  deletes `dist/` but not that file, so the NEXT build read a cache saying
+  everything was already written and wrote nothing: exit 0 and no
+  `dist/main.js` — the 502 this guards against, on the second deploy. The first
+  version of this change did exactly that, and only a second build in a row
+  showed it. A change to these configs is checked with two builds in a row.
 
 ## Gotchas
 
