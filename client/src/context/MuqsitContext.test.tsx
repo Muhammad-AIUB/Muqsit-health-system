@@ -678,3 +678,77 @@ describe("the ℞ mirror around Save & print", () => {
     expect(result.current.drugHistory).toContain(saved[0]);
   });
 });
+
+// ⚕️ Release review, 18/10/2026: a visit printed at 23:58 and mirrored to a
+// second device after midnight. The receiving device moved the visit's date to
+// today, took the PRINTED line out of Drug history as "the mirror's" and wrote
+// it back under today's date; its Save & print then stored only that copy. The
+// medicine was kept — its real date was lost.
+describe("a visit mirrored to another device across midnight", () => {
+  const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "", duration: "5 days" };
+
+  it("printed before midnight: keeps its date, and the printed line keeps its date", async () => {
+    vi.setSystemTime(new Date(2026, 9, 17, 23, 58));
+    const pt = patient({ drugHistory: [] });
+    api.patientGet.mockResolvedValue(pt);
+    const a = await setup();
+    act(() => a.result.current.loadPatient(pt));
+    await tick(50);
+    act(() => a.result.current.setRxItems([napa]));
+    await tick(10);
+    await act(async () => { await a.result.current.savePrescription(); });
+    await tick(50);
+    const printed = rxDrugHistoryEntries([napa], "17/10/2026");
+    expect(a.result.current.drugHistory).toEqual(printed);
+    const fromA = a.result.current.mirrorSnapshot as unknown as Record<string, unknown>;
+    const record = patient({ drugHistory: printed }); // on the record since 23:58
+
+    vi.setSystemTime(new Date(2026, 9, 18, 0, 1));
+    api.patientGet.mockResolvedValue(record);
+    const b = await setup();
+    act(() => b.result.current.loadPatient(record));
+    await tick(50);
+    act(() => b.result.current.applyMirrorSnapshot(fromA));
+    await tick(10);
+    expect(b.result.current.drugHistory).toEqual(printed);
+    expect(b.result.current.ptDate).toBe("2026-10-17");
+
+    // A Save & print from this device stores the line under its real date.
+    api.patientUpdate.mockClear();
+    await act(async () => { await b.result.current.savePrescription(); });
+    await tick(50);
+    const writes = api.patientUpdate.mock.calls.map(([, body]) => body as { drugHistory?: string[] });
+    expect(writes.find((w) => w.drugHistory)?.drugHistory).toEqual(printed);
+  });
+
+  // The guard's own purpose stands: an unfinished visit is today's visit.
+  it("not printed: moves to today, its own ℞ lines with it", async () => {
+    vi.setSystemTime(new Date(2026, 9, 17, 23, 58));
+    const pt = patient({ drugHistory: [] });
+    api.patientGet.mockResolvedValue(pt);
+    const a = await setup();
+    act(() => a.result.current.loadPatient(pt));
+    await tick(50);
+    act(() => a.result.current.setRxItems([napa]));
+    await tick(10);
+    const fromA = a.result.current.mirrorSnapshot as unknown as Record<string, unknown>;
+
+    vi.setSystemTime(new Date(2026, 9, 18, 0, 1));
+    const b = await setup();
+    act(() => b.result.current.loadPatient(pt));
+    await tick(50);
+    act(() => b.result.current.applyMirrorSnapshot(fromA));
+    await tick(10);
+    expect(b.result.current.ptDate).toBe("2026-10-18");
+    expect(b.result.current.drugHistory).toEqual(rxDrugHistoryEntries([napa], "18/10/2026"));
+  });
+
+  // "No patient" and "no completion marker" are not the same patient.
+  it("a snapshot with no patient and no completion marker still moves to today", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 0, 1));
+    const { result } = await setup();
+    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", ptDate: "2026-10-17" }));
+    await tick(10);
+    expect(result.current.ptDate).toBe("2026-10-18");
+  });
+});

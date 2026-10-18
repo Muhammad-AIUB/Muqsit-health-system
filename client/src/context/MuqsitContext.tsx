@@ -1492,7 +1492,8 @@ function useMuqsitStore() {
     if (typeof d.activeTab === "string") setActiveTab(d.activeTab as TabId);
     if (d.view === "desktop" || d.view === "mobile") setView(d.view);
     if (typeof d.ptSettingsTab === "string") setPtSettingsTab(d.ptSettingsTab as string);
-    setCurrentPatientId(typeof d.currentPatientId === "string" ? d.currentPatientId : null);
+    const pid = typeof d.currentPatientId === "string" ? d.currentPatientId : null;
+    setCurrentPatientId(pid);
     // Keep supervisedRef consistent with the peer device so this device's
     // auto-save doesn't write the owner's incompleteRx / flag OPD for a
     // mirror-applied supervised patient (finding: stale supervised flag).
@@ -1506,7 +1507,16 @@ function useMuqsitStore() {
     str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
     // Same stale-date guard as applyEditorSnapshot: a secondary device joining
     // before the primary's first auto-save might receive a pre-advance snapshot.
-    str("ptDate", (v) => { const today = todayISO(); setPtDate(v < today ? today : v); });
+    // ⚕️ Never for a visit already PRINTED (release review, 18/10/2026): its date
+    // is on the sheet, its ℞ lines are on the record, and the device that printed
+    // it keeps that date. Moved here alone, a visit printed at 23:58 and received
+    // after midnight had its printed line withdrawn from Drug history as the
+    // mirror's and written back under today's date — a Save & print from here
+    // then stored only that copy. (Dropping the claim instead, as a resumed draft
+    // does, needs the record, which a snapshot does not carry; and it would still
+    // leave the two devices a day apart on one visit.)
+    const printed = completed !== null && completed === pid;
+    str("ptDate", (v) => { const today = todayISO(); setPtDate(v < today && !printed ? today : v); });
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory);
