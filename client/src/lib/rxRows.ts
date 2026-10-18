@@ -42,26 +42,66 @@ export function rowsFromRxItems(items: RxItem[]): Row[] {
  */
 export function rxDrugIndexByRow(rows: Row[]): (number | null)[] {
   let n = 0;
+  let headOk = false; // the line a >>> line belongs to is a named medicine
   return (rows ?? []).map((r) => {
     if (!r.isMedicine) {
       // A note becomes an RxItem but is filtered out of `rxDrugs`, so it takes
       // no index — and must not consume one either.
+      headOk = false;
       return null;
     }
     if (r.continuation) {
-      // Kept only when something was filled — same test as rxItemsFromRows.
-      if (r.dose.trim() || r.duration.trim() || r.food.trim()) return n++;
+      // Kept only when something was filled under a named medicine — the same
+      // test as rxItemsFromRows.
+      if (headOk && filled(r)) return n++;
       return null;
     }
-    if (r.drug.trim()) return n++;
+    headOk = !!r.drug.trim();
+    if (headOk) return n++;
     return null;
   });
 }
 
+/** Something is typed in the dose, food or duration cell. */
+const filled = (r: Row) => !!(r.dose.trim() || r.duration.trim() || r.food.trim());
+
+/**
+ * ⚕️ The rows the pad cannot write as they stand — by index:
+ *  • a `>>>` line with something in it and no named medicine DIRECTLY above it
+ *    (its medicine's name cleared, under a note, at the top of the pad);
+ *  • a medicine line with a dose, food or duration and no name.
+ * `rxItemsFromRows` leaves both out — never hands a `>>>` line to the medicine
+ * before — so Save & print refuses while any is on the pad (and the IPD sheet's
+ * Save, the template editor's, "+ Add medicine"), and the pad marks each one.
+ * Before 18/10/2026 such a `>>>` line was saved and PRINTED under the medicine
+ * before it: a dose for the wrong drug (physician: "dangerous bug").
+ */
+export function unwritableRows(rows: Row[]): number[] {
+  const out: number[] = [];
+  let headOk = false;
+  (rows ?? []).forEach((r, i) => {
+    if (r.isMedicine && r.continuation) {
+      if (filled(r) && !headOk) out.push(i);
+      return;
+    }
+    // A note is no medicine to hang a >>> line on. A line with no text and
+    // something in its cells cannot be written either way.
+    headOk = r.isMedicine && !!r.drug.trim();
+    if (!r.drug.trim() && filled(r)) out.push(i);
+  });
+  return out;
+}
+
 export function rxItemsFromRows(rows: Row[]): RxItem[] {
   const out: RxItem[] = [];
+  // ⚕️ A >>> line belongs to the line DIRECTLY above it, and is written only
+  // when that line is a named medicine. Kept after a cleared name or a note, it
+  // stood under the medicine before: saved with that medicine's name filled in
+  // and printed under it (`unwritableRows`, above; 18/10/2026).
+  let headOk = false;
   for (const r of rows) {
     if (!r.isMedicine) {
+      headOk = false;
       // A free-typed instruction line — keep it so it reaches the printed sheet.
       if (r.drug.trim()) out.push({ drug: r.drug.trim(), dose: "", duration: "", instruction: "", isNote: true });
       continue;
@@ -70,9 +110,10 @@ export function rxItemsFromRows(rows: Row[]): RxItem[] {
       // Keep the continuation line when ANY of dose, duration, or the
       // food/instruction was filled — a tapering step that only changes the
       // instruction (dose/duration blank) must still print and persist.
-      if (r.dose.trim() || r.duration.trim() || r.food.trim()) out.push({ drug: "", dose: r.dose, duration: r.duration, instruction: r.food, isCont: true, fromHabit: r.fromHabit });
-    } else if (r.drug.trim()) {
-      out.push({ drug: r.drug.trim(), dose: r.dose, duration: r.duration, instruction: r.food, sf: r.sf, generic: r.generic, isCont: false, fromHabit: r.fromHabit });
+      if (headOk && filled(r)) out.push({ drug: "", dose: r.dose, duration: r.duration, instruction: r.food, isCont: true, fromHabit: r.fromHabit });
+    } else {
+      headOk = !!r.drug.trim();
+      if (headOk) out.push({ drug: r.drug.trim(), dose: r.dose, duration: r.duration, instruction: r.food, sf: r.sf, generic: r.generic, isCont: false, fromHabit: r.fromHabit });
     }
   }
   return out;

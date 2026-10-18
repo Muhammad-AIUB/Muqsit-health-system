@@ -808,3 +808,38 @@ describe("a visit mirrored to another device across midnight", () => {
     expect(result.current.ptDate).toBe("2026-10-18");
   });
 });
+
+// ⚕️ Save & print refuses while the ℞ pad has a line it cannot write — a >>>
+// line with no medicine directly above it, or a dose with no medicine name —
+// rather than print the dose under another medicine, or not at all (physician,
+// 18/10/2026: "dangerous bug"). The pad reports the count (RightColumn).
+describe("Save & print with a line the ℞ pad cannot write", () => {
+  it("is refused, says why, and saves nothing", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => {
+      result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" }]);
+      result.current.setRxPadUnwritable(1);
+    });
+    let ok = true;
+    await act(async () => { ok = await result.current.savePrescription(); });
+    expect(ok).toBe(false);
+    expect(api.rxCreate).not.toHaveBeenCalled();
+    expect(result.current.savedMsg).toMatch(/no medicine/i);
+  });
+
+  it("saves once the line is put right", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => {
+      result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" }]);
+      result.current.setRxPadUnwritable(1);
+    });
+    act(() => result.current.setRxPadUnwritable(0));
+    await act(async () => { await result.current.savePrescription(); });
+    expect(api.rxCreate).toHaveBeenCalledTimes(1);
+  });
+});
+

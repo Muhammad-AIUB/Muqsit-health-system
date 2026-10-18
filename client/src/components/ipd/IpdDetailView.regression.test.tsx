@@ -149,3 +149,22 @@ describe("82101b6: a ward note that did not reach the server says so and keeps t
     expect(note().value).toBe("");
   });
 });
+
+// ⚕️ The IPD prescription is written from the same pad: a >>> line with no
+// medicine directly above it is refused there too, never filed under another
+// medicine on the ward's order (18/10/2026).
+describe("the IPD Save refuses a pad line it cannot write", () => {
+  it("does not save, and says why", async () => {
+    // A medicine line with its name cleared, and a >>> line under it.
+    const clinical = { rxItems: [
+      { drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "", isCont: false },
+      { drug: "", dose: "1+0+1", duration: "", instruction: "", isCont: false },
+      { drug: "", dose: "0+0+1", duration: "", instruction: "", isCont: true },
+    ] } as unknown as IpdClinical;
+    render(<IpdDetailView admission={admission({ clinical })} onBack={() => {}} />);
+    await pressSave();
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(document.body.textContent).toMatch(/no medicine/i);
+  });
+});
+

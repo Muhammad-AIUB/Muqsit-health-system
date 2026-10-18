@@ -10,6 +10,7 @@ import InvestigationGroups from "@/components/investigation/InvestigationGroups"
 import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { usePadSync } from "@/lib/usePadSync";
+import { unwritableRows } from "@/lib/rxRows";
 import { useKbdLang } from "@/lib/kbdLang";
 import { rxItemsIn } from "@/lib/rxLanguage";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -29,7 +30,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     rxItems, setRxItems,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
-    can, savedDrugAdvice, activeWorkstationId, currentPatientId,
+    can, savedDrugAdvice, activeWorkstationId, currentPatientId, setRxPadUnwritable,
   } = useMuqsit();
 
   // ••• special advice (physician's design, 2026-09-24): which medicine's box is open.
@@ -45,6 +46,10 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   // Pad edits → prescription model, and changes made elsewhere (templates,
   // prescribe-clear, Move to Rx, the BAN/EN switch) → pad: lib/usePadSync.ts.
   const [rows, setRows] = usePadSync(rxItems, setRxItems);
+  // ⚕️ Lines the pad cannot write: Save & print refuses while any is there.
+  const unwritable = unwritableRows(rows).length;
+  useEffect(() => { setRxPadUnwritable(unwritable); }, [unwritable, setRxPadUnwritable]);
+  useEffect(() => () => setRxPadUnwritable(0), [setRxPadUnwritable]);
 
   // Quick templates: only the doctor's own saved OPD templates (from the server).
   const [tplSearch, setTplSearch] = useState("");

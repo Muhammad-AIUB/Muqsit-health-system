@@ -6,7 +6,7 @@ import { btnSecondary, btnPrimary, btnDisabled } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import RxAlerts from "@/components/prescription/RxAlerts";
-import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
+import { rowsFromRxItems, rxItemsFromRows, unwritableRows } from "@/lib/rxRows";
 import { mergeIpdClinical } from "@/lib/ipdClinical";
 import { useAuth } from "@/context/AuthContext";
 import AnalogueSheetPanel from "./AnalogueSheetPanel";
@@ -216,6 +216,14 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   };
 
   const persist = async (clinical: IpdClinical) => {
+    // ⚕️ Never file the ward's prescription with a line the pad cannot write: a
+    // >>> dose with no medicine above it was saved under the medicine before
+    // (18/10/2026). The pad marks the line in red.
+    if (unwritableRows(rows).length > 0) {
+      setSavedMsg("Not saved: a line on the prescription has no medicine name (marked in red). Type the name, or remove the line.");
+      setTimeout(() => setSavedMsg(""), 8000);
+      return;
+    }
     try {
       await update.mutateAsync({
         id: admission.id,

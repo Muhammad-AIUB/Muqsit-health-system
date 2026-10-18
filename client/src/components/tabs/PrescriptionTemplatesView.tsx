@@ -5,7 +5,7 @@ import { C, font } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
 import { btnPrimary, btnSecondary, pageTitle, btnDisabled, btnDanger } from "@/theme/styles";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
-import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
+import { rowsFromRxItems, rxItemsFromRows, unwritableRows } from "@/lib/rxRows";
 import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rxTemplates";
 import { useTemplates, useSaveTemplate, useDeleteTemplate } from "@/hooks/useTemplates";
 import Icon, { type IconName } from "@/components/common/Icon";
@@ -167,6 +167,9 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
   const save = () => {
     const trimmed = name.trim();
     if (!trimmed) { setError("Please enter a template name."); return; }
+    // ⚕️ A template is a prescription to be used again: not one with a line the
+    // pad cannot write (a >>> dose with no medicine above it, 18/10/2026).
+    if (unwritableRows(rows).length > 0) { setError("A line has no medicine name (marked in red). Type the name, or remove the line."); return; }
     const items = rxItemsFromRows(rows);
     if (items.length === 0) { setError("Add at least one medicine or note."); return; }
     saveMut.mutate(

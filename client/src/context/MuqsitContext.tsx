@@ -82,6 +82,10 @@ const initialOeData: OeData = {
 // Returns today's date as YYYY-MM-DD (ISO) in the device's local timezone.
 // Using an explicit template keeps the format stable on stripped-ICU runtimes
 // where toLocaleDateString("en-CA") may not return YYYY-MM-DD.
+/** Said when Save & print refuses a pad with a line it cannot write. */
+export const UNWRITABLE_PAD =
+  "Not saved: a line on the prescription has no medicine name (marked in red on the ℞ pad). Type the medicine's name on that line, or remove the line — a >>> dose under it would print under the wrong medicine.";
+
 function todayISO(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
@@ -222,6 +226,14 @@ function useMuqsitStore() {
   // what the pad writes, as it always did.
   const [rxMirrorOwned, setRxMirrorOwned] = useState<StringList | null>(null);
   const [savedMsg, setSavedMsg] = useState("");
+  // ⚕️ How many lines of the OPD ℞ pad cannot be written as they stand
+  // (`unwritableRows`, lib/rxRows.ts) — reported by RightColumn, which holds the
+  // pad's rows. While any is there, Save & print refuses: a >>> line with no
+  // medicine above it was printed under the medicine before (18/10/2026).
+  // Derived from the pad on each device; never stored or mirrored.
+  const [rxPadUnwritable, setRxPadUnwritable] = useState(0);
+  const rxPadUnwritableRef = useRef(0);
+  rxPadUnwritableRef.current = rxPadUnwritable;
   const [followUpNum, setFollowUpNum] = useState("");
   const [followUpUnit, setFollowUpUnit] = useState("day");
   const [followUpMandatory, setFollowUpMandatory] = useState(false);
@@ -351,6 +363,12 @@ function useMuqsitStore() {
   // caller, `PrescriptionView#handleSave`, holds a synchronous in-flight guard;
   // any new caller owes the same.
   const savePrescription = async (): Promise<boolean> => {
+    // ⚕️ Never save — and so never print — a pad with a line it cannot write.
+    if (rxPadUnwritableRef.current > 0) {
+      setSavedMsg(UNWRITABLE_PAD);
+      setTimeout(() => setSavedMsg(""), 8000);
+      return false;
+    }
     // A prescription is saveable with a medicine OR any clinical detail/advice —
     // not every visit prescribes a drug. Only a completely empty form is blocked.
     const hasContent =
@@ -1621,6 +1639,7 @@ function useMuqsitStore() {
     history, setHistory, investigation, setInvestigation,
     hiddenInvestigation, setHiddenInvestigation,
     hideDrugHistory, setHideDrugHistory,
+    rxPadUnwritable, setRxPadUnwritable,
     drugHistory, setDrugHistory, addDrugHistoryEntry, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,

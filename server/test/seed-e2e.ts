@@ -22,6 +22,7 @@ const ROLES = [
   'sheetSave', 'sheetKeys', 'sheetEnter', 'headerSwitch', 'noteMirror',
   'invUnits', 'invUnitsPlain', 'loginWait', 'bulkMed', 'bulkKeys', 'bulkOffline', 'bulkPhone', 'bulkMany', 'moveRx',
   'monthlyCost',
+  'taperOrphan',
 ] as const;
 
 // The "Total monthly approximate cost" journey prices from the medicine chart:

@@ -14,7 +14,7 @@
 
 import { SEP } from "@/lib/rxDrugHistory";
 import { MedicineMap, instructionsKey } from "@/lib/medicineKey";
-import { rxItemsFromRows } from "@/lib/rxRows";
+import { rxItemsFromRows, unwritableRows } from "@/lib/rxRows";
 import type { Row } from "@/components/prescription/MedicinePad";
 
 export interface DrugHistoryAddInput {
@@ -59,18 +59,8 @@ export function isDuplicateDrugHistoryEntry(input: DrugHistoryAddInput, existing
  * clear the pad with those typed cells in it, and say nothing.
  */
 export function unwritableLines(rows: Row[]): number {
-  const filled = (r: Row) => !!(r.dose.trim() || r.food.trim() || r.duration.trim());
-  let n = 0;
-  let head: Row | null = null; // the line a >>> line belongs to
-  for (const r of rows) {
-    if (r.continuation) {
-      if (filled(r) && !(head && head.isMedicine && head.drug.trim())) n++;
-      continue;
-    }
-    head = r;
-    if (!r.drug.trim() && filled(r)) n++;
-  }
-  return n;
+  // The ℞ pad's own rule, as the same function (lib/rxRows.ts).
+  return unwritableRows(rows).length;
 }
 
 /**

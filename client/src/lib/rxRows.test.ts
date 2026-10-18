@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rowsFromRxItems, rxDrugIndexByRow, rxItemsFromRows } from "./rxRows";
+import { rowsFromRxItems, rxDrugIndexByRow, rxItemsFromRows, unwritableRows } from "./rxRows";
 import { contRow, emptyRow, type Row } from "@/components/prescription/MedicinePad";
 import type { RxItem } from "@/types";
 
@@ -234,3 +234,69 @@ describe("one line-numbering basis for both prescribing screens", () => {
     expect(napaOld).not.toBe(napaNew);
   });
 });
+
+// ⚕️ A `>>>` line belongs to the line DIRECTLY above it. When that line's
+// medicine name is cleared (or it is a note), the pad's reading used to drop the
+// nameless line and keep its tapers — which then stood under the medicine
+// before: Save & print filled THAT medicine's name into them, the sheet printed
+// them under it, and Drug history recorded them as its doses. A dose printed
+// under the wrong medicine (physician's report, 18/10/2026: "dangerous bug").
+describe("a >>> line with no medicine directly above it", () => {
+  const napa = med({ drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days" });
+  const clearedBex = med({ drug: "", dose: "1+0+1", duration: "7 days" }); // Bex, its name cleared
+  const taper = (dose: string): Row => ({ ...contRow(), dose, duration: "7 days" });
+  const note = (text: string): Row => ({ ...emptyRow(), drug: text });
+
+  it("is never handed to the medicine above the cleared line", () => {
+    const items = rxItemsFromRows([napa, clearedBex, taper("0+0+1"), emptyRow()]);
+    expect(items).toEqual([
+      { drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "", sf: undefined, generic: undefined, isCont: false, fromHabit: undefined },
+    ]);
+  });
+
+  it("is never handed to the medicine above a note", () => {
+    const items = rxItemsFromRows([napa, note("Bed rest"), taper("0+0+1"), emptyRow()]);
+    expect(items.map((i) => (i.isNote ? `note:${i.drug}` : i.isCont ? `cont:${i.dose}` : i.drug))).toEqual(["Tablet. Napa 500 mg", "note:Bed rest"]);
+  });
+
+  it("at the top of the pad is not written either", () => {
+    expect(rxItemsFromRows([taper("0+0+1"), napa, emptyRow()]).map((i) => i.drug)).toEqual(["Tablet. Napa 500 mg"]);
+  });
+
+  it("a medicine's own tapers still go with it, also after a cleared line further up", () => {
+    const sergel = med({ drug: "Capsule. Sergel 20 mg", dose: "1+0+1", duration: "14 days" });
+    const items = rxItemsFromRows([clearedBex, taper("0+0+1"), sergel, taper("0+0+1"), emptyRow()]);
+    expect(items.map((i) => (i.isCont ? `cont:${i.dose}` : i.drug))).toEqual(["Capsule. Sergel 20 mg", "cont:0+0+1"]);
+  });
+
+  // The warning on a ℞ line is placed by this index; it must agree with the items.
+  it("takes no alert index, so warnings stay on the right medicine", () => {
+    const rows = [napa, clearedBex, taper("0+0+1"), med({ drug: "Tablet. Barcavir 0.5 mg", dose: "1+0+0" }), emptyRow()];
+    expect(rxDrugIndexByRow(rows)).toEqual([0, null, null, 1, null]);
+    expect(rxItemsFromRows(rows).filter((i) => !i.isNote).map((i) => i.drug)).toEqual(["Tablet. Napa 500 mg", "Tablet. Barcavir 0.5 mg"]);
+  });
+});
+
+// What the pad cannot write as it is — so Save & print refuses rather than
+// print without it (or under another medicine). The pad marks each one.
+describe("unwritableRows", () => {
+  const napa = med({ drug: "Tablet. Napa 500 mg", dose: "1+1+1" });
+  const cleared = med({ drug: "", dose: "1+0+1" });
+  const taper = (dose: string): Row => ({ ...contRow(), dose });
+  const note = (text: string): Row => ({ ...emptyRow(), drug: text });
+
+  it("names a >>> line with something in it and no medicine directly above", () => {
+    expect(unwritableRows([napa, cleared, taper("0+0+1"), emptyRow()])).toEqual([1, 2]);
+    expect(unwritableRows([napa, note("Bed rest"), taper("0+0+1"), emptyRow()])).toEqual([2]);
+    expect(unwritableRows([taper("0+0+1"), napa, emptyRow()])).toEqual([0]);
+  });
+
+  it("names a medicine line with a dose but no name", () => {
+    expect(unwritableRows([cleared, emptyRow()])).toEqual([0]);
+  });
+
+  it("leaves alone what can be written, and empty lines", () => {
+    expect(unwritableRows([napa, taper("0+0+1"), taper(""), note("Bed rest"), med({ drug: "" }), contRow(), emptyRow()])).toEqual([]);
+  });
+});
+

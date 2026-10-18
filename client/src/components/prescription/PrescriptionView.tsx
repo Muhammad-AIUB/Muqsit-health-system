@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { tell } from "@/lib/dialogs";
 import { btnDisabled, btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
-import { useMuqsit } from "@/context/MuqsitContext";
+import { useMuqsit, UNWRITABLE_PAD } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
 import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
 import { sanitizeHtml } from "@/lib/safeHtml";
@@ -215,6 +215,11 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   };
 
   const runSave = async () => {
+    // ⚕️ A line the ℞ pad cannot write: refused, in words, before the sheet opens.
+    if (m.rxPadUnwritable > 0) {
+      tell({ title: "The prescription was not saved.", body: UNWRITABLE_PAD });
+      return;
+    }
     // Put the sheet's frame on screen at once, in its "saving" state. Skipped
     // for an empty form (hasRxContent mirrors savePrescription's own empty
     // check), which refuses to save anyway, so the modal can't flash open and

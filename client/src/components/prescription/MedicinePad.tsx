@@ -22,7 +22,7 @@ import {
   safeContLines,
   safeHabitText,
 } from "@/lib/rxHabitRows";
-import { rxDrugIndexByRow } from "@/lib/rxRows";
+import { rxDrugIndexByRow, unwritableRows } from "@/lib/rxRows";
 import { anchorDropdown, sameAnchor, toLayoutPx, zoomScale, type DropdownAnchor } from "@/lib/dropdownAnchor";
 import RxAlertSign, { RxLineWarning } from "./RxPadAlerts";
 import type { RxAlertInput } from "@/lib/rxAlerts";
@@ -498,6 +498,9 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   };
 
   const alertLineIndex = alertInput ? rxDrugIndexByRow(rows) : [];
+  // ⚕️ Lines that cannot be written as they stand (lib/rxRows.ts): marked on the
+  // line, so the doctor sees why Save refuses and what to do.
+  const unwritable = new Set(unwritableRows(rows));
   const dragBlock = dragAt != null ? blockOf(rows, dragAt) : null;
 
   const lineInput: CSSProperties = { border: "none", outline: "none", background: "transparent", fontSize: 13.5, color: C.n[900], fontFamily: font, padding: "0 4px", height: ROW_H - 8 };
@@ -897,6 +900,13 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
             {alertInput && lineIndex != null &&
               (alertInput.rxDrugs[lineIndex]?.text ?? "").trim() === row.drug.trim() && (
               <RxLineWarning input={alertInput} lineIndex={lineIndex} />
+            )}
+            {unwritable.has(idx) && (
+              <div role="alert" style={{ fontSize: 11.5, lineHeight: 1.4, color: C.danger[800], background: C.danger[50], borderBottom: `0.5px solid ${C.danger[100]}`, padding: "4px 10px" }}>
+                {isCont
+                  ? "This >>> line has no medicine above it. Type the medicine's name on the line above, or remove this line — it will not be saved or printed as it is."
+                  : "This line has a dose but no medicine name. Type the name, or remove the line — it will not be saved or printed as it is."}
+              </div>
             )}
             </Fragment>
           );
