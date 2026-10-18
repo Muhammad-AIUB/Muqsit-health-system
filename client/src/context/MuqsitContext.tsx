@@ -82,7 +82,7 @@ const initialOeData: OeData = {
 
 /** Said when Save & print refuses a pad with a line it cannot write. */
 export const UNWRITABLE_PAD =
-  "Not saved: a line on the prescription has no medicine name (marked in red on the ℞ pad). Type the medicine's name on that line, or remove the line.";
+  "Not saved: a line on the prescription has no medicine name (marked in red on the ℞ pad). Type the medicine's name on that line — for a >>> line, on the line above it — or remove the line.";
 
 // Returns today's date as YYYY-MM-DD (ISO) in the device's local timezone.
 // Using an explicit template keeps the format stable on stripped-ICU runtimes

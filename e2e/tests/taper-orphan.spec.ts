@@ -45,11 +45,12 @@ test('a medicine with a >>> dose keeps its name, and the dose prints under it', 
 });
 
 // A line with a dose and no medicine name — here a medicine's name cleared and
-// its dose left — cannot be written. The pad marks it, and Save & print and
-// Preview PDF refuse; nothing is saved. This holds what the unit tests cannot:
-// the pad's count reaching the editor (RightColumn), and both buttons reading it
-// (PrescriptionView) — third review, 18/10/2026.
-test('a line with a dose and no medicine name is refused by Save & print and by Preview PDF', async ({ page }) => {
+// its dose left — cannot be written. The pad marks it, and Save & print,
+// Preview PDF and Save to complete later refuse; nothing is saved. This holds
+// what the unit tests cannot: the pad's count reaching the editor
+// (RightColumn), and the buttons reading it (PrescriptionView) — third and
+// fourth reviews, 18/10/2026.
+test('a line with a dose and no medicine name is refused by Save & print, Preview PDF and Save to complete later', async ({ page }) => {
   // A doctor of its own: the journey above saves Barcavir, and "Your usual"
   // would then offer it beside the medicine list.
   await login(page, 'taperRefused');
@@ -76,6 +77,14 @@ test('a line with a dose and no medicine name is refused by Save & print and by 
   await expect(notYet).toBeVisible();
   await notYet.getByRole('button', { name: 'OK' }).click();
   await expect(printDialog(page)).toBeHidden();
+
+  // "Save to complete later" clears the editor once the draft is stored: it
+  // refuses too, and the line is still there to put right.
+  await page.getByRole('button', { name: 'Save to complete later' }).click();
+  const notParked = page.getByRole('alertdialog', { name: 'The visit was not saved for later.' });
+  await expect(notParked).toBeVisible();
+  await notParked.getByRole('button', { name: 'OK' }).click();
+  await expect(padRow(page, 1).getByPlaceholder('dose')).toHaveValue(BARCAVIR.dose);
 
   const [patient] = await apiPatientsByMobile(page, mobile);
   expect(await apiPrescriptions(page, patient.id)).toEqual([]);

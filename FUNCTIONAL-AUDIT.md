@@ -750,7 +750,11 @@ CLAUDE.md section before picking one up.
   cleaning, for two shapes** (`safeHtml.prop.test.ts`, three `it.fails`): a
   block inside a pasted table or a button inside a paragraph, and — found
   2026-10-12 — a heading left directly inside a heading when the tag
-  between them is taken away (`<h1>a<a><h1>b</h1></a>c</h1>`). Layout only:
+  between them is taken away (`<h1>a<a><h1>b</h1></a>c</h1>`), and — found
+  18/10/2026 in a release review, the property failing once — a list item
+  left inside a list item (`<li>a<form><li>b</li></form>c</li>`). The
+  property now sets aside every tree HTML cannot write, by the parser's own
+  rules, instead of one pattern per shape. Layout only:
   no word is lost and nothing unsafe comes out; the second cleaning is
   stable. Cleaning until nothing changes would close it; it is a change to
   the sanitiser and was not made in a release it did not belong to.
@@ -1258,7 +1262,9 @@ Open — each needs its own upgrade and its own verification pass:
 ### A `>>>` dose under the wrong medicine — closed at the source (18/10/2026)
 
 The physician's report: a medicine's name cleared on the ℞ pad with its `>>>` line kept, and that dose was saved, printed and written into Drug history under the medicine ABOVE it. Closed in three rounds of review (`client/CLAUDE.md`, Drug history, "A taper never leaves its medicine"): a medicine with `>>>` lines keeps its name, no edit puts a `>>>` line under another medicine, and what cannot be written is refused at Save & print, Preview PDF and Save to complete later. Open:
-- [ ] **A line the pad cannot write is lost without a word when the pad is drawn again.** A line with a dose and no medicine name (a medicine without `>>>` lines whose name was cleared), or a `>>>` line from data saved before the fix, lives in the pad's rows only, not in `rxItems`, the draft or the device mirror. Another tab, a reload, another patient, or a change made from elsewhere (a template, Add Bulk Medicine, BAN/EN, Move to Rx, another device) draws the pad without it. It is never saved, printed or put under another medicine. Before the fix Save dropped the first kind without a word. Keeping such a line through a redraw means holding the pad's rows in the editor state, the draft and the mirror, and is a change of its own.
+- [ ] **A line the pad cannot write is lost without a word when the pad is drawn again.** A line with a dose and no medicine name (a medicine without `>>>` lines whose name was cleared), a nameless medicine with `>>>` lines whose name could not be put back, or a `>>>` line from data saved before the fix, lives in the pad's rows only, not in `rxItems`, the draft or the device mirror. So does a medicine with `>>>` lines for as long as its name box is empty and not yet left: a change from another device in that moment, or the auto-save, takes the pad without it. Another tab, a reload, another patient, or a change made from elsewhere (a template, Add Bulk Medicine, BAN/EN, Move to Rx, another device) draws the pad without it. It is never saved, printed or put under another medicine. Before the fix Save dropped the first kind without a word. Keeping such a line through a redraw means holding the pad's rows in the editor state, the draft and the mirror, and is a change of its own.
 - [ ] **What was saved before the fix cannot be told apart.** A prescription, draft, IPD order or template saved with a cleared medicine under another medicine holds the dose under that medicine, exactly like a real `>>>` line. Nothing here can find them; the physician may want to look at recent tapering prescriptions by eye.
+- [ ] **The refusal is one device's.** Such a line is not mirrored: a second device shows the prescription without it, and can Save & print what it shows.
+- [ ] **An IPD admission saved before the fix with such a line refuses "Save follow up"** (the vitals) until the Prescription line is put right — also in a view where the Prescription pane is not shown. The physician should know before a ward round meets it.
 - [ ] **"Your usual" in place of a medicine with `>>>` lines** puts the habit's own `>>>` lines first and keeps the old ones after them (insertion never overwrites). It is on the screen to see. Whether a pick should replace the old `>>>` lines is the physician's to say.
 

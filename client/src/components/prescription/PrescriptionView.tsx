@@ -287,6 +287,19 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     } catch { /* ignore — image snapshot is optional */ }
   };
 
+  // ⚕️ "Save to complete later" clears the editor once the draft is stored, and
+  // the draft holds only what the pad can write: a line it cannot is refused
+  // here as Save & print refuses it — in a box the doctor has to read, not the
+  // green line under the buttons (fourth review, 18/10/2026). `saveDraftNow`
+  // refuses too.
+  const saveForLater = () => {
+    if (m.rxPadUnwritable > 0) {
+      tell({ title: "The visit was not saved for later.", body: UNWRITABLE_PAD });
+      return;
+    }
+    void m.saveDraftNow();
+  };
+
   const previewPdf = () => {
     // ⚕️ Its Print prints too: a sheet that silently leaves out a line the pad
     // cannot write is refused like Save & print (review, 18/10/2026).
@@ -308,7 +321,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.n[200]}`, color: C.n[800] }}>Clinical assessment</div><LeftColumn /></div>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8, paddingBottom: 4, borderBottom: `1px solid ${C.pri[400]}`, color: C.pri[600] }}>Prescription</div><RightColumn mobile /></div>
         </PatientGate>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled), width: "100%", marginBottom: 8 }}>Save to complete later</button>
+        <button onClick={saveForLater} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled), width: "100%", marginBottom: 8 }}>Save to complete later</button>
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), width: "100%" }}>{saving ? "Saving…" : "Save & print"}</button>
         {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
         {gateOpen && <><ReportsSection /><PatientChat /></>}
@@ -339,7 +352,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       {/* Wraps: "Save to complete later" is a long label, and this row also
           serves tablets (≥768px) where three buttons on one line get cramped. */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
-        <button onClick={() => { void m.saveDraftNow(); }} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled) }}>Save to complete later</button>
+        <button onClick={saveForLater} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled) }}>Save to complete later</button>
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), flex: 1 }}>{saving ? "Saving…" : "Save & print prescription"}</button>
         <button onClick={previewPdf} style={btnSecondary("lg")}>Preview PDF</button>
       </div>

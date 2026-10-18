@@ -503,12 +503,17 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
       const [from, to] = (!prev[idx]?.continuation && blockOf(prev, idx)) || [idx, idx + 1];
       const kept = prev.filter((_, i) => i < from || i >= to);
       // ⚕️ Empty lines are tidied away — but never the line straight above a
-      // >>> line: gone, the >>> line would stand under the medicine above and be
-      // saved and printed as THAT medicine's dose (review, 18/10/2026; a blank
-      // NOTE too — third review).
-      const filled = kept.filter((r, i) =>
-        r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim() ||
-        (!r.continuation && !!kept[i + 1]?.continuation));
+      // >>> line that stays: gone, the >>> line would stand under the medicine
+      // above and be saved and printed as THAT medicine's dose (review,
+      // 18/10/2026; a blank NOTE too — third review). An empty >>> line goes
+      // with the rest, so it keeps nothing above it: left, the blank line was
+      // numbered and had no × (fourth review).
+      const isFilled = (r: Row) => !!(r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim());
+      const taperStays = (i: number) => {
+        for (let j = i + 1; j < kept.length && kept[j].continuation; j++) if (isFilled(kept[j])) return true;
+        return false;
+      };
+      const filled = kept.filter((r, i) => isFilled(r) || (!r.continuation && taperStays(i)));
       return [...filled, emptyRow()];
     });
   };

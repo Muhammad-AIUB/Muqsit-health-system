@@ -110,17 +110,35 @@ describe("MedicinePad — the name it keeps is that line's own", () => {
     expect(document.activeElement).not.toBe(box(2));
   });
 
-  it("a name emptied and the line dragged at once keeps the name", () => {
-    render(<Pad reorderable start={[B1, taper("1+0+1"), B05, taper("0+0+1"), blank()]} />);
-    box(2).focus();
-    fireEvent.change(box(2), { target: { value: "" } });
-    const grip = document.querySelector('[data-rx-grip="2"]')!;
-    fireEvent.pointerDown(grip, { button: 0, pointerId: 1, clientY: 0 });
-    fireEvent.pointerMove(grip, { pointerId: 1, clientY: 0 });
-    fireEvent.pointerUp(grip, { pointerId: 1 });
-    expect(order().filter((t) => t !== "(none)")).toContain("Tablet. Barcavir 0.5 mg");
-    const at = latest.findIndex((r) => r.drug === "Tablet. Barcavir 0.5 mg");
-    expect(latest[at + 1]).toMatchObject({ continuation: true, dose: "0+0+1" });
+  it("a name emptied and the line dragged at once keeps the name, and the line moves", () => {
+    // jsdom has no layout: every pad row is laid out 40px tall from y=100, so
+    // the drag takes a real step (as in MedicinePad.reorder.test.tsx).
+    const real = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const i = this.getAttribute("data-rx-row");
+      if (i == null) return real.call(this);
+      const top = 100 + Number(i) * 40;
+      return { top, bottom: top + 40, height: 40, left: 0, right: 600, width: 600, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    };
+    try {
+      render(<Pad reorderable start={[med("Tablet. Napa 500 mg", "1+0+1"), B05, taper("0+0+1"), blank()]} />);
+      box(1).focus();
+      fireEvent.change(box(1), { target: { value: "" } });
+      const grip = document.querySelector('[data-rx-grip="1"]')!;
+      fireEvent.pointerDown(grip, { button: 0, pointerId: 1, clientY: 160 });
+      fireEvent.pointerMove(grip, { pointerId: 1, clientY: 118 }); // past Napa's middle (120)
+      fireEvent.pointerUp(grip, { pointerId: 1 });
+      expect(order()).toEqual(["Tablet. Barcavir 0.5 mg", ">>>0+0+1", "Tablet. Napa 500 mg", "(none)"]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = real;
+    }
+  });
+
+  it("× elsewhere never leaves a blank, numbered line over a blank >>> line", () => {
+    render(<Pad start={[med("Tablet. Napa 500 mg", "1+1+1"), med("", ""), taper(""), med("Tablet. Bex 10 mg", "1+0+1"), blank()]} />);
+    fireEvent.click(screen.getByText("✎ Edit"));
+    fireEvent.click(inRow(3, "Remove this line")); // Bex
+    expect(order()).toEqual(["Tablet. Napa 500 mg", "(none)"]);
   });
 
   it("× on the medicine takes its notice with it — never left under the line that took its place", () => {

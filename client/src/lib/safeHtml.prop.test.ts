@@ -54,6 +54,39 @@ const htmlish = fc.array(piece, { maxLength: 14 }).map((p) => p.join(""));
 
 const parse = (html: string) => new DOMParser().parseFromString(`<body>${html}</body>`, "text/html").body;
 
+// A tree HTML cannot write (DEFECT-D4, below): read again, a tag in it closes an
+// element that is still open, so the parser builds another tree. Walked over the
+// output's own tags with the parser's rules for the tags the sanitiser keeps
+// (none of its scope boundaries — table, button, object — survive it):
+//   • a block (p, div, ul, ol, li, blockquote, h1-h4) opened while a <p> is open
+//     closes the <p>;
+//   • an <li> closes the nearest open <li> unless a list, a blockquote or a
+//     heading stands between them;
+//   • a heading opened while the CURRENT element is a heading closes it.
+const BLOCK = new Set(["p", "div", "ul", "ol", "li", "blockquote", "h1", "h2", "h3", "h4"]);
+const LI_STOP = new Set(["ul", "ol", "blockquote", "h1", "h2", "h3", "h4"]);
+const HEADING = /^h[1-6]$/;
+function unwritable(html: string): boolean {
+  const open: string[] = [];
+  const tags = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g;
+  for (let m = tags.exec(html); m; m = tags.exec(html)) {
+    const name = m[2].toLowerCase();
+    if (m[1]) {
+      const at = open.lastIndexOf(name);
+      if (at >= 0) open.length = at;
+      continue;
+    }
+    if (name === "br") continue;
+    if (BLOCK.has(name) && open.includes("p")) return true;
+    if (name === "li") {
+      for (let i = open.length - 1; i >= 0 && !LI_STOP.has(open[i]); i--) if (open[i] === "li") return true;
+    }
+    if (HEADING.test(name) && HEADING.test(open[open.length - 1] ?? "")) return true;
+    open.push(name);
+  }
+  return false;
+}
+
 /** Everything in the output that could execute or load something. */
 function hazards(out: string): string[] {
   const found: string[] = [];
@@ -121,36 +154,41 @@ describe("sanitizeHtml — cleaning what is already clean", () => {
     );
   });
 
-  // Idempotence holds for everything EXCEPT the two shapes of DEFECT-D4, just
-  // below — both a tree the sanitiser builds by unwrapping a tag, and that
-  // cannot be written as HTML:
-  //   • markup nested inside an element the HTML parser treats as a scope
-  //     boundary (a pasted <table>, a <button>);
-  //   • a heading left directly inside a heading. The parser only lets a
-  //     heading stand in a heading when some other tag is between them, and
-  //     the sanitiser takes that tag away (<a>, <form>, an unknown one).
-  // The second was not set aside until 2026-10-12, and the property failed
-  // about one run of the whole suite in twenty — whenever the random input
-  // happened to hold it. A test whose outcome varies is telling the truth:
-  // the shape is real, and it is pinned below instead of left to chance.
+  // Idempotence holds for everything EXCEPT DEFECT-D4, just below: a tree the
+  // sanitiser builds by unwrapping a tag, and that cannot be written as HTML —
+  // read again, a tag in it closes an element that is still open. Three doors
+  // have been found, each by this property failing at random:
+  //   • a block inside a <p>, through a scope boundary (a pasted <table>, a
+  //     <button>, an <object>) that is unwrapped;
+  //   • a heading directly inside a heading (12/10/2026), through an <a>, a
+  //     <form> or an unknown tag;
+  //   • a list item inside a list item with no list between them (18/10/2026,
+  //     a release review: `<li><form on="x"</b><li …`), through a <form>.
+  // A test whose outcome varies is telling the truth. So the shape is set
+  // aside by the PARSER's rules (`unwritable`, held against the parser itself
+  // below) rather than one pattern per door, and each door is pinned below.
   const BOUNDARY = /<\/?(table|tr|td|button)\b/i;
-  const HEADING_IN_HEADING = /<(h[1-4])\b[^>]*>(?:(?!<\/\1>)[\s\S])*?<h[1-4]\b/i;
   it("is idempotent: sanitising sanitised HTML returns it unchanged", () => {
     fc.assert(
       fc.property(htmlish.filter((h) => !BOUNDARY.test(h)), (html) => {
         const once = sanitizeHtml(html);
-        fc.pre(!HEADING_IN_HEADING.test(once));
+        fc.pre(!unwritable(once));
         expect(sanitizeHtml(once)).toBe(once);
       }),
     );
   });
 
-  it("the shape set aside above is exactly a heading opened inside an open heading", () => {
-    expect(HEADING_IN_HEADING.test("<h1>a<h1>b</h1>c</h1>")).toBe(true);
-    expect(HEADING_IN_HEADING.test("<h2>a<b><h1>b</h1></b></h2>")).toBe(true);
-    expect(HEADING_IN_HEADING.test("<h1>a</h1><h1>b</h1>")).toBe(false);
-    expect(HEADING_IN_HEADING.test("<h1>a</h1><p>b</p><h2>c</h2>")).toBe(false);
-    expect(HEADING_IN_HEADING.test("<p>a<b>b</b></p>")).toBe(false);
+  it("what is set aside above is exactly what the parser reads back as another tree", () => {
+    const cases = [
+      "<p>a<p>b</p>c</p>", "<p>a<div>b</div>c</p>", "<p>a<ul><li>b</li></ul></p>",
+      "<li>a<li>b</li>c</li>", "<li>a<b><li>b</li></b></li>", "<li>x<ul><li>a</li></ul><li>b</li></li>",
+      "<h1>a<h1>b</h1>c</h1>",
+      "<li>a<ul><li>b</li></ul></li>", "<ul><li>a</li><li>b</li></ul>", "<h1>a</h1><h1>b</h1>",
+      "<h1>a</h1><p>b</p><h2>c</h2>", "<p>a<b>b</b></p>", "<blockquote><p>a</p></blockquote>",
+      "<li>a<blockquote><li>b</li></blockquote></li>", "<div><p>a</p><div>b</div></div>",
+    ];
+    for (const html of cases) expect([html, unwritable(html)]).toEqual([html, parse(html).innerHTML !== html]);
+    expect(cases.filter(unwritable)).toHaveLength(7);
   });
 
   // DEFECT-D4 (low — layout only, nothing unsafe and no word lost): sanitizeHtml is not idempotent when it unwraps a table/button that held a block inside a <p>.
@@ -174,6 +212,15 @@ describe("sanitizeHtml — cleaning what is already clean", () => {
   // Layout only, again: no word is lost and nothing unsafe comes out.
   it.fails("DEFECT-D4: a heading inside a link inside a heading cleans to the same HTML every time", () => {
     const once = sanitizeHtml('<h1>a<a href="x"><h1>b</h1></a>c</h1>');
+    expect(sanitizeHtml(once)).toBe(once);
+  });
+  // Its third door (18/10/2026, found when the property failed in a release
+  // review — FC_SEED=-712153131 replays it):
+  //   sanitizeHtml('<li>a<form><li>b</li></form>c</li>')  === "<li>a<li>b</li>c</li>"
+  //   sanitizeHtml("<li>a<li>b</li>c</li>")                === "<li>a</li><li>b</li>c"
+  // Layout only: no word is lost and nothing unsafe comes out.
+  it.fails("DEFECT-D4: a list item inside a form inside a list item cleans to the same HTML every time", () => {
+    const once = sanitizeHtml("<li>a<form><li>b</li></form>c</li>");
     expect(sanitizeHtml(once)).toBe(once);
   });
   it.fails("DEFECT-D4 (property): the same for any block inside a table cell or button inside a <p>", () => {
