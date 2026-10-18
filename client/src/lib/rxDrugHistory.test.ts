@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims } from "@/lib/rxDrugHistory";
+import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn } from "@/lib/rxDrugHistory";
 import { drugMentions } from "@/lib/drugHistorySummary";
 import type { RxItem } from "@/types";
 
@@ -279,6 +279,21 @@ describe("mirrorClaims", () => {
     expect(stored).toEqual([H, T]);
     step([]);
     expect(stored).toEqual([]);
+  });
+});
+
+describe("withoutBlocksIn", () => {
+  const H = "17/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 7 days";
+  const T = "17/10/2026(cont): 0+0+1 —  — 7 days";
+  const C = "17/10/2026: Tablet. Clarith 500 mg — 1+0+1 —  — 7 days";
+  it("drops the owned blocks the record already holds, whole", () => {
+    expect(withoutBlocksIn([H, T, C], [H, T])).toEqual([C]);
+  });
+  it("keeps a block the record holds only in part", () => {
+    expect(withoutBlocksIn([H, T], [H])).toEqual([H, T]);
+  });
+  it("keeps everything against an empty record", () => {
+    expect(withoutBlocksIn([H, T, C], [])).toEqual([H, T, C]);
   });
 });
 

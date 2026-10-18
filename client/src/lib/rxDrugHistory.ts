@@ -209,6 +209,19 @@ export function mirrorClaims(stored: string[], prevClaimed: string[], nextDerive
   return out;
 }
 
+/**
+ * `owned` without the blocks already on `record` (the patient's saved drug
+ * history). A draft resumed on a LATER day may own lines its earlier Save &
+ * print has since put on the record: those are the record's, never the
+ * mirror's to take back out (release review, 18/10/2026).
+ */
+export function withoutBlocksIn(owned: string[], record: string[]): string[] {
+  const cells: Cell[] = [...(record ?? [])];
+  const out: string[] = [];
+  for (const b of toBlocks(owned ?? [])) if (findBlock(cells, b) < 0) out.push(...b);
+  return out;
+}
+
 /** True when both arrays hold the same entries in the same order. */
 export function sameEntries(a: string[], b: string[]): boolean {
   if (a === b) return true;

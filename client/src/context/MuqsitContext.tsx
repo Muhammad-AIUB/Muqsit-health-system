@@ -24,7 +24,7 @@ import { useAuth } from "@/context/AuthContext";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims } from "@/lib/rxDrugHistory";
+import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn } from "@/lib/rxDrugHistory";
 import { adviceLinesFor, padMedicines, syncRxAdvice } from "@/lib/rxDrugAdvice";
 import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
@@ -550,10 +550,6 @@ function useMuqsitStore() {
       if (pid) {
         rxCompletedRef.current = pid;
         setRxCompletedPid(pid); // carried to mirror devices — see mirrorSnapshot
-        // ⚕️ The ℞ lines are on the patient's RECORD now, not the mirror's to
-        // withdraw: still claimed, a later-day reload of the draft took them
-        // back out of the history (release review, 18/10/2026).
-        setRxMirrorOwned([]);
         rxFlaggedRef.current = null;
         void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
         void opdApi.setRxStatus({
@@ -812,7 +808,8 @@ function useMuqsitStore() {
 
   // Apply a saved editor snapshot (header + clinical) — used to restore a
   // patient's in-progress, not-yet-printed prescription (incompleteRx).
-  const applyEditorSnapshot = useCallback((d: Record<string, unknown>) => {
+  // `record`: the patient's saved drug history, when the caller has it.
+  const applyEditorSnapshot = useCallback((d: Record<string, unknown>, record?: unknown) => {
     const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
     let advancedFrom: string | null = null;
     const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
@@ -845,9 +842,15 @@ function useMuqsitStore() {
     // record existed, resumed on a LATER day: its ℞ lines at the old date are
     // taken as the mirror's, so they are re-stamped to today — left at
     // yesterday's date they read as "the previous visit" (review, 18/10/2026).
-    if (Array.isArray(d.rxMirrorOwned)) setRxMirrorOwned(d.rxMirrorOwned as string[]);
-    else if (advancedFrom && Array.isArray(d.rxItems)) setRxMirrorOwned(rxDrugHistoryEntries(d.rxItems as RxItem[], isoToDdmmyyyy(advancedFrom)));
-    else setRxMirrorOwned(null);
+    let owned: string[] | null = Array.isArray(d.rxMirrorOwned) ? (d.rxMirrorOwned as string[])
+      : advancedFrom && Array.isArray(d.rxItems) ? rxDrugHistoryEntries(d.rxItems as RxItem[], isoToDdmmyyyy(advancedFrom))
+      : null;
+    // ⚕️ Resumed on a later day: a line its earlier Save & print put on the
+    // RECORD is the record's, not the mirror's to take back out. (Ownership is
+    // kept through Save & print itself — print, correct, print again must leave
+    // only the second print's lines; release review, 18/10/2026.)
+    if (owned && advancedFrom && Array.isArray(record)) owned = withoutBlocksIn(owned, record as string[]);
+    setRxMirrorOwned(owned);
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
     if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);
@@ -948,7 +951,7 @@ function useMuqsitStore() {
     drugHistoryBaselineRef.current = null;
     const inc = p.incompleteRx;
     if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
-      applyEditorSnapshot(inc as Record<string, unknown>); // advances ptDate if draft is stale
+      applyEditorSnapshot(inc as Record<string, unknown>, p.drugHistory); // advances ptDate if draft is stale
       // The parked draft carries this patient's own drug history, so it is a valid
       // base to mirror onto while the background patient fetch is still in flight.
       drugHistoryHydratedRef.current = p.id;
@@ -1258,7 +1261,7 @@ function useMuqsitStore() {
       if (stale()) return;
       draftHeldRef.current = false;
       supervisedRef.current = false; // own patient (or none) — normal restore
-      applyEditorSnapshot(d);
+      applyEditorSnapshot(d, record?.drugHistory);
       if (pid) { drugHistoryHydratedRef.current = pid; setCurrentPatientId(pid); }
       // The draft carries the editor, not the patient's record: the photo, the
       // Patient Settings form and the watch flag come from the record, exactly

@@ -638,24 +638,43 @@ describe("what the ℞ mirror owns travels with the visit", () => {
   });
 });
 
-// ⚕️ Release review, 18/10/2026: once Save & print has put the ℞ lines on the
-// patient's record, they are the RECORD's, not the mirror's. Still claimed, a
-// later-day reload of the per-doctor draft withdrew them from the history.
-describe("after Save & print the mirror owns nothing it wrote", () => {
-  it("gives up the saved lines", async () => {
+// ⚕️ Release review, 18/10/2026, twice. Print, correct the pad, print again is
+// an ordinary visit: what the doctor took off before the second print must not
+// stay in the history (the first fix — "owns nothing after Save & print" —
+// left it there for good). And a draft resumed on a LATER day must not take
+// back out of the history a line its earlier save put on the record.
+describe("the ℞ mirror around Save & print", () => {
+  const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "", duration: "5 days" };
+  const clarith: RxItem = { drug: "Tablet. Clarith 500 mg", dose: "1+0+1", instruction: "", duration: "7 days" };
+
+  it("print, correct, print again: only what the second print holds stays", async () => {
     vi.setSystemTime(new Date(2026, 9, 18, 12));
-    const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" };
     const pt = patient({ drugHistory: [] });
     api.patientGet.mockResolvedValue(pt);
     const { result } = await setup();
     act(() => result.current.loadPatient(pt));
     await tick(50);
-    act(() => result.current.setRxItems([napa]));
+    act(() => result.current.setRxItems([napa, clarith]));
     await tick(10);
-    expect((result.current.mirrorSnapshot as unknown as Record<string, unknown>).rxMirrorOwned).toEqual(rxDrugHistoryEntries([napa], "18/10/2026"));
     await act(async () => { await result.current.savePrescription(); });
     await tick(50);
-    expect((result.current.mirrorSnapshot as unknown as Record<string, unknown>).rxMirrorOwned).toEqual([]);
+    const corrected = { ...napa, dose: "1+1+1" };
+    act(() => result.current.setRxItems([corrected]));
+    await tick(10);
+    expect(result.current.drugHistory).toEqual(rxDrugHistoryEntries([corrected], "18/10/2026"));
+  });
+
+  it("a draft resumed the next day keeps on the record what its earlier save put there", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const saved = rxDrugHistoryEntries([napa], "17/10/2026");
+    const pt = patient({
+      drugHistory: saved, // on the record since yesterday's Save & print
+      incompleteRx: { ptDate: "2026-10-17", rxItems: [napa], drugHistory: saved, rxMirrorOwned: saved },
+    });
+    api.patientGet.mockImplementation(never); // the record's own fetch never lands to put it back
+    const { result } = await setup();
+    act(() => result.current.loadPatient(pt));
+    await tick(50);
+    expect(result.current.drugHistory).toContain(saved[0]);
   });
 });
-
