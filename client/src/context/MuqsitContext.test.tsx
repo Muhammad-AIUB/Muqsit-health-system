@@ -45,6 +45,8 @@ vi.mock("@/hooks/useDrugAdvice", () => ({ useDrugAdvice: () => ({ data: savedAdv
 
 import { MuqsitProvider, useMuqsit } from "./MuqsitContext";
 import { drugKeyOf } from "@/lib/rxDrugAdvice";
+import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
+import type { RxItem } from "@/types";
 
 const STORED = ["01/01/2026: Tablet. Napa 500 mg — 1+0+1 — After meal — 5 days"];
 const patient = (over: Partial<Patient> = {}): Patient =>
@@ -493,3 +495,146 @@ describe("advice saved for a final diagnosis", () => {
     expect(r.result.current.advice).toEqual(["Drink plenty of water", "Take after meal"]);
   });
 });
+
+// ⚕️ Physician's sheet, 18/10/2026, item 1: "Drug history hidden default
+// thakbe". A new visit starts with the whole Drug-history section OFF the
+// printed sheet; the doctor presses ⊘ to print it. The entries are untouched.
+describe("Drug history is kept off the printed sheet by default", () => {
+  it("starts hidden", async () => {
+    const { result } = await setup();
+    expect(result.current.hideDrugHistory).toBe(true);
+  });
+
+  it("a new visit (patient opened) starts hidden again after the doctor showed it", async () => {
+    const { result } = await setup();
+    act(() => result.current.setHideDrugHistory(false));
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    expect(result.current.hideDrugHistory).toBe(true);
+    expect(result.current.drugHistory).toEqual(STORED);
+  });
+});
+
+// ⚕️ Independent review, 18/10/2026 — two ways the ℞ → Drug-history mirror
+// mis-read whose line was whose.
+describe("the ℞ mirror withdraws only what it inserted", () => {
+  const TODAY = "18/10/2026";
+  const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" };
+
+  // A line typed by hand into Drug history today, then put on the pad with
+  // Move to Rx (which writes the very same text), then taken off the pad: the
+  // hand-typed record must still be there.
+  it("a hand-typed line survives its twin leaving the pad", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const pt = patient({ drugHistory: [] });
+    api.patientGet.mockResolvedValue(pt);
+    const { result } = await setup();
+    act(() => result.current.loadPatient(pt));
+    await tick(50);
+    const typed = rxDrugHistoryEntries([napa], TODAY)[0];
+    act(() => result.current.addDrugHistoryEntry(typed));
+    act(() => result.current.setRxItems([napa]));
+    await tick(10);
+    expect(result.current.drugHistory).toEqual([typed]);
+    act(() => result.current.setRxItems([]));
+    await tick(10);
+    expect(result.current.drugHistory).toEqual([typed]);
+  });
+
+  // A visit parked yesterday and resumed today: its ℞ lines are today's now.
+  // Left at yesterday's date, they read as "the previous visit" in Current
+  // medications — a visit that was never printed — and pushed the real previous
+  // visit out to Distant past.
+  it("a draft resumed on a later day re-stamps its own ℞ lines to today", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const realPrevious = "01/10/2026: Tablet. Famotack 20 mg — 1+0+1 — Before meal — 1 month";
+    const parked = rxDrugHistoryEntries([napa], "17/10/2026");
+    const pt = patient({
+      drugHistory: [realPrevious],
+      incompleteRx: { ptDate: "2026-10-17", rxItems: [napa], drugHistory: [realPrevious, ...parked] },
+    });
+    api.patientGet.mockResolvedValue(pt);
+    const { result } = await setup();
+    act(() => result.current.loadPatient(pt));
+    await tick(50);
+    expect(result.current.ptDate).toBe("2026-10-18");
+    expect(result.current.drugHistory).toEqual([realPrevious, ...rxDrugHistoryEntries([napa], TODAY)]);
+  });
+});
+
+// ⚕️ Second review, 18/10/2026: what the mirror owns is PART OF THE VISIT. Kept
+// in one device's memory, it was lost on a reload and never known to a second,
+// mirrored device — which then could not withdraw a line it took off the pad.
+// It rides the draft and the device mirror as `rxMirrorOwned`.
+describe("what the ℞ mirror owns travels with the visit", () => {
+  const TODAY = "18/10/2026";
+  const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" };
+  const napaLine = () => rxDrugHistoryEntries([napa], TODAY);
+
+  it("a second device that takes the medicine off the pad withdraws the mirror's line", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const pt = patient({ drugHistory: [] });
+    api.patientGet.mockResolvedValue(pt);
+    const a = await setup();
+    act(() => a.result.current.loadPatient(pt));
+    await tick(50);
+    act(() => a.result.current.setRxItems([napa]));
+    await tick(10);
+    expect(a.result.current.drugHistory).toEqual(napaLine());
+    const fromA = a.result.current.mirrorSnapshot as unknown as Record<string, unknown>;
+
+    const b = await setup();
+    act(() => b.result.current.loadPatient(pt));
+    await tick(50);
+    act(() => b.result.current.applyMirrorSnapshot(fromA));
+    await tick(10);
+    expect(b.result.current.drugHistory).toEqual(napaLine());
+    act(() => b.result.current.setRxItems([]));
+    await tick(10);
+    expect(b.result.current.drugHistory).toEqual([]);
+  });
+
+  it("after a reload, a hand-typed line is still never the mirror's to withdraw", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const typed = napaLine()[0];
+    const pt = patient({
+      drugHistory: [],
+      incompleteRx: { ptDate: "2026-10-18", rxItems: [napa], drugHistory: [typed], rxMirrorOwned: [] },
+    });
+    api.patientGet.mockResolvedValue(pt);
+    const { result } = await setup();
+    act(() => result.current.loadPatient(pt));
+    await tick(50);
+    act(() => result.current.setRxItems([]));
+    await tick(10);
+    expect(result.current.drugHistory).toEqual([typed]);
+  });
+
+  it("a draft saved before this record existed behaves as it always did", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const pt = patient({
+      drugHistory: [],
+      incompleteRx: { ptDate: "2026-10-18", rxItems: [napa], drugHistory: napaLine() },
+    });
+    api.patientGet.mockResolvedValue(pt);
+    const { result } = await setup();
+    act(() => result.current.loadPatient(pt));
+    await tick(50);
+    act(() => result.current.setRxItems([]));
+    await tick(10);
+    expect(result.current.drugHistory).toEqual([]);
+  });
+
+  it("is carried in the draft and the device mirror", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const pt = patient({ drugHistory: [] });
+    api.patientGet.mockResolvedValue(pt);
+    const { result } = await setup();
+    act(() => result.current.loadPatient(pt));
+    await tick(50);
+    act(() => result.current.setRxItems([napa]));
+    await tick(10);
+    expect((result.current.mirrorSnapshot as unknown as Record<string, unknown>).rxMirrorOwned).toEqual(napaLine());
+  });
+});
+

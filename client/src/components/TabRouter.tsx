@@ -10,6 +10,7 @@ import PatientRecordsView from "./prescription/PatientRecordsView";
 import PatientsView from "./tabs/PatientsView";
 import MessageView from "./tabs/MessageView";
 import SettingsView from "./tabs/SettingsView";
+import RevisionNotesView from "./tabs/RevisionNotesView";
 import Icon from "@/components/common/Icon";
 
 // A locked feature reached by deep link (the nav tab is already greyed out).
@@ -42,6 +43,7 @@ export default function TabRouter({ mobile = false }: { mobile?: boolean }) {
     case "message": return <MessageView />;
     case "research": return <ComingSoon title="Research companion" />;
     case "settings": return <SettingsView mobile={mobile} />;
+    case "revision": return <RevisionNotesView />;
     default: return null;
   }
 }

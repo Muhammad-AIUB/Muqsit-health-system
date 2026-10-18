@@ -51,6 +51,17 @@ export class IpdService {
   }
 
   async create(doctorId: string, dto: CreateAdmissionDto): Promise<IpdAdmission> {
+    // ⚕️ A linked patient must be one this practice can reach — owner or
+    // supervising doctor, the reach of `PatientsService.get`. A foreign id in a
+    // body widens access exactly like a forged header would (review, 18/10/2026).
+    // Any id that was sent is checked — an empty one too, which is no patient.
+    if (dto.patientId !== undefined && dto.patientId !== null) {
+      const reachable = await this.prisma.patient.findFirst({
+        where: { id: dto.patientId, OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] },
+        select: { id: true },
+      });
+      if (!reachable) throw new NotFoundException('Patient not found');
+    }
     const wardNo = await this.resolveWard(doctorId, dto.wardId, dto.wardNo);
     return this.prisma.$transaction(async (tx) => {
       await this.assertBedFree(tx, doctorId, dto.bed);

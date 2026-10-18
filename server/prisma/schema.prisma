@@ -109,6 +109,7 @@ model User {
   drugAdvice DoctorDrugAdvice[]
   // Private notes this user wrote about patients — theirs alone.
   personalNotes DoctorPatientNote[]
+  revisionNote  DoctorRevisionNote?
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -776,4 +777,24 @@ model DoctorPatientNote {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, patientId])
+}
+
+/// "Revision Notes" (physician's sheet, 18/10/2026, item 4): ONE notebook per
+/// signed-in user, written like a Word page (bold, highlight), printed, and
+/// searched. Keyed by `userId` = the authenticated user, NEVER the workstation
+/// doctor, so nobody else reads it, an assistant included. Holds no patient
+/// data by design and is not logged to the activity feed. A save is accepted
+/// only over the copy it was written from (`updatedAt`), so two devices never
+/// silently overwrite each other's pages.
+model DoctorRevisionNote {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The notebook as formatted HTML from the editor. Sanitised on the client
+  /// wherever it is rendered or printed.
+  html String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

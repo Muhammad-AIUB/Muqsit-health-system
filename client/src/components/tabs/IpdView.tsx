@@ -84,8 +84,16 @@ export default function IpdView() {
 
   const mobileInvalid = mobile.length > 0 && mobile.length !== 11;
 
+  // ⚕️ An admission is ALWAYS tied to a patient record, found by mobile number
+  // (physician's sheet, 18/10/2026, item 5 — as the OPD queue since 15/10/2026).
+  const ready = !!patientId && !!name.trim() && !!bed.trim() && !mobileInvalid;
+  const notReadyWhy = !patientId
+    ? "Type the patient's mobile number and choose them — or Add New"
+    : !name.trim() ? "This patient's record has no name — add it in Patient Settings first"
+    : !bed.trim() ? "Enter a bed first" : undefined;
+
   const submitAdmit = async () => {
-    if (!bed.trim() || !name.trim() || mobileInvalid) return;
+    if (!ready) return;
     setAdmitError("");
     try {
       await admit.mutateAsync({
@@ -138,25 +146,33 @@ export default function IpdView() {
           nothing left to say which was which once they were typed. */}
       {showAdd && (
         <div className="form-row" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 10, rowGap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
-          <div style={{ flex: "2 1 200px", minWidth: 0 }}>
-            <label data-caption style={fieldLabel}>Patient name *</label>
-            <input aria-label="Patient name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Patient name" style={{ ...inp, width: "100%" }} />
-          </div>
-          <div style={{ flex: "0 0 150px" }}>
+          {/* ⚕️ The mobile number comes FIRST, and the patient is chosen from
+              it (physician's sheet, 18/10/2026, item 5): a patient saved on the
+              number is offered and their name shown; "Add New" opens the
+              lookup's own new-patient box. The name is never typed here. */}
+          <div style={{ flex: "0 0 170px" }}>
             <PatientMobileLookup
               value={mobile}
-              onChange={(d) => { setMobile(d); setPatientId(undefined); }}
+              // The Hospital ID is the chosen patient's: it goes with them.
+              onChange={(d) => { setMobile(d); setPatientId(undefined); setName(""); setHospitalId(""); setAdmitError(""); }}
               onPick={(p) => {
                 setName(p.name);
                 setMobile(p.mobile ?? "");
-                if (p.hospitalId) setHospitalId(p.hospitalId);
+                setHospitalId(p.hospitalId ?? "");
                 setPatientId(p.id);
               }}
               label="Mobile"
-              placeholder="Mobile (11 digit)"
+              placeholder="01XXXXXXXXX"
               inputStyle={{ ...inp, width: "100%", boxSizing: "border-box", borderColor: mobileInvalid ? C.danger[400] : C.n[300] }}
             />
             {mobileInvalid && <div style={{ fontSize: 10.5, color: C.danger[800], marginTop: 2 }}>Must be 11 digits</div>}
+          </div>
+          <div style={{ flex: "2 1 200px", minWidth: 0 }}>
+            <div style={fieldLabel}>Patient</div>
+            <div aria-label="Patient" role="status"
+              style={{ ...inp, width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", background: C.n[100], color: name ? C.n[900] : C.n[500], fontWeight: name ? 600 : 400, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+              {name || "Choose by mobile number"}
+            </div>
           </div>
           <div style={{ flex: "0 0 120px" }}>
             <label data-caption style={fieldLabel}>Hospital ID</label>
@@ -210,7 +226,7 @@ export default function IpdView() {
           </div>
           <div className="form-submit">
             <div style={fieldLabel} aria-hidden>&nbsp;</div>
-            <button onClick={submitAdmit} disabled={admit.isPending || !bed.trim() || !name.trim() || mobileInvalid} title={!name.trim() || !bed.trim() ? "Enter the patient's name and a bed first" : undefined} style={{ ...btnPrimary("md"), ...(admit.isPending || !bed.trim() || !name.trim() || mobileInvalid ? btnDisabled : null) }}>
+            <button onClick={submitAdmit} disabled={admit.isPending || !ready} title={notReadyWhy} style={{ ...btnPrimary("md"), ...(admit.isPending || !ready ? btnDisabled : null) }}>
               {admit.isPending ? "Admitting…" : "Admit"}
             </button>
           </div>

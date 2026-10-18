@@ -1,0 +1,30 @@
+import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { RevisionNotesService } from './revision-notes.service';
+import { SaveRevisionNoteDto } from './dto/revision-note.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+
+/**
+ * The signed-in user's own Revision Notes. Keyed by `@CurrentUser().id` and
+ * nothing else: it holds no practice or patient data, so no workstation is
+ * involved and no permission key — every user has their own, and nobody can
+ * reach anyone else's.
+ */
+@Controller('revision-notes')
+@UseGuards(JwtAuthGuard)
+export class RevisionNotesController {
+  constructor(private readonly notes: RevisionNotesService) {}
+
+  // GET /api/revision-notes → { note } — the caller's own, or null.
+  // Wrapped: a bare null is an empty 200 body, which the client cannot parse.
+  @Get()
+  async get(@CurrentUser() user: AuthenticatedUser) {
+    return { note: await this.notes.get(user.id) };
+  }
+
+  // PUT /api/revision-notes { html, baseUpdatedAt } → { html, updatedAt }; 409 when stale.
+  @Put()
+  save(@CurrentUser() user: AuthenticatedUser, @Body() dto: SaveRevisionNoteDto) {
+    return this.notes.save(user.id, dto);
+  }
+}

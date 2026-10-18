@@ -26,7 +26,13 @@ vi.mock("@/hooks/useIpd", () => ({
 vi.mock("@/hooks/useWards", () => ({ useWards: () => ({ data: [] }) }));
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ({ loadPatientById: vi.fn(), setActiveTab: vi.fn() }) }));
 vi.mock("@/components/ipd/IpdDetailView", () => ({ default: () => null }));
-vi.mock("@/components/prescription/PatientMobileLookup", () => ({ default: () => null }));
+// The lookup is the only way to a patient since 18/10/2026 (item 5); this
+// stand-in picks one at a press.
+vi.mock("@/components/prescription/PatientMobileLookup", () => ({
+  default: ({ onPick }: { onPick: (p: unknown) => void }) => (
+    <button type="button" onClick={() => onPick({ id: "p1", name: "Patient", mobile: "01711111111" })}>pick patient</button>
+  ),
+}));
 
 // Braces matter: a function RETURNED from beforeEach is run as its teardown.
 beforeEach(() => { admitMock.mockReset(); });
@@ -35,7 +41,7 @@ afterEach(cleanup);
 const fillAndAdmit = async () => {
   render(<IpdView />);
   fireEvent.click(screen.getByText("+ Admit patient"));
-  fireEvent.change(screen.getByPlaceholderText("Patient name"), { target: { value: "Patient" } });
+  fireEvent.click(screen.getByText("pick patient"));
   fireEvent.change(screen.getByPlaceholderText("Bed (e.g. B-3)"), { target: { value: "B-3" } });
   await act(async () => { fireEvent.click(screen.getByText("Admit")); });
 };
@@ -46,7 +52,7 @@ describe("82101b6: a refused admission is shown, not swallowed", () => {
     await fillAndAdmit();
     expect(screen.getByRole("alert").textContent).toBe("Bed B-3 is already occupied");
     // The form is still open with what was typed — only the bed needs changing.
-    expect((screen.getByPlaceholderText("Patient name") as HTMLInputElement).value).toBe("Patient");
+    expect(screen.getByLabelText("Patient").textContent).toBe("Patient");
     expect((screen.getByPlaceholderText("Bed (e.g. B-3)") as HTMLInputElement).value).toBe("B-3");
   });
 
@@ -54,7 +60,7 @@ describe("82101b6: a refused admission is shown, not swallowed", () => {
     admitMock.mockRejectedValue(new TypeError("Failed to fetch"));
     await fillAndAdmit();
     expect(screen.getByRole("alert").textContent).toMatch(/Could not admit/);
-    expect(screen.getByPlaceholderText("Patient name")).toBeTruthy();
+    expect(screen.getByLabelText("Patient").textContent).toBe("Patient");
   });
 
   it("clears the reason on the next attempt, and closes the form once the admission lands", async () => {
@@ -64,7 +70,7 @@ describe("82101b6: a refused admission is shown, not swallowed", () => {
     fireEvent.change(screen.getByPlaceholderText("Bed (e.g. B-3)"), { target: { value: "B-4" } });
     await act(async () => { fireEvent.click(screen.getByText("Admit")); });
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.queryByPlaceholderText("Patient name")).toBeNull(); // form closed
+    expect(screen.queryByText("pick patient")).toBeNull(); // form closed
     expect(admitMock.mock.calls[1][0]).toMatchObject({ bed: "B-4", name: "Patient" });
   });
 
@@ -72,8 +78,9 @@ describe("82101b6: a refused admission is shown, not swallowed", () => {
     admitMock.mockResolvedValue({});
     await fillAndAdmit();
     const sent = admitMock.mock.calls[0][0];
-    expect(sent).toMatchObject({ bed: "B-3", name: "Patient" });
+    // The chosen patient is always sent (18/10/2026, item 5); the rest only when typed.
+    expect(sent).toMatchObject({ bed: "B-3", name: "Patient", patientId: "p1", mobile: "01711111111" });
     expect(sent).not.toHaveProperty("wardId");
-    for (const k of ["hospitalId", "roomNo", "wardNo", "floorBuilding", "mobile", "diagnosis", "patientId"]) expect(sent[k], k).toBeUndefined();
+    for (const k of ["hospitalId", "roomNo", "wardNo", "floorBuilding", "diagnosis"]) expect(sent[k], k).toBeUndefined();
   });
 });

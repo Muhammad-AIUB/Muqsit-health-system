@@ -312,6 +312,9 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
   // Ticks a search has put out of sight are added all the same, so the footer
   // says they are there: a medicine must not reach the pad unseen.
   const outOfSight = count - shown.filter((m) => picked.has(m.id)).length;
+  // ⚕️ "Your selected medicine names are:" (physician's sheet, 18/10/2026,
+  // item 6 — "or I may forget what is left to add"): what Add will add, named
+  // in the order Add puts them on the ℞ (`chosen`), also a tick a search has hidden.
   // The list is ONE Tab stop. Tab goes search → list → Cancel → Add; inside the
   // list the arrows move and Space ticks. A stop on every row put two hundred
   // presses of Tab between the search and Add.
@@ -428,6 +431,32 @@ export default function BulkMedicineModal({ state, onClose, existing, onAdd }: P
             }}
             style={{ ...inputSm, flex: "1 1 160px", width: "auto", minWidth: 0 }} />
         </div>
+
+        {state.status === "list" && all.length > 0 && (
+          <section aria-label="Your selected medicine names are:"
+            // ONE height whatever is ticked: a box that grew with each line of
+            // names pushed the chips down under the finger ticking them.
+            style={{ padding: "8px 20px", borderBottom: `0.5px solid ${C.n[200]}`, background: C.pri[50], height: 86, boxSizing: "border-box", overflowY: "auto", flexShrink: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.n[800], marginBottom: 6 }}>Your selected medicine names are:</div>
+            {chosen.length === 0 ? (
+              <div style={{ fontSize: 12, color: C.n[600] }}>None yet — tick a medicine below.</div>
+            ) : (
+              <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {chosen.map((m, i) => (
+                  <li key={m.id} data-name={m.drugLabel}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: C.n[900], background: C.n[0], border: `0.5px solid ${C.n[300]}`, borderRadius: 999, padding: "2px 4px 2px 10px" }}>
+                    <span style={{ color: C.n[500] }}>{i + 1}.</span> {m.drugLabel}
+                    {/* Out of the Tab order (the list is the box's one stop, and
+                        Space there unticks), and a press keeps the focus where it was. */}
+                    <button type="button" tabIndex={-1} aria-label={`Untick ${m.drugLabel}`} title="Untick"
+                      onMouseDown={(e) => e.preventDefault()} onClick={() => toggle(m.id)}
+                      style={{ border: "none", background: "transparent", color: C.n[500], cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "0 4px", fontFamily: font }}>×</button>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        )}
 
         <div ref={listRef} onKeyDown={moveAlongList} style={{ flex: 1, minHeight: 0, overflowY: "auto" }}
           {...(shown.length ? { role: "group", "aria-label": "Medicines. The arrow keys move along the list; Space ticks; Enter shows a medicine's last instructions." } : null)}>

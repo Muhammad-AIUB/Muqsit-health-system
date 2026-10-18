@@ -136,6 +136,7 @@ export type TabId =
   | "message"
   | "research"
   | "settings"
+  | "revision"
   | "pt-settings"
   | "idsp"
   | "pt-records";

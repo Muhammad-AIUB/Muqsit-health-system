@@ -19,6 +19,12 @@ export const TABS: TabDef[] = [
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 
+// After BAN / EN and ☀ / ☾, where the physician's sheet of 18/10/2026 (item 4)
+// marked it: the doctor's own notebook, "Revision Notes".
+export const TRAILING_TABS: TabDef[] = [
+  { id: "revision", label: "Revision Notes", icon: "✎" },
+];
+
 export const MOBILE_TABS: TabDef[] = [
   { id: "prescription", label: "Rx", icon: "℞" },
   { id: "opd", label: "OPD", icon: "▤" },
@@ -39,6 +45,7 @@ export const TAB_PATHS: Record<TabId, string> = {
   message: "/message",
   research: "/research",
   settings: "/settings",
+  revision: "/revision-notes",
   "pt-settings": "/patient-settings",
   idsp: "/health-monitoring",
   "pt-records": "/patient-records",

@@ -7,7 +7,7 @@ permission keys each one enforces. Keep it in the same commit as a route change.
 
 ## Module map (src/)
 
-`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search; the chart's rows by brand for the monthly-cost box — `catalogue.ts` holds the one query by a brand's first word, shared with `rx-habits`) · `patient-notes` (a user's PRIVATE note per patient) · `drug-advice` (the doctor's own ••• advice per medicine/generic) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
+`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search; the chart's rows by brand for the monthly-cost box — `catalogue.ts` holds the one query by a brand's first word, shared with `rx-habits`) · `patient-notes` (a user's PRIVATE note per patient) · `revision-notes` (a user's own notebook, keyed by the AUTHENTICATED user, no workstation; a save from a stale copy is a 409 — `manual-revision-notes.sql`, applied 2026-10-18) · `drug-advice` (the doctor's own ••• advice per medicine/generic) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
 
 ## ⚠️ Rule 1 — every patient-data query is doctor-scoped
 
@@ -55,6 +55,7 @@ Two things about it are load-bearing:
   never `@WorkstationDoctorId()`. Deciding who may reach admitted patients is the
   owner's call; an assistant inside the practice must not be able to put anyone
   (least of all themselves) on a ward team. Same posture as `AssistantsController`.
+- **`patientId` in an admission body must be a patient this practice can reach** (owner or supervising doctor — the reach of `PatientsService.get`), or `POST /ipd` answers 404 and admits nobody (`ipd.service.ts#create`, review 18/10/2026). It was written as sent; since that date the doctor app admits only from a patient chosen by mobile number, so every admission carries one.
 - **`wardId` in an admission body is validated against the doctor's own wards**
   (`ipd.service.ts#resolveWard`) and the ward's real name is written back into
   `wardNo`. A foreign id in a request body widens access exactly like a forged

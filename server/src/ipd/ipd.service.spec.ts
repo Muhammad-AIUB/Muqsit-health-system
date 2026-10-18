@@ -269,3 +269,51 @@ describe('IpdService — analogue order-sheet pages', () => {
     expect(writtenSheets(update)).toHaveLength(1);
   });
 });
+
+// ⚕️ An admission's patientId ties it to a patient RECORD (since 18/10/2026
+// every admission is made from one, chosen by mobile number). A patientId the
+// practice cannot reach — owner or supervising doctor, the same reach as
+// `PatientsService.get` — is refused, never linked: a foreign id in a body
+// widens access exactly like a forged header would (review, 18/10/2026).
+describe('IpdService.create — the patient must be reachable', () => {
+  const build = (reachable: boolean) => {
+    const create = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'adm', ...data }));
+    const patientFind = jest.fn().mockResolvedValue(reachable ? { id: 'p1' } : null);
+    const tx = { ipdAdmission: { findFirst: jest.fn().mockResolvedValue(null), create }, $queryRaw: jest.fn().mockResolvedValue([]) };
+    const prisma = {
+      $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
+      patient: { findFirst: patientFind },
+      ward: { findFirst: jest.fn() },
+    } as unknown as PrismaService;
+    return { service: new IpdService(prisma), create, patientFind };
+  };
+
+  it('links a patient this practice can reach', async () => {
+    const { service, create, patientFind } = build(true);
+    await service.create('doc_1', { bed: 'B-3', name: 'Rahim', patientId: 'p1' });
+    expect(patientFind.mock.calls[0][0].where).toEqual({
+      id: 'p1',
+      OR: [{ doctorId: 'doc_1' }, { supervisors: { some: { doctorId: 'doc_1' } } }],
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses another practice's patient, and admits nobody", async () => {
+    const { service, create } = build(false);
+    await expect(service.create('doc_1', { bed: 'B-3', name: 'Rahim', patientId: 'p9' })).rejects.toBeInstanceOf(NotFoundException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  // Second review, 18/10/2026: an empty id skipped the check.
+  it('refuses an empty patientId instead of skipping the check', async () => {
+    const { service, create } = build(false);
+    await expect(service.create('doc_1', { bed: 'B-3', name: 'Rahim', patientId: '' })).rejects.toBeInstanceOf(NotFoundException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('asks nothing when no patient is linked', async () => {
+    const { service, patientFind } = build(false);
+    await service.create('doc_1', { bed: 'B-3', name: 'Walk-in' });
+    expect(patientFind).not.toHaveBeenCalled();
+  });
+});

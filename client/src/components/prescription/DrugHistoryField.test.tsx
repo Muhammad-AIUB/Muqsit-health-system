@@ -54,36 +54,58 @@ const appended = (prev: RxItem[] = padItems): RxItem[] => {
   return next(prev);
 };
 
-// The patient in the report: three medications from earlier visits, and today's
-// two on the ℞ pad. The visit is 07/09/2026.
+// The patient in the report: three medications from older visits, one from the
+// PREVIOUS visit (01/09/2026), and today's two on the ℞ pad. The visit is
+// 07/09/2026.
 const PAST = [
   "10/01/2024: Losartan 50mg — 1+0+1 — after food — continuing",
   "27/06/2026: Losartan 50mg — 1+0+1 — after food — continuing",
   "20/07/2026: Metformin 500mg — 1+0+1 — after food — 1 month",
 ];
+const PREV = ["01/09/2026: Tablet. Famotack 20 mg — 1+0+1 — Before meal — 1 month"];
+const HISTORY = [...PAST, ...PREV];
 const TODAYS_RX: RxItem[] = [
   { drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "food", generic: "Paracetamol" },
   { drug: "Tablet. Napa One 1000 mg", dose: "", duration: "", instruction: "", generic: "Paracetamol" },
 ];
 const mirrored = () => rxDrugHistoryEntries(TODAYS_RX, "07/09/2026");
+/** What the mirror wrote for a medicine list on the PREVIOUS visit. */
+const onPrevVisit = (rx: RxItem[]) => rxDrugHistoryEntries(rx, "01/09/2026");
 
 const badge = () => screen.getAllByRole("button").find((b) => /current/.test(b.textContent ?? ""))!;
 const badgeText = () => (badge().textContent ?? "").replace(/\s+/g, " ").trim();
 const openModal = () => fireEvent.click(badge());
 
-describe("Drug history — today's ℞ reaches Current medications", () => {
-  it("counted 0 current before the mirror existed (the reported bug)", () => {
-    render(<DrugHistoryField items={PAST} />);
-    expect(badgeText()).toBe("💊 0 current · 3 past · view");
+// ⚕️ Physician's sheet, 18/10/2026, item 2 ("only the previous visit", in chat
+// the same day): Current medications is what the PREVIOUS visit prescribed,
+// plus what is added to Current by hand today. Today's ℞ is on the pad and is
+// listed in neither tab; older visits are Distant past. The rule itself is
+// pinned in `lib/drugHistorySplit.test.ts`; this holds the modal to it.
+describe("Drug history — Current is the previous visit", () => {
+  it("counts the previous visit's medicines as current, older ones as past", () => {
+    render(<DrugHistoryField items={HISTORY} />);
+    expect(badgeText()).toBe("💊 1 current · 3 past · view");
   });
 
-  it("counts today's prescribed medicines as current", () => {
-    render(<DrugHistoryField items={[...PAST, ...mirrored()]} />);
-    expect(badgeText()).toBe("💊 2 current · 3 past · view");
+  it("does not list today's ℞ in Current — it is on the pad", () => {
+    padItems = TODAYS_RX;
+    const { container } = render(<DrugHistoryField items={[...HISTORY, ...mirrored()]} />);
+    expect(badgeText()).toBe("💊 1 current · 3 past · view");
+    openModal();
+    expect(container.textContent).toContain("Tablet. Famotack 20 mg");
+    expect(container.textContent).not.toContain("Tablet. Napa 500 mg");
+    fireEvent.click(screen.getByText(/Distant past medication/));
+    expect(container.textContent).not.toContain("Tablet. Napa 500 mg");
+  });
+
+  it("with no earlier visit, only what was added to Current by hand today is current", () => {
+    padItems = TODAYS_RX;
+    render(<DrugHistoryField items={[...mirrored(), "07/09/2026: Seclo 20 mg — 1+0+0 —  — "]} />);
+    expect(badgeText()).toBe("💊 1 current · view");
   });
 
   it("shows each medicine with the dose, food and duration the doctor wrote", () => {
-    const { container } = render(<DrugHistoryField items={[...PAST, ...mirrored()]} />);
+    const { container } = render(<DrugHistoryField items={[...PAST, ...onPrevVisit(TODAYS_RX)]} />);
     openModal();
     const text = (container.textContent ?? "").replace(/\s+/g, " ");
     expect(text).toContain("Tablet. Napa 500 mg");
@@ -92,8 +114,8 @@ describe("Drug history — today's ℞ reaches Current medications", () => {
     expect(text).toContain("Tablet. Napa One 1000 mg");
   });
 
-  it("invents nothing for the line that has no dose yet", () => {
-    const { container } = render(<DrugHistoryField items={mirrored()} />);
+  it("invents nothing for the line that has no dose", () => {
+    const { container } = render(<DrugHistoryField items={onPrevVisit(TODAYS_RX)} />);
     openModal();
     const text = container.textContent ?? "";
     expect(text).not.toContain("1+0+1");     // the pad's default dose
@@ -101,12 +123,13 @@ describe("Drug history — today's ℞ reaches Current medications", () => {
     expect(text).not.toContain("Continue");
   });
 
-  it("leaves the earlier visits in Distant past, unmoved", () => {
-    render(<DrugHistoryField items={[...PAST, ...mirrored()]} />);
+  it("puts the visits before the previous one in Distant past", () => {
+    render(<DrugHistoryField items={HISTORY} />);
     openModal();
+    expect(screen.queryByText("Metformin 500mg")).toBeNull();
     fireEvent.click(screen.getByText(/Distant past medication/));
     expect(screen.getByText("Metformin 500mg")).toBeTruthy();
-    expect(screen.queryByText("Tablet. Napa 500 mg")).toBeNull();
+    expect(screen.queryByText("Tablet. Famotack 20 mg")).toBeNull();
   });
 
   // A taper belongs under its medicine, not beside it as a second drug.
@@ -115,7 +138,7 @@ describe("Drug history — today's ℞ reaches Current medications", () => {
       { drug: "Tablet (Delayed Release). Mesacol 400 mg", dose: "2+2+2", duration: "7 week", instruction: "food" },
       { drug: "", dose: "2+0+2", duration: "4 week", instruction: "food", isCont: true },
     ];
-    const { container } = render(<DrugHistoryField items={rxDrugHistoryEntries(taper, "07/09/2026")} />);
+    const { container } = render(<DrugHistoryField items={onPrevVisit(taper)} />);
     expect(badgeText()).toBe("💊 1 current · view");
     openModal();
     const text = (container.textContent ?? "").replace(/\s+/g, " ");
@@ -123,10 +146,18 @@ describe("Drug history — today's ℞ reaches Current medications", () => {
     expect(text).toContain("2+0+2");
   });
 
-  it("stamps entries with the dd/mm/yyyy the field itself splits on", () => {
-    const { container } = render(<DrugHistoryField items={mirrored()} />);
+  // Second review, 18/10/2026: the two dates of Current are told apart.
+  it("heads the previous visit's lines and today's additions apart", () => {
+    render(<DrugHistoryField items={[...HISTORY, "07/09/2026: Seclo 20 mg — 1+0+0 —  — "]} />);
     openModal();
-    expect(container.textContent).toContain("07/09/2026");
+    const heads = Array.from(document.querySelectorAll("[data-group-head]")).map((h) => h.textContent);
+    expect(heads).toEqual(["Previous visit · 01/09/2026", "Added today · 07/09/2026"]);
+  });
+
+  it("says which visit Current comes from", () => {
+    const { container } = render(<DrugHistoryField items={HISTORY} />);
+    openModal();
+    expect(container.textContent).toContain("01/09/2026");
   });
 });
 
@@ -183,7 +214,7 @@ describe("Moving ticked medicines onto today's ℞", () => {
   const move = () => fireEvent.click(screen.getByText(/^Move to Rx/));
 
   it("sends one ticked medicine to the pad, exactly as it was recorded", () => {
-    past(PAST);
+    past(HISTORY);
     fireEvent.click(screen.getByLabelText("Select Metformin 500mg"));
     move();
     expect(setRxItems).toHaveBeenCalledTimes(1);
@@ -196,7 +227,7 @@ describe("Moving ticked medicines onto today's ℞", () => {
   // cell the doctor had left empty. One press of Select all would have written
   // those onto a dozen medicines at once.
   it("invents no dose for a medicine recorded without one", () => {
-    past(["19/07/2026: Tablet. Edeloss 20 mg+50 mg —  —  — "]);
+    openWith(["19/07/2026: Tablet. Edeloss 20 mg+50 mg —  —  — "]);
     fireEvent.click(screen.getByLabelText("Select Tablet. Edeloss 20 mg+50 mg"));
     move();
     expect(appended([])).toEqual([
@@ -205,7 +236,7 @@ describe("Moving ticked medicines onto today's ℞", () => {
   });
 
   it("carries a tapering line with the medicine it belongs to", () => {
-    past([
+    openWith([
       "19/07/2026: Capsule. Lenva 4 mg — 0+0+1 —  — 7 days",
       "19/07/2026(cont): 0+0+2 —  — Continue",
     ]);
@@ -217,7 +248,7 @@ describe("Moving ticked medicines onto today's ℞", () => {
   });
 
   it("Select all ticks the whole tab, and the button says how many", () => {
-    past(PAST);
+    past(HISTORY);
     fireEvent.click(screen.getByText("Select all"));
     expect(screen.getByText("Move to Rx (3)")).toBeTruthy();
     expect(screen.getByText("Clear")).toBeTruthy();
@@ -227,18 +258,18 @@ describe("Moving ticked medicines onto today's ℞", () => {
   // usually "they are all on it already" — and it is said out loud, not
   // swallowed as a no-op the doctor cannot tell from a failure.
   it("reports the medicines that were already on the pad", () => {
-    padItems = TODAYS_RX;
-    openWith([...PAST, ...mirrored()]);
+    padItems = [{ drug: "Tablet. Famotack 20 mg", dose: "1+0+1", instruction: "Before meal", duration: "1 month" }];
+    openWith(HISTORY);
     fireEvent.click(screen.getByText("Select all"));
-    fireEvent.click(screen.getByText("Move to Rx (2)"));
-    expect(screen.getByText("0 added · 2 already on ℞")).toBeTruthy();
+    fireEvent.click(screen.getByText("Move to Rx (1)"));
+    expect(screen.getByText("0 added · 1 already on ℞")).toBeTruthy();
   });
 
   // ⚕️ The pad's Napa was picked from the medicine list; the history's was
   // typed by hand at an earlier visit. One line — it went on the pad twice.
   it("does not write a line twice because its medicine is spaced or capitalised another way", () => {
     padItems = [{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days", instruction: "After meal" }];
-    past(["20/07/2026: tab napa 500mg — 1+1+1 — After meal — 5 days", "20/07/2026: Metformin 500mg — 1+0+1 — after food — 1 month"]);
+    openWith(["20/07/2026: tab napa 500mg — 1+1+1 — After meal — 5 days", "20/07/2026: Metformin 500mg — 1+0+1 — after food — 1 month"]);
     fireEvent.click(screen.getByText("Select all"));
     fireEvent.click(screen.getByText("Move to Rx (2)"));
     expect(screen.getByText("1 added · 1 already on ℞")).toBeTruthy();
@@ -246,7 +277,7 @@ describe("Moving ticked medicines onto today's ℞", () => {
   });
 
   it("clears the ticks after a move, so one press cannot become two", () => {
-    past(PAST);
+    past(HISTORY);
     fireEvent.click(screen.getByLabelText("Select Metformin 500mg"));
     move();
     expect(screen.queryByText(/Move to Rx \(/)).toBeNull();
@@ -257,7 +288,7 @@ describe("Moving ticked medicines onto today's ℞", () => {
   // second could write medicines from here — which the ↻ Rx button allowed.
   it("offers no tick and no button without rx.medicines", () => {
     mayWriteRx = false;
-    const { container } = past(PAST);
+    const { container } = past(HISTORY);
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(screen.queryByText("Select all")).toBeNull();
     expect(screen.queryByText(/Move to Rx/)).toBeNull();
@@ -273,42 +304,42 @@ describe("⊘ Hide — keeping Drug history off the printed sheet", () => {
   const toggle = () => screen.getByRole("button", { name: HIDE_BTN });
 
   it("is absent unless the screen opts in", () => {
-    render(<DrugHistoryField items={PAST} />);
+    render(<DrugHistoryField items={HISTORY} />);
     expect(screen.queryByRole("button", { name: HIDE_BTN })).toBeNull();
   });
 
   it("carries the physician's own wording as its tooltip", () => {
-    render(<DrugHistoryField items={PAST} hidden={false} onHidden={vi.fn()} />);
+    render(<DrugHistoryField items={HISTORY} hidden={false} onHidden={vi.fn()} />);
     expect(toggle().getAttribute("title")).toBe("Hide in Printed Prescription");
   });
 
   it("turns the section off, then back on", () => {
     const onHidden = vi.fn();
-    const { rerender } = render(<DrugHistoryField items={PAST} hidden={false} onHidden={onHidden} />);
+    const { rerender } = render(<DrugHistoryField items={HISTORY} hidden={false} onHidden={onHidden} />);
     fireEvent.click(toggle());
     expect(onHidden).toHaveBeenCalledWith(true);
-    rerender(<DrugHistoryField items={PAST} hidden onHidden={onHidden} />);
+    rerender(<DrugHistoryField items={HISTORY} hidden onHidden={onHidden} />);
     fireEvent.click(toggle());
     expect(onHidden).toHaveBeenLastCalledWith(false);
   });
 
   it("says it is hidden and marks itself pressed", () => {
-    render(<DrugHistoryField items={PAST} hidden onHidden={vi.fn()} />);
+    render(<DrugHistoryField items={HISTORY} hidden onHidden={vi.fn()} />);
     expect(toggle().textContent).toContain("Hidden");
     expect(toggle().getAttribute("aria-pressed")).toBe("true");
   });
 
   // Nothing to count: this is the whole section, not a line at a time.
   it("shows no count beside Hidden", () => {
-    render(<DrugHistoryField items={PAST} hidden onHidden={vi.fn()} />);
+    render(<DrugHistoryField items={HISTORY} hidden onHidden={vi.fn()} />);
     expect(toggle().textContent).not.toMatch(/\(\d+\)/);
   });
 
   // ⚕️ Hiding changes the printed sheet, never the screen: the badge still
   // reports the same medicines, and the modal still opens on all of them.
   it("keeps the medicines readable on screen while hidden", () => {
-    const { container } = render(<DrugHistoryField items={PAST} hidden onHidden={vi.fn()} />);
-    expect(badgeText()).toBe("💊 0 current · 3 past · view");
+    const { container } = render(<DrugHistoryField items={HISTORY} hidden onHidden={vi.fn()} />);
+    expect(badgeText()).toBe("💊 1 current · 3 past · view");
     openModal();
     fireEvent.click(screen.getByText(/Distant past medication/));
     expect(container.textContent).toContain("Metformin 500mg");
@@ -352,7 +383,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   const pressAdd = () => fireEvent.click(screen.getByRole("button", { name: "Add to Drug history" }));
 
   it("is the ℞ pad's typing line, not four plain boxes", () => {
-    openWith(PAST);
+    openWith(HISTORY);
     openAddRow();
     expect(typing()).toBeTruthy();
     expect(screen.queryByLabelText("Medicine name")).toBeNull();
@@ -361,7 +392,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 
   it("renders its own + Add medicine row on each tab, independently", () => {
-    openWith(PAST);
+    openWith(HISTORY);
     openAddRow();
     fireEvent.change(typing(), { target: { value: "half typed" } });
     fireEvent.click(screen.getByText(/Distant past medication/));
@@ -372,7 +403,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 
   it("a medicine picked from the list takes the pad's shorthand, and is stamped with the visit date", () => {
-    openWith(PAST);
+    openWith(HISTORY);
     openAddRow();
     pickNapa();
     write("dose", "101");
@@ -384,7 +415,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 
   it("stamps a Distant-past addition with no date", () => {
-    openWith(PAST);
+    openWith(HISTORY);
     fireEvent.click(screen.getByText(/Distant past medication/));
     openAddRow();
     pickNapa();
@@ -393,7 +424,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 
   it("a hand-typed medicine is one only once treated as one — as on the ℞ pad", () => {
-    openWith(PAST);
+    openWith(HISTORY);
     openAddRow();
     fireEvent.focus(typing());
     fireEvent.change(typing(), { target: { value: "tab Seclo 20" } });
@@ -404,7 +435,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 
   it("a line left as a note is written as a note", () => {
-    openWith(PAST);
+    openWith(HISTORY);
     openAddRow();
     fireEvent.change(typing(), { target: { value: "No regular medication" } });
     pressAdd();
@@ -412,7 +443,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 
   it("shows the newly added line immediately, in the right tab, and empties the pad", () => {
-    let items = [...PAST];
+    let items = [...HISTORY];
     addDrugHistoryEntry.mockImplementation((entry: string) => { items = [...items, entry]; });
     const { rerender } = render(<DrugHistoryField items={items} />);
     openModal();
@@ -429,7 +460,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
 
   it("refuses an exact duplicate already shown on the same tab", () => {
     const todaysNapa = "07/09/2026: Tablet. Napa 500 mg — 1+1+1 — After meal — 5 days";
-    openWith([...PAST, todaysNapa]);
+    openWith([...HISTORY, todaysNapa]);
     openAddRow();
     pickNapa();
     write("dose", "1+1+1");
@@ -441,7 +472,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 
   it("Add waits for something to add", () => {
-    openWith(PAST);
+    openWith(HISTORY);
     openAddRow();
     expect((screen.getByRole("button", { name: "Add to Drug history" }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -451,7 +482,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
 // decision, 2026-10-14) — a line moved from the history lands that way too.
 describe("Move to Rx in BAN", () => {
   it("writes the moved line in Bangla, the record left as it was", () => {
-    render(<DrugHistoryField items={PAST} />);
+    render(<DrugHistoryField items={HISTORY} />);
     openModal();
     fireEvent.click(screen.getByText(/Distant past medication/));
     act(() => setKbdLang("bn"));
@@ -465,7 +496,7 @@ describe("Move to Rx in BAN", () => {
 
   it("does not write the line twice when the pad already holds it in Bangla", () => {
     padItems = [{ drug: "Metformin 500mg", dose: "১+০+১", instruction: "after food", duration: "১ মাস" }];
-    render(<DrugHistoryField items={PAST} />);
+    render(<DrugHistoryField items={HISTORY} />);
     openModal();
     fireEvent.click(screen.getByText(/Distant past medication/));
     act(() => setKbdLang("bn"));
@@ -506,7 +537,7 @@ describe("Drug history shows the dose / food / duration in the current language"
   });
 
   it("Distant past: the cells in Bangla, the medicine's name and untranslated text as written", () => {
-    const { container } = render(<DrugHistoryField items={PAST} />);
+    const { container } = render(<DrugHistoryField items={HISTORY} />);
     openModal();
     fireEvent.click(screen.getByText(/Distant past medication/));
     act(() => setKbdLang("bn"));

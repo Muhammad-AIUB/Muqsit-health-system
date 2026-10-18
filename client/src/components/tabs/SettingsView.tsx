@@ -108,6 +108,23 @@ export default function SettingsView({ mobile = false }: { mobile?: boolean }) {
           <Icon name="chevronRight" size={16} style={{ color: C.n[500] }} />
         </div>
       )}
+      {/* The doctor's own notebook (18/10/2026, item 4) has no place in the
+          bar either; on a phone it is reached from here too. */}
+      {mobile && (
+        <div
+          onClick={() => setActiveTab("revision")}
+          {...pressable()}
+          className="card-press"
+          style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, marginBottom: 18, marginTop: -8 }}
+        >
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: C.pri[50], display: "flex", alignItems: "center", justifyContent: "center", color: C.pri[600], flexShrink: 0 }}><TabIcon id="revision" size={18} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>Revision Notes</div>
+            <div style={{ fontSize: 11, color: C.n[600] }}>Your own notebook — only you can see it</div>
+          </div>
+          <Icon name="chevronRight" size={16} style={{ color: C.n[500] }} />
+        </div>
+      )}
       <div style={{ ...pageTitle, marginBottom: 14 }}>Settings</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {SETTINGS_ITEMS.map((s) => {

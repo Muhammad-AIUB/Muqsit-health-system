@@ -20,6 +20,8 @@ const PATHS: Partial<Record<TabId | "more", string[]>> = {
   research: ["M9 3h6", "M10 3v6l-5.2 9a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9V3", "M7.5 15h9"],
   // Sliders.
   settings: ["M4 6h9", "M17 6h3", "M4 12h3", "M11 12h9", "M4 18h11", "M19 18h1", "M15 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z", "M9 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z", "M17 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"],
+  // An open notebook with a pen line: the doctor's own Revision Notes.
+  revision: ["M4 5a2 2 0 0 1 2-2h11v16H6a2 2 0 0 0-2 2z", "M4 21V5", "M8 7h6", "M8 11h6", "M20 8l-5 5-1.5.5.5-1.5 5-5z"],
   more: ["M5 12h.01", "M12 12h.01", "M19 12h.01"],
 };
 

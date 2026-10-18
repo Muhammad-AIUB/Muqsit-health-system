@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries } from "@/lib/rxDrugHistory";
+import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims } from "@/lib/rxDrugHistory";
 import { drugMentions } from "@/lib/drugHistorySummary";
 import type { RxItem } from "@/types";
 
@@ -196,5 +196,49 @@ describe("sameEntries", () => {
     expect(sameEntries(["a", "b"], ["a", "b"])).toBe(true);
     expect(sameEntries(["a", "b"], ["b", "a"])).toBe(false);
     expect(sameEntries(["a"], ["a", "b"])).toBe(false);
+  });
+});
+
+// ⚕️ What the mirror may later WITHDRAW is what it INSERTED (independent review,
+// 18/10/2026). It used to remember what today's ℞ would write, so a line the
+// doctor typed into Drug history by hand that read exactly like a ℞ line — the
+// ℞ line moved there with Move to Rx — was claimed as the mirror's, and taking
+// the medicine off the pad deleted the hand-typed record.
+describe("mirrorClaims", () => {
+  const X = "18/10/2026: Seclo 20 mg — 1+0+0 —  — ";
+  const Y = "18/10/2026: Napa 500 mg — 1+1+1 —  — 5 days";
+
+  it("with no baseline for this patient yet (a reload), claims what the pad writes, as before", () => {
+    expect(mirrorClaims([X], [], [X], false)).toEqual([X]);
+  });
+
+  it("does not claim a line that was already there and was not its own", () => {
+    expect(mirrorClaims([X], [], [X], true)).toEqual([]);
+  });
+
+  it("claims a line it is about to insert", () => {
+    expect(mirrorClaims([X], [], [X, Y], true)).toEqual([Y]);
+  });
+
+  it("keeps claiming a line it inserted earlier", () => {
+    expect(mirrorClaims([X, Y], [Y], [X, Y], true)).toEqual([Y]);
+  });
+
+  it("claims a taper with its medicine, as one block", () => {
+    const head = "18/10/2026: Mesacol 400 mg — 2+2+2 —  — 7 week";
+    const cont = "18/10/2026(cont): 2+0+2 —  — 4 week";
+    expect(mirrorClaims([], [], [head, cont], true)).toEqual([head, cont]);
+  });
+
+  it("a hand-typed line survives its ℞ twin leaving the pad", () => {
+    // Typed by hand; then the same line goes on the pad; then it comes off.
+    let stored = [X];
+    let claimed = mirrorClaims(stored, [], [X], true);
+    stored = syncRxDrugHistory(stored, [], [X]);
+    const prev = claimed;
+    claimed = mirrorClaims(stored, prev, [], true);
+    stored = syncRxDrugHistory(stored, prev, []);
+    expect(stored).toEqual([X]);
+    expect(claimed).toEqual([]);
   });
 });

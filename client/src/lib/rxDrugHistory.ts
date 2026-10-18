@@ -1,7 +1,8 @@
 // ⚕️ Mirrors the medicines on TODAY'S ℞ pad into the patient's date-stamped
-// Drug history, so a drug prescribed on this visit shows up in "Current
-// medications" the moment it is written — and is still there, as Distant past,
-// on the next visit.
+// Drug history the moment they are written, so on the next visit they are "the
+// previous visit" — Current medications since the physician's sheet of
+// 18/10/2026 (item 2); today they are on the pad and in neither tab
+// (lib/drugHistorySplit.ts).
 //
 // Physician's decision (2026-09-07): the sync is LIVE, on every change, not
 // deferred to "Save & print". The ℞ pad is therefore the OWNER of the entries
@@ -163,6 +164,36 @@ export function syncRxDrugHistory(stored: string[], prevDerived: string[], nextD
   }
 
   return cells.filter((c): c is string => typeof c === "string");
+}
+
+/**
+ * ⚕️ What the mirror may later WITHDRAW: the blocks it INSERTED, never a line
+ * that was already in the list (independent review, 18/10/2026).
+ *
+ * `syncRxDrugHistory` adds a block only when it is not there already. A line
+ * the doctor typed into Drug history by hand that reads exactly like a ℞ line
+ * (Move to Rx writes the very same text) was therefore never inserted by the
+ * mirror — but it used to be REMEMBERED as the mirror's, and taking the
+ * medicine off the pad deleted the hand-typed record.
+ *
+ * @param stored      the list before this sync
+ * @param prevClaimed what this returned last time, for this patient
+ * @param nextDerived what today's ℞ writes now (`rxDrugHistoryEntries`)
+ * @param known       true when `prevClaimed` is a baseline for THIS patient.
+ *                    Without one (the first pass after a reload or a patient
+ *                    load) there is no telling the mirror's own earlier lines
+ *                    from typed ones, and it claims what the pad writes, as it
+ *                    always did.
+ */
+export function mirrorClaims(stored: string[], prevClaimed: string[], nextDerived: string[], known: boolean): string[] {
+  if (!known) return [...(nextDerived ?? [])];
+  const had = new Set(toBlocks(prevClaimed ?? []).map((b) => b.join("\n")));
+  const cells: Cell[] = [...(stored ?? [])];
+  const out: string[] = [];
+  for (const b of toBlocks(nextDerived ?? [])) {
+    if (had.has(b.join("\n")) || findBlock(cells, b) < 0) out.push(...b);
+  }
+  return out;
 }
 
 /** True when both arrays hold the same entries in the same order. */

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { runBeforeLogout } from "@/lib/beforeLogout";
 import {
   authApi,
   onAuthFailure,
@@ -96,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    // Unsaved work out first, while the session still exists (lib/beforeLogout.ts).
+    await runBeforeLogout();
     try {
       await authApi.logout();
     } catch {

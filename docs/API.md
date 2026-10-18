@@ -423,7 +423,7 @@ number.
 | Method | Path | Body / Notes |
 |---|---|---|
 | GET | `/ipd` | the practice's admissions |
-| POST | `/ipd` | `CreateAdmissionDto` |
+| POST | `/ipd` | `CreateAdmissionDto`. A `patientId` must be a patient this practice can reach (owner or supervising doctor) — otherwise 404, and nothing is admitted (18/10/2026). The doctor app always sends one: an admission is made from a patient chosen by mobile number |
 | PATCH | `/ipd/:id` | `UpdateAdmissionDto` |
 | PATCH | `/ipd/:id/status` | `{ status: "Stable" \| "Observation" \| "Critical" \| "Discharge" }` |
 | GET | `/ipd/:id/events` | admission feed, oldest first |
@@ -586,6 +586,23 @@ an assistant or supervising doctor reads and writes their own note, never the
 owner's, and vice versa. The workstation doctor is used only to prove the
 patient is reachable (`PatientsService.get` → 404 otherwise). No permission key,
 and nothing is written to the activity feed. Table: `manual-doctor-patient-note.sql`.
+
+### 5.14e Revision Notes — `/revision-notes` (JWT)
+
+"Revision Notes" (physician's sheet, 18/10/2026, item 4): the signed-in user's
+own notebook, written like a Word page, printed and searched in the app.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/revision-notes` | `{ note: { html, updatedAt } \| null }` — the CALLER's own notebook. |
+| PUT | `/revision-notes` | `SaveRevisionNoteDto { html (≤2,000,000 characters — Bangla at 3 bytes each still fits the 8 MB body limit), baseUpdatedAt (ISO 8601 \| null) }` → `{ html, updatedAt }`. `baseUpdatedAt` is the `updatedAt` of the copy the save was written from (`null` when the writer saw none). Any other copy → **409**, nothing written. |
+
+⚠️ Keyed by `@CurrentUser().id` and nothing else — no workstation, no permission
+key: an assistant has their own notebook and never reads the doctor's, also with
+`X-Workstation` set to the doctor. The stale-copy check and the write are one
+conditional `UPDATE … WHERE updatedAt = base`, so a save landing in between is
+refused too. Not logged to the activity feed; holds no patient data by design.
+Table: `manual-revision-notes.sql` (applied 2026-10-18).
 
 ### 5.15 Medicines — `/medicines` (JWT)
 

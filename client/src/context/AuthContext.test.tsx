@@ -11,6 +11,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const setActiveWorkstationId = vi.fn();
+const order = vi.hoisted(() => [] as string[]);
 let failAuth: (() => void) | null = null;
 vi.mock("@/lib/api", () => ({
   ApiError: class extends Error { status = 0; },
@@ -18,12 +19,13 @@ vi.mock("@/lib/api", () => ({
   onAuthFailure: (fn: () => void) => { failAuth = fn; return () => { failAuth = null; }; },
   authApi: {
     me: () => Promise.resolve({ id: "A", name: "Dr A" }),
-    logout: () => Promise.resolve(),
+    logout: () => { order.push("server logout"); return Promise.resolve(); },
     login: () => Promise.resolve({ user: { id: "B", name: "Dr B" } }),
   },
 }));
 
 import { AuthProvider, useAuth } from "./AuthContext";
+import { onBeforeLogout } from "@/lib/beforeLogout";
 
 function setup() {
   const qc = new QueryClient();
@@ -66,3 +68,18 @@ describe("AuthProvider forgets the previous account", () => {
     expect(result.current.user).toMatchObject({ id: "B" });
   });
 });
+
+// Second review, 18/10/2026: what must reach the server while the session still
+// exists (Revision Notes typed and not yet saved) goes BEFORE the server logout.
+describe("logout lets unsaved work out first", () => {
+  it("runs the before-logout jobs, then logs out on the server", async () => {
+    order.length = 0;
+    const off = onBeforeLogout(async () => { order.push("save notes"); });
+    const { result } = setup();
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => { await result.current.logout(); });
+    off();
+    expect(order).toEqual(["save notes", "server logout"]);
+  });
+});
+

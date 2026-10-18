@@ -64,7 +64,7 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
             // Patients has no place of its own on this bar; it is reached through
             // "More", so that is the tab that stays lit while its list is open —
             // otherwise the bar showed nothing selected and no way back.
-            const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab)) || (t.id === "settings" && activeTab === "patients");
+            const active = activeTab === t.id || (t.id === "prescription" && isPrescriptionGroup(activeTab)) || (t.id === "settings" && (activeTab === "patients" || activeTab === "revision"));
             // `1 1 auto`, not `1 1 0`: six equal places are 52px each on a 360px
             // phone and "Supervised" is 56 — it ran into "Research" and the two
             // read as one label. Starting from each tab's own width shares the

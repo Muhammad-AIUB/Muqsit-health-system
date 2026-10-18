@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { C, font } from "@/theme";
 import { shadowCard, tabInk, tabOn } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
+import { TABS, TRAILING_TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import TabIcon from "./TabIcon";
 import AccountMenu from "./AccountMenu";
 import MirrorToggle from "./MirrorToggle";
@@ -58,6 +58,12 @@ export default function DesktopShell() {
               <LanguageToggle />
               <ThemeToggle />
             </div>
+            {TRAILING_TABS.map((t) => {
+              const active = activeTab === t.id;
+              return (
+                <button key={t.id} onClick={() => setActiveTab(t.id)} aria-current={active ? "page" : undefined} style={{ minHeight: 34, padding: "0 12px", marginLeft: 6, borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, background: active ? tabOn.background : "transparent", color: tabInk, fontWeight: active ? 600 : 500, display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: font }}><span className="nav-ico"><TabIcon id={t.id} /></span>{t.label}</button>
+              );
+            })}
           </nav>
         </div>
       </div>

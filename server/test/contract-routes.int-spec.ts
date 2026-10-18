@@ -50,6 +50,9 @@ const JWT_ONLY_CONTROLLERS: string[] = [
   'prescription-layout',
   'prescription-templates',
   'research',
+  // The signed-in user's own notebook (18/10/2026): keyed by the authenticated
+  // user and holding no practice data, so no practice is resolved for it.
+  'revision-notes',
   'supervised',
   'users',
   'wards',

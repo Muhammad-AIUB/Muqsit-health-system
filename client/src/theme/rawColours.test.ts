@@ -32,6 +32,8 @@ const ALLOWED: { file: string; text: string; why: string }[] = [
   { file: "components/prescription/PersonalNote.tsx", text: "#1a1a1a", why: "the note's print CSS" },
   { file: "components/prescription/PersonalNote.tsx", text: "#666", why: "the note's print CSS" },
   { file: "components/prescription/PersonalNote.tsx", text: "#444", why: "the note's print CSS" },
+  { file: "lib/revisionNotes.ts", text: "#111", why: "the Revision Notes print CSS" },
+  { file: "lib/revisionNotes.ts", text: "#555", why: "the Revision Notes print CSS" },
   { file: "components/prescription/PrescriptionView.tsx", text: 'backgroundColor: "#ffffff"', why: "the snapshot of the printed sheet is white paper" },
   // The red glow of a critical patient and a prescribing alert: a light in both modes.
   { file: "components/ipd/CriticalAlert.tsx", text: "rgba(226,75,74", why: "siren glow" },

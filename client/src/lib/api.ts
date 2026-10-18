@@ -486,6 +486,17 @@ export const patientNotesApi = {
     apiFetch<PatientNote>(`/patient-notes/${encodeURIComponent(patientId)}`, { method: "PUT", body: JSON.stringify(input) }),
 };
 
+// ── Revision Notes (physician's sheet, 18/10/2026, item 4) ────
+// The SIGNED-IN user's own notebook — nobody else's, an assistant's included.
+// A save names the copy it was written from (`baseUpdatedAt`, null for none);
+// the server refuses (409) a save from any other copy.
+export interface RevisionNote { html: string; updatedAt: string }
+export const revisionNotesApi = {
+  get: () => apiFetch<{ note: RevisionNote | null }>("/revision-notes").then((r) => r.note),
+  save: (input: { html: string; baseUpdatedAt: string | null }) =>
+    apiFetch<RevisionNote>("/revision-notes", { method: "PUT", body: JSON.stringify(input) }),
+};
+
 // ── Special advice per medicine / generic (℞ pad •••) ────────
 // The doctor's own standing advice, written in the pad's ••• box. Doctor-scoped
 // server-side (@WorkstationDoctorId); see lib/rxDrugAdvice.ts for how the lines

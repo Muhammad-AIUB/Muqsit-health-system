@@ -24,7 +24,7 @@ import { useAuth } from "@/context/AuthContext";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries } from "@/lib/rxDrugHistory";
+import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims } from "@/lib/rxDrugHistory";
 import { adviceLinesFor, padMedicines, syncRxAdvice } from "@/lib/rxDrugAdvice";
 import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
@@ -168,7 +168,10 @@ function useMuqsitStore() {
   // ⚕️ The WHOLE Drug history section, kept off the printed sheet (2026-09-21).
   // A boolean, not a list: the medicines live behind a modal, so this row can
   // only offer an all-or-nothing choice — see `DrugHistoryField`.
-  const [hideDrugHistory, setHideDrugHistory] = useState(false);
+  // Hidden BY DEFAULT since the physician's sheet of 18/10/2026 (item 1:
+  // "Drug history hidden default thakbe"): every new visit starts with it off
+  // the sheet, and ⊘ puts it back on for that visit.
+  const [hideDrugHistory, setHideDrugHistory] = useState(true);
   // ⚕️ A hide mark must not outlive the finding it was put on. Without this, a
   // line deleted and later re-typed — the same words, a different clinical
   // moment — would come back already hidden, with nothing on screen saying why.
@@ -211,6 +214,13 @@ function useMuqsitStore() {
   // this visit. Both ride the draft and the device mirror; resetEditor clears them.
   const [rxAdviceOwned, setRxAdviceOwned] = useState<StringList>([]);
   const [rxAdviceOff, setRxAdviceOff] = useState<StringList>([]);
+  // ⚕️ The Drug-history lines the ℞ mirror INSERTED this visit — the only ones
+  // it may ever withdraw (`mirrorClaims`, lib/rxDrugHistory.ts). Part of the
+  // visit, like `rxAdviceOwned`: it rides the draft and the device mirror, so a
+  // reload or a second device knows it (second review, 18/10/2026). `null` =
+  // not known (a draft or a peer from before it existed): the mirror then claims
+  // what the pad writes, as it always did.
+  const [rxMirrorOwned, setRxMirrorOwned] = useState<StringList | null>(null);
   const [savedMsg, setSavedMsg] = useState("");
   const [followUpNum, setFollowUpNum] = useState("");
   const [followUpUnit, setFollowUpUnit] = useState("day");
@@ -783,10 +793,10 @@ function useMuqsitStore() {
     editorEpochRef.current += 1; // see the mount-time draft hydration
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
     setPtDate(todayISO()); setPtPhone(""); setPtHospitalId("");
-    setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(false);
+    setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(true);
     setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
-    setRxItems([]); setAdvice([]); setAdviceTest([]); setRxAdviceOwned([]); setRxAdviceOff([]);
+    setRxItems([]); setAdvice([]); setAdviceTest([]); setRxAdviceOwned([]); setRxAdviceOff([]); setRxMirrorOwned(null);
     setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
     setInvImages({}); setOeData(initialOeData);
     setIgnoredAlerts(new Set());
@@ -800,13 +810,23 @@ function useMuqsitStore() {
   // patient's in-progress, not-yet-printed prescription (incompleteRx).
   const applyEditorSnapshot = useCallback((d: Record<string, unknown>) => {
     const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
+    let advancedFrom: string | null = null;
     const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
     str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
     // Restore the visit date but advance it to today if the draft is from a prior
     // calendar day. Keeps the prescription header and drug-history Current/Past
     // split both anchored to today across all callers (loadPatient + page-reload).
-    str("ptDate", (v) => { const today = todayISO(); setPtDate(v < today ? today : v); });
+    str("ptDate", (v) => {
+      const today = todayISO();
+      setPtDate(v < today ? today : v);
+      // ⚕️ The draft's ℞ lines were mirrored into its drug history at the OLD
+      // date. They are the mirror's own, and today's now: told so, the mirror
+      // re-stamps them to today. Left at yesterday's date they read as "the
+      // previous visit" in Current medications — a visit never printed — and
+      // pushed the real previous visit out to Distant past (review, 18/10/2026).
+      advancedFrom = v < today ? v : null;
+    });
     str("ptPhone", setPtPhone); str("ptHospitalId", setPtHospitalId);
     arr("chiefComplaints", setChiefComplaints); arr("previousComplaints", setPreviousComplaints);
     arr("history", setHistory); arr("investigation", setInvestigation);
@@ -817,6 +837,13 @@ function useMuqsitStore() {
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
     arr("rxAdviceOwned", setRxAdviceOwned); arr("rxAdviceOff", setRxAdviceOff);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
+    // What the mirror owns, as the draft recorded it. A draft from before the
+    // record existed, resumed on a LATER day: its ℞ lines at the old date are
+    // taken as the mirror's, so they are re-stamped to today — left at
+    // yesterday's date they read as "the previous visit" (review, 18/10/2026).
+    if (Array.isArray(d.rxMirrorOwned)) setRxMirrorOwned(d.rxMirrorOwned as string[]);
+    else if (advancedFrom && Array.isArray(d.rxItems)) setRxMirrorOwned(rxDrugHistoryEntries(d.rxItems as RxItem[], isoToDdmmyyyy(advancedFrom)));
+    else setRxMirrorOwned(null);
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
     if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);
@@ -911,7 +938,7 @@ function useMuqsitStore() {
     // The pad the ℞ mirror last saw was the visit just closed. Forget it, or an
     // empty new pad would withdraw the entries that visit put on the record.
     // (`patientIdRef` still holds the previous id here.)
-    if (p.id === patientIdRef.current) rxDerivedRef.current = { pid: null, entries: [] };
+    // (resetEditor has set `rxMirrorOwned` to "not known" for the same reason.)
     // Unknown until hydrated (the effect sets it WITH the list); a baseline set
     // ahead of the list would make the blank editor read as a changed history.
     drugHistoryBaselineRef.current = null;
@@ -1063,10 +1090,12 @@ function useMuqsitStore() {
     }
   }, [currentPatientId]);
 
-  // ⚕️ Live mirror — every medicine on TODAY'S ℞ pad shows up in Drug history →
-  // "Current medications" as it is written, and is still there, as Distant past,
-  // on the next visit. Physician's decision, 2026-09-07 (live on every change,
-  // not deferred to "Save & print").
+  // ⚕️ Live mirror — every medicine on TODAY'S ℞ pad is written into Drug history
+  // as it is typed, stamped with the visit date, so on the next visit it is "the
+  // previous visit" — Current medications since the physician's sheet of
+  // 18/10/2026 (item 2); today it is on the pad and listed in neither tab
+  // (lib/drugHistorySplit.ts). Physician's decision, 2026-09-07 (live on every
+  // change, not deferred to "Save & print").
   //
   // Until this existed the ℞ pad and Drug history were two lists that never
   // spoke: "Current medications" held only what the doctor re-typed into the
@@ -1074,7 +1103,7 @@ function useMuqsitStore() {
   //
   // Four properties are what make writing into a clinical list from a keystroke
   // safe. Do not drop one to simplify this:
-  //  • it only ever withdraws entries THIS mirror added — `rxDerivedRef` is the
+  //  • it only ever withdraws entries THIS mirror added — `rxMirrorOwned` is the
   //    record of what it contributed last time — so a medication the doctor
   //    typed into the modal by hand can never be deleted by editing the ℞;
   //  • it echoes the pad verbatim and completes nothing (see rxDrugHistory.ts);
@@ -1089,7 +1118,6 @@ function useMuqsitStore() {
   // Known and intended: deleting an ℞-mirrored row inside the Drug-history modal
   // does not stick, because the medicine is still on today's prescription — the
   // ℞ pad owns its own lines. Remove it from the pad instead.
-  const rxDerivedRef = useRef<{ pid: string | null; entries: string[] }>({ pid: null, entries: [] });
   useEffect(() => {
     // An unsaved patient has no stored history to lose. A saved one must have
     // had their own list hydrated first, or we would be mirroring onto a blank.
@@ -1097,11 +1125,16 @@ function useMuqsitStore() {
     const nextDerived = rxDrugHistoryEntries(rxItems, isoToDdmmyyyy(ptDate));
     // A pad belonging to a DIFFERENT patient says nothing about this one's list:
     // forget it rather than withdraw an entry from a stranger's record.
-    const prevDerived = rxDerivedRef.current.pid === currentPatientId ? rxDerivedRef.current.entries : [];
-    rxDerivedRef.current = { pid: currentPatientId, entries: nextDerived };
+    // ⚕️ Withdraw only what the mirror INSERTED (`rxMirrorOwned`), and remember
+    // only what it inserts (`mirrorClaims`): a line typed by hand that reads like
+    // a ℞ line is never the mirror's to withdraw. Not known → as it always was.
+    const known = rxMirrorOwned !== null;
+    const prevDerived = rxMirrorOwned ?? [];
+    const claims = mirrorClaims(drugHistory, prevDerived, nextDerived, known);
     const merged = syncRxDrugHistory(drugHistory, prevDerived, nextDerived);
     if (!sameEntries(merged, drugHistory)) setDrugHistory(merged);
-  }, [rxItems, ptDate, currentPatientId, drugHistory]);
+    if (rxMirrorOwned === null || !sameEntries(claims, rxMirrorOwned)) setRxMirrorOwned(claims);
+  }, [rxItems, ptDate, currentPatientId, drugHistory, rxMirrorOwned]);
 
   // ⚕️ "+ Add medicine" (Drug history, 2026-10-14). A plain append — the
   // background patient fetch above is what protects it from being lost to a
@@ -1288,7 +1321,7 @@ function useMuqsitStore() {
       chiefComplaints, previousComplaints, history, investigation, drugHistory,
       onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
       rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
-      rxAdviceOwned, rxAdviceOff,
+      rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
       hideDrugHistory,
       invImages, oeData, currentPatientId,
       hiddenInvestigation,
@@ -1328,7 +1361,7 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
-    rxAdviceOwned, rxAdviceOff,
+    rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
     hideDrugHistory,
     invImages, oeData, currentPatientId,
     hiddenInvestigation,
@@ -1415,7 +1448,7 @@ function useMuqsitStore() {
     investigation: invBorrowRef.current?.inv ?? investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
-    rxAdviceOwned, rxAdviceOff,
+    rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
     hideDrugHistory,
     invImages: invBorrowRef.current?.img ?? invImages, oeData,
     hiddenInvestigation,
@@ -1430,7 +1463,7 @@ function useMuqsitStore() {
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
-    rxAdviceOwned, rxAdviceOff,
+    rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
     hideDrugHistory,
     invImages, oeData,
     hiddenInvestigation,
@@ -1489,6 +1522,9 @@ function useMuqsitStore() {
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
     arr("rxAdviceOwned", setRxAdviceOwned); arr("rxAdviceOff", setRxAdviceOff);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
+    // With the pad and the history it describes: the peer's record of what its
+    // mirror inserted (absent from an older build → not known).
+    setRxMirrorOwned(Array.isArray(d.rxMirrorOwned) ? (d.rxMirrorOwned as string[]) : null);
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
     if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);

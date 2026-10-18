@@ -42,7 +42,9 @@ test('Move to Rx does not write a line a second time because its medicine was ty
 
   await badge(page).click();
   const box = historyBox(page);
-  await box.getByText(/Distant past medication/).click();
+  // That visit is the previous one, so its medicines are under Current
+  // medications (physician's sheet, 18/10/2026, item 2), which the box opens on.
+  await expect(box.getByRole('button', { name: /^Current medications \(2\)/ })).toBeVisible();
   await box.getByRole('checkbox', { name: 'Select tab napa 500mg' }).check();
   await box.getByRole('checkbox', { name: `Select ${OTHER}` }).check();
   await box.getByRole('button', { name: 'Move to Rx (2)' }).click();
