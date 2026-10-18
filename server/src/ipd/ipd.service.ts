@@ -171,8 +171,10 @@ export class IpdService {
     id: string,
     dto: UpdateAdmissionStatusDto,
   ): Promise<IpdAdmission> {
+    // Under the row lock, like every other write to an admission: its UPDATE
+    // waits on that lock anyway, and the bed check reads what is current.
     return this.prisma.$transaction(async (tx) => {
-      const admission = await tx.ipdAdmission.findFirst({ where: { id, doctorId } });
+      const admission = await this.lockAdmission(tx, id, doctorId);
       if (!admission) throw new NotFoundException('Admission not found');
       // Re-admitting a discharged patient (Discharge → active) must re-check the
       // bed: it may have been reassigned to someone else while they were out.
@@ -180,7 +182,7 @@ export class IpdService {
         await this.assertBedFree(tx, doctorId, admission.bed, id);
       }
       return tx.ipdAdmission.update({ where: { id }, data: { status: dto.status } });
-    });
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
   }
 
   async update(

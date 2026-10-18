@@ -309,6 +309,31 @@ describe('IPD analogue order sheets (integration)', () => {
       expect(sheets.map((s) => s.url)).toEqual(['/uploads/late.jpg']);
     });
 
+    it('a status change that waits more than 5 s behind the row lock still lands', async () => {
+      const { browser, admissionId } = await setup();
+      let release!: () => void;
+      const held = new Promise<void>((r) => (release = r));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((r) => (locked = r));
+      const holder = t.prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT 1 FROM "IpdAdmission" WHERE "id" = ${admissionId} FOR UPDATE`;
+          locked();
+          await held;
+        },
+        { timeout: 30_000 },
+      );
+      await isLocked;
+      const change = browser.patch(`/api/ipd/${admissionId}/status`).send({ status: 'Critical' }).then((r) => r);
+      await new Promise((r) => setTimeout(r, 6_000));
+      release();
+      await holder;
+
+      const res = await change;
+      expect(res.status).toBe(200);
+      expect((await t.prisma.ipdAdmission.findUniqueOrThrow({ where: { id: admissionId } })).status).toBe('Critical');
+    });
+
     it('an edit of the admission that waits more than 5 s behind the row lock still lands', async () => {
       const { browser, admissionId } = await setup();
       let release!: () => void;
