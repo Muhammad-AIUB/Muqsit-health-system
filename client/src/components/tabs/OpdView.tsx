@@ -120,6 +120,11 @@ export default function OpdView() {
             // visit pill and the actions to the second line — so the token is
             // always at the end of the first, beside the name it belongs to.
             <div key={p.id} className="queue-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
+              {/* Serial 1, 2, 3 … in the order shown (physician's request,
+                  18/10/2026). Not the token: T-01 is what the patient is called
+                  by, and it is not renumbered when the queue changes. */}
+              <span data-serial aria-label={`Serial ${i + 1}: ${p.name}`}
+                style={{ minWidth: 22, textAlign: "right", fontSize: 13, fontWeight: 600, color: C.n[700], fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{i + 1}</span>
               <div style={{ width: 34, height: 34, borderRadius: "50%", background: colorOf(color).bg, color: colorOf(color).fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{initials(p.name)}</div>
               <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
