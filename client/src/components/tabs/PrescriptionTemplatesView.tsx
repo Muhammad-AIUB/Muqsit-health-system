@@ -169,7 +169,7 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
     if (!trimmed) { setError("Please enter a template name."); return; }
     // ⚕️ A template is a prescription to be used again: not one with a line the
     // pad cannot write (a >>> dose with no medicine above it, 18/10/2026).
-    if (unwritableRows(rows).length > 0) { setError("A line has no medicine name (marked in red). Type the name, or remove the line."); return; }
+    if (unwritableRows(rows).length > 0) { setError("A line has no medicine name (marked in red). Type the name — for a >>> line, on the line above it — or remove the line."); return; }
     const items = rxItemsFromRows(rows);
     if (items.length === 0) { setError("Add at least one medicine or note."); return; }
     saveMut.mutate(

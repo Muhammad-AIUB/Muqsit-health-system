@@ -747,7 +747,7 @@ CLAUDE.md section before picking one up.
   (`PatientChat.test.tsx`, `PatientMobileLookup.test.tsx`); they pass, and
   were not looked into. (11) **`DEFECT-D4` — the cleaner of the personal
   note's and the header's HTML does not give the same HTML on a second
-  cleaning, for two shapes** (`safeHtml.prop.test.ts`, three `it.fails`): a
+  cleaning, for three shapes** (`safeHtml.prop.test.ts`, four `it.fails`): a
   block inside a pasted table or a button inside a paragraph, and — found
   2026-10-12 — a heading left directly inside a heading when the tag
   between them is taken away (`<h1>a<a><h1>b</h1></a>c</h1>`), and — found

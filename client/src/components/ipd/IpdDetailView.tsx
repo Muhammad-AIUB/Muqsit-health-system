@@ -220,7 +220,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     // >>> dose with no medicine above it was saved under the medicine before
     // (18/10/2026). The pad marks the line in red.
     if (unwritableRows(rows).length > 0) {
-      setSavedMsg("Not saved: a line on the prescription has no medicine name (marked in red). Type the name, or remove the line.");
+      setSavedMsg("Not saved: a line on the prescription has no medicine name (marked in red). Type the name — for a >>> line, on the line above it — or remove the line.");
       setTimeout(() => setSavedMsg(""), 8000);
       return;
     }
@@ -251,7 +251,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // is — the Prescription may be hidden in the view they are in.
   const refuseUnwritable = () => {
     if (unwritableRows(rows).length === 0) return false;
-    setSavedMsg("Not saved: a line on the Prescription has no medicine name (marked in red there). Type the name, or remove the line — nothing typed here is lost.");
+    setSavedMsg("Not saved: a line on the Prescription has no medicine name (marked in red there). Type the name — for a >>> line, on the line above it — or remove the line. Nothing typed here is lost.");
     setTimeout(() => setSavedMsg(""), 8000);
     return true;
   };
