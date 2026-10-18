@@ -30,6 +30,11 @@ import { afterSave, findMatches, pageCount, revisionNotesPrintHtml, PAGE_HEIGHT_
 //    still unsaved when the tab is left is HELD for the signed-in user (in
 //    memory, this page) and saved after whatever is on its way; if that save
 //    fails it is back on the page on return (review, 18/10/2026: it was lost).
+//  • Every save names the user whose notebook it is, and the SERVER refuses it
+//    under anyone else's session: two tabs share one login cookie, and a tab
+//    still showing doctor 1 saved under doctor 2's (release review). That
+//    refusal keeps the typing, says so, and is never offered "Show that
+//    version" — that would read the other account's notebook into this page.
 
 /** How long after the last key the notebook saves itself. */
 const AUTOSAVE_MS = 2000;
@@ -42,6 +47,14 @@ const CONNECTION = "Not saved — check the connection and press Save. What you 
 const STALE_HERE = "Your Revision Notes were changed on another screen. What you typed here is kept — use “Show that version” to see theirs first.";
 /** Saving by itself waits longer after each failure: 2, 4, 8 … up to 60 s. */
 const MAX_BACKOFF_MS = 60_000;
+
+/**
+ * The server's refusal of a save written for another user than the one signed
+ * in now (`server/src/revision-notes`): a 409 like a stale copy, told apart by
+ * its code. Its sentence is the server's, worded for the doctor.
+ */
+const signedInAsAnother = (e: unknown): e is ApiError =>
+  e instanceof ApiError && e.status === 409 && e.code === "SIGNED_IN_USER_CHANGED";
 
 /**
  * The longest notebook that is sent, in characters. Bangla is three bytes a
@@ -115,13 +128,15 @@ function flushHeld(uid: string): Promise<void> {
     if (!h || h.conflict || base === undefined || h.html.length > REVISION_NOTES_MAX) return;
     if (base && base.html === h.html) { held.delete(uid); return; } // already the saved copy
     try {
-      const res = await revisionNotesApi.save({ html: h.html, baseUpdatedAt: base ? base.updatedAt : null });
+      const res = await revisionNotesApi.save({ html: h.html, baseUpdatedAt: base ? base.updatedAt : null, expectedUserId: uid });
       lastSaved.set(uid, res);
       if (held.get(uid)?.html === h.html) held.delete(uid);
     } catch (e) {
       // Refused as written over an older copy: it stays a refusal — never
       // turned into an ordinary edit for the next save to push through.
-      if (e instanceof ApiError && e.status === 409 && held.get(uid)?.html === h.html) held.set(uid, { ...h, conflict: true });
+      // Refused because another account is signed in on this browser now:
+      // nothing about the notebook was refused, and it stays held as it was.
+      if (e instanceof ApiError && e.status === 409 && !signedInAsAnother(e) && held.get(uid)?.html === h.html) held.set(uid, { ...h, conflict: true });
     }
   }).catch(() => { /* kept in `held`, and shown again on return */ });
 }
@@ -274,7 +289,7 @@ export default function RevisionNotesView() {
       const res = await enqueue(() => {
         // Over the copy the last save left — also one made after this tab was left.
         const base = lastSaved.has(uid) ? lastSaved.get(uid) : savedRef.current;
-        return revisionNotesApi.save({ html: sent, baseUpdatedAt: base ? base.updatedAt : null });
+        return revisionNotesApi.save({ html: sent, baseUpdatedAt: base ? base.updatedAt : null, expectedUserId: uid });
       });
       lastSaved.set(uid, res);
       qc.setQueryData(key, res); // the cache holds the copy that is saved, never an older one
@@ -282,7 +297,13 @@ export default function RevisionNotesView() {
       setFailures(0);
       setEdited((now) => afterSave(now, sent));
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
+      if (signedInAsAnother(e)) {
+        // Not a clash over the notebook, so no "Show that version": the typing
+        // stays, saving by itself stops, and Save tries again when pressed —
+        // signed in again as themselves, it goes through.
+        setHold(true);
+        setError(e.message);
+      } else if (e instanceof ApiError && e.status === 409) {
         setConflict(true);
         setError(e.message);
       } else if (e instanceof ApiError && (e.status === 400 || e.status === 403 || e.status === 413)) {

@@ -595,7 +595,7 @@ own notebook, written like a Word page, printed and searched in the app.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/revision-notes` | `{ note: { html, updatedAt } \| null }` — the CALLER's own notebook. |
-| PUT | `/revision-notes` | `SaveRevisionNoteDto { html (≤2,000,000 characters — Bangla at 3 bytes each still fits the 8 MB body limit), baseUpdatedAt (ISO 8601 \| null) }` → `{ html, updatedAt }`. `baseUpdatedAt` is the `updatedAt` of the copy the save was written from (`null` when the writer saw none). Any other copy → **409**, nothing written. |
+| PUT | `/revision-notes` | `SaveRevisionNoteDto { html (≤2,000,000 characters — Bangla at 3 bytes each still fits the 8 MB body limit), baseUpdatedAt (ISO 8601 \| null), expectedUserId (string ≤64, required) }` → `{ html, updatedAt }`. `baseUpdatedAt` is the `updatedAt` of the copy the save was written from (`null` when the writer saw none). Any other copy → **409**, nothing written. `expectedUserId` is the user the page believes is signed in — whose notebook the text is; anyone but `@CurrentUser().id` → **409** `{ message, code: "SIGNED_IN_USER_CHANGED" }`, checked before anything is read, nothing written. Missing → **400**. |
 
 ⚠️ Keyed by `@CurrentUser().id` and nothing else — no workstation, no permission
 key: an assistant has their own notebook and never reads the doctor's, also with
@@ -603,6 +603,16 @@ key: an assistant has their own notebook and never reads the doctor's, also with
 conditional `UPDATE … WHERE updatedAt = base`, so a save landing in between is
 refused too. Not logged to the activity feed; holds no patient data by design.
 Table: `manual-revision-notes.sql` (applied 2026-10-18).
+
+⚠️ `expectedUserId` closes a leak between two tabs of one browser, which share
+one login cookie: a tab still showing doctor 1 sent its autosave (or its flush
+of held text) under doctor 2's session, and where doctor 2 had no notebook yet
+the stale-copy check had nothing to refuse — doctor 1's private text became
+doctor 2's notebook (release review, 18/10/2026). The check is on the server so
+it does not depend on the page; the client shows the refusal by its `code`
+(never "Show that version", which would read the other account's notebook) and
+keeps the typing. An assistant names their OWN id, also inside a doctor's
+workstation — naming the workstation's doctor is refused like any other.
 
 ### 5.15 Medicines — `/medicines` (JWT)
 

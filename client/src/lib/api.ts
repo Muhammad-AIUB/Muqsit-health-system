@@ -165,10 +165,13 @@ export interface LinkPatientInput {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** The server's `code`, where it gives one to tell two refusals of one status apart. */
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
     this.name = "ApiError";
+    if (code !== undefined) this.code = code;
   }
 }
 
@@ -262,13 +265,15 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
     }
 
     let message = `Request failed (${res.status})`;
+    let code: string | undefined;
     try {
       const body = await res.json();
       if (body?.message) message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
+      if (typeof body?.code === "string") code = body.code;
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, code);
   }
 
   if (res.status === 204) return undefined as T;
@@ -488,12 +493,14 @@ export const patientNotesApi = {
 
 // ── Revision Notes (physician's sheet, 18/10/2026, item 4) ────
 // The SIGNED-IN user's own notebook — nobody else's, an assistant's included.
-// A save names the copy it was written from (`baseUpdatedAt`, null for none);
-// the server refuses (409) a save from any other copy.
+// A save names the copy it was written from (`baseUpdatedAt`, null for none)
+// and the user whose notebook it is (`expectedUserId`); the server refuses
+// (409) a save from any other copy, and one for anyone but the session's own
+// user — two tabs share one login cookie (`code: SIGNED_IN_USER_CHANGED`).
 export interface RevisionNote { html: string; updatedAt: string }
 export const revisionNotesApi = {
   get: () => apiFetch<{ note: RevisionNote | null }>("/revision-notes").then((r) => r.note),
-  save: (input: { html: string; baseUpdatedAt: string | null }) =>
+  save: (input: { html: string; baseUpdatedAt: string | null; expectedUserId: string }) =>
     apiFetch<RevisionNote>("/revision-notes", { method: "PUT", body: JSON.stringify(input) }),
 };
 

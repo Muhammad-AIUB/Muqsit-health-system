@@ -22,7 +22,8 @@ export class RevisionNotesController {
     return { note: await this.notes.get(user.id) };
   }
 
-  // PUT /api/revision-notes { html, baseUpdatedAt } → { html, updatedAt }; 409 when stale.
+  // PUT /api/revision-notes { html, baseUpdatedAt, expectedUserId } → { html, updatedAt };
+  // 409 when stale, or when written for anyone but the signed-in user.
   @Put()
   save(@CurrentUser() user: AuthenticatedUser, @Body() dto: SaveRevisionNoteDto) {
     return this.notes.save(user.id, dto);

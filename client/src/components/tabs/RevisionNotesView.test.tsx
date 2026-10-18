@@ -76,7 +76,7 @@ describe("Revision Notes", () => {
     type("<p>new</p>");
     expect(status()).toMatch(/Unsaved/);
     await act(async () => { fireEvent.click(saveBtn()); });
-    expect(api.save).toHaveBeenCalledWith({ html: "<p>new</p>", baseUpdatedAt: T1 });
+    expect(api.save).toHaveBeenCalledWith({ html: "<p>new</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
     await until(() => expect(status()).toMatch(/^Saved/));
   });
 
@@ -87,7 +87,7 @@ describe("Revision Notes", () => {
     vi.useFakeTimers();
     type("<p>auto</p>");
     await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
-    expect(api.save).toHaveBeenCalledWith({ html: "<p>auto</p>", baseUpdatedAt: T1 });
+    expect(api.save).toHaveBeenCalledWith({ html: "<p>auto</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
   });
 
   it("the first save of a new notebook says it saw none", async () => {
@@ -97,7 +97,7 @@ describe("Revision Notes", () => {
     await until(() => expect(surface()).toBeTruthy());
     type("<p>first</p>");
     await act(async () => { fireEvent.click(saveBtn()); });
-    expect(api.save).toHaveBeenCalledWith({ html: "<p>first</p>", baseUpdatedAt: null });
+    expect(api.save).toHaveBeenCalledWith({ html: "<p>first</p>", baseUpdatedAt: null, expectedUserId: "doc-1" });
   });
 
   it("what is typed while a save is on its way stays unsaved, and is saved next over the NEW copy", async () => {
@@ -113,7 +113,7 @@ describe("Revision Notes", () => {
     expect(surface().innerHTML).toBe("<p>ab</p>");
     api.save.mockResolvedValueOnce({ html: "<p>ab</p>", updatedAt: "2026-10-18T10:06:00.000Z" });
     await act(async () => { fireEvent.click(saveBtn()); });
-    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>ab</p>", baseUpdatedAt: T2 });
+    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>ab</p>", baseUpdatedAt: T2, expectedUserId: "doc-1" });
   });
 
   it("a save refused because another screen changed it keeps the typing and says so", async () => {
@@ -176,7 +176,7 @@ describe("Revision Notes", () => {
     unmount();
     await act(async () => { land({ html: "<p>a</p>", updatedAt: T2 }); });
     await until(() => expect(api.save).toHaveBeenCalledTimes(2));
-    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>ab</p>", baseUpdatedAt: T2 });
+    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>ab</p>", baseUpdatedAt: T2, expectedUserId: "doc-1" });
   });
 
   it("…and when that save fails, the text is back on the page on return", async () => {
@@ -347,7 +347,7 @@ describe("Revision Notes", () => {
     api.save.mockResolvedValueOnce({ html: "<p>held</p>", updatedAt: T2 });
     const { runBeforeLogout } = await import("@/lib/beforeLogout");
     await act(async () => { await runBeforeLogout(); });
-    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1 });
+    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
   });
 
   it("text held after the tab is left is tried again when the connection comes back", async () => {
@@ -359,7 +359,7 @@ describe("Revision Notes", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     api.save.mockResolvedValueOnce({ html: "<p>held</p>", updatedAt: T2 });
     await act(async () => { window.dispatchEvent(new Event("online")); await new Promise((r) => setTimeout(r, 0)); });
-    await until(() => expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1 }));
+    await until(() => expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" }));
   });
 
   // Second review: a failing server was asked again every two seconds, for ever.
@@ -404,5 +404,61 @@ describe("Revision Notes", () => {
     await act(async () => { window.dispatchEvent(new Event("online")); await new Promise((r) => setTimeout(r, 10)); });
     await until(() => expect(api.save).toHaveBeenCalledTimes(1));
   });
-});
 
+  // ⚕️ Two tabs share one login cookie. This tab still shows doctor 1; doctor 2
+  // signed in on another tab, so this tab's saves go out under doctor 2's
+  // session. Every save names whose notebook it is, and the server refuses it
+  // under anyone else's (release review, 18/10/2026: with no notebook of doctor
+  // 2's yet, doctor 1's text became it).
+  const OTHER_USER = "Not saved: a different account has signed in on this browser since this page was opened, and these Revision Notes are not that account’s. What you typed is still on this screen — copy it, sign in again as yourself, then save.";
+  const otherUser = () => new ApiError(409, OTHER_USER, "SIGNED_IN_USER_CHANGED");
+
+  it("a save refused because another account is signed in keeps the typing, says so, and offers no other version", async () => {
+    api.save.mockRejectedValue(otherUser());
+    view();
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+    type("<p>doc-1's own</p>");
+    await act(async () => { fireEvent.click(saveBtn()); });
+    expect(screen.getByRole("alert").textContent).toBe(OTHER_USER);
+    expect(surface().innerHTML).toBe("<p>doc-1's own</p>");
+    expect(status()).toMatch(/Unsaved/);
+    // "Show that version" would read the OTHER account's notebook into this page.
+    expect(screen.queryByRole("button", { name: "Show that version" })).toBeNull();
+  });
+
+  it("…is not sent again by itself, and Save tries again when pressed", async () => {
+    api.save.mockRejectedValueOnce(otherUser());
+    view();
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    type("<p>mine</p>");
+    for (let i = 0; i < 15; i++) await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(api.save).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert").textContent).toBe(OTHER_USER);
+    // Signed in again as themselves (on any tab), the doctor presses Save.
+    expect(saveBtn().disabled).toBe(false);
+    api.save.mockResolvedValueOnce({ html: "<p>mine</p>", updatedAt: T2 });
+    await act(async () => { fireEvent.click(saveBtn()); });
+    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>mine</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
+    await until(() => expect(status()).toMatch(/^Saved/));
+  });
+
+  it("held text refused because another account is signed in stays held — back as unsaved text, not as a clash with another screen", async () => {
+    api.save.mockRejectedValueOnce(otherUser());
+    const first = view();
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+    type("<p>held</p>");
+    first.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(api.save).toHaveBeenCalledTimes(1);
+    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
+    cleanup();
+    api.save.mockResolvedValueOnce({ html: "<p>held</p>", updatedAt: T2 });
+    view();
+    await until(() => expect(surface().innerHTML).toBe("<p>held</p>"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(status()).toMatch(/Unsaved/);
+    await until(() => expect(api.save).toHaveBeenCalledTimes(2));
+    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
+  });
+});

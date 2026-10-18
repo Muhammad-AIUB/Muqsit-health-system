@@ -12,6 +12,11 @@ export interface RevisionNoteView {
 const STALE =
   'Your Revision Notes were changed on another screen. Reload them to see that version before saving — what you typed here stays on this screen.';
 
+/** The body's `code` for a save written for another user — the client tells it from a stale copy by this. */
+const SIGNED_IN_USER_CHANGED = 'SIGNED_IN_USER_CHANGED';
+const OTHER_USER =
+  'Not saved: a different account has signed in on this browser since this page was opened, and these Revision Notes are not that account’s. What you typed is still on this screen — copy it, sign in again as yourself, then save.';
+
 /**
  * "Revision Notes" — the SIGNED-IN user's own notebook (physician's sheet,
  * 18/10/2026, item 4).
@@ -21,6 +26,11 @@ const STALE =
  *  • A save is accepted only over the copy it was written from. The check and
  *    the write are ONE conditional statement (`update … where updatedAt`),
  *    so a save landing in between is refused too — never written over.
+ *  • A save is accepted only for the user it was written for
+ *    (`expectedUserId`). Two tabs share one login cookie: a tab still showing
+ *    doctor 1 sent its autosave under doctor 2's session, and where doctor 2
+ *    had no notebook yet, doctor 1's text became it (release review,
+ *    18/10/2026). Checked before anything is read, here, not in the client.
  */
 @Injectable()
 export class RevisionNotesService implements OnModuleInit {
@@ -48,6 +58,9 @@ export class RevisionNotesService implements OnModuleInit {
   }
 
   async save(userId: string, dto: SaveRevisionNoteDto): Promise<RevisionNoteView> {
+    if (dto.expectedUserId !== userId) {
+      throw new ConflictException({ statusCode: 409, error: 'Conflict', message: OTHER_USER, code: SIGNED_IN_USER_CHANGED });
+    }
     const stored = await this.get(userId);
     const base = dto.baseUpdatedAt ?? null;
 

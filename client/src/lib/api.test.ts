@@ -5,6 +5,7 @@ import {
   medicinesApi,
   onAuthFailure,
   patientsApi,
+  revisionNotesApi,
   setActiveWorkstationId,
 } from "./api";
 import { installApiStub, type ApiStub } from "@/test/apiStub";
@@ -56,6 +57,15 @@ describe("apiFetch — every request", () => {
   it("percent-encodes what is typed into a query", async () => {
     api.on("GET", "/medicines/search?q=napa%20%26%20co%2F500", { json: [] });
     await medicinesApi.search("napa & co/500");
+  });
+
+  // ⚕️ Two tabs share one login cookie: a save names the user whose notebook it
+  // is, and the server refuses it under anyone else's session (release review,
+  // 18/10/2026).
+  it("a Revision Notes save says whose notebook it is", async () => {
+    api.on("PUT", "/revision-notes", { json: { html: "<p>x</p>", updatedAt: "2026-10-18T10:00:00.000Z" } });
+    await revisionNotesApi.save({ html: "<p>x</p>", baseUpdatedAt: null, expectedUserId: "doc-1" });
+    expect(api.calls[0].body).toEqual({ html: "<p>x</p>", baseUpdatedAt: null, expectedUserId: "doc-1" });
   });
 });
 
@@ -186,6 +196,19 @@ describe("apiFetch — a refusal reaches the doctor in the server's words", () =
     api.on("GET", "/patients", { status: 502 }).on("GET", "/patients", { status: 500, json: {} });
     await expect(patientsApi.list()).rejects.toThrow("Request failed (502)");
     await expect(patientsApi.list()).rejects.toThrow("Request failed (500)");
+  });
+
+  // Two refusals can share a status: a 409 on Revision Notes is "another screen
+  // saved first" or "another account is signed in now", and only the first may
+  // offer the other version (which would read that account's notebook).
+  it("carries the server's code, when it gives one, beside the message", async () => {
+    api.on("PUT", "/revision-notes", { status: 409, json: { message: "Not saved: another account.", code: "SIGNED_IN_USER_CHANGED" } })
+      .on("PUT", "/revision-notes", { status: 409, json: { message: "Changed on another screen." } });
+    const a = await revisionNotesApi.save({ html: "x", baseUpdatedAt: null, expectedUserId: "doc-1" }).catch((e) => e);
+    expect(a).toMatchObject({ status: 409, message: "Not saved: another account.", code: "SIGNED_IN_USER_CHANGED" });
+    const b = await revisionNotesApi.save({ html: "x", baseUpdatedAt: null, expectedUserId: "doc-1" }).catch((e) => e);
+    expect(b).toBeInstanceOf(ApiError);
+    expect(b.code).toBeUndefined();
   });
 
   it("does not refresh or log anyone out for a 403 / 404 / 409", async () => {

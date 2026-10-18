@@ -7,23 +7,26 @@ import { resetDb } from './support/test-db';
 // 18/10/2026, item 4), through the real HTTP pipeline and the real database.
 // What it has to hold: each signed-in user has their OWN notebook — the
 // assistant of a doctor never reads the doctor's, even inside the doctor's
-// workstation — and a save from a copy that is no longer the stored one is
-// refused (409), never written over another device's pages.
+// workstation — a save from a copy that is no longer the stored one is
+// refused (409), never written over another device's pages, and a save the
+// page wrote for one user never lands in another's notebook.
 
 type Browser = ReturnType<TestApp['agent']>;
 
 describe('/api/revision-notes', () => {
   let t: TestApp;
-  let A: User, asst: User;
-  let a: Browser, as: Browser;
+  let A: User, B: User, asst: User;
+  let a: Browser, b: Browser, as: Browser;
 
   beforeAll(async () => {
     t = await createTestApp();
     await resetDb(t.prisma);
     A = await makeDoctor(t.prisma);
+    B = await makeDoctor(t.prisma);
     asst = await makeDoctor(t.prisma, { accountTier: 'secondary' });
     await makeAssistantLink(t.prisma, A.id, asst.id, []);
     a = await loginAs(t, A);
+    b = await loginAs(t, B);
     as = await loginAs(t, asst);
   });
   afterAll(async () => {
@@ -42,9 +45,9 @@ describe('/api/revision-notes', () => {
   });
 
   it('saves, reads back, and saves over the copy it was written from', async () => {
-    const first = await a.put('/api/revision-notes').send({ html: '<p><b>Hepatitis B</b> — page 1</p>', baseUpdatedAt: null });
+    const first = await a.put('/api/revision-notes').send({ html: '<p><b>Hepatitis B</b> — page 1</p>', baseUpdatedAt: null, expectedUserId: A.id });
     expect(first.status).toBe(200);
-    const second = await a.put('/api/revision-notes').send({ html: '<p>page 2</p>', baseUpdatedAt: first.body.updatedAt });
+    const second = await a.put('/api/revision-notes').send({ html: '<p>page 2</p>', baseUpdatedAt: first.body.updatedAt, expectedUserId: A.id });
     expect(second.status).toBe(200);
     const read = await a.get('/api/revision-notes');
     expect(read.body.note.html).toBe('<p>page 2</p>');
@@ -56,25 +59,25 @@ describe('/api/revision-notes', () => {
   // `updatedAt` on (review, 18/10/2026).
   it('refuses a second save from the same copy', async () => {
     const base = (await a.get('/api/revision-notes')).body.note.updatedAt;
-    const one = await a.put('/api/revision-notes').send({ html: '<p>screen one</p>', baseUpdatedAt: base });
+    const one = await a.put('/api/revision-notes').send({ html: '<p>screen one</p>', baseUpdatedAt: base, expectedUserId: A.id });
     expect(one.status).toBe(200);
     expect(one.body.updatedAt).not.toBe(base);
-    const two = await a.put('/api/revision-notes').send({ html: '<p>screen two</p>', baseUpdatedAt: base });
+    const two = await a.put('/api/revision-notes').send({ html: '<p>screen two</p>', baseUpdatedAt: base, expectedUserId: A.id });
     expect(two.status).toBe(409);
     expect((await a.get('/api/revision-notes')).body.note.html).toBe('<p>screen one</p>');
     // Put back what the later cases read.
-    await a.put('/api/revision-notes').send({ html: '<p>page 2</p>', baseUpdatedAt: one.body.updatedAt });
+    await a.put('/api/revision-notes').send({ html: '<p>page 2</p>', baseUpdatedAt: one.body.updatedAt, expectedUserId: A.id });
   });
 
   it('refuses a notebook longer than the client sends', async () => {
     const now = (await a.get('/api/revision-notes')).body.note;
-    const res = await a.put('/api/revision-notes').send({ html: 'x'.repeat(2_000_001), baseUpdatedAt: now.updatedAt });
+    const res = await a.put('/api/revision-notes').send({ html: 'x'.repeat(2_000_001), baseUpdatedAt: now.updatedAt, expectedUserId: A.id });
     expect(res.status).toBe(400);
   });
 
   it('refuses a save from an older copy and keeps what is stored', async () => {
     const now = (await a.get('/api/revision-notes')).body.note;
-    const stale = await a.put('/api/revision-notes').send({ html: 'from an older screen', baseUpdatedAt: '2020-01-01T00:00:00.000Z' });
+    const stale = await a.put('/api/revision-notes').send({ html: 'from an older screen', baseUpdatedAt: '2020-01-01T00:00:00.000Z', expectedUserId: A.id });
     expect(stale.status).toBe(409);
     expect(stale.body.message).toMatch(/another screen/);
     expect((await a.get('/api/revision-notes')).body.note).toEqual(now);
@@ -86,14 +89,42 @@ describe('/api/revision-notes', () => {
     const inWs = await as.get('/api/revision-notes').set('X-Workstation', A.id);
     expect(inWs.body).toEqual({ note: null });
     // And writing their own does not touch the doctor's.
-    await as.put('/api/revision-notes').set('X-Workstation', A.id).send({ html: 'assistant notes', baseUpdatedAt: null });
+    await as.put('/api/revision-notes').set('X-Workstation', A.id).send({ html: 'assistant notes', baseUpdatedAt: null, expectedUserId: asst.id });
     expect((await a.get('/api/revision-notes')).body.note.html).toBe('<p>page 2</p>');
   });
 
   it('drops a field the DTO does not declare', async () => {
     const now = (await a.get('/api/revision-notes')).body.note;
-    const res = await a.put('/api/revision-notes').send({ html: 'kept', baseUpdatedAt: now.updatedAt, userId: asst.id });
+    const res = await a.put('/api/revision-notes').send({ html: 'kept', baseUpdatedAt: now.updatedAt, expectedUserId: A.id, userId: asst.id });
     expect(res.status).toBe(200);
     expect((await as.get('/api/revision-notes')).body.note.html).toBe('assistant notes');
+  });
+
+  // ⚕️ Two tabs share one login cookie. Tab A still shows doctor A; doctor B
+  // signs in on tab B, and tab A's autosave (or its flush of held text when
+  // the connection comes back) goes out under B's session. B has no notebook
+  // yet, so the stale-copy check has nothing to refuse — and A's private text
+  // became B's notebook (release review, 18/10/2026).
+  it("refuses a save written for another user — nothing lands in the signed-in user's notebook", async () => {
+    const res = await b.put('/api/revision-notes').send({ html: "<p>A's private notes</p>", baseUpdatedAt: null, expectedUserId: A.id });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('SIGNED_IN_USER_CHANGED');
+    expect(res.body.message).toMatch(/signed in/i);
+    expect((await b.get('/api/revision-notes')).body).toEqual({ note: null });
+    expect((await a.get('/api/revision-notes')).body.note.html).toBe('kept');
+  });
+
+  it("an assistant naming the workstation's doctor is refused too — the key is who is signed in", async () => {
+    const own = (await as.get('/api/revision-notes')).body.note;
+    const res = await as.put('/api/revision-notes').set('X-Workstation', A.id).send({ html: 'into the doctor?', baseUpdatedAt: own.updatedAt, expectedUserId: A.id });
+    expect(res.status).toBe(409);
+    expect((await as.get('/api/revision-notes')).body.note).toEqual(own);
+    expect((await a.get('/api/revision-notes')).body.note.html).toBe('kept');
+  });
+
+  it('refuses a save that does not say whose text it is', async () => {
+    const res = await b.put('/api/revision-notes').send({ html: 'whose?', baseUpdatedAt: null });
+    expect(res.status).toBe(400);
+    expect((await b.get('/api/revision-notes')).body).toEqual({ note: null });
   });
 });
