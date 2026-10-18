@@ -163,7 +163,10 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
               also capped in `vh` so a laptop or a phone in landscape never gets a
               pad taller than its own screen — and the min stays below the max at
               every viewport height, or min-height would win and kill the scroll. */}
+          {/* A new visit is a new pad: what it holds of its own (✎ Edit, the
+              "keeps its name" notice, a drag) is not carried to the next patient. */}
           <MedicinePad
+            key={editorEpoch}
             rows={rows}
             setRows={setRows}
             minHeight={mobile ? "min(280px, 45vh)" : "min(400px, 50vh)"}

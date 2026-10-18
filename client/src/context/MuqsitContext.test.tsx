@@ -406,6 +406,25 @@ describe("a device receiving the mirror does not persist it (G3)", () => {
   });
 });
 
+// ⚕️ Third review of the >>> fix (18/10/2026): another patient arriving through
+// the device mirror is a new visit, like `resetEditor`'s, and redraws the ℞ pad
+// (`editorEpoch` → lib/usePadSync.ts). It did not: a pad holding only lines it
+// cannot write kept them on the next patient, whose `rxItems` were [] as well.
+describe("a visit received through the mirror redraws the ℞ pad", () => {
+  it("another patient moves the editor epoch on; the same patient does not", async () => {
+    const { result } = await setup();
+    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "X", rxItems: [] }));
+    await tick(50);
+    const before = result.current.editorEpoch;
+    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "X", rxItems: [] }));
+    await tick(50);
+    expect(result.current.editorEpoch).toBe(before);
+    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "Y", rxItems: [] }));
+    await tick(50);
+    expect(result.current.editorEpoch).not.toBe(before);
+  });
+});
+
 describe("practice boundaries (G4 / G5)", () => {
   it("ignores a mirror snapshot from another practice, and stamps its own", async () => {
     const { result } = await setup();

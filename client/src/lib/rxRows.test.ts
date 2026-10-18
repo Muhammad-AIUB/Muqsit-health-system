@@ -91,6 +91,53 @@ describe("rowsFromRxItems — a saved taper comes back as a continuation", () =>
   });
 });
 
+// ⚕️ Third review (18/10/2026). A >>> line with no medicine line above it — at
+// the top, or straight under a note — comes only from data saved before the fix.
+// Drawn as a >>> line it was the taper of whatever an edit put above it: ▲ on a
+// medicine, or × tidying away a blank note, gave its dose to another medicine.
+// It is drawn as a line of its own, with no name: marked, refused at Save, and
+// nobody's taper.
+describe("rowsFromRxItems — a >>> line with no medicine line above it is a line of its own", () => {
+  const head = (drug: string, dose = "1+0+1"): RxItem => ({ drug, dose, duration: "", instruction: "", isCont: false });
+  const cont = (dose: string, drug = ""): RxItem => ({ drug, dose, duration: "", instruction: "", isCont: true });
+  const noteItem = (drug: string): RxItem => ({ drug, dose: "", duration: "", instruction: "", isNote: true });
+  const shape = (rows: Row[]) => rows.map((r) => [r.isMedicine ? (r.continuation ? ">>>" : "med") : "note", r.drug, r.dose]);
+
+  it("at the top of the pad", () => {
+    const rows = rowsFromRxItems([cont("0+0+1"), head("Tablet. Napa 500 mg")]);
+    expect(rows[0]).toMatchObject({ drug: "", dose: "0+0+1", isMedicine: true, continuation: false });
+    expect(unwritableRows(rows)).toEqual([0]);
+    expect(rxItemsFromRows(rows).map((i) => i.drug)).toEqual(["Tablet. Napa 500 mg"]);
+  });
+
+  it("straight under a note — and the >>> lines after it stay under it", () => {
+    const rows = rowsFromRxItems([head("Tablet. Napa 500 mg"), noteItem("Bed rest"), cont("1+0+1"), cont("0+0+1")]);
+    expect(shape(rows.slice(0, 4))).toEqual([
+      ["med", "Tablet. Napa 500 mg", "1+0+1"],
+      ["note", "Bed rest", ""],
+      ["med", "", "1+0+1"],
+      [">>>", "", "0+0+1"],
+    ]);
+    expect(rxItemsFromRows(rows).map((i) => i.drug)).toEqual(["Tablet. Napa 500 mg", "Bed rest"]);
+  });
+
+  it("a name an older save filled into it is not taken for its own", () => {
+    // savePrescription filled the medicine BEFORE the note into it.
+    const rows = rowsFromRxItems([head("Tablet. Napa 500 mg"), noteItem("Bed rest"), cont("0+0+1", "Tablet. Napa 500 mg")]);
+    expect(rows[2]).toMatchObject({ drug: "", dose: "0+0+1", continuation: false });
+  });
+
+  it("saved before the flag existed (a blank name straight under a note)", () => {
+    const rows = rowsFromRxItems([head("Tablet. A 5mg"), noteItem("Bed rest"), { drug: "", dose: "2", duration: "", instruction: "" }]);
+    expect(rows[2]).toMatchObject({ isMedicine: true, continuation: false, dose: "2" });
+  });
+
+  it("a >>> line under a medicine is still that medicine's", () => {
+    const rows = rowsFromRxItems([head("Tablet. Napa 500 mg"), cont("0+0+1"), cont("0+0+½")]);
+    expect(shape(rows.slice(0, 3)).map((r) => r[0])).toEqual(["med", ">>>", ">>>"]);
+  });
+});
+
 describe("round trip — a taper survives rows → items → rows", () => {
   it("keeps one head and one continuation, in order", () => {
     const before: Row[] = [

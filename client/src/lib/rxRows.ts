@@ -18,13 +18,26 @@ import type { RxItem } from "@/types";
 import { emptyRow, type Row } from "@/components/prescription/MedicinePad";
 
 export function rowsFromRxItems(items: RxItem[]): Row[] {
+  // ⚕️ A >>> line is drawn as one only under a MEDICINE line (named or not).
+  // One at the top or straight under a note — only data saved before
+  // 18/10/2026 holds one — is drawn as a line of its own with no name: marked,
+  // refused at Save, and nobody's taper. Drawn as a >>> line, it was the taper
+  // of whatever an edit put above it: ▲ on a medicine, or × tidying away a
+  // blank note, gave its dose to another medicine (third review). A name an
+  // older save filled into it was the medicine before's, and is not taken.
+  let underMedicine = false;
   const rows: Row[] = items.map((it, i) => {
-    if (it.isNote) return { drug: it.drug, dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false };
+    if (it.isNote) {
+      underMedicine = false;
+      return { drug: it.drug, dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false };
+    }
     // Prefer the recorded flag; fall back to the blank drug for anything saved
     // before the flag existed. `?? ` and not `||` — `isCont: false` is a real
     // answer ("this is a head"), not a missing one.
     const isCont = it.isCont ?? (it.drug.trim() === "" && i > 0);
-    return { drug: isCont ? "" : it.drug, dose: it.dose, food: it.instruction, duration: it.duration, checked: true, isMedicine: true, continuation: isCont, sf: it.sf, generic: it.generic, fromHabit: it.fromHabit };
+    const cont = isCont && underMedicine;
+    underMedicine = true;
+    return { drug: isCont ? "" : it.drug, dose: it.dose, food: it.instruction, duration: it.duration, checked: true, isMedicine: true, continuation: cont, sf: it.sf, generic: isCont ? undefined : it.generic, fromHabit: it.fromHabit };
   });
   rows.push(emptyRow());
   return rows;
@@ -75,6 +88,13 @@ const filled = (r: Row) => !!(r.dose.trim() || r.duration.trim() || r.food.trim(
  * Save, the template editor's, "+ Add medicine"), and the pad marks each one.
  * Before 18/10/2026 such a `>>>` line was saved and PRINTED under the medicine
  * before it: a dose for the wrong drug (physician: "dangerous bug").
+ *
+ * Such a line lives on the pad's rows only, never in `rxItems`: the draft and
+ * the device mirror do not carry it, and a pad drawn again from `rxItems`
+ * (another tab, a reload, another patient, a change made elsewhere) is drawn
+ * without it, with nothing said. That is the cost of `rxItems` holding only
+ * what can be written — every reader of it (the printed sheet reads a nameless
+ * line as a `>>>` line) stays safe without a check of its own.
  */
 export function unwritableRows(rows: Row[]): number[] {
   const out: number[] = [];

@@ -257,7 +257,11 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // name in bold — see the medicine column below.
   const [drugFocus, setDrugFocus] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const move = (idx: number, dir: -1 | 1) => { setAcRow(null); setRows((prev) => moveBlock(prev, idx, dir)); };
+  // The line whose name was put back (`keepNameIfTapered`), and the name: the
+  // notice is shown under that medicine only, and goes when lines are moved or
+  // taken off — it was left under the line that took its place (third review).
+  const [nameKept, setNameKept] = useState<{ idx: number; drug: string } | null>(null);
+  const move = (idx: number, dir: -1 | 1) => { setAcRow(null); setNameKept(null); setRows((prev) => moveBlock(prev, idx, dir)); };
   const drugRefs = useRef<(HTMLInputElement | null)[]>([]);
   // The row each dropdown hangs off, measured against the viewport.
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -276,35 +280,51 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // between steps — a quick sweep across three lines, which a browser reports
   // as only two pointer events, moved the line two places.
   type DragRow = Row & { h: number };
-  const drag = useRef<{ at: number; list: DragRow[]; top0: number } | null>(null);
+  // `list` is taken at the first move, not at pickup: picking a line up leaves
+  // the name box first (below), and what that does to the rows — a name put
+  // back — lands in the render after the press.
+  const drag = useRef<{ at: number; list: DragRow[] | null; heights: number[]; top0: number } | null>(null);
   const [dragAt, setDragAt] = useState<number | null>(null);
+  const rowsNow = useRef(rows);
+  rowsNow.current = rows;
 
   const startDrag = (idx: number) => {
     const first = rowRefs.current[0]?.getBoundingClientRect();
     if (!first) return;
-    const list = rows.map((r, i) => ({ ...r, h: rowRefs.current[i]?.getBoundingClientRect().height ?? ROW_H }));
-    drag.current = { at: idx, list, top0: first.top };
+    // ⚕️ The caret leaves the pad's boxes first. Rows are keyed by position: a
+    // box kept through a drag shows another line's text afterwards, and a name
+    // emptied there was put back from the line that had been in it — over
+    // another medicine's >>> lines (third review).
+    const active = document.activeElement as HTMLElement | null;
+    if (active && rowRefs.current.some((el) => el?.contains(active))) active.blur();
+    setNameKept(null);
+    const heights = rows.map((_, i) => rowRefs.current[i]?.getBoundingClientRect().height ?? ROW_H);
+    drag.current = { at: idx, list: null, heights, top0: first.top };
     setDragAt(idx);
   };
   const dragStep = (clientY: number) => {
     const d = drag.current;
     if (!d) return;
+    const list0 = d.list ?? rowsNow.current.map((r, i) => ({ ...r, h: d.heights[i] ?? ROW_H }));
     // The pad can scroll mid-drag: re-anchor on where its first row is now.
     const top0 = rowRefs.current[0]?.getBoundingClientRect().top ?? d.top0;
+    let { at } = d;
+    let list = list0;
+    // Heights travel with their rows, so they are read off the list as it is now.
     const mid = (b: [number, number]) => {
       let y = top0;
-      for (let i = 0; i < b[0]; i++) y += d.list[i].h;
+      for (let i = 0; i < b[0]; i++) y += list[i].h;
       let h = 0;
-      for (let i = b[0]; i < b[1]; i++) h += d.list[i].h;
+      for (let i = b[0]; i < b[1]; i++) h += list[i].h;
       return y + h / 2;
     };
-    let { at, list } = d;
     // As many single steps as the pointer has crossed block middles — one
-    // neighbour at a time, the same rule in both directions.
+    // neighbour at a time, the same rule in both directions — and never a step
+    // `canMove` refuses.
     for (let guard = 0; guard < list.length; guard++) {
       const b = blockOf(list, at);
       if (!b) break;
-      const above = b[0] > 0 ? blockOf(list, b[0] - 1) : null;
+      const above = canMove(list, at, -1) ? blockOf(list, b[0] - 1) : null;
       const below = canMove(list, at, 1) ? blockOf(list, b[1]) : null;
       if (above && clientY < mid(above)) {
         list = moveBlock(list, at, -1);
@@ -314,8 +334,11 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
         at = b[0] + (below[1] - below[0]);
       } else break;
     }
-    if (list === d.list) return;
-    drag.current = { at, list, top0 };
+    if (list === list0) {
+      if (!d.list) drag.current = { ...d, list: list0 };
+      return;
+    }
+    drag.current = { at, list, heights: d.heights, top0 };
     setDragAt(at);
     setRows(list.map((x) => { const r: Row & { h?: number } = { ...x }; delete r.h; return r; }));
   };
@@ -474,34 +497,49 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // `moveBlock` moves. Left behind, a taper (no drug name of its own) would
   // silently become a taper of the medicine above it. × on a taper line
   // removes only that line.
-  const removeRow = (idx: number) =>
+  const removeRow = (idx: number) => {
+    setNameKept(null);
     setRows((prev) => {
       const [from, to] = (!prev[idx]?.continuation && blockOf(prev, idx)) || [idx, idx + 1];
       const kept = prev.filter((_, i) => i < from || i >= to);
-      // ⚕️ Empty lines are tidied away — but never a line with >>> lines under
-      // it: gone, its >>> lines would stand under the medicine above and be
-      // saved and printed as THAT medicine's doses (review, 18/10/2026).
+      // ⚕️ Empty lines are tidied away — but never the line straight above a
+      // >>> line: gone, the >>> line would stand under the medicine above and be
+      // saved and printed as THAT medicine's dose (review, 18/10/2026; a blank
+      // NOTE too — third review).
       const filled = kept.filter((r, i) =>
         r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim() ||
-        (r.isMedicine && !r.continuation && !!kept[i + 1]?.continuation));
+        (!r.continuation && !!kept[i + 1]?.continuation));
       return [...filled, emptyRow()];
     });
+  };
 
   // ⚕️ A medicine that has >>> lines keeps its name (18/10/2026). Emptied and
   // left, the name it had when the box was entered comes back, and the pad says
   // how to take it off (× takes its >>> lines too) or change it (type the new
   // name). Cleared, its >>> lines had no medicine — and were saved and printed
   // under the medicine above it.
-  const nameAtFocus = useRef<{ idx: number; drug: string; generic?: string; fromHabit?: Row["fromHabit"] } | null>(null);
-  const [nameKept, setNameKept] = useState<number | null>(null);
+  //
+  // Put back only onto the very >>> lines it had when the box was entered (the
+  // same row objects): rows are keyed by position, and lines drawn again under
+  // the caret — another device, a move — are another medicine's. Then nothing
+  // is put back and the line is marked instead (third review: Barcavir 0.5 mg
+  // went back over 1 mg's >>> line).
+  const tapersOf = (list: Row[], idx: number) => {
+    const out: Row[] = [];
+    for (let i = idx + 1; i < list.length && list[i].continuation; i++) out.push(list[i]);
+    return out;
+  };
+  const nameAtFocus = useRef<{ idx: number; drug: string; generic?: string; fromHabit?: Row["fromHabit"]; tapers: Row[] } | null>(null);
   const keepNameIfTapered = (idx: number) => {
     const snap = nameAtFocus.current;
     nameAtFocus.current = null;
     const row = rows[idx];
     if (!snap || snap.idx !== idx || !row || !row.isMedicine || row.continuation) return;
-    if (row.drug.trim() || !snap.drug.trim() || !rows[idx + 1]?.continuation) return;
+    if (row.drug.trim() || !snap.drug.trim()) return;
+    const tapers = tapersOf(rows, idx);
+    if (tapers.length === 0 || tapers.length !== snap.tapers.length || tapers.some((r, i) => r !== snap.tapers[i])) return;
     updateRow(idx, { drug: snap.drug, generic: snap.generic, fromHabit: snap.fromHabit });
-    setNameKept(idx);
+    setNameKept({ idx, drug: snap.drug });
   };
 
   // The new taper goes after any tapers already under this medicine, and the
@@ -681,8 +719,8 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                       <input
                         ref={(el) => { drugRefs.current[idx] = el; }}
                         value={row.drug}
-                        onChange={(e) => { updateRow(idx, { drug: e.target.value, generic: undefined, fromHabit: undefined }); setAcRow(idx); if (nameKept === idx) setNameKept(null); }}
-                        onFocus={() => { setAcRow(idx); setDrugFocus(idx); nameAtFocus.current = { idx, drug: row.drug, generic: row.generic, fromHabit: row.fromHabit }; }}
+                        onChange={(e) => { updateRow(idx, { drug: e.target.value, generic: undefined, fromHabit: undefined }); setAcRow(idx); if (nameKept?.idx === idx) setNameKept(null); }}
+                        onFocus={() => { setAcRow(idx); setDrugFocus(idx); nameAtFocus.current = { idx, drug: row.drug, generic: row.generic, fromHabit: row.fromHabit, tapers: tapersOf(rows, idx) }; }}
                         onBlur={() => { keepNameIfTapered(idx); setDrugFocus((r) => (r === idx ? null : r)); setTimeout(() => setAcRow((r) => (r === idx ? null : r)), 150); }}
                         placeholder={isLastEmpty ? (noteText ?? "Start typing a medicine or note…") : ""}
                         autoComplete="off"
@@ -933,7 +971,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                   : "This line has a dose, food or duration but no medicine name. Type the name, or remove the line — it will not be saved or printed as it is."}
               </div>
             )}
-            {nameKept === idx && !unwritable.has(idx) && (
+            {nameKept?.idx === idx && nameKept.drug === row.drug && !unwritable.has(idx) && (
               <div role="status" style={{ fontSize: 11.5, lineHeight: 1.4, color: C.n[700], background: C.n[50], borderBottom: `0.5px solid ${C.n[200]}`, padding: "4px 10px" }}>
                 A medicine with &gt;&gt;&gt; lines keeps its name. To take it off, press × in ✎ Edit — its &gt;&gt;&gt; lines go with it. To change it, type the new name.
               </div>

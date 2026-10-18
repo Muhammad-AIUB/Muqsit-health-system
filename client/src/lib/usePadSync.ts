@@ -23,8 +23,8 @@ import type { RxItem } from "@/types";
 // is overwritten by it, as the copy always did. Only a render in which the pad
 // did NOT move copies `rxItems` onto the pad.
 //
-// ⚕️ A NEW VISIT (`epoch`, bumped by `resetEditor`) always redraws the pad from
-// `rxItems`. A pad holding only lines it cannot write (a >>> line whose
+// ⚕️ A NEW VISIT (`epoch`, bumped by `resetEditor`, and by the device mirror
+// when it brings another patient) always redraws the pad from `rxItems`. A pad holding only lines it cannot write (a >>> line whose
 // medicine name was cleared — `unwritableRows`) copies [] into `rxItems`, the
 // same as a reset does: the pad saw no change, kept the lines, and one patient's
 // dose stood on the next patient's pad (review, 18/10/2026).

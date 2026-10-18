@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn, mergeWithRecord } from "@/lib/rxDrugHistory";
 import { drugMentions } from "@/lib/drugHistorySummary";
+import { rowsFromRxItems, rxItemsFromRows } from "@/lib/rxRows";
 import type { RxItem } from "@/types";
 
 const TODAY = "07/09/2026";
@@ -268,10 +269,14 @@ describe("syncRxDrugHistory", () => {
     // Under another medicine too, since 18/10/2026: the pad's own reading
     // (`rxItemsFromRows`) no longer hands a cleared medicine's >>> lines to the
     // medicine above it (lib/rxRows.ts, `unwritableRows`).
-    it("clearing a medicine's name withdraws its taper; nothing goes under the line above", () => {
+    // Through the pad's own reading, with ANOTHER medicine above the cleared one
+    // (the physician's report): Bex, then Clarith with a >>> line, then Napa.
+    it("clearing a medicine's name withdraws its taper; nothing goes under the medicine above it", () => {
       const clarith = med({ drug: "Tablet. Clarith 500 mg", dose: "1+0+1", duration: "7 days" });
-      const out = run(OLD, [[clarith, taper("0+0+1"), napa], [taper("0+0+1"), napa]]);
-      expect(out).toEqual([...OLD, N]);
+      const before = rowsFromRxItems([bex, clarith, taper("0+0+1"), napa]);
+      const cleared = before.map((r, i) => (i === 1 ? { ...r, drug: "" } : r));
+      const out = run(OLD, [rxItemsFromRows(before), rxItemsFromRows(cleared)]);
+      expect(out).toEqual([...OLD, B, N]);
     });
 
     // The review's own case, through the real functions: the record holds Bex, the

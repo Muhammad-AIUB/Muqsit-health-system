@@ -159,7 +159,11 @@ describe("AddMedicineRow — a line it cannot write", () => {
     expect(addBtn().disabled).toBe(false);
     fireEvent.click(addBtn());
     expect(onAdd).not.toHaveBeenCalled();
-    expect(screen.getByRole("status").textContent).toMatch(/Nothing added: a line has a dose, food or duration but no medicine/);
+    // Two polite notices: the pad marks the line itself, and Add says why it
+    // added nothing.
+    const said = screen.getAllByRole("status").map((el) => el.textContent ?? "");
+    expect(said.some((t) => /Nothing added: a line has a dose, food or duration but no medicine/.test(t))).toBe(true);
+    expect(said.some((t) => /This line has a dose, food or duration but no medicine name/.test(t))).toBe(true);
     expect(screen.getByDisplayValue("1+0+1")).toBeTruthy();
   });
 });

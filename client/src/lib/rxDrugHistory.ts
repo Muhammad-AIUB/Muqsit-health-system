@@ -40,15 +40,15 @@ export const SEP = " — ";
  *    history block renders every entry as a drug name;
  *  • lines with no medicine name and no tapering content — nothing to record;
  *  • ⚕️ a tapering line with no medicine DIRECTLY above it: at the top of the
- *    pad, straight under a note, or under a line whose name was cleared — the
- *    pad's own reading (`rxItemsFromRows`) drops that line and keeps its
- *    tapers, and the pad offers a note no `>>>` of its own. A taper names no
- *    drug. Written, it went under whatever entry the history held above it —
- *    a dose for the wrong medicine — and the merge with the record then wrote
- *    that entry twice (release review of 551a120, 18/10/2026). "+ Add
+ *    pad, straight under a note, or under a line whose name was cleared. A
+ *    taper names no drug. Written, it went under whatever entry the history
+ *    held above it — a dose for the wrong medicine — and the merge with the
+ *    record then wrote that entry twice (release review of 551a120,
+ *    18/10/2026). Since the same day the pad's own reading (`rxItemsFromRows`)
+ *    writes no such line either, so `rxItems` should never hold one; this is
+ *    the guard for a list that still does (an older draft or device). "+ Add
  *    medicine" (`unwritableLines`) and Move to Rx (`blocksFromRows`) refuse it
- *    the same way. It is still on the pad; once its medicine is named again it
- *    is written under it;
+ *    the same way;
  *  • everything, when `visitDate` is not a real dd/mm/yyyy stamp. An entry
  *    stamped with a malformed date can never be matched back out again, so it
  *    would be unremovable junk in a patient record.

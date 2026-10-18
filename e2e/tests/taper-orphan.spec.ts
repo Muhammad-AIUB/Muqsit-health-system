@@ -1,4 +1,4 @@
-import { NAPA, addMedicine, createPatient, expect, login, padRow, saveAndOpenSheet, settle, test, uniqueMobile } from './helpers';
+import { NAPA, addMedicine, apiPatientsByMobile, apiPrescriptions, createPatient, expect, login, padRow, printDialog, saveAndOpenSheet, saveAndPrint, settle, test, uniqueMobile } from './helpers';
 
 // ⚕️ A `>>>` line belongs to the medicine line directly above it. Before
 // 18/10/2026, clearing that medicine's name left its `>>>` dose standing under
@@ -42,4 +42,41 @@ test('a medicine with a >>> dose keeps its name, and the dose prints under it', 
   expect(taperAt, texts.join(' | ')).toBeGreaterThan(0);
   expect(texts[taperAt - 1]).toContain('Barcavir');
   expect(texts[taperAt - 1]).not.toContain('Napa');
+});
+
+// A line with a dose and no medicine name — here a medicine's name cleared and
+// its dose left — cannot be written. The pad marks it, and Save & print and
+// Preview PDF refuse; nothing is saved. This holds what the unit tests cannot:
+// the pad's count reaching the editor (RightColumn), and both buttons reading it
+// (PrescriptionView) — third review, 18/10/2026.
+test('a line with a dose and no medicine name is refused by Save & print and by Preview PDF', async ({ page }) => {
+  // A doctor of its own: the journey above saves Barcavir, and "Your usual"
+  // would then offer it beside the medicine list.
+  await login(page, 'taperRefused');
+  const mobile = uniqueMobile();
+  await createPatient(page, mobile, 'Nameless Dose Patient');
+
+  await addMedicine(page, 0, NAPA);
+  await addMedicine(page, 1, BARCAVIR);
+  const name = padRow(page, 1).locator('input').first();
+  await name.fill('');
+  await name.blur();
+  await settle(page);
+  await expect(page.getByRole('status').filter({ hasText: 'no medicine name' })).toBeVisible();
+
+  await saveAndPrint(page).click();
+  const refused = page.getByRole('alertdialog', { name: 'The prescription was not saved.' });
+  await expect(refused).toContainText('has no medicine name');
+  await refused.getByRole('button', { name: 'OK' }).click();
+  await expect(refused).toBeHidden();
+  await expect(printDialog(page)).toBeHidden();
+
+  await page.getByRole('button', { name: 'Preview PDF' }).click();
+  const notYet = page.getByRole('alertdialog', { name: 'The prescription cannot be previewed yet.' });
+  await expect(notYet).toBeVisible();
+  await notYet.getByRole('button', { name: 'OK' }).click();
+  await expect(printDialog(page)).toBeHidden();
+
+  const [patient] = await apiPatientsByMobile(page, mobile);
+  expect(await apiPrescriptions(page, patient.id)).toEqual([]);
 });

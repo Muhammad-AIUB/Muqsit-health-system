@@ -33,6 +33,28 @@ describe("blockOf", () => {
   });
 });
 
+// ⚕️ Third review (18/10/2026): a block that begins with a >>> line has no
+// medicine of its own (data saved before 18/10/2026 — the pad now draws such a
+// line as a line of its own, `rowsFromRxItems`; this is the second guard).
+// Nothing is moved to stand directly above it: it would read as that
+// medicine's taper.
+describe("moveBlock never puts a medicine directly above a >>> line that has none", () => {
+  const stranded = () => [taper("0+0+1"), med("Napa"), med("Bex"), typing()];
+
+  it("▲ stops under it", () => {
+    const once = moveBlock(stranded(), 2, -1); // Bex above Napa: fine
+    expect(show(once)).toEqual(["↳0+0+1", "Bex", "Napa", "∅"]);
+    expect(canMove(once, 1, -1)).toBe(false);
+    expect(moveBlock(once, 1, -1)).toBe(once);
+  });
+
+  it("▼ never takes it under a medicine", () => {
+    const rows = stranded();
+    expect(canMove(rows, 0, 1)).toBe(false);
+    expect(moveBlock(rows, 0, 1)).toBe(rows);
+  });
+});
+
 describe("moveBlock (▲ / ▼)", () => {
   it("⚕️ moves a medicine WITH its tapers, never without them", () => {
     expect(show(moveBlock(pad(), 1, -1))).toEqual(["Pred", "↳1+0+0", "↳1/2+0+0", "Napa", "Insulin as before", "Omep", "∅"]);

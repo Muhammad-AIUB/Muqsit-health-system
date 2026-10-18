@@ -12,7 +12,7 @@ export type Role =
   | 'restore' | 'isoA' | 'isoB' | 'printDefault' | 'printA4' | 'gateKeyboard' | 'probe'
   | 'sheetSave' | 'sheetKeys' | 'sheetEnter' | 'headerSwitch' | 'noteMirror'
   | 'invUnits' | 'invUnitsPlain' | 'loginWait' | 'bulkMed' | 'bulkKeys' | 'bulkOffline' | 'bulkPhone' | 'bulkMany' | 'moveRx'
-  | 'monthlyCost' | 'taperOrphan';
+  | 'monthlyCost' | 'taperOrphan' | 'taperRefused';
 
 interface Seed { password: string; doctors: Record<Role, { email: string; name: string }> }
 let seedCache: Seed | null = null;

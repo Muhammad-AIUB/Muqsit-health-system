@@ -42,11 +42,22 @@ export function blockOf(rows: MovableRow[], idx: number): [number, number] | nul
   return [start, end];
 }
 
-/** Can the block holding `idx` go one place up (-1) or down (+1)? */
+/**
+ * Can the block holding `idx` go one place up (-1) or down (+1)?
+ *
+ * ⚕️ Not when the block that would end up LOWER begins with a >>> line: such a
+ * line has no medicine of its own (data saved before 18/10/2026), and it would
+ * read as a taper of the medicine moved above it (third review). The pad draws
+ * such a line as a line of its own (`rowsFromRxItems`); this is the second guard.
+ */
 export function canMove(rows: MovableRow[], idx: number, dir: -1 | 1): boolean {
   const b = blockOf(rows, idx);
   if (!b) return false;
-  return dir < 0 ? b[0] > 0 : b[1] < movableLimit(rows);
+  if (dir < 0 ? b[0] <= 0 : b[1] >= movableLimit(rows)) return false;
+  const other = blockOf(rows, dir < 0 ? b[0] - 1 : b[1]);
+  if (!other) return false;
+  const lower = dir < 0 ? other : b;
+  return !rows[lower[0]].continuation;
 }
 
 /** Swap the block holding `idx` with its neighbour block. Unchanged if it can't. */

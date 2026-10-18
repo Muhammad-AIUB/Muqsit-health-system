@@ -80,13 +80,13 @@ const initialOeData: OeData = {
   diseaseHistory: "", surgicalHistory: "",
 };
 
+/** Said when Save & print refuses a pad with a line it cannot write. */
+export const UNWRITABLE_PAD =
+  "Not saved: a line on the prescription has no medicine name (marked in red on the ℞ pad). Type the medicine's name on that line, or remove the line.";
+
 // Returns today's date as YYYY-MM-DD (ISO) in the device's local timezone.
 // Using an explicit template keeps the format stable on stripped-ICU runtimes
 // where toLocaleDateString("en-CA") may not return YYYY-MM-DD.
-/** Said when Save & print refuses a pad with a line it cannot write. */
-export const UNWRITABLE_PAD =
-  "Not saved: a line on the prescription has no medicine name (marked in red on the ℞ pad). Type the medicine's name on that line, or remove the line — a >>> dose under it would print under the wrong medicine.";
-
 function todayISO(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
@@ -233,8 +233,9 @@ function useMuqsitStore() {
   // medicine above it was printed under the medicine before (18/10/2026).
   // Derived from the pad on each device; never stored or mirrored.
   const [rxPadUnwritable, setRxPadUnwritable] = useState(0);
-  // Bumped by every `resetEditor`: a new visit, which redraws the ℞ pad from
-  // `rxItems` (lib/usePadSync.ts) — never carries one patient's lines over.
+  // Bumped by every `resetEditor`, and by the device mirror when it brings
+  // another patient: a new visit, which redraws the ℞ pad from `rxItems`
+  // (lib/usePadSync.ts) — never carries one patient's lines over.
   const [editorEpoch, setEditorEpoch] = useState(0);
   const rxPadUnwritableRef = useRef(0);
   rxPadUnwritableRef.current = rxPadUnwritable;
@@ -1531,6 +1532,11 @@ function useMuqsitStore() {
     if (d.view === "desktop" || d.view === "mobile") setView(d.view);
     if (typeof d.ptSettingsTab === "string") setPtSettingsTab(d.ptSettingsTab as string);
     const pid = typeof d.currentPatientId === "string" ? d.currentPatientId : null;
+    // ⚕️ Another patient is a new visit, as `resetEditor`'s is: the ℞ pad is
+    // drawn again from `rxItems` (lib/usePadSync.ts). Not moved on, a pad
+    // holding only lines it cannot write kept them for the next patient, whose
+    // `rxItems` were [] as well (third review, 18/10/2026).
+    if (pid !== patientIdRef.current) setEditorEpoch((n) => n + 1);
     setCurrentPatientId(pid);
     // Keep supervisedRef consistent with the peer device so this device's
     // auto-save doesn't write the owner's incompleteRx / flag OPD for a
