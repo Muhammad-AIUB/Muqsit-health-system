@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ROW_LOCK_TX } from '../prisma/row-lock';
 import {
   CreatePatientDto,
   LinkPatientDto,
@@ -249,7 +250,7 @@ export class PatientsService {
         data: { familyMembers: nextExistingTree as unknown as Prisma.InputJsonValue },
       });
       return [created, updated];
-    });
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
 
     return { newPatient, existing: updatedExisting };
   }

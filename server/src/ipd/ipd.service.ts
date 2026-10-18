@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'crypto';
 import { IpdAdmission, IpdEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ROW_LOCK_TX } from '../prisma/row-lock';
 import { Prisma } from '@prisma/client';
 import {
   AddAnalogueSheetsDto,
@@ -208,7 +209,7 @@ export class IpdService {
         where: { id },
         data: data as Prisma.IpdAdmissionUpdateInput,
       });
-    });
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
   }
 
   // ── Analogue (paper) order-sheet pages ────────────────────────────────────
@@ -300,7 +301,7 @@ export class IpdService {
       });
 
       return updated;
-    });
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
   }
 
   async addAnalogueSheets(

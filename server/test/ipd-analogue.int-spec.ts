@@ -272,6 +272,67 @@ describe('IPD analogue order sheets (integration)', () => {
       expect(sheets[2].removedAt).toBeUndefined();
       expect(sheets[3].removedAt).toBeUndefined();
     });
+
+    // ⚕️ The test above failed now and then on a busy machine (2 runs in 12
+    // with the CPU loaded, 18/10/2026): Prisma's interactive transaction ends at
+    // 5 s by default, and that time includes WAITING for the row lock — so the
+    // writes at the back of a queue answered 500 ("Transaction already closed")
+    // and their page was not filed. The same happens on a slow server with a few
+    // devices uploading at once. Held here on purpose for longer than 5 s.
+    it('an upload that waits more than 5 s behind the row lock still lands', async () => {
+      const { browser, admissionId } = await setup();
+      let release!: () => void;
+      const held = new Promise<void>((r) => (release = r));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((r) => (locked = r));
+      const holder = t.prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT 1 FROM "IpdAdmission" WHERE "id" = ${admissionId} FOR UPDATE`;
+          locked();
+          await held;
+        },
+        { timeout: 30_000 },
+      );
+      await isLocked;
+      // `.then` sends the request now; it queues behind the held lock.
+      const upload = browser
+        .post(`/api/ipd/${admissionId}/analogue`)
+        .send({ sheets: [{ url: '/uploads/late.jpg' }] })
+        .then((r) => r);
+      await new Promise((r) => setTimeout(r, 6_000));
+      release();
+      await holder;
+
+      const res = await upload;
+      expect(res.status).toBe(201);
+      const { sheets } = await storedSheets(t.prisma, admissionId);
+      expect(sheets.map((s) => s.url)).toEqual(['/uploads/late.jpg']);
+    });
+
+    it('an edit of the admission that waits more than 5 s behind the row lock still lands', async () => {
+      const { browser, admissionId } = await setup();
+      let release!: () => void;
+      const held = new Promise<void>((r) => (release = r));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((r) => (locked = r));
+      const holder = t.prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT 1 FROM "IpdAdmission" WHERE "id" = ${admissionId} FOR UPDATE`;
+          locked();
+          await held;
+        },
+        { timeout: 30_000 },
+      );
+      await isLocked;
+      const edit = browser.patch(`/api/ipd/${admissionId}`).send({ diagnosis: 'Dengue fever' }).then((r) => r);
+      await new Promise((r) => setTimeout(r, 6_000));
+      release();
+      await holder;
+
+      const res = await edit;
+      expect(res.status).toBe(200);
+      expect((await t.prisma.ipdAdmission.findUniqueOrThrow({ where: { id: admissionId } })).diagnosis).toBe('Dengue fever');
+    });
   });
 
   describe('the whole-clinical PATCH', () => {
