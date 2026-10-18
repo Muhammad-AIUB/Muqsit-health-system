@@ -237,16 +237,17 @@ describe("rxDrugHistoryEntries — a taper is recorded under its own medicine", 
     );
   });
 
-  // DEFECT-D3: when the SAME medicine line is on the pad twice and the second copy has a taper, the taper is recorded under whichever medicine sits between them.
-  // Minimal counter-example (rxItems → entries):
+  // DEFECT-D3, fixed 18/10/2026 (it was `it.fails` until then): when the SAME
+  // medicine line was on the pad twice and the second copy had a taper, the taper
+  // was recorded under whichever medicine sat between them.
   //   Pred 2+0+0 · 5 days | Napa 1+1+1 | Pred 2+0+0 · 5 days | ↳ 1+0+0 · 3 days
   //   ⇒ ["…: Pred — 2+0+0 —  — 5 days", "…: Napa — 1+1+1 —  — ", "…(cont): 1+0+0 —  — 3 days"]
-  //   The (cont) line is Pred's taper; in the history it now reads as Napa's.
-  // Source: src/lib/rxDrugHistory.ts:55-74 — the duplicate head is dropped by `seen`
-  // (line 71) but its taper is still pushed (line 73), at the END of the list, so it
-  // attaches by position to the last medicine emitted. client/CLAUDE.md: "A taper never
+  //   The (cont) line is Pred's taper; in the history it read as Napa's.
+  // The duplicate head was dropped line by line while its taper was kept. A repeat
+  // is now decided by the WHOLE block (rxDrugHistory.ts): the second Pred keeps its
+  // own line, and its taper stays under it. client/CLAUDE.md: "A taper never
   // leaves its medicine … a dose for the wrong drug."
-  it.fails("DEFECT-D3: a taper under a repeated medicine line stays with that medicine", () => {
+  it("DEFECT-D3: a taper under a repeated medicine line stays with that medicine", () => {
     const entries = rxDrugHistoryEntries([
       rxItem({ drug: "Pred", dose: "2+0+0", duration: "5 days", isCont: false }),
       rxItem({ drug: "Napa", dose: "1+1+1", isCont: false }),
@@ -255,7 +256,7 @@ describe("rxDrugHistoryEntries — a taper is recorded under its own medicine", 
     ], VISIT_DATE);
     expect(headsInEntries(entries)).toEqual([[`${VISIT_DATE}(cont): 1+0+0 —  — 3 days`, `${VISIT_DATE}: Pred — 2+0+0 —  — 5 days`]]);
   });
-  it.fails("DEFECT-D3 (property): the same, for any repeated line with a taper and any medicine between", () => {
+  it("DEFECT-D3 (property): the same, for any repeated line with a taper and any medicine between", () => {
     const twoDrugs = fc.tuple(drug, drug).filter(([a, b]) => a !== b);
     const taper = fc.tuple(dose, food, duration).filter((t) => t.some((c) => c !== ""));
     fc.assert(

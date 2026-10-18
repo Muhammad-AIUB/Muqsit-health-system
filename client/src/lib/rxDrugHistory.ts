@@ -45,33 +45,42 @@ export const SEP = " — ";
  */
 export function rxDrugHistoryEntries(rxItems: RxItem[], visitDate: string): string[] {
   if (!VISIT_DATE_RE.test(visitDate)) return [];
-  const out: string[] = [];
-  const seen = new Set<string>();
-  // The head entry the next taper belongs to. A taper's text does not name its
-  // medicine, so two different medicines can carry byte-identical tapers.
-  let head = "";
+  // The pad as blocks: a medicine with the tapers under it. A taper's text does
+  // not name its medicine, so two different medicines can carry byte-identical
+  // tapers — a taper is the same fact only within the same block.
+  const blocks: string[][] = [];
+  let open: string[] | null = null;
   // `rowsFromRxItems` owns the head/continuation/note classification (including
   // the pre-2026-08-17 blank-drug fallback for `isCont`); duplicating that test
   // here is how a taper silently turns into a second unrelated medicine.
   for (const r of rowsFromRxItems(rxItems ?? [])) {
     if (!r.isMedicine) continue; // note, or the trailing blank row
-    let entry: string;
-    let key: string;
     if (r.continuation) {
       if (!r.dose.trim() && !r.food.trim() && !r.duration.trim()) continue;
-      entry = `${visitDate}(cont): ${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`;
-      // ⚕️ A taper is the same fact only under the same medicine: Drug A and
-      // Drug B each tapering "0+0+2 — — 7 days" are two instructions.
-      key = `${head}\n${entry}`;
+      const entry = `${visitDate}(cont): ${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`;
+      if (!open) { open = []; blocks.push(open); } // a taper with nothing above it stands alone, as it always did
+      if (!open.includes(entry)) open.push(entry); // the same taper twice under one line is one fact
     } else {
       if (!r.drug.trim()) continue;
-      entry = `${visitDate}: ${r.drug.trim()}${SEP}${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`;
-      key = entry;
-      head = entry;
+      open = [`${visitDate}: ${r.drug.trim()}${SEP}${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`];
+      blocks.push(open);
     }
-    if (seen.has(key)) continue; // two identical lines carry one fact
+  }
+  // ⚕️ Two IDENTICAL blocks carry one fact, and only those (independent review,
+  // 18/10/2026). The repeat was decided line by line: with Napa, Bex, Napa and a
+  // `>>>` line under the second Napa, that Napa was dropped as a repeat and its
+  // taper kept — under Bex, as the history reads it, and Move to Rx would have
+  // put it there. The second Napa keeps its own line, so its taper stays under
+  // it. Folding the taper into the first Napa was not chosen: that Napa has no
+  // taper on the pad, and with a taper of its own the two would read as ONE
+  // regimen, the first taper then the second, which no line on the pad says.
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const b of blocks) {
+    const key = b.join("\n");
+    if (seen.has(key)) continue;
     seen.add(key);
-    out.push(entry);
+    out.push(...b);
   }
   return out;
 }
@@ -97,12 +106,21 @@ interface Slot { slot: string }
 type Cell = string | Slot;
 
 /**
- * Where `block` sits in `list` as a contiguous run starting at its head, the
- * LAST such run (the ℞'s own entries are the most recently added), else -1.
+ * Where `block` sits in `list` as a WHOLE block — a contiguous run starting at
+ * its head with no taper of the list's straight after it — the LAST such run
+ * (the ℞'s own entries are the most recently added), else -1.
+ *
+ * ⚕️ Not merely the start of a longer block (independent review, 18/10/2026).
+ * With the same medicine on the pad twice, once with a taper, Napa alone is
+ * also the first line of Napa + taper: taking the plain Napa off withdrew the
+ * head of the other block, and its taper was left under the line above it.
  */
 function findBlock(list: Cell[], block: string[]): number {
   for (let i = list.length - block.length; i >= 0; i--) {
-    if (block.every((e, j) => list[i + j] === e)) return i;
+    if (!block.every((e, j) => list[i + j] === e)) continue;
+    const after = list[i + block.length];
+    if (typeof after === "string" && CONT_RE.test(after)) continue;
+    return i;
   }
   return -1;
 }
@@ -207,6 +225,36 @@ export function mirrorClaims(stored: string[], prevClaimed: string[], nextDerive
     if (had.has(key) || inserted.has(key)) out.push(...b);
   }
   return out;
+}
+
+/**
+ * The patient's saved drug history (`record`) with what the editor holds LIVE
+ * beyond it: the record's own entries first, in its own order, then each live
+ * block the record does not hold, whole and in live order. Nothing of either is
+ * dropped, and a block the record already holds is not written twice.
+ *
+ * ⚕️ Merged in BLOCKS — a medicine with its tapers — and counted (independent
+ * review, 18/10/2026). Merged line by line, a live taper that read exactly like
+ * one on the record was taken for the record's: Clarith with the same taper
+ * text as a printed Napa lost its taper on a reload, and the ℞ mirror then put
+ * Clarith in a second time. A live block that only STARTS like one on the record
+ * is another block: the record's is kept as well, since nothing here can tell a
+ * block that was replaced since from one that was added elsewhere.
+ */
+export function mergeWithRecord(record: string[], live: string[]): string[] {
+  const onRecord = new Map<string, number>();
+  for (const b of toBlocks(record ?? [])) {
+    const key = b.join("\n");
+    onRecord.set(key, (onRecord.get(key) ?? 0) + 1);
+  }
+  const beyond: string[] = [];
+  for (const b of toBlocks(live ?? [])) {
+    const key = b.join("\n");
+    const n = onRecord.get(key) ?? 0;
+    if (n > 0) onRecord.set(key, n - 1);
+    else beyond.push(...b);
+  }
+  return [...(record ?? []), ...beyond];
 }
 
 /**

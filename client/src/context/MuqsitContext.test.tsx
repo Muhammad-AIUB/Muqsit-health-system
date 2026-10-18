@@ -156,6 +156,62 @@ describe("a manually added Drug-history line survives a slow patient fetch", () 
     await act(async () => { resolveFetch(patient({ drugHistory: STORED })); await Promise.resolve(); });
     expect(result.current.drugHistory).toEqual([...STORED, added]);
   });
+
+  // ⚕️ Independent review, 18/10/2026 (older than that day's release). The
+  // merge went LINE by line, and a `(cont)` line names no medicine: Clarith's
+  // taper, written exactly like Napa's, was taken for one the record already
+  // had and dropped. A medicine is merged with its tapers, as one block.
+  describe("a medicine and its tapers are merged as one block", () => {
+    const TODAY = "18/10/2026";
+    const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "", duration: "5 days" };
+    const clarith: RxItem = { drug: "Tablet. Clarith 500 mg", dose: "1+0+1", instruction: "", duration: "7 days" };
+    const taper: RxItem = { drug: "", dose: "0+0+1", instruction: "", duration: "7 days", isCont: true };
+    const printed = () => rxDrugHistoryEntries([napa, taper], TODAY); // on the record since Save & print
+    const live = () => rxDrugHistoryEntries([napa, taper, clarith, taper], TODAY);
+
+    // The review's steps: print Napa with a taper; add Clarith with the same
+    // taper text; reload the same day.
+    it("Clarith keeps its taper after a reload, and is listed once", async () => {
+      vi.setSystemTime(new Date(2026, 9, 18, 12));
+      const pt = patient({
+        drugHistory: printed(),
+        incompleteRx: { ptDate: "2026-10-18", rxItems: [napa, taper, clarith, taper], drugHistory: live(), rxMirrorOwned: live() },
+      });
+      api.patientGet.mockResolvedValue(pt);
+      const { result } = await setup();
+      act(() => result.current.loadPatient(pt));
+      await tick(50);
+      expect(result.current.drugHistory).toEqual(live());
+    });
+
+    // The same merge with no ℞ line to re-derive it: Clarith was added by hand
+    // ("+ Add medicine"), so nothing would ever put its taper back.
+    it("a hand-added medicine's taper is not dropped as the record's", async () => {
+      vi.setSystemTime(new Date(2026, 9, 18, 12));
+      const pt = patient({
+        drugHistory: printed(),
+        incompleteRx: { ptDate: "2026-10-18", rxItems: [napa, taper], drugHistory: live(), rxMirrorOwned: printed() },
+      });
+      api.patientGet.mockResolvedValue(pt);
+      const { result } = await setup();
+      act(() => result.current.loadPatient(pt));
+      await tick(50);
+      expect(result.current.drugHistory).toEqual(live());
+    });
+
+    it("once the record holds the block, it is not written twice", async () => {
+      vi.setSystemTime(new Date(2026, 9, 18, 12));
+      const pt = patient({
+        drugHistory: live(),
+        incompleteRx: { ptDate: "2026-10-18", rxItems: [napa, taper], drugHistory: live(), rxMirrorOwned: printed() },
+      });
+      api.patientGet.mockResolvedValue(pt);
+      const { result } = await setup();
+      act(() => result.current.loadPatient(pt));
+      await tick(50);
+      expect(result.current.drugHistory).toEqual(live());
+    });
+  });
 });
 
 describe("re-opening the patient already loaded (E4)", () => {

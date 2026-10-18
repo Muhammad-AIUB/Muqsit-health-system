@@ -24,7 +24,7 @@ import { useAuth } from "@/context/AuthContext";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
-import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn } from "@/lib/rxDrugHistory";
+import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn, mergeWithRecord } from "@/lib/rxDrugHistory";
 import { adviceLinesFor, padMedicines, syncRxAdvice } from "@/lib/rxDrugAdvice";
 import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
@@ -632,8 +632,12 @@ function useMuqsitStore() {
           // dropped. The functional updater reads state at the moment this
           // resolves — not a value closed over when the fetch was issued —
           // so it is correct whether the extra line arrived before or after.
+          // ⚕️ In BLOCKS, a medicine with its tapers (`mergeWithRecord`): line
+          // by line, a live taper that read like one on the record was dropped
+          // as the record's, and left its medicine without it (independent
+          // review, 18/10/2026).
           const fromRecord = (p.drugHistory as string[]) ?? [];
-          setDrugHistory((liveNow) => [...fromRecord, ...liveNow.filter((e) => !fromRecord.includes(e))]);
+          setDrugHistory((liveNow) => mergeWithRecord(fromRecord, liveNow));
           drugHistoryBaselineRef.current = fromRecord;
           drugHistoryHydratedRef.current = pid;
           recordHydratedRef.current = pid;

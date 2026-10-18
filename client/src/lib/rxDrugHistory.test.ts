@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn } from "@/lib/rxDrugHistory";
+import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn, mergeWithRecord } from "@/lib/rxDrugHistory";
 import { drugMentions } from "@/lib/drugHistorySummary";
 import type { RxItem } from "@/types";
 
@@ -189,6 +189,69 @@ describe("syncRxDrugHistory", () => {
       expect(out).toEqual([...OLD, N, cont("0+0+2"), O, cont("0+0+2")]);
     });
   });
+
+  // ⚕️ Independent review, 18/10/2026 (older than that day's release). The same
+  // medicine written twice, the second time with a `>>>` line under it: the
+  // second head was dropped as a repeat while its taper was kept, so the taper
+  // stood under the line in between — Bex's dose, to anyone reading it, and
+  // Move to Rx would have put it under Bex. A block is the fact: a medicine with
+  // the tapering lines under it. Two IDENTICAL blocks are one fact; a repeated
+  // medicine whose block differs keeps its own line, and its tapers stay under it.
+  describe("a repeated medicine keeps its own tapers", () => {
+    const pad = (items: RxItem[]) => rxDrugHistoryEntries(items, TODAY);
+    const napa = med({ drug: "Tablet. Napa 500 mg", dose: "1+1+1", duration: "5 days" });
+    const bex = med({ drug: "Capsule. Bex 1 mg", dose: "0+0+1", duration: "1 month" });
+    const taper = (dose: string) => med({ dose, duration: "7 days", isCont: true });
+    const N = "07/09/2026: Tablet. Napa 500 mg — 1+1+1 —  — 5 days";
+    const B = "07/09/2026: Capsule. Bex 1 mg — 0+0+1 —  — 1 month";
+    const cont = (dose: string) => `07/09/2026(cont): ${dose} —  — 7 days`;
+
+    it("the review's pad: the taper stays under the second Napa, never under Bex", () => {
+      expect(pad([napa, bex, { ...napa }, taper("0+0+1")])).toEqual([N, B, N, cont("0+0+1")]);
+    });
+
+    it("two different tapers of one medicine are never chained into one regimen", () => {
+      expect(pad([napa, taper("0+0+2"), bex, { ...napa }, taper("0+0+1")])).toEqual([N, cont("0+0+2"), B, N, cont("0+0+1")]);
+    });
+
+    it("a block written twice, taper and all, is still one fact", () => {
+      expect(pad([napa, taper("0+0+1"), bex, { ...napa }, taper("0+0+1")])).toEqual([N, cont("0+0+1"), B]);
+      expect(pad([napa, bex, { ...napa }])).toEqual([N, B]);
+    });
+
+    // Driven as MuqsitContext drives it: the list the pad wrote last time is
+    // what the sync may withdraw.
+    const run = (stored: string[], pads: RxItem[][]) => {
+      let prev: string[] = [];
+      for (const p of pads) {
+        const next = pad(p);
+        stored = syncRxDrugHistory(stored, prev, next);
+        prev = next;
+      }
+      return stored;
+    };
+
+    it("is written into the history with each taper under its own line", () => {
+      expect(run(OLD, [[napa, bex, { ...napa }, taper("0+0+1")]])).toEqual([...OLD, N, B, N, cont("0+0+1")]);
+    });
+
+    it("taking the plain Napa off withdraws that line alone, never the head of the other block", () => {
+      const out = run(OLD, [[napa, bex, { ...napa }, taper("0+0+1")], [bex, { ...napa }, taper("0+0+1")]]);
+      expect(out).toEqual([...OLD, B, N, cont("0+0+1")]);
+    });
+
+    it("taking the tapered Napa off withdraws it with its taper and leaves the plain one", () => {
+      const out = run(OLD, [[napa, bex, { ...napa }, taper("0+0+1")], [napa, bex]]);
+      expect(out).toEqual([...OLD, N, B]);
+    });
+
+    it("is idempotent once in place", () => {
+      const next = pad([napa, bex, { ...napa }, taper("0+0+1")]);
+      const once = run(OLD, [[napa, bex, { ...napa }, taper("0+0+1")]]);
+      expect(syncRxDrugHistory(once, next, next)).toEqual(once);
+      expect(syncRxDrugHistory(once, [], next)).toEqual(once);
+    });
+  });
 });
 
 describe("sameEntries", () => {
@@ -279,6 +342,49 @@ describe("mirrorClaims", () => {
     expect(stored).toEqual([H, T]);
     step([]);
     expect(stored).toEqual([]);
+  });
+});
+
+// ⚕️ The background patient fetch lays the RECORD under what the editor holds
+// live (MuqsitContext). Merged line by line, Clarith's taper — written exactly
+// like Napa's, which the record had — was dropped as "already there", and the
+// mirror then put Clarith in a second time (independent review, 18/10/2026).
+describe("mergeWithRecord", () => {
+  const N = "18/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 5 days";
+  const C = "18/10/2026: Tablet. Clarith 500 mg — 1+0+1 —  — 7 days";
+  const T = "18/10/2026(cont): 0+0+1 —  — 7 days";
+  const OLD = "01/10/2026: Tablet. Famotack 20 mg — 1+0+1 — Before meal — 1 month";
+
+  it("keeps a live medicine's taper that reads like one on the record", () => {
+    expect(mergeWithRecord([N, T], [N, T, C, T])).toEqual([N, T, C, T]);
+  });
+
+  it("puts the record's own order first and appends what is live beyond it", () => {
+    expect(mergeWithRecord([OLD, N, T], [C, T, OLD, N, T])).toEqual([OLD, N, T, C, T]);
+  });
+
+  it("writes nothing twice once the record has caught up", () => {
+    expect(mergeWithRecord([OLD, N, T, C, T], [OLD, N, T, C, T])).toEqual([OLD, N, T, C, T]);
+  });
+
+  it("drops nothing of the record that the live list does not hold", () => {
+    expect(mergeWithRecord([OLD, N, T], [])).toEqual([OLD, N, T]);
+  });
+
+  // A block is the medicine with ALL its tapers. Taken for the record's because
+  // it starts like it, a taper added since would be lost; the record's block is
+  // kept too, since nothing here can tell it was replaced rather than added.
+  it("never takes a live block for the record's because it starts the same", () => {
+    expect(mergeWithRecord([N], [N, T])).toEqual([N, N, T]);
+  });
+
+  it("counts: a block the live list holds more often than the record is kept", () => {
+    expect(mergeWithRecord([N, T], [N, T, OLD, N, T])).toEqual([N, T, OLD, N, T]);
+  });
+
+  it("survives null inputs", () => {
+    expect(mergeWithRecord(null as unknown as string[], [N])).toEqual([N]);
+    expect(mergeWithRecord([N], null as unknown as string[])).toEqual([N]);
   });
 });
 
