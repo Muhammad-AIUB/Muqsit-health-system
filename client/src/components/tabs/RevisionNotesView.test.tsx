@@ -443,7 +443,7 @@ describe("Revision Notes", () => {
     await until(() => expect(status()).toMatch(/^Saved/));
   });
 
-  it("held text refused because another account is signed in stays held — back as unsaved text, not as a clash with another screen", async () => {
+  it("held text refused because another account is signed in stays held — back as unsaved text once its own user is signed in again, not as a clash with another screen", async () => {
     api.save.mockRejectedValueOnce(otherUser());
     const first = view();
     await until(() => expect(surface().innerHTML).toContain("HBV"));
@@ -460,5 +460,77 @@ describe("Revision Notes", () => {
     expect(status()).toMatch(/Unsaved/);
     await until(() => expect(api.save).toHaveBeenCalledTimes(2));
     expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
+  });
+
+  // ⚕️ Release review of a2d7b93: coming back to the tab while the other account
+  // is signed in, the page asked for "its" notebook and was answered with THAT
+  // account's — shown under "only you can see it", and offered as "Show that
+  // version" in place of the doctor's own held typing. The page now names its
+  // user on the read too, and the server answers another user with a refusal.
+  const OTHER_USER_READ = "A different account has signed in on this browser since this page was opened. Sign in again as yourself to open your Revision Notes.";
+  const otherUserRead = () => new ApiError(409, OTHER_USER_READ, "SIGNED_IN_USER_CHANGED");
+
+  it("asks for the notebook of the user signed in on this page", async () => {
+    view();
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+    expect(api.get).toHaveBeenCalledWith("doc-1");
+  });
+
+  it("opened while another account is signed in, it shows no notebook and says why", async () => {
+    api.get.mockRejectedValue(otherUserRead());
+    view();
+    expect(await screen.findByText("Your Revision Notes are not shown here.")).toBeTruthy();
+    expect(screen.getByText(OTHER_USER_READ)).toBeTruthy();
+    expect(document.querySelector(".rte-surface")).toBeNull();
+    expect(screen.queryByText(/could not be loaded/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show that version" })).toBeNull();
+    // Signed in again as themselves, Try again opens their own.
+    api.get.mockResolvedValue({ html: "<p>HBV notes. hbv DNA.</p>", updatedAt: T1 });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+  });
+
+  it("coming back while another account is signed in: held text stays held and is shown to copy — never set against another notebook", async () => {
+    api.save.mockRejectedValueOnce(otherUser());
+    const first = view();
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+    type("<p>held</p>");
+    first.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(api.save).toHaveBeenCalledTimes(1);
+    cleanup();
+    api.get.mockRejectedValue(otherUserRead());
+    view();
+    expect(await screen.findByText("Your Revision Notes are not shown here.")).toBeTruthy();
+    expect(document.querySelector(".rte-surface")).toBeNull();
+    expect(screen.getByRole("region", { name: "Your unsaved text" }).innerHTML).toContain("<p>held</p>");
+    expect(screen.queryByText(/changed on another screen/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show that version" })).toBeNull();
+    // Still held: the page asks before it is left, and nothing more was sent.
+    const e = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+    expect(api.save).toHaveBeenCalledTimes(1);
+    // Signed in again as themselves: the held text is back, to be saved over THEIR copy.
+    api.get.mockResolvedValue({ html: "<p>HBV notes. hbv DNA.</p>", updatedAt: T1 });
+    api.save.mockResolvedValueOnce({ html: "<p>held</p>", updatedAt: T2 });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await until(() => expect(surface().innerHTML).toBe("<p>held</p>"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    await until(() => expect(api.save).toHaveBeenCalledTimes(2));
+    expect(api.save).toHaveBeenLastCalledWith({ html: "<p>held</p>", baseUpdatedAt: T1, expectedUserId: "doc-1" });
+  });
+
+  it("Show that version, refused because another account is signed in now, says so and keeps the typing", async () => {
+    api.save.mockRejectedValue(new ApiError(409, "Your Revision Notes were changed on another screen."));
+    view();
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+    type("<p>mine</p>");
+    await act(async () => { fireEvent.click(saveBtn()); });
+    api.get.mockRejectedValue(otherUserRead());
+    vi.spyOn(await import("@/lib/dialogs"), "confirmAction").mockResolvedValue(true);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Show that version" })); });
+    await until(() => expect(screen.getByRole("alert").textContent).toContain(OTHER_USER_READ));
+    expect(surface().innerHTML).toBe("<p>mine</p>");
   });
 });

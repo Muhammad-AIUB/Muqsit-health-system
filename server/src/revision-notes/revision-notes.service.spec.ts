@@ -97,6 +97,50 @@ describe('RevisionNotesService', () => {
     expect(body.message).toMatch(/still on this screen/i);
   });
 
+  // A tab keeps the build it was loaded with until a full reload (tabs switch by
+  // history.pushState). A page from before `expectedUserId` must not be told
+  // "invalid" (a 400 it words itself, and stops saving): it shows a 409's
+  // sentence as written and keeps the typing (release review of a2d7b93).
+  it('refuses a save from a page that names no user — one from before the update — in words that say what to do, and writes nothing', async () => {
+    for (const expectedUserId of [undefined, null]) {
+      const { svc, create, update } = make(null);
+      const refusal = (await svc.save('doc-1', { html: 'typed before the deploy', baseUpdatedAt: null, expectedUserId }).catch((e: unknown) => e)) as ConflictException;
+      expect(refusal).toBeInstanceOf(ConflictException);
+      const body = refusal.getResponse() as { code?: string; message?: string };
+      expect(body.code).toBeUndefined();
+      expect(body.message).toMatch(/before an update/i);
+      expect(body.message).toMatch(/copy what you typed/i);
+      expect(body.message).toMatch(/reload/i);
+      expect(create).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    }
+  });
+
+  // ⚕️ Coming back to the tab: a GET under the other account's session answered
+  // with THAT account's notebook, which the page then offered in place of the
+  // doctor's own typing (release review of a2d7b93). A page that names a user
+  // is answered for that user only.
+  it('reads the notebook for a page that names the signed-in user', async () => {
+    const { svc } = make({ html: 'mine', updatedAt: T1 });
+    await expect(svc.read('doc-1', 'doc-1')).resolves.toEqual({ html: 'mine', updatedAt: T1 });
+  });
+
+  it("refuses a read for a page that names another user, and reads nothing — the other account's notebook never reaches it", async () => {
+    const { svc, findUnique } = make({ html: "doc-2's private notes", updatedAt: T1 });
+    const refusal = (await svc.read('doc-2', 'doc-1').catch((e: unknown) => e)) as ConflictException;
+    expect(refusal).toBeInstanceOf(ConflictException);
+    const body = refusal.getResponse() as { code?: string; message?: string };
+    expect(body.code).toBe('SIGNED_IN_USER_CHANGED');
+    expect(body.message).toMatch(/signed in/i);
+    expect(body.message).not.toMatch(/not saved/i);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it('reads as before for a page that names nobody (from before the update)', async () => {
+    const { svc } = make({ html: 'mine', updatedAt: T1 });
+    await expect(svc.read('doc-1', undefined)).resolves.toEqual({ html: 'mine', updatedAt: T1 });
+  });
+
   it('refuses when two first saves race (unique key)', async () => {
     const { svc, create } = make(null);
     create.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x' }));

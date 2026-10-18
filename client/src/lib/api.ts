@@ -493,13 +493,15 @@ export const patientNotesApi = {
 
 // ── Revision Notes (physician's sheet, 18/10/2026, item 4) ────
 // The SIGNED-IN user's own notebook — nobody else's, an assistant's included.
-// A save names the copy it was written from (`baseUpdatedAt`, null for none)
-// and the user whose notebook it is (`expectedUserId`); the server refuses
-// (409) a save from any other copy, and one for anyone but the session's own
-// user — two tabs share one login cookie (`code: SIGNED_IN_USER_CHANGED`).
+// A save names the copy it was written from (`baseUpdatedAt`, null for none);
+// a save AND a read name the user whose notebook it is (`expectedUserId`). The
+// server refuses (409) a save from any other copy, and either one for anyone
+// but the session's own user — two tabs share one login cookie
+// (`code: SIGNED_IN_USER_CHANGED`).
 export interface RevisionNote { html: string; updatedAt: string }
 export const revisionNotesApi = {
-  get: () => apiFetch<{ note: RevisionNote | null }>("/revision-notes").then((r) => r.note),
+  get: (expectedUserId: string) =>
+    apiFetch<{ note: RevisionNote | null }>(`/revision-notes?expectedUserId=${encodeURIComponent(expectedUserId)}`).then((r) => r.note),
   save: (input: { html: string; baseUpdatedAt: string | null; expectedUserId: string }) =>
     apiFetch<RevisionNote>("/revision-notes", { method: "PUT", body: JSON.stringify(input) }),
 };

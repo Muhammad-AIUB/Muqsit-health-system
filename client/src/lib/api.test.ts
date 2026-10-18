@@ -67,6 +67,13 @@ describe("apiFetch — every request", () => {
     await revisionNotesApi.save({ html: "<p>x</p>", baseUpdatedAt: null, expectedUserId: "doc-1" });
     expect(api.calls[0].body).toEqual({ html: "<p>x</p>", baseUpdatedAt: null, expectedUserId: "doc-1" });
   });
+
+  // …and so does a read: the server answers a page that names another user
+  // than the signed-in one with a refusal, never with that user's notebook.
+  it("a Revision Notes read says whose notebook the page is for", async () => {
+    api.on("GET", "/revision-notes?expectedUserId=doc%201", { json: { note: null } });
+    await expect(revisionNotesApi.get("doc 1")).resolves.toBeNull();
+  });
 });
 
 describe("apiFetch — ⚕️ X-Workstation scopes the request to a practice", () => {

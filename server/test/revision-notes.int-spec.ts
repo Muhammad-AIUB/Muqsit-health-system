@@ -122,9 +122,44 @@ describe('/api/revision-notes', () => {
     expect((await a.get('/api/revision-notes')).body.note.html).toBe('kept');
   });
 
-  it('refuses a save that does not say whose text it is', async () => {
+  // A tab keeps the build it was loaded with until a full reload. A page from
+  // before `expectedUserId` shows a 409's sentence as written and keeps the
+  // typing; a 400 it would word itself, and stop saving (release review of
+  // a2d7b93). So: 409, no code, and words that say what to do.
+  it('refuses a save from a page that names no user — 409 in words for the doctor, nothing written', async () => {
     const res = await b.put('/api/revision-notes').send({ html: 'whose?', baseUpdatedAt: null });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBeUndefined();
+    expect(res.body.message).toMatch(/before an update/i);
+    expect(res.body.message).toMatch(/reload/i);
     expect((await b.get('/api/revision-notes')).body).toEqual({ note: null });
+  });
+
+  // ⚕️ Coming back to the tab after that refusal: the page asked for "its"
+  // notebook under B's session and was answered with B's, which it then
+  // offered in place of A's typing (release review of a2d7b93). A page that
+  // names a user is answered for that user only.
+  it("refuses a read for a page that names another user — the signed-in user's notebook never reaches it", async () => {
+    const own = await b.put('/api/revision-notes').send({ html: "<p>B's private notes</p>", baseUpdatedAt: null, expectedUserId: B.id });
+    expect(own.status).toBe(200);
+    const res = await b.get('/api/revision-notes').query({ expectedUserId: A.id });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('SIGNED_IN_USER_CHANGED');
+    expect(res.body.message).toMatch(/signed in/i);
+    expect(JSON.stringify(res.body)).not.toContain("B's private notes");
+    expect(res.body.note).toBeUndefined();
+  });
+
+  it('reads for a page that names the signed-in user, and as before for one that names nobody', async () => {
+    const named = await b.get('/api/revision-notes').query({ expectedUserId: B.id });
+    expect(named.status).toBe(200);
+    expect(named.body.note.html).toBe("<p>B's private notes</p>");
+    expect((await b.get('/api/revision-notes')).body.note.html).toBe("<p>B's private notes</p>");
+  });
+
+  it("an assistant's page naming the workstation's doctor is not answered with anyone's notebook", async () => {
+    const res = await as.get('/api/revision-notes').set('X-Workstation', A.id).query({ expectedUserId: A.id });
+    expect(res.status).toBe(409);
+    expect(res.body.note).toBeUndefined();
   });
 });

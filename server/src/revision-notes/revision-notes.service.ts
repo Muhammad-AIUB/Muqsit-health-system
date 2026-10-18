@@ -12,10 +12,19 @@ export interface RevisionNoteView {
 const STALE =
   'Your Revision Notes were changed on another screen. Reload them to see that version before saving — what you typed here stays on this screen.';
 
-/** The body's `code` for a save written for another user — the client tells it from a stale copy by this. */
+/** The body's `code` for a page written for another user — the client tells it from a stale copy by this. */
 const SIGNED_IN_USER_CHANGED = 'SIGNED_IN_USER_CHANGED';
 const OTHER_USER =
   'Not saved: a different account has signed in on this browser since this page was opened, and these Revision Notes are not that account’s. What you typed is still on this screen — copy it, sign in again as yourself, then save.';
+const OTHER_USER_READ =
+  'A different account has signed in on this browser since this page was opened. Sign in again as yourself to open your Revision Notes.';
+// A page from before `expectedUserId` (a tab keeps its build until a full
+// reload). It shows a 409's sentence as written and keeps the typing, so: no
+// code, and words that say what to do.
+const OUTDATED_PAGE = 'This page is from before an update. Copy what you typed, reload the page, then paste it back.';
+
+const otherUser = (message: string) =>
+  new ConflictException({ statusCode: 409, error: 'Conflict', message, code: SIGNED_IN_USER_CHANGED });
 
 /**
  * "Revision Notes" — the SIGNED-IN user's own notebook (physician's sheet,
@@ -31,6 +40,11 @@ const OTHER_USER =
  *    doctor 1 sent its autosave under doctor 2's session, and where doctor 2
  *    had no notebook yet, doctor 1's text became it (release review,
  *    18/10/2026). Checked before anything is read, here, not in the client.
+ *    A save that names nobody comes from a page older than the check: refused
+ *    too, with a sentence that old page shows as written.
+ *  • A page that names its user is READ for that user only: coming back to
+ *    the tab, doctor 1's page was answered with doctor 2's notebook and
+ *    offered it in place of doctor 1's typing (release review of a2d7b93).
  */
 @Injectable()
 export class RevisionNotesService implements OnModuleInit {
@@ -57,10 +71,15 @@ export class RevisionNotesService implements OnModuleInit {
     return row ? { html: row.html, updatedAt: row.updatedAt } : null;
   }
 
+  /** GET: for a page that names its user, that user's notebook or nothing. A page that names nobody predates the check. */
+  async read(userId: string, expectedUserId: string | string[] | undefined): Promise<RevisionNoteView | null> {
+    if (expectedUserId !== undefined && expectedUserId !== userId) throw otherUser(OTHER_USER_READ);
+    return this.get(userId);
+  }
+
   async save(userId: string, dto: SaveRevisionNoteDto): Promise<RevisionNoteView> {
-    if (dto.expectedUserId !== userId) {
-      throw new ConflictException({ statusCode: 409, error: 'Conflict', message: OTHER_USER, code: SIGNED_IN_USER_CHANGED });
-    }
+    if (dto.expectedUserId == null) throw new ConflictException(OUTDATED_PAGE);
+    if (dto.expectedUserId !== userId) throw otherUser(OTHER_USER);
     const stored = await this.get(userId);
     const base = dto.baseUpdatedAt ?? null;
 

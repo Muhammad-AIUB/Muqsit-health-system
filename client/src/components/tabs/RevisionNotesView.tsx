@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { C, font } from "@/theme";
+import { C, font, PAPER } from "@/theme";
 import { btnPrimary, btnSecondary, btnDisabled, inputSm, pageTitle } from "@/theme/styles";
 import RichTextEditor from "@/components/common/RichTextEditor";
 import { Loading, LoadError } from "@/components/common/ListState";
@@ -216,8 +216,11 @@ export default function RevisionNotesView() {
   const key = ["revision-notes", uid];
   const query = useQuery({
     queryKey: key,
-    // After any save still on its way from a visit to this tab just left.
-    queryFn: () => enqueue(() => revisionNotesApi.get()),
+    // After any save still on its way from a visit to this tab just left. The
+    // notebook of the user signed in on THIS page, or a refusal — never the
+    // notebook of whoever another tab has signed in since (release review of
+    // a2d7b93: it was shown, and offered in place of the doctor's own typing).
+    queryFn: () => enqueue(() => revisionNotesApi.get(uid)),
     // Asked whatever the browser says about being online: a list that was never
     // asked for must not be drawn as an empty notebook.
     networkMode: "always",
@@ -364,7 +367,8 @@ export default function RevisionNotesView() {
     if (!ok) return;
     const r = await query.refetch();
     if (r.isError || r.data === undefined) {
-      setError("The version saved on the other screen could not be loaded. Check the connection and try again — what you typed is still here.");
+      setError(signedInAsAnother(r.error) ? r.error.message
+        : "The version saved on the other screen could not be loaded. Check the connection and try again — what you typed is still here.");
       return;
     }
     lastSaved.set(uid, r.data);
@@ -447,6 +451,11 @@ export default function RevisionNotesView() {
     : "Nothing written yet";
 
   const ready = saved !== undefined;
+  // Refused because another account is signed in on this browser now: no
+  // notebook is shown, and typing held from an earlier visit stays held — shown
+  // here to be copied, and back in the editor once its own user is signed in.
+  const refusedHere = !ready && signedInAsAnother(query.error) ? query.error : null;
+  const keptHere = refusedHere ? held.get(uid)?.html : undefined;
 
   return (
     <div style={{ fontFamily: font }}>
@@ -493,7 +502,21 @@ export default function RevisionNotesView() {
         </div>
       )}
 
-      {query.isError && !ready ? (
+      {refusedHere ? (
+        <div>
+          <LoadError title="Your Revision Notes are not shown here." detail={refusedHere.message} onRetry={() => { void query.refetch(); }} retrying={query.isFetching} />
+          {keptHere !== undefined && (
+            <section aria-label="Your unsaved text" style={{ width: `min(${PAGE_WIDTH_PX}px, 100%)`, margin: "0 auto" }}>
+              <div style={{ fontSize: 12, color: C.n[700], marginBottom: 6 }}>What you typed and did not save is kept on this page. Copy it before you reload the page:</div>
+              <div
+                // Paper in both modes, as the editor is (theme PAPER).
+                style={{ fontSize: 13.5, color: PAPER.color, background: PAPER.background, lineHeight: 1.5, border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "10px 12px", overflowWrap: "anywhere" }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(keptHere) }}
+              />
+            </section>
+          )}
+        </div>
+      ) : query.isError && !ready ? (
         <LoadError title="Your Revision Notes could not be loaded." detail="Check your internet connection and try again." onRetry={() => { void query.refetch(); }} retrying={query.isFetching} />
       ) : !ready ? (
         <Loading label="Opening your Revision Notes…" />

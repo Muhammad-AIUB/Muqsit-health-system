@@ -20,8 +20,10 @@ export class SaveRevisionNoteDto {
    * The id of the user the writer believes is signed in — whose notebook this
    * text is. A save for anyone but the session's own user is refused (409):
    * two tabs share one login cookie, so a tab still showing one doctor can
-   * send under the next one's session. Required — a page that does not say
-   * whose text it is is not written anywhere.
+   * send under the next one's session. Optional only so that a page from
+   * before it reaches the service and is refused THERE, with a 409 it shows
+   * as written (a 400 it words itself and stops saving) — a save that does
+   * not say whose text it is is not written anywhere.
    */
-  @IsString() @MaxLength(64) expectedUserId!: string;
+  @IsOptional() @IsString() @MaxLength(64) expectedUserId?: string | null;
 }
