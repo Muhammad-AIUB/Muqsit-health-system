@@ -135,6 +135,12 @@ function findBlock(list: Cell[], block: string[]): number {
  * pad) harmless rather than destructive.
  */
 export function syncRxDrugHistory(stored: string[], prevDerived: string[], nextDerived: string[]): string[] {
+  return reconcile(stored, prevDerived, nextDerived).entries;
+}
+
+/** The sync itself, and the keys of the blocks it INSERTED (not found already there). */
+function reconcile(stored: string[], prevDerived: string[], nextDerived: string[]): { entries: string[]; inserted: Set<string> } {
+  const inserted = new Set<string>();
   const nextBlocks = toBlocks(nextDerived ?? []);
   const nextKeys = new Set(nextBlocks.map((b) => b.join("\n")));
   const cells: Cell[] = [...(stored ?? [])];
@@ -161,9 +167,10 @@ export function syncRxDrugHistory(stored: string[], prevDerived: string[], nextD
     const s = cells.findIndex((c) => typeof c !== "string" && c.slot === b[0]);
     if (s >= 0) cells.splice(s, 1, ...b);
     else cells.push(...b);
+    inserted.add(b.join("\n"));
   }
 
-  return cells.filter((c): c is string => typeof c === "string");
+  return { entries: cells.filter((c): c is string => typeof c === "string"), inserted };
 }
 
 /**
@@ -188,10 +195,16 @@ export function syncRxDrugHistory(stored: string[], prevDerived: string[], nextD
 export function mirrorClaims(stored: string[], prevClaimed: string[], nextDerived: string[], known: boolean): string[] {
   if (!known) return [...(nextDerived ?? [])];
   const had = new Set(toBlocks(prevClaimed ?? []).map((b) => b.join("\n")));
-  const cells: Cell[] = [...(stored ?? [])];
+  // ⚕️ Decided AFTER the blocks that left the pad are withdrawn — by the very
+  // sync that writes the list (release review, 18/10/2026). Decided before, a
+  // medicine whose taper was deleted matched its own old line, was taken for a
+  // line already there, and was never claimed: taken off the pad, it stayed in
+  // the history for good.
+  const { inserted } = reconcile(stored, prevClaimed, nextDerived);
   const out: string[] = [];
   for (const b of toBlocks(nextDerived ?? [])) {
-    if (had.has(b.join("\n")) || findBlock(cells, b) < 0) out.push(...b);
+    const key = b.join("\n");
+    if (had.has(key) || inserted.has(key)) out.push(...b);
   }
   return out;
 }

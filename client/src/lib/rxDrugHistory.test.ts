@@ -241,4 +241,44 @@ describe("mirrorClaims", () => {
     expect(stored).toEqual([X]);
     expect(claimed).toEqual([]);
   });
+
+  // ⚕️ Release review, 18/10/2026: what the mirror owns is decided AFTER it
+  // withdraws what left the pad. Decided before, a medicine whose taper was
+  // deleted matched its own old line, was taken for one already there, and was
+  // never claimed again — taken off the pad, it stayed in the history for good.
+  it("a medicine whose taper was taken off is still the mirror's, and leaves with it", () => {
+    const H = "18/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 7 days";
+    const T = "18/10/2026(cont): 0+0+1 —  — 7 days";
+    let stored: string[] = [];
+    let owned: string[] = [];
+    const step = (next: string[]) => {
+      const claims = mirrorClaims(stored, owned, next, true);
+      stored = syncRxDrugHistory(stored, owned, next);
+      owned = claims;
+    };
+    step([H, T]);
+    expect(stored).toEqual([H, T]);
+    step([H]);
+    expect(stored).toEqual([H]);
+    expect(owned).toEqual([H]);
+    step([]);
+    expect(stored).toEqual([]);
+  });
+
+  it("…and a taper taken off and put back is not written twice", () => {
+    const H = "18/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 7 days";
+    const T = "18/10/2026(cont): 0+0+1 —  — 7 days";
+    let stored: string[] = [];
+    let owned: string[] = [];
+    const step = (next: string[]) => {
+      const claims = mirrorClaims(stored, owned, next, true);
+      stored = syncRxDrugHistory(stored, owned, next);
+      owned = claims;
+    };
+    step([H, T]); step([H]); step([H, T]);
+    expect(stored).toEqual([H, T]);
+    step([]);
+    expect(stored).toEqual([]);
+  });
 });
+

@@ -21,6 +21,7 @@ vi.mock("@/lib/api", async (orig) => ({
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "doc-1" } }) }));
 
 import RevisionNotesView, { REVISION_NOTES_MAX, forgetHeldRevisionNotes } from "./RevisionNotesView";
+import { setSignedInUser } from "@/lib/signedInUser";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -40,6 +41,7 @@ const status = () => screen.getByRole("status", { name: "Save status" }).textCon
 
 beforeEach(() => {
   forgetHeldRevisionNotes();
+  setSignedInUser("doc-1");
   api.get.mockReset(); api.save.mockReset();
   api.get.mockResolvedValue({ html: "<p>HBV notes. hbv DNA.</p>", updatedAt: T1 });
 });
@@ -373,6 +375,34 @@ describe("Revision Notes", () => {
     // 2 s, then 4, 8, 16: four tries in thirty seconds, not fifteen.
     expect(api.save.mock.calls.length).toBeLessThanOrEqual(5);
     expect(api.save.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  // ⚕️ Release review, 18/10/2026: on a shared PC, one user's held notes were
+  // sent under the NEXT user's session (on "online", or at that user's logout)
+  // and became that user's notebook. Held text is sent only while its own user
+  // is the one signed in.
+  it("held notes are never sent while another user is signed in", async () => {
+    api.save.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const first = view();
+    await until(() => expect(surface().innerHTML).toContain("HBV"));
+    type("<p>doc-1's own</p>");
+    first.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    api.save.mockClear();
+    setSignedInUser("doc-2");
+    await act(async () => { window.dispatchEvent(new Event("online")); await new Promise((r) => setTimeout(r, 10)); });
+    const { runBeforeLogout } = await import("@/lib/beforeLogout");
+    await act(async () => { await runBeforeLogout(); });
+    expect(api.save).not.toHaveBeenCalled();
+    // Nor does the page ask the other user about it.
+    const e = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+    // Back with its own user, it is sent.
+    api.save.mockResolvedValueOnce({ html: "<p>doc-1's own</p>", updatedAt: T2 });
+    setSignedInUser("doc-1");
+    await act(async () => { window.dispatchEvent(new Event("online")); await new Promise((r) => setTimeout(r, 10)); });
+    await until(() => expect(api.save).toHaveBeenCalledTimes(1));
   });
 });
 

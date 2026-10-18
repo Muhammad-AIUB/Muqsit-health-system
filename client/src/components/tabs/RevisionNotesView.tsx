@@ -12,6 +12,7 @@ import { stamp } from "@/lib/stamp";
 import { confirmAction } from "@/lib/dialogs";
 import { useAuth } from "@/context/AuthContext";
 import { onBeforeLogout } from "@/lib/beforeLogout";
+import { signedInUser } from "@/lib/signedInUser";
 import { afterSave, findMatches, pageCount, revisionNotesPrintHtml, PAGE_HEIGHT_PX, PAGE_WIDTH_PX } from "@/lib/revisionNotes";
 
 // "Revision Notes" (physician's sheet, 18/10/2026, item 4): the signed-in
@@ -71,15 +72,24 @@ function listen() {
   if (listening || typeof window === "undefined") return;
   listening = true;
   window.addEventListener("beforeunload", (e) => {
-    if (held.size === 0) return;
+    // Asked of the user whose text it is — another user cannot save it.
+    const me = signedInUser();
+    if (!me || !held.has(me)) return;
     e.preventDefault();
     e.returnValue = "";
   });
   window.addEventListener("online", () => { void flushAllHeld(); });
   onBeforeLogout(() => flushAllHeld());
 }
+/**
+ * ⚕️ Only the text of the user signed in NOW is ever sent — under their own
+ * session. On a shared PC every user's held text went out under whoever was
+ * signed in, and one doctor's notes became the next user's notebook (release
+ * review, 18/10/2026). Another user's held text waits, unsent, for its owner.
+ */
 function flushAllHeld(): Promise<void> {
-  return Promise.all(Array.from(held.keys()).map(flushHeld)).then(() => undefined);
+  const me = signedInUser();
+  return me && held.has(me) ? flushHeld(me) : Promise.resolve();
 }
 
 /** Runs `job` after every request already queued — one at a time. */
@@ -99,6 +109,7 @@ function holdForLater(uid: string, html: string, conflict: boolean) {
 /** Save what is held for `uid`, after whatever is on its way. Kept if it fails. */
 function flushHeld(uid: string): Promise<void> {
   return enqueue(async () => {
+    if (signedInUser() !== uid) return; // never under another user's session
     const h = held.get(uid);
     const base = lastSaved.get(uid);
     if (!h || h.conflict || base === undefined || h.html.length > REVISION_NOTES_MAX) return;

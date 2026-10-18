@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { runBeforeLogout } from "@/lib/beforeLogout";
+import { setSignedInUser } from "@/lib/signedInUser";
 import {
   authApi,
   onAuthFailure,
@@ -82,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // drop the user from state. The RequireAuth guard then sends them to
   // /login on the next render.
   useEffect(() => onAuthFailure(() => { clearAccountState(); setUser(null); }), [clearAccountState]);
+  // Who is signed in, for code outside React (lib/signedInUser.ts).
+  useEffect(() => { setSignedInUser(user?.id ?? null); }, [user?.id]);
 
   const login = async (identifier: string, password: string, remember: boolean) => {
     const res = await authApi.login(identifier, password, remember);

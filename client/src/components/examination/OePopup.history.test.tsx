@@ -140,24 +140,29 @@ describe("On examination — dated history entries", () => {
     expect(setOnExamination.mock.calls[0][0]).toEqual([]);
   });
 
-  // ⚕️ Second review, 18/10/2026: closing the popup dropped what was typed and
-  // not added, without a word. It asks — keep it (added as typed) or let it go.
-  it("closing with history typed and not added asks; the answer Add keeps it", async () => {
+  // ⚕️ Closing the popup must not drop what was typed and not added without a
+  // word (second review, 18/10/2026) — and the question is about DISCARDING:
+  // only its red button discards. Escape or a press beside it (which the app's
+  // question reads as "no") keeps the popup open with the text (release review:
+  // asked "keep it?", a second Escape threw it away). Nothing is written after
+  // the question, so no other patient can be touched while it is on screen.
+  it("closing with history typed and not added asks to discard; Discard drops it and closes", async () => {
     view();
     fireEvent.change(box("Disease history"), { target: { value: "CKD stage 3" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Close" })); });
-    expect(ask.asked).toHaveLength(1);
-    expect(oeData.diseaseHistory).toBe("CKD stage 3");
+    expect(ask.asked).toEqual(["Discard the history you typed?"]);
+    expect(oeData.diseaseHistory).toBe("");
     expect(setShowOePopup).toHaveBeenCalledWith(false);
   });
 
-  it("…and the answer Discard lets it go", async () => {
+  it("…and any other answer keeps the popup open with the text", async () => {
     ask.answer = false;
     view();
     fireEvent.change(box("Disease history"), { target: { value: "CKD stage 3" } });
     await act(async () => { fireEvent.click(screen.getByText("Cancel")); });
+    expect(setShowOePopup).not.toHaveBeenCalled();
+    expect(box("Disease history").value).toBe("CKD stage 3");
     expect(oeData.diseaseHistory).toBe("");
-    expect(setShowOePopup).toHaveBeenCalledWith(false);
   });
 
   it("closing with nothing typed asks nothing", async () => {

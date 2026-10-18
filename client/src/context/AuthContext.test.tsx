@@ -26,6 +26,7 @@ vi.mock("@/lib/api", () => ({
 
 import { AuthProvider, useAuth } from "./AuthContext";
 import { onBeforeLogout } from "@/lib/beforeLogout";
+import { signedInUser } from "@/lib/signedInUser";
 
 function setup() {
   const qc = new QueryClient();
@@ -80,6 +81,18 @@ describe("logout lets unsaved work out first", () => {
     await act(async () => { await result.current.logout(); });
     off();
     expect(order).toEqual(["save notes", "server logout"]);
+  });
+});
+
+// Who is signed in, for code outside React that must not act for anyone else
+// (held Revision Notes, release review 18/10/2026).
+describe("the signed-in user is known outside React", () => {
+  it("is the user after sign-in, and nobody after logout", async () => {
+    const { result } = setup();
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(signedInUser()).toBe("A");
+    await act(async () => { await result.current.logout(); });
+    expect(signedInUser()).toBeNull();
   });
 });
 

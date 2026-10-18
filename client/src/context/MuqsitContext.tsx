@@ -550,6 +550,10 @@ function useMuqsitStore() {
       if (pid) {
         rxCompletedRef.current = pid;
         setRxCompletedPid(pid); // carried to mirror devices — see mirrorSnapshot
+        // ⚕️ The ℞ lines are on the patient's RECORD now, not the mirror's to
+        // withdraw: still claimed, a later-day reload of the draft took them
+        // back out of the history (release review, 18/10/2026).
+        setRxMirrorOwned([]);
         rxFlaggedRef.current = null;
         void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
         void opdApi.setRxStatus({

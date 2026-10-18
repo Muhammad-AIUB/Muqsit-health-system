@@ -638,3 +638,24 @@ describe("what the ℞ mirror owns travels with the visit", () => {
   });
 });
 
+// ⚕️ Release review, 18/10/2026: once Save & print has put the ℞ lines on the
+// patient's record, they are the RECORD's, not the mirror's. Still claimed, a
+// later-day reload of the per-doctor draft withdrew them from the history.
+describe("after Save & print the mirror owns nothing it wrote", () => {
+  it("gives up the saved lines", async () => {
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" };
+    const pt = patient({ drugHistory: [] });
+    api.patientGet.mockResolvedValue(pt);
+    const { result } = await setup();
+    act(() => result.current.loadPatient(pt));
+    await tick(50);
+    act(() => result.current.setRxItems([napa]));
+    await tick(10);
+    expect((result.current.mirrorSnapshot as unknown as Record<string, unknown>).rxMirrorOwned).toEqual(rxDrugHistoryEntries([napa], "18/10/2026"));
+    await act(async () => { await result.current.savePrescription(); });
+    await tick(50);
+    expect((result.current.mirrorSnapshot as unknown as Record<string, unknown>).rxMirrorOwned).toEqual([]);
+  });
+});
+

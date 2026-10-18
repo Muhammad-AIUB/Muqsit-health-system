@@ -84,28 +84,24 @@ export default function OePopup() {
   };
 
   // ⚕️ Every way out of the popup comes here (×, Cancel, Escape, the veil).
-  // History typed and not added is not dropped without a word (second review,
-  // 18/10/2026): the doctor keeps it — added as typed — or lets it go.
+  // History typed and not added is never dropped without a word (second
+  // review, 18/10/2026), and the question is about DISCARDING it: only its red
+  // button discards; Escape or a press beside it — which the app's question
+  // reads as "no" — keeps the popup open with the text (release review: asked
+  // "keep it?", a second Escape threw it away). Nothing is written after the
+  // question, so a patient loaded meanwhile cannot be touched by it.
   const requestClose = async () => {
     const typed = (["diseaseHistory", "surgicalHistory"] as const).filter((f) => hist[f].text.trim() || hist[f].date.trim());
     if (!typed.length) { setShowOePopup(false); return; }
-    // Fixed before the question: the popup stays live behind it.
     const what = typed.map((f) => hist[f].text.trim() || hist[f].date.trim()).join("”, “");
-    const keep = await confirmAction({
-      title: "Keep the history you typed?",
-      body: `“${what}” was typed but not added.`,
-      confirmLabel: "Add it",
-      cancelLabel: "Discard",
+    const discard = await confirmAction({
+      title: "Discard the history you typed?",
+      body: `“${what}” was typed but not added. Press Add beside it to keep it.`,
+      confirmLabel: "Discard",
+      cancelLabel: "Keep editing",
+      danger: true,
     });
-    if (keep) {
-      let next = { diseaseHistory: oeD.diseaseHistory, surgicalHistory: oeD.surgicalHistory };
-      for (const f of typed) {
-        const v = withTyped(f);
-        if (v === null) return; // the date could not be read: said under its box, the popup stays
-        next = { ...next, [f]: v };
-      }
-      setOeData((prev) => ({ ...prev, ...next }));
-    }
+    if (!discard) return;
     setHist({ diseaseHistory: EMPTY_DRAFT, surgicalHistory: EMPTY_DRAFT });
     setShowOePopup(false);
   };
