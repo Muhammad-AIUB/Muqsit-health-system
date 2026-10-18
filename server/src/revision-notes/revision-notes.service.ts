@@ -21,7 +21,10 @@ const OTHER_USER_READ =
 // A page from before `expectedUserId` (a tab keeps its build until a full
 // reload). It shows a 409's sentence as written and keeps the typing, so: no
 // code, and words that say what to do.
-const OUTDATED_PAGE = 'This page is from before an update. Copy what you typed, reload the page, then paste it back.';
+// A page from before the update may offer "Show that version" on its own
+// (its code cannot be changed from here): the sentence warns against it.
+const OUTDATED_PAGE =
+  'This page is from before an update. Copy what you typed, reload the page, then paste it back. Do not press "Show that version" — it would replace what you typed.';
 
 const otherUser = (message: string) =>
   new ConflictException({ statusCode: 409, error: 'Conflict', message, code: SIGNED_IN_USER_CHANGED });

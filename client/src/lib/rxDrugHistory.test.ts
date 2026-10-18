@@ -265,7 +265,10 @@ describe("syncRxDrugHistory", () => {
       expect(pad([napa, note, taper("0+0+1")])).toEqual([N]);
     });
 
-    it("clearing a medicine's name withdraws its taper; nothing goes under the line above", () => {
+    // Only where nothing but a note or the top of the pad stands above it: a
+    // medicine cleared UNDER another medicine still hands its taper to that one
+    // — older, also on the printed sheet; client/CLAUDE.md, the taper bullet.
+    it("clearing the FIRST medicine's name withdraws its taper; nothing goes under the line above", () => {
       const clarith = med({ drug: "Tablet. Clarith 500 mg", dose: "1+0+1", duration: "7 days" });
       const out = run(OLD, [[clarith, taper("0+0+1"), napa], [taper("0+0+1"), napa]]);
       expect(out).toEqual([...OLD, N]);
