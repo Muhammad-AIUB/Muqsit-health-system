@@ -267,6 +267,32 @@ describe("rxDrugHistoryEntries — a taper is recorded under its own medicine", 
       }),
     );
   });
+
+  // ⚕️ Release review of 551a120, 18/10/2026: a taper with no medicine DIRECTLY
+  // above it on the pad — first, straight under a note, or (as the pad's own
+  // reading leaves it) where its medicine's name was cleared — is not written.
+  // Written, it went under whatever the history held above it. Every other taper
+  // is written, under its own medicine. Over pads BUILT to hold such lines.
+  it("⚕️ writes a taper if and only if a medicine stands directly above it, and under that medicine", () => {
+    const stray = fc.tuple(dose, food, duration).map(([ds, f, du]) => [rxItem({ drug: "", dose: ds, instruction: f, duration: du, isCont: true })]);
+    const strayPad = fc.array(fc.oneof(padBlock, stray), { maxLength: 6 }).map((bs) => bs.flat());
+    const cells = (i: RxItem) => [i.dose, i.instruction, i.duration].map((c) => c.trim());
+    fc.assert(
+      fc.property(strayPad, (p) => {
+        const writable = new Set<string>();
+        let above: RxItem | null = null;
+        for (const i of p) {
+          if (!i.isCont) { above = i; continue; }
+          if (cells(i).every((c) => !c)) continue;
+          if (above && !above.isNote && above.drug.trim()) {
+            writable.add(`${VISIT_DATE}: ${[above.drug.trim(), ...cells(above)].join(" — ")} ⇐ ${VISIT_DATE}(cont): ${cells(i).join(" — ")}`);
+          }
+        }
+        const written = headsInEntries(rxDrugHistoryEntries(p, VISIT_DATE)).map(([c, h]) => `${h} ⇐ ${c}`);
+        expect(new Set(written)).toEqual(writable);
+      }),
+    );
+  });
 });
 
 describe("rxDrugHistoryEntries — total, and echoes only what was typed", () => {

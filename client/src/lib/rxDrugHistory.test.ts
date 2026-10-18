@@ -245,6 +245,40 @@ describe("syncRxDrugHistory", () => {
       expect(out).toEqual([...OLD, N, B]);
     });
 
+    // ⚕️ Release review of 551a120, 18/10/2026. A medicine line whose name is
+    // cleared on the pad is dropped by the pad's own reading (`rxItemsFromRows`)
+    // while its `>>>` lines are kept. Written as they stood, such a taper went
+    // under whatever entry the history held above it — and the merge then wrote
+    // that entry twice. A taper with no medicine directly above it in its own
+    // block is not written: it names no drug, and nothing says whose it is.
+    it("writes no taper that has no medicine above it", () => {
+      expect(pad([taper("0+0+1"), napa])).toEqual([N]);
+    });
+
+    // The pad gives a note no `>>>` button, so a taper straight under a note is a
+    // cleared medicine's too — and a note may itself be a medicine typed by hand
+    // ("Insulin as before"). Under the medicine above the note it would be a dose
+    // for the wrong drug. "+ Add medicine" (`unwritableLines`) and Move to Rx
+    // (`blocksFromRows`) read it the same way.
+    it("writes no taper that stands straight under a note", () => {
+      const note = med({ drug: "Insulin as before", isNote: true });
+      expect(pad([napa, note, taper("0+0+1")])).toEqual([N]);
+    });
+
+    it("clearing a medicine's name withdraws its taper; nothing goes under the line above", () => {
+      const clarith = med({ drug: "Tablet. Clarith 500 mg", dose: "1+0+1", duration: "7 days" });
+      const out = run(OLD, [[clarith, taper("0+0+1"), napa], [taper("0+0+1"), napa]]);
+      expect(out).toEqual([...OLD, N]);
+    });
+
+    // The review's own case, through the real functions: the record holds Bex, the
+    // pad a taper whose medicine was cleared, then Napa. Merged with the record
+    // after a reload, Bex was written twice: [Bex, Bex, (cont), Napa].
+    it("…and merged with the record after a reload, the record's last line is not written twice", () => {
+      const live = syncRxDrugHistory([B], [], pad([taper("0+0+1"), napa]));
+      expect(mergeWithRecord([B], live)).toEqual([B, N]);
+    });
+
     it("is idempotent once in place", () => {
       const next = pad([napa, bex, { ...napa }, taper("0+0+1")]);
       const once = run(OLD, [[napa, bex, { ...napa }, taper("0+0+1")]]);

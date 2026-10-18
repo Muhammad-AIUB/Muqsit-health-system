@@ -39,6 +39,16 @@ export const SEP = " — ";
  *  • free-typed ℞ notes — a note is not a medication, and the printed Drug
  *    history block renders every entry as a drug name;
  *  • lines with no medicine name and no tapering content — nothing to record;
+ *  • ⚕️ a tapering line with no medicine DIRECTLY above it: at the top of the
+ *    pad, straight under a note, or under a line whose name was cleared — the
+ *    pad's own reading (`rxItemsFromRows`) drops that line and keeps its
+ *    tapers, and the pad offers a note no `>>>` of its own. A taper names no
+ *    drug. Written, it went under whatever entry the history held above it —
+ *    a dose for the wrong medicine — and the merge with the record then wrote
+ *    that entry twice (release review of 551a120, 18/10/2026). "+ Add
+ *    medicine" (`unwritableLines`) and Move to Rx (`blocksFromRows`) refuse it
+ *    the same way. It is still on the pad; once its medicine is named again it
+ *    is written under it;
  *  • everything, when `visitDate` is not a real dd/mm/yyyy stamp. An entry
  *    stamped with a malformed date can never be matched back out again, so it
  *    would be unremovable junk in a patient record.
@@ -54,14 +64,15 @@ export function rxDrugHistoryEntries(rxItems: RxItem[], visitDate: string): stri
   // the pre-2026-08-17 blank-drug fallback for `isCont`); duplicating that test
   // here is how a taper silently turns into a second unrelated medicine.
   for (const r of rowsFromRxItems(rxItems ?? [])) {
-    if (!r.isMedicine) continue; // note, or the trailing blank row
+    // A note, a line with no medicine name, or the trailing blank row: no
+    // medicine for a taper under it to belong to.
+    if (!r.isMedicine || (!r.continuation && !r.drug.trim())) { open = null; continue; }
     if (r.continuation) {
       if (!r.dose.trim() && !r.food.trim() && !r.duration.trim()) continue;
+      if (!open) continue; // ⚕️ no medicine directly above it — see "Skipped" above
       const entry = `${visitDate}(cont): ${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`;
-      if (!open) { open = []; blocks.push(open); } // a taper with nothing above it stands alone, as it always did
       if (!open.includes(entry)) open.push(entry); // the same taper twice under one line is one fact
     } else {
-      if (!r.drug.trim()) continue;
       open = [`${visitDate}: ${r.drug.trim()}${SEP}${r.dose.trim()}${SEP}${r.food.trim()}${SEP}${r.duration.trim()}`];
       blocks.push(open);
     }
@@ -239,7 +250,10 @@ export function mirrorClaims(stored: string[], prevClaimed: string[], nextDerive
  * text as a printed Napa lost its taper on a reload, and the ℞ mirror then put
  * Clarith in a second time. A live block that only STARTS like one on the record
  * is another block: the record's is kept as well, since nothing here can tell a
- * block that was replaced since from one that was added elsewhere.
+ * block that was replaced since from one that was added elsewhere — and its
+ * first line is then written twice. That is why `rxDrugHistoryEntries` writes
+ * no taper with no medicine above it: pushed to the end of the list, it joined
+ * the record's last line into such a block (release review of 551a120).
  */
 export function mergeWithRecord(record: string[], live: string[]): string[] {
   const onRecord = new Map<string, number>();
