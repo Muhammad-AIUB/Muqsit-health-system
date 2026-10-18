@@ -166,5 +166,35 @@ describe("the IPD Save refuses a pad line it cannot write", () => {
     expect(updateMock).not.toHaveBeenCalled();
     expect(document.body.textContent).toMatch(/no medicine/i);
   });
+
+  // ⚕️ Review, 18/10/2026: "Save follow up" moved the typed vitals into the log
+  // and emptied the boxes BEFORE the refusal — shown as recorded, never sent.
+  it("Save follow up refuses BEFORE it touches the typed vitals", async () => {
+    const clinical = { rxItems: [
+      { drug: "", dose: "", duration: "", instruction: "", isCont: false },
+      { drug: "", dose: "0+0+1", duration: "", instruction: "", isCont: true },
+    ] } as unknown as IpdClinical;
+    render(<IpdDetailView admission={admission({ clinical })} onBack={() => {}} />);
+    const bp = screen.getByLabelText("Blood pressure") as HTMLInputElement;
+    fireEvent.change(bp, { target: { value: "90/60" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save follow up" })); });
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(bp.value).toBe("90/60");
+    expect(document.body.textContent).not.toMatch(/BP 90\/60/);
+    expect(document.body.textContent).toMatch(/no medicine name/i);
+  });
+
+  it("the top Save keeps the typed vitals too", async () => {
+    const clinical = { rxItems: [
+      { drug: "", dose: "", duration: "", instruction: "", isCont: false },
+      { drug: "", dose: "0+0+1", duration: "", instruction: "", isCont: true },
+    ] } as unknown as IpdClinical;
+    render(<IpdDetailView admission={admission({ clinical })} onBack={() => {}} />);
+    const bp = screen.getByLabelText("Blood pressure") as HTMLInputElement;
+    fireEvent.change(bp, { target: { value: "90/60" } });
+    await pressSave();
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(bp.value).toBe("90/60");
+  });
 });
 

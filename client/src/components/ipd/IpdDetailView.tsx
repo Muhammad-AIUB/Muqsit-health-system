@@ -245,8 +245,20 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     setTimeout(() => setSavedMsg(""), 2500);
   };
 
+  // ⚕️ Checked FIRST, before a follow-up entry is moved into the log or a box
+  // is emptied: refused afterwards, the typed vitals showed in the log as
+  // recorded and were never sent (review, 18/10/2026). Said where the doctor
+  // is — the Prescription may be hidden in the view they are in.
+  const refuseUnwritable = () => {
+    if (unwritableRows(rows).length === 0) return false;
+    setSavedMsg("Not saved: a line on the Prescription has no medicine name (marked in red there). Type the name, or remove the line — nothing typed here is lost.");
+    setTimeout(() => setSavedMsg(""), 8000);
+    return true;
+  };
+
   // Top "Save" — also commits a non-empty follow-up draft so it isn't lost.
   const save = () => {
+    if (refuseUnwritable()) return;
     const next = draftHasValue ? [...followUps, { ...draft, ts: new Date().toISOString() }] : followUps;
     if (draftHasValue) { setFollowUps(next); setDraft({}); }
     void persist(buildClinical(next));
@@ -255,6 +267,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // Follow-Up "Save" — append the current draft as a timestamped entry.
   const saveFollowUp = () => {
     if (!draftHasValue) return;
+    if (refuseUnwritable()) return;
     const next = [...followUps, { ...draft, ts: new Date().toISOString() }];
     setFollowUps(next);
     setDraft({});
@@ -315,6 +328,8 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
             <button onClick={saveFollowUp} disabled={!draftHasValue || update.isPending} style={{ ...btnSave, ...(!draftHasValue || update.isPending ? btnDisabled : null) }}>Save follow up</button>
+            {/* A refusal is said here too — the header's message may be out of sight. */}
+            {savedMsg.startsWith("Not saved") && <span role="status" style={{ fontSize: 12, color: C.danger[800] }}>{savedMsg}</span>}
           </div>
         </div>
 

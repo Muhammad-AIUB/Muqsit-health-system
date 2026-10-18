@@ -843,3 +843,37 @@ describe("Save & print with a line the ℞ pad cannot write", () => {
   });
 });
 
+// Review, 18/10/2026: two more ways a line that cannot be written reached the
+// record, or was lost.
+describe("the ℞ items themselves are checked at save", () => {
+  it("a >>> line with no medicine above it in the items (an old draft) is refused, never filled with the medicine before", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setRxItems([
+      { drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "", isCont: false },
+      { drug: "Bed rest", dose: "", instruction: "", duration: "", isNote: true },
+      { drug: "", dose: "0+0+1", instruction: "", duration: "", isCont: true },
+    ]));
+    await act(async () => { await result.current.savePrescription(); });
+    expect(api.rxCreate).not.toHaveBeenCalled();
+    expect(result.current.savedMsg).toMatch(/no medicine/i);
+  });
+
+  it("Save to complete later is refused too — it would clear the pad and lose the line", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => {
+      result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "" }]);
+      result.current.setRxPadUnwritable(1);
+    });
+    await tick(1500);
+    let ok = true;
+    await act(async () => { ok = await result.current.saveDraftNow(); });
+    expect(ok).toBe(false);
+    expect(result.current.rxItems).toHaveLength(1); // nothing cleared
+    expect(result.current.savedMsg).toMatch(/no medicine/i);
+  });
+});
+

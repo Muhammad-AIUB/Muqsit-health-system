@@ -22,16 +22,32 @@ import type { RxItem } from "@/types";
 // copy is what `rxItems` becomes — whatever `rxItems` holds in that same render
 // is overwritten by it, as the copy always did. Only a render in which the pad
 // did NOT move copies `rxItems` onto the pad.
+//
+// ⚕️ A NEW VISIT (`epoch`, bumped by `resetEditor`) always redraws the pad from
+// `rxItems`. A pad holding only lines it cannot write (a >>> line whose
+// medicine name was cleared — `unwritableRows`) copies [] into `rxItems`, the
+// same as a reset does: the pad saw no change, kept the lines, and one patient's
+// dose stood on the next patient's pad (review, 18/10/2026).
 export function usePadSync(
   rxItems: RxItem[],
   setRxItems: Dispatch<SetStateAction<RxItem[]>>,
+  epoch = 0,
 ): [Row[], Dispatch<SetStateAction<Row[]>>] {
   const [rows, setRows] = useState<Row[]>(() => fromRxItems(rxItems));
   // What the pad and `rxItems` last agreed on.
   const lastSync = useRef<string>(JSON.stringify(toRxItems(fromRxItems(rxItems))));
   const seenRows = useRef(rows);
+  const seenEpoch = useRef(epoch);
 
   useEffect(() => {
+    if (epoch !== seenEpoch.current) {
+      seenEpoch.current = epoch;
+      const next = fromRxItems(rxItems);
+      lastSync.current = JSON.stringify(toRxItems(next));
+      seenRows.current = next;
+      setRows(next);
+      return;
+    }
     if (rows !== seenRows.current) {
       seenRows.current = rows;
       const items = toRxItems(rows);
@@ -45,7 +61,7 @@ export function usePadSync(
       lastSync.current = sig;
       setRows(fromRxItems(rxItems));
     }
-  }, [rows, rxItems, setRxItems]);
+  }, [rows, rxItems, setRxItems, epoch]);
 
   return [rows, setRows];
 }

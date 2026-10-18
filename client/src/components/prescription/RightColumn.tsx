@@ -10,7 +10,8 @@ import InvestigationGroups from "@/components/investigation/InvestigationGroups"
 import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { usePadSync } from "@/lib/usePadSync";
-import { unwritableRows } from "@/lib/rxRows";
+import { unwritableRows, writableItems } from "@/lib/rxRows";
+import { tell } from "@/lib/dialogs";
 import { useKbdLang } from "@/lib/kbdLang";
 import { rxItemsIn } from "@/lib/rxLanguage";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -30,7 +31,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     rxItems, setRxItems,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
-    can, savedDrugAdvice, activeWorkstationId, currentPatientId, setRxPadUnwritable,
+    can, savedDrugAdvice, activeWorkstationId, currentPatientId, setRxPadUnwritable, editorEpoch,
   } = useMuqsit();
 
   // ••• special advice (physician's design, 2026-09-24): which medicine's box is open.
@@ -45,7 +46,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
 
   // Pad edits → prescription model, and changes made elsewhere (templates,
   // prescribe-clear, Move to Rx, the BAN/EN switch) → pad: lib/usePadSync.ts.
-  const [rows, setRows] = usePadSync(rxItems, setRxItems);
+  const [rows, setRows] = usePadSync(rxItems, setRxItems, editorEpoch);
   // ⚕️ Lines the pad cannot write: Save & print refuses while any is there.
   const unwritable = unwritableRows(rows).length;
   useEffect(() => { setRxPadUnwritable(unwritable); }, [unwritable, setRxPadUnwritable]);
@@ -61,9 +62,19 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   const lang = useKbdLang();
 
   // Clicking a template ADDS its medicines to the current prescription.
-  const addTemplate = (items: RxItem[]) => {
+  const addTemplate = (items: RxItem[], name: string) => {
     if (!items.length) return;
-    setRxItems((prev) => [...prev, ...rxItemsIn(items.map((it) => ({ ...it })), lang)]);
+    // ⚕️ Read the pad's way: a template saved before 18/10/2026 may begin with
+    // a >>> line, which appended here would stand under the pad's last medicine.
+    // It is left out, and said.
+    const { items: ok, dropped } = writableItems(items);
+    if (ok.length) setRxItems((prev) => [...prev, ...rxItemsIn(ok.map((it) => ({ ...it })), lang)]);
+    if (dropped) {
+      tell({
+        title: `${dropped} ${dropped === 1 ? "line" : "lines"} of “${name}” not added`,
+        body: "A >>> dose in the template has no medicine directly above it, so it would have gone under another medicine. Open the template in Settings to put it right.",
+      });
+    }
   };
 
   // "Add Bulk Medicine" appends after the pad's last line, and the pad shows
@@ -98,7 +109,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           {shownTemplates.map((t, i) => (
             <button
               key={`${t.name}-${i}`}
-              onClick={() => addTemplate(t.items)}
+              onClick={() => addTemplate(t.items, t.name)}
               title={`Add ${t.items.length} item(s) from “${t.name}” to this prescription`}
               style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontFamily: font }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.pri[400]; e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.color = C.pri[600]; }}

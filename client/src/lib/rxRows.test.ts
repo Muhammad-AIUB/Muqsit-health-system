@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rowsFromRxItems, rxDrugIndexByRow, rxItemsFromRows, unwritableRows } from "./rxRows";
+import { rowsFromRxItems, rxDrugIndexByRow, rxItemsFromRows, unwritableRows, writableItems } from "./rxRows";
 import { contRow, emptyRow, type Row } from "@/components/prescription/MedicinePad";
 import type { RxItem } from "@/types";
 
@@ -297,6 +297,31 @@ describe("unwritableRows", () => {
 
   it("leaves alone what can be written, and empty lines", () => {
     expect(unwritableRows([napa, taper("0+0+1"), taper(""), note("Bed rest"), med({ drug: "" }), contRow(), emptyRow()])).toEqual([]);
+  });
+});
+
+// Items that arrive from elsewhere — an old template, an old draft — read the
+// pad's way: a >>> line with no medicine directly above it is left out and
+// COUNTED, never handed to the medicine before it (18/10/2026).
+describe("writableItems", () => {
+  const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "", isCont: false };
+  const cont = (dose: string): RxItem => ({ drug: "", dose, instruction: "", duration: "", isCont: true });
+  const note = (text: string): RxItem => ({ drug: text, dose: "", instruction: "", duration: "", isNote: true });
+
+  it("leaves out a >>> line at the start, and counts it", () => {
+    const r = writableItems([cont("0+0+1"), napa, cont("1+0+1")]);
+    expect(r.dropped).toBe(1);
+    expect(r.items.map((i) => (i.isCont ? `>>>${i.dose}` : i.drug))).toEqual(["Tablet. Napa 500 mg", ">>>1+0+1"]);
+  });
+
+  it("leaves out a >>> line under a note", () => {
+    expect(writableItems([napa, note("Bed rest"), cont("0+0+1")]).dropped).toBe(1);
+  });
+
+  it("leaves a writable list as it is", () => {
+    const r = writableItems([napa, cont("1+0+1"), note("Bed rest")]);
+    expect(r.dropped).toBe(0);
+    expect(r.items).toHaveLength(3);
   });
 });
 

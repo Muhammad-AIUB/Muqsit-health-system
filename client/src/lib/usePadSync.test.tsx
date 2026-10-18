@@ -71,3 +71,41 @@ describe("usePadSync — two edits in one render", () => {
     expect(view.rxItems[0]?.instruction).toBe("After meal");
   });
 });
+
+// ⚕️ Review, 18/10/2026: a pad holding ONLY lines it cannot write (a >>> line
+// whose medicine name was cleared) gives `rxItems` = [] — and so does a new
+// visit's reset. The pad saw no change, kept the lines, and one patient's dose
+// stood on the next patient's pad. A new visit (`epoch`) always redraws it.
+describe("usePadSync — a new visit always redraws the pad", () => {
+  const nameless: Row = { drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: true, continuation: false };
+  const taperRow: Row = { drug: "", dose: "0+0+1", food: "", duration: "", checked: true, isMedicine: true, continuation: true };
+
+  function setupEpoch() {
+    const view: { rows: Row[]; setRows: Dispatch<SetStateAction<Row[]>>; setRx: Dispatch<SetStateAction<RxItem[]>>; setEpoch: Dispatch<SetStateAction<number>> } = {} as never;
+    function Harness() {
+      const [rxItems, setRx] = useState<RxItem[]>([]);
+      const [epoch, setEpoch] = useState(0);
+      const [rows, setRows] = usePadSync(rxItems, setRx, epoch);
+      Object.assign(view, { rows, setRows, setRx, setEpoch });
+      return null;
+    }
+    render(<Harness />);
+    return view;
+  }
+
+  it("clears lines that never reached rxItems when the editor is reset", () => {
+    const view = setupEpoch();
+    act(() => view.setRows([nameless, taperRow, blank()]));
+    expect(view.rows).toHaveLength(3);
+    act(() => { view.setRx([]); view.setEpoch((e) => e + 1); });
+    expect(view.rows.map((r) => r.dose)).toEqual([""]);
+  });
+
+  it("an edit on the same visit is left alone", () => {
+    const view = setupEpoch();
+    act(() => view.setRows([nameless, taperRow, blank()]));
+    act(() => view.setRx([]));
+    expect(view.rows).toHaveLength(3);
+  });
+});
+

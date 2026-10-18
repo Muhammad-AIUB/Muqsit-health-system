@@ -288,6 +288,12 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   };
 
   const previewPdf = () => {
+    // ⚕️ Its Print prints too: a sheet that silently leaves out a line the pad
+    // cannot write is refused like Save & print (review, 18/10/2026).
+    if (m.rxPadUnwritable > 0) {
+      tell({ title: "The prescription cannot be previewed yet.", body: UNWRITABLE_PAD.replace(/^Not saved: a/, "A") });
+      return;
+    }
     try {
       setSheet({ open: true, html: buildHtml(), afterSave: false });
     } catch {

@@ -118,3 +118,30 @@ export function rxItemsFromRows(rows: Row[]): RxItem[] {
   }
   return out;
 }
+
+/**
+ * Items from ELSEWHERE — an old template, an old draft, a peer device — read the
+ * pad's way: a `>>>` line with no named medicine directly above it is left out
+ * and counted, never handed to the medicine before it; so is a medicine line
+ * with something in it and no name. `dropped` > 0 is what the save refuses on
+ * and what a template insert reports (18/10/2026).
+ */
+export function writableItems(items: RxItem[]): { items: RxItem[]; dropped: number } {
+  const out: RxItem[] = [];
+  let dropped = 0;
+  let headOk = false;
+  (items ?? []).forEach((it, i) => {
+    if (it.isNote) { headOk = false; out.push(it); return; }
+    const isCont = it.isCont ?? (it.drug.trim() === "" && i > 0);
+    if (isCont) {
+      if (headOk) out.push(it);
+      else dropped++;
+      return;
+    }
+    headOk = !!it.drug.trim();
+    if (headOk) out.push(it);
+    else if (it.dose.trim() || it.duration.trim() || it.instruction.trim()) dropped++;
+  });
+  return { items: out, dropped };
+}
+

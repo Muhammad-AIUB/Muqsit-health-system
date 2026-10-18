@@ -25,6 +25,7 @@ import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn, mergeWithRecord } from "@/lib/rxDrugHistory";
+import { writableItems } from "@/lib/rxRows";
 import { adviceLinesFor, padMedicines, syncRxAdvice } from "@/lib/rxDrugAdvice";
 import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
@@ -232,6 +233,9 @@ function useMuqsitStore() {
   // medicine above it was printed under the medicine before (18/10/2026).
   // Derived from the pad on each device; never stored or mirrored.
   const [rxPadUnwritable, setRxPadUnwritable] = useState(0);
+  // Bumped by every `resetEditor`: a new visit, which redraws the ℞ pad from
+  // `rxItems` (lib/usePadSync.ts) — never carries one patient's lines over.
+  const [editorEpoch, setEditorEpoch] = useState(0);
   const rxPadUnwritableRef = useRef(0);
   rxPadUnwritableRef.current = rxPadUnwritable;
   const [followUpNum, setFollowUpNum] = useState("");
@@ -363,8 +367,10 @@ function useMuqsitStore() {
   // caller, `PrescriptionView#handleSave`, holds a synchronous in-flight guard;
   // any new caller owes the same.
   const savePrescription = async (): Promise<boolean> => {
-    // ⚕️ Never save — and so never print — a pad with a line it cannot write.
-    if (rxPadUnwritableRef.current > 0) {
+    // ⚕️ Never save — and so never print — a pad with a line it cannot write:
+    // as the pad reports it, or as the items themselves read (an old draft, a
+    // peer device: `writableItems`).
+    if (rxPadUnwritableRef.current > 0 || writableItems(rxItems).dropped > 0) {
       setSavedMsg(UNWRITABLE_PAD);
       setTimeout(() => setSavedMsg(""), 8000);
       return false;
@@ -440,8 +446,10 @@ function useMuqsitStore() {
         items: (() => {
           let lastDrug = "";
           return rxItems.map((r, i) => {
-            // Notes are free text — they don't carry a drug name forward.
-            if (r.isNote) return { ...r, order: i };
+            // Notes are free text — they don't carry a drug name forward, and a
+            // >>> line after one has no medicine to take a name from (refused
+            // above; never filled with the medicine before the note).
+            if (r.isNote) { lastDrug = ""; return { ...r, order: i }; }
             if (r.drug.trim()) lastDrug = r.drug.trim();
             return { ...r, drug: r.drug.trim() || lastDrug, order: i };
           });
@@ -813,6 +821,7 @@ function useMuqsitStore() {
   // ptInfo) is set by the caller right after.
   const resetEditor = useCallback(() => {
     editorEpochRef.current += 1; // see the mount-time draft hydration
+    setEditorEpoch((n) => n + 1);
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
     setPtDate(todayISO()); setPtPhone(""); setPtHospitalId("");
     setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(true);
@@ -1406,6 +1415,13 @@ function useMuqsitStore() {
   //     typed-into and left within the 1200 ms debounce could end up with stored
   //     work and no Incomplete badge to find it by.
   const saveDraftNow = useCallback(async (): Promise<boolean> => {
+    // ⚕️ It clears the editor once the draft is stored, and a line the pad
+    // cannot write never reaches the draft: refused, or that line is lost.
+    if (rxPadUnwritableRef.current > 0) {
+      setSavedMsg(UNWRITABLE_PAD);
+      setTimeout(() => setSavedMsg(""), 8000);
+      return false;
+    }
     const p = pendingDraftRef.current;
     if (!draftReadyRef.current || !p || !p.pid || !p.hasRx) {
       setSavedMsg("Add a medicine or some clinical detail before saving.");
@@ -1639,7 +1655,7 @@ function useMuqsitStore() {
     history, setHistory, investigation, setInvestigation,
     hiddenInvestigation, setHiddenInvestigation,
     hideDrugHistory, setHideDrugHistory,
-    rxPadUnwritable, setRxPadUnwritable,
+    rxPadUnwritable, setRxPadUnwritable, editorEpoch,
     drugHistory, setDrugHistory, addDrugHistoryEntry, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,

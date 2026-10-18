@@ -477,9 +477,32 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   const removeRow = (idx: number) =>
     setRows((prev) => {
       const [from, to] = (!prev[idx]?.continuation && blockOf(prev, idx)) || [idx, idx + 1];
-      const filled = prev.filter((_, i) => i < from || i >= to).filter((r) => r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim());
+      const kept = prev.filter((_, i) => i < from || i >= to);
+      // ⚕️ Empty lines are tidied away — but never a line with >>> lines under
+      // it: gone, its >>> lines would stand under the medicine above and be
+      // saved and printed as THAT medicine's doses (review, 18/10/2026).
+      const filled = kept.filter((r, i) =>
+        r.drug.trim() || r.dose.trim() || r.food.trim() || r.duration.trim() ||
+        (r.isMedicine && !r.continuation && !!kept[i + 1]?.continuation));
       return [...filled, emptyRow()];
     });
+
+  // ⚕️ A medicine that has >>> lines keeps its name (18/10/2026). Emptied and
+  // left, the name it had when the box was entered comes back, and the pad says
+  // how to take it off (× takes its >>> lines too) or change it (type the new
+  // name). Cleared, its >>> lines had no medicine — and were saved and printed
+  // under the medicine above it.
+  const nameAtFocus = useRef<{ idx: number; drug: string; generic?: string; fromHabit?: Row["fromHabit"] } | null>(null);
+  const [nameKept, setNameKept] = useState<number | null>(null);
+  const keepNameIfTapered = (idx: number) => {
+    const snap = nameAtFocus.current;
+    nameAtFocus.current = null;
+    const row = rows[idx];
+    if (!snap || snap.idx !== idx || !row || !row.isMedicine || row.continuation) return;
+    if (row.drug.trim() || !snap.drug.trim() || !rows[idx + 1]?.continuation) return;
+    updateRow(idx, { drug: snap.drug, generic: snap.generic, fromHabit: snap.fromHabit });
+    setNameKept(idx);
+  };
 
   // The new taper goes after any tapers already under this medicine, and the
   // caret must land on THAT row, not on an existing taper's dose.
@@ -544,7 +567,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
       >
         {rows.map((row, idx) => {
           const isLastEmpty = idx === rows.length - 1 && !row.drug && !row.dose && !row.duration;
-          const started = Boolean(row.drug || row.dose || row.duration);
+          const started = Boolean(row.drug || row.dose || row.duration || row.food || (row.isMedicine && !row.continuation && rows[idx + 1]?.continuation));
           const isHead = row.isMedicine && !row.continuation;
           const isCont = row.continuation;
           const lineIndex = alertLineIndex[idx];
@@ -658,9 +681,9 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                       <input
                         ref={(el) => { drugRefs.current[idx] = el; }}
                         value={row.drug}
-                        onChange={(e) => { updateRow(idx, { drug: e.target.value, generic: undefined, fromHabit: undefined }); setAcRow(idx); }}
-                        onFocus={() => { setAcRow(idx); setDrugFocus(idx); }}
-                        onBlur={() => { setDrugFocus((r) => (r === idx ? null : r)); setTimeout(() => setAcRow((r) => (r === idx ? null : r)), 150); }}
+                        onChange={(e) => { updateRow(idx, { drug: e.target.value, generic: undefined, fromHabit: undefined }); setAcRow(idx); if (nameKept === idx) setNameKept(null); }}
+                        onFocus={() => { setAcRow(idx); setDrugFocus(idx); nameAtFocus.current = { idx, drug: row.drug, generic: row.generic, fromHabit: row.fromHabit }; }}
+                        onBlur={() => { keepNameIfTapered(idx); setDrugFocus((r) => (r === idx ? null : r)); setTimeout(() => setAcRow((r) => (r === idx ? null : r)), 150); }}
                         placeholder={isLastEmpty ? (noteText ?? "Start typing a medicine or note…") : ""}
                         autoComplete="off"
                         style={{ ...lineInput, width: "100%", minWidth: 0, opacity: dim, color: showName ? "transparent" : row.isMedicine ? C.n[900] : C.n[700], fontStyle: row.isMedicine ? "normal" : "italic" }}
@@ -901,11 +924,18 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
               (alertInput.rxDrugs[lineIndex]?.text ?? "").trim() === row.drug.trim() && (
               <RxLineWarning input={alertInput} lineIndex={lineIndex} />
             )}
+            {/* A status, not an alert: it can appear while a name is retyped,
+                and an alert would interrupt the doctor at every letter. */}
             {unwritable.has(idx) && (
-              <div role="alert" style={{ fontSize: 11.5, lineHeight: 1.4, color: C.danger[800], background: C.danger[50], borderBottom: `0.5px solid ${C.danger[100]}`, padding: "4px 10px" }}>
+              <div role="status" style={{ fontSize: 11.5, lineHeight: 1.4, color: C.danger[800], background: C.danger[50], borderBottom: `0.5px solid ${C.danger[100]}`, padding: "4px 10px" }}>
                 {isCont
                   ? "This >>> line has no medicine above it. Type the medicine's name on the line above, or remove this line — it will not be saved or printed as it is."
-                  : "This line has a dose but no medicine name. Type the name, or remove the line — it will not be saved or printed as it is."}
+                  : "This line has a dose, food or duration but no medicine name. Type the name, or remove the line — it will not be saved or printed as it is."}
+              </div>
+            )}
+            {nameKept === idx && !unwritable.has(idx) && (
+              <div role="status" style={{ fontSize: 11.5, lineHeight: 1.4, color: C.n[700], background: C.n[50], borderBottom: `0.5px solid ${C.n[200]}`, padding: "4px 10px" }}>
+                A medicine with &gt;&gt;&gt; lines keeps its name. To take it off, press × in ✎ Edit — its &gt;&gt;&gt; lines go with it. To change it, type the new name.
               </div>
             )}
             </Fragment>
