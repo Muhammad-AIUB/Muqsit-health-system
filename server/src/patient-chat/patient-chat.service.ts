@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,6 +10,8 @@ import { SendChatDto } from './dto/chat.dto';
 
 @Injectable()
 export class PatientChatService {
+  private readonly log = new Logger(PatientChatService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   // ── Access control ────────────────────────────────────────────────────────
@@ -138,13 +141,17 @@ export class PatientChatService {
 
   async removeSupervisor(patientId: string, ownerId: string, doctorId: string) {
     await this.assertOwner(patientId, ownerId);
-    // Their unprinted visit for this patient goes with the link (19/10/2026):
+    await this.prisma.patientSupervisor.deleteMany({ where: { patientId, doctorId } });
+    // Their unprinted visit for this patient goes after the link (19/10/2026):
     // they can no longer reach it, and kept, a re-assignment months later
-    // reopened it as that day's visit.
-    await this.prisma.$transaction([
-      this.prisma.patientSupervisor.deleteMany({ where: { patientId, doctorId } }),
-      this.prisma.supervisedDraft.deleteMany({ where: { patientId, doctorId } }),
-    ]);
+    // reopened it as that day's visit. After, and on its own: in one
+    // transaction, a missing SupervisedDraft table (its SQL applied by hand)
+    // failed the whole removal and the supervisor kept access (third review).
+    try {
+      await this.prisma.supervisedDraft.deleteMany({ where: { patientId, doctorId } });
+    } catch (e) {
+      this.log.warn(`supervisor ${doctorId} removed from ${patientId}; their parked visit was not: ${String(e)}`);
+    }
     return { doctorId };
   }
 

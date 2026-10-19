@@ -328,7 +328,7 @@ resolved per request inside the service.
 | POST | `/patients/:id/chat` | `{ body?, attachmentUrl? }` — at least one required; `attachmentUrl` must be `http(s)` (a `javascript:` / `data:` URL is a stored-XSS vector) |
 | GET | `/patients/:id/supervisors` | — |
 | POST | `/patients/:id/supervisors` | `{ identifier }` — the supervising doctor's registered email or 11-digit mobile |
-| DELETE | `/patients/:id/supervisors/:doctorId` | — |
+| DELETE | `/patients/:id/supervisors/:doctorId` | — Also takes away that practice's parked visit for the patient (`supervised-draft`), after the link (19/10/2026) |
 | GET | `/supervised` | JWT, **own** — patients other doctors assigned this user to supervise |
 
 ### 5.8 Prescriptions — `/prescriptions` (JWT + WS)

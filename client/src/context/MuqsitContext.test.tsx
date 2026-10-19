@@ -420,7 +420,7 @@ describe("a device receiving the mirror does not persist it (G3)", () => {
     act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "X", rxCompletedPid: "X", chiefComplaints: ["Fever"] }));
     await tick(500);
     act(() => { document.dispatchEvent(new KeyboardEvent("keydown")); });
-    act(() => result.current.setDrugHistory([...result.current.drugHistory, "01/01/2026: Tablet. Seclo 20 mg —  —  — "]));
+    act(() => result.current.setDrugHistory([...result.current.drugHistory])); // a save that changes nothing written
     await tick(1500);
     expect(incompleteWrites()).toHaveLength(0);
     expect(api.setRxStatus).not.toHaveBeenCalled();
@@ -1025,7 +1025,7 @@ describe("what the Save buttons say", () => {
     // …and the visit is printed: a save after it that changes nothing written
     // does not park it again (a CHANGE to it would — unprinted work, 19/10/2026).
     api.patientUpdate.mockClear();
-    act(() => result.current.setDrugHistory([...result.current.drugHistory, "01/01/2026: Tablet. Seclo 20 mg —  —  — "]));
+    act(() => result.current.setDrugHistory([...result.current.drugHistory])); // a save that changes nothing written
     await tick(1500);
     expect(incompleteWrites()).toHaveLength(0);
   });
@@ -1111,6 +1111,26 @@ describe("a printed visit stays printed through a reload", () => {
     expect(incompleteWrites()).toHaveLength(0);
     expect(api.setRxStatus).not.toHaveBeenCalled();
   });
+
+  it("a change parked before the reload and undone at once after it: the parked copy is taken back", async () => {
+    const a = await setup();
+    await typeAndPrint(a.result);
+    act(() => a.result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toMatchObject({ incompleteRx: expect.objectContaining({ chiefComplaints: ["Fever", "Cough"] }) });
+    const draft = api.draftSave.mock.calls.at(-1)?.[0];
+    a.unmount();
+    api.draftGet.mockResolvedValue({ data: draft });
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    const b = await setup();
+    await tick(50);
+    expect(b.result.current.chiefComplaints).toEqual(["Fever", "Cough"]);
+    act(() => b.result.current.setChiefComplaints(["Fever"])); // inside the auto-save's wait
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toEqual({ incompleteRx: null });
+    expect(api.setRxStatus).toHaveBeenLastCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "complete" }));
+  });
 });
 
 describe("a change made after Save & print is not lost", () => {
@@ -1138,12 +1158,12 @@ describe("a change made after Save & print is not lost", () => {
     expect(incompleteWrites().some(([pid, body]) => pid === "X" && (body as { incompleteRx: { note?: string[] } }).incompleteRx?.note?.[0] === "Review in a week")).toBe(true);
   });
 
-  it("nothing the doctor changed parks nothing — not a drug history the record brings in", async () => {
+  it("a save that changes nothing written parks nothing", async () => {
     const { result } = await setup();
     await typeAndPrint(result);
     api.patientUpdate.mockClear();
     api.setRxStatus.mockClear();
-    act(() => result.current.setDrugHistory([...result.current.drugHistory, "01/01/2026: Tablet. Seclo 20 mg —  —  — "]));
+    act(() => result.current.setDrugHistory([...result.current.drugHistory])); // a save that changes nothing written
     await tick(3000);
     expect(incompleteWrites()).toHaveLength(0);
     expect(api.setRxStatus).not.toHaveBeenCalled();
@@ -1346,6 +1366,167 @@ describe("printed means: what the visit says is what was sent", () => {
     api.rxCreate.mockResolvedValue({ repeat: true });
     await act(async () => { await result.current.savePrescription(); });
     expect(habitLines()).toHaveLength(1);
+  });
+});
+
+// ⚕️ Third review (19/10/2026). What was sent was kept as the visit's own TEXT,
+// and nothing but opening a patient cleared it: a fresh visit ("New
+// Prescription", "+ New patient") then parked the printed patient's diagnosis
+// and medicines inside the next patient's record — across practices too. And
+// "changed after printing" lived in one device's memory.
+describe("a printed visit and the next one", () => {
+  it("a fresh visit after a print carries nothing of the printed patient", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result, patient({ id: "X" }));
+    act(() => result.current.setFinalDiagnosis(["Diagnosis of X"]));
+    act(() => result.current.setFinalDiagnosis([]));
+    act(() => result.current.resetEditor());
+    act(() => result.current.setCurrentPatientId("Z"));
+    act(() => result.current.setChiefComplaints(["New visit"]));
+    await tick(1500);
+    const z = incompleteWrites().filter(([pid]) => pid === "Z").map(([, b]) => JSON.stringify(b));
+    expect(z.length).toBeGreaterThan(0);
+    for (const body of z) {
+      expect(body).not.toContain("Fever");
+      expect(body).toContain('"rxCompletedPid":null');
+      expect(body).toContain('"rxPrintedSig":null');
+    }
+    expect(JSON.stringify(api.draftSave.mock.calls.at(-1)?.[0])).not.toContain('"X"');
+  });
+
+  it("what was sent is kept as a fingerprint, never as the visit's text", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    act(() => result.current.setDrugHistory([...result.current.drugHistory]));
+    await tick(1500);
+    const sig = (api.draftSave.mock.calls.at(-1)?.[0] as { rxPrintedSig: string }).rxPrintedSig;
+    expect(typeof sig).toBe("string");
+    expect(sig.length).toBeLessThan(40);
+    expect(sig).not.toContain("Fever");
+  });
+
+  it("a save whose answer was lost writes its audit lines when it is pressed again", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", duration: "5 days", instruction: "", isCont: false, fromHabit: true }]));
+    await tick(50);
+    api.rxCreate.mockRejectedValueOnce(new TypeError("Failed to fetch")); // stored, answer lost
+    await act(async () => { await result.current.savePrescription(); });
+    api.rxCreate.mockResolvedValueOnce({ repeat: true });
+    await act(async () => { await result.current.savePrescription(); });
+    const habitLines = api.activityLog.mock.calls.filter(([e]) => (e as { section: string }).section === "Prescribing habits");
+    expect(habitLines).toHaveLength(1);
+  });
+
+  it("a change parked, the patient opened again, and the change undone: printed again", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    const parked = (incompleteWrites().at(-1)?.[1] as { incompleteRx: Record<string, unknown> }).incompleteRx;
+    act(() => result.current.loadPatient(patient({ id: "Y" })));
+    await tick(50);
+    act(() => result.current.loadPatient(patient({ incompleteRx: parked })));
+    await tick(50);
+    expect(result.current.chiefComplaints).toEqual(["Fever", "Cough"]);
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toEqual({ incompleteRx: null });
+    expect(api.setRxStatus).toHaveBeenLastCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "complete" }));
+  });
+
+  it("a change parked on one device and undone on another: the other device takes it back", async () => {
+    const a = await setup();
+    await typeAndPrint(a.result);
+    act(() => a.result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    const changed = { ...a.result.current.mirrorSnapshot };
+    a.unmount();
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    const b = await setup();
+    act(() => b.result.current.applyMirrorSnapshot(changed));
+    await tick(500);
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown")); });
+    act(() => b.result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toEqual({ incompleteRx: null });
+  });
+
+  it("Save to complete later straight after the undo takes the parked copy back, not parks it", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    api.patientUpdate.mockClear();
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await act(async () => { await result.current.saveDraftNow(); });
+    expect(incompleteWrites().map(([, b]) => b)).toEqual([{ incompleteRx: null }]);
+  });
+
+  it("an IPD admission's detail open while another patient is opened does not park the printed visit", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    act(() => result.current.beginInvBorrow());
+    act(() => result.current.setInvestigation(["01/10/2026:Hb:9"]));
+    act(() => result.current.loadPatient(patient({ id: "Y" })));
+    await tick(50);
+    expect(incompleteWrites().filter(([pid]) => pid === "X")).toHaveLength(0);
+    expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "incomplete" }));
+  });
+
+  it("a fresh visit ends the records' + Add box: nothing of the last patient reaches the next one", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setInvestigation(["01/09/2026:Hb:12"])); // X's own finding
+    act(() => result.current.openInvForSummary());
+    act(() => result.current.setInvestigation((prev) => [...prev, "01/10/2026:Hb:9"]));
+    act(() => result.current.loadPatient(patient({ id: "Y" })));
+    await tick(50);
+    act(() => result.current.setChiefComplaints(["Y's visit"]));
+    await tick(1500);
+    const y = incompleteWrites().filter(([pid]) => pid === "Y").map(([, body]) => JSON.stringify(body));
+    expect(y.length).toBeGreaterThan(0);
+    for (const body of y) expect(body).not.toContain("Hb:12");
+    act(() => result.current.setShowInvPopup(false));
+    await tick(50);
+    const summaries = api.patientUpdate.mock.calls.filter(([, body]) => "investigationSummary" in (body as object));
+    expect(summaries).toHaveLength(0);
+  });
+
+  it("a Drug history line added after Save & print is kept: written to the patient's record at once", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    const line = "01/01/2000: Tablet. Barcavir 0.5 mg — 1+0+0 —  — ";
+    const taper = "01/01/2000(cont): 0+0+1 —  — ";
+    // Add hands over a medicine and its taper one at a time: ONE write of both.
+    await act(async () => {
+      result.current.addDrugHistoryEntry(line);
+      result.current.addDrugHistoryEntry(taper);
+    });
+    const written = api.patientUpdate.mock.calls.filter(([pid, b]) => pid === "X" && "drugHistory" in (b as object));
+    expect(written).toHaveLength(1);
+    expect(written[0][1]).toEqual({ drugHistory: [...STORED, line, taper] });
+    expect(result.current.drugHistory).toEqual([...STORED, line, taper]);
+    await tick(1500);
+    // The prescription itself is still the one printed.
+    expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ rxStatus: "incomplete" }));
+  });
+
+  it("the editor says when the loaded visit is printed and unchanged (BAN / EN leaves it alone)", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    expect(result.current.visitPrinted).toBe(true);
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"]));
+    expect(result.current.visitPrinted).toBe(false);
   });
 });
 

@@ -26,7 +26,7 @@ export { setKbdLang, type KbdLang } from "@/lib/kbdLang";
 // ── Header switch ─────────────────────────────────────────────
 export function LanguageToggle() {
   const { user } = useAuth();
-  const { setRxItems, setRxPadHeld } = useMuqsit();
+  const { setRxItems, setRxPadHeld, visitPrinted } = useMuqsit();
   const lang = useKbdLang();
 
   // Restore this user's last choice; anything unreadable is English. Only the
@@ -40,8 +40,13 @@ export function LanguageToggle() {
   // ⚕️ The lines the pad holds and cannot write (lib/rxPadHold.ts) are lines on
   // the pad too, and are written with the rest in the same press: converted on
   // one side only, they no longer fitted `rxItems` and came off the pad.
+  // ⚕️ Not a visit printed and unchanged (19/10/2026, third review): rewritten,
+  // it no longer said what was printed and went back to "Incomplete" — and a
+  // round trip does not come back exactly ("2 weeks" returns as "2 week"). The
+  // language is set for what is typed next; the printed visit stays as printed.
   const choose = (value: KbdLang) => {
     setKbdLang(value, user?.id);
+    if (visitPrinted) return;
     setRxItems((prev) => rxItemsIn(prev, value));
     setRxPadHeld((held) => (held ? rxRowsIn(held, value) : held));
   };

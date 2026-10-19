@@ -126,6 +126,17 @@ describe("a supervising practice's parked visit", () => {
     expect((await s.get(`/api/patients/${p.id}`)).body.incompleteRx).toBeNull();
   });
 
+  it("removing one supervising doctor leaves another practice's parked visit alone", async () => {
+    const p = await supervised();
+    const second = await makeDoctor(t.prisma);
+    await makeSupervisor(t.prisma, p.id, second.id);
+    const s2 = await loginAs(t, second);
+    await park(s, p, { practice: 'first' });
+    await park(s2, p, { practice: 'second' });
+    expect((await o.delete(`/api/patients/${p.id}/supervisors/${supervisor.id}`)).status).toBe(200);
+    expect((await s2.get(`/api/patients/${p.id}`)).body.incompleteRx).toEqual({ practice: 'second' });
+  });
+
   it('a body that is not an object (or null) is refused', async () => {
     const p = await supervised();
     expect((await park(s, p, 'text')).status).toBe(400);

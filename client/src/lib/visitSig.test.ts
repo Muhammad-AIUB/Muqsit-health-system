@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stableJson } from "./visitSig";
+import { fingerprint, stableJson } from "./visitSig";
 
 // ⚕️ "Is this visit still what was printed?" is asked by comparing two
 // signatures, one of them read back from the database after a reload — and a
@@ -20,6 +20,15 @@ describe("stableJson", () => {
   it("a key with no value is the key left out, as a JSON column stores it; null is not", () => {
     expect(stableJson({ a: 1, b: undefined })).toBe(stableJson({ a: 1 }));
     expect(stableJson({ a: 1, b: null })).not.toBe(stableJson({ a: 1 }));
+  });
+
+  it("a fingerprint is short, keeps no text, and follows the value", () => {
+    const visit = { finalDiagnosis: ["Pregnant 32 weeks"], rxItems: [{ drug: "Tablet. Napa 500 mg", dose: "1+0+1" }] };
+    const f = fingerprint(visit);
+    expect(f.length).toBeLessThan(16);
+    expect(f).not.toContain("Napa");
+    expect(fingerprint({ rxItems: [{ dose: "1+0+1", drug: "Tablet. Napa 500 mg" }], finalDiagnosis: ["Pregnant 32 weeks"] })).toBe(f);
+    expect(fingerprint({ ...visit, finalDiagnosis: ["Pregnant 33 weeks"] })).not.toBe(f);
   });
 
   it("every value is told apart from the same text in another type", () => {

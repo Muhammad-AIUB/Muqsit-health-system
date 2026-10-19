@@ -15,6 +15,7 @@ import type { RxItem } from "@/types";
 import type { Row } from "@/components/prescription/MedicinePad";
 
 const setRxItems = vi.hoisted(() => vi.fn());
+const visit = vi.hoisted(() => ({ printed: false }));
 const setRxPadHeld = vi.hoisted(() => vi.fn());
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("@/hooks/useFieldRecents", () => ({
@@ -24,7 +25,7 @@ vi.mock("@/hooks/useDoctorPhrases", () => ({
   useDoctorPhrases: () => ({ phrases: [], refresh: vi.fn() }),
 }));
 vi.mock("@/context/MuqsitContext", () => ({
-  useMuqsit: () => ({ canEditLabel: () => true, can: () => true, setRxItems, setRxPadHeld }),
+  useMuqsit: () => ({ canEditLabel: () => true, can: () => true, setRxItems, setRxPadHeld, visitPrinted: visit.printed }),
 }));
 
 afterEach(() => {
@@ -49,6 +50,24 @@ describe("LanguageToggle — the switch writes the ℞ columns in its language",
     expect(bn[0]).toEqual({ drug: "Tablet. Napa 500 mg", dose: "১+০+১", instruction: "খাবারের আগে", duration: "৭ দিন" });
     fireEvent.click(screen.getByText("EN"));
     expect(lastUpdate()(bn)[0]).toEqual(pad[0]);
+  });
+
+  // ⚕️ 19/10/2026 (third review): the press rewrote a PRINTED visit still on the
+  // pad — what it said was no longer what was printed, and the patient went
+  // back to "Incomplete" (and a round trip does not even come back exactly:
+  // "2 weeks" returns as "2 week"). A printed, unchanged visit is left as it
+  // was printed; the language is set for what is typed next.
+  it("a printed visit still on the pad is not rewritten — the language is set for what comes next", () => {
+    visit.printed = true;
+    try {
+      render(<LanguageToggle />);
+      fireEvent.click(screen.getByText("BAN"));
+      expect(screen.getByText("BAN").getAttribute("aria-pressed")).toBe("true");
+      expect(setRxItems).not.toHaveBeenCalled();
+      expect(setRxPadHeld).not.toHaveBeenCalled();
+    } finally {
+      visit.printed = false;
+    }
   });
 
   it("restoring a remembered BAN does not touch the pad — only a press does", () => {
