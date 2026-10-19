@@ -1730,6 +1730,27 @@ describe("a printed visit and the next one", () => {
     expect(dhWrites()[0]).not.toContain(SECLO);
   });
 
+  it("…also a re-print pressed BEFORE the line failed, while its prescription was on its way", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    let fail = () => {};
+    api.dhAppend.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = () => reject(new TypeError("Failed to fetch")); }));
+    await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"])); // a correction
+    await tick(1500);
+    api.patientUpdate.mockClear();
+    let answer = () => {};
+    api.rxCreate.mockImplementationOnce(() => new Promise((resolve) => { answer = () => resolve({}); }));
+    let saving: Promise<unknown> = Promise.resolve();
+    act(() => { saving = result.current.savePrescription(); }); // its list is taken with the line
+    await act(async () => { fail(); });
+    await tick(50);
+    await act(async () => { answer(); await saving; });
+    await tick(50);
+    expect(dhWrites()).toHaveLength(1);
+    expect(dhWrites()[0]).not.toContain(SECLO);
+  });
+
   it("opened again while the line was on its way, the editor takes the line back from the answer", async () => {
     const { result } = await setup();
     await typeAndPrint(result);

@@ -482,6 +482,11 @@ function useMuqsitStore() {
     // What is SENT is what is printed (review, 19/10/2026): anything typed while
     // the save is on its way is not on the record, and is parked.
     const sentSig = visitSigRef.current;
+    // …and how far the drug history's withdrawals had got at the press: the
+    // list this save writes is the one at the press, so a line withdrawn after
+    // it — also while the prescription is on its way — is taken out of it
+    // (review of 340d901: read after the answer, it missed those).
+    const dhSince = dhSeqRef.current;
     try {
       let pid = currentPatientId;
       if (!pid) {
@@ -681,9 +686,8 @@ function useMuqsitStore() {
         if (drugHistoryHydratedRef.current === pid) {
           drugHistoryBaselineRef.current = drugHistory;
           const list = drugHistory;
-          const since = dhSeqRef.current;
           const write = () => patientsApi.update(pid as string, {
-            drugHistory: dhWithdrawnRef.current.reduce((l, w) => (w.pid === pid && w.seq > since ? withoutBlock(l, w.entries) : l), list),
+            drugHistory: dhWithdrawnRef.current.reduce((l, w) => (w.pid === pid && w.seq > dhSince ? withoutBlock(l, w.entries) : l), list),
           });
           const done = dhWritesRef.current.then(write, write);
           dhWritesRef.current = done.catch(() => {});
