@@ -124,3 +124,24 @@ export function habitIn<T extends Cells & { contLines?: Cells[] }>(habit: T, lan
   });
   return { ...cells(habit), ...(habit.contLines ? { contLines: habit.contLines.map(cells) } : {}) };
 }
+
+/**
+ * `rxItemsIn` on the ℞ pad's own rows: the dose, food and duration of every
+ * medicine line in `lang`, a name and a note never. The BAN / EN switch writes
+ * the lines the pad holds and cannot write with it (lib/rxPadHold.ts), so that
+ * they still fit the converted `rxItems` and are not taken off the pad. The
+ * same list back when nothing changed.
+ */
+export function rxRowsIn<T extends Cells & { isMedicine: boolean }>(rows: T[], lang: RxLang): T[] {
+  let changed = false;
+  const out = rows.map((r) => {
+    if (!r.isMedicine) return r;
+    const dose = rxCellIn(r.dose, lang);
+    const food = rxCellIn(r.food, lang);
+    const duration = rxCellIn(r.duration, lang);
+    if (dose === r.dose && food === r.food && duration === r.duration) return r;
+    changed = true;
+    return { ...r, dose, food, duration };
+  });
+  return changed ? out : rows;
+}

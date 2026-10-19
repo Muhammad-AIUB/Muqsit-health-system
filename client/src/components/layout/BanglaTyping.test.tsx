@@ -12,8 +12,10 @@ import { BanglaTyping, LanguageToggle, setKbdLang } from "./BanglaTyping";
 import ExpandableField from "@/components/common/ExpandableField";
 import { BANGLA_ATTR, BANGLA_FIELDS } from "@/lib/banglaInput";
 import type { RxItem } from "@/types";
+import type { Row } from "@/components/prescription/MedicinePad";
 
 const setRxItems = vi.hoisted(() => vi.fn());
+const setRxPadHeld = vi.hoisted(() => vi.fn());
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("@/hooks/useFieldRecents", () => ({
   useFieldRecents: () => ({ getRecents: () => [], addRecents: vi.fn() }),
@@ -22,12 +24,13 @@ vi.mock("@/hooks/useDoctorPhrases", () => ({
   useDoctorPhrases: () => ({ phrases: [], refresh: vi.fn() }),
 }));
 vi.mock("@/context/MuqsitContext", () => ({
-  useMuqsit: () => ({ canEditLabel: () => true, can: () => true, setRxItems }),
+  useMuqsit: () => ({ canEditLabel: () => true, can: () => true, setRxItems, setRxPadHeld }),
 }));
 
 afterEach(() => {
   cleanup();
   setRxItems.mockClear();
+  setRxPadHeld.mockClear();
   try { window.localStorage.removeItem("mhs_kbd_lang:u1"); } catch { /* none */ }
   act(() => setKbdLang("en"));
 });
@@ -53,6 +56,18 @@ describe("LanguageToggle — the switch writes the ℞ columns in its language",
     render(<LanguageToggle />);
     expect(screen.getByText("BAN").getAttribute("aria-pressed")).toBe("true");
     expect(setRxItems).not.toHaveBeenCalled();
+    expect(setRxPadHeld).not.toHaveBeenCalled();
+  });
+
+  // ⚕️ 19/10/2026: the lines the pad holds and cannot write (lib/rxPadHold.ts)
+  // are written with the rest — on one side only they no longer fitted.
+  it("the same press writes the lines the pad holds and cannot write", () => {
+    render(<LanguageToggle />);
+    fireEvent.click(screen.getByText("BAN"));
+    const update = setRxPadHeld.mock.calls.at(-1)![0] as (h: Row[] | null) => Row[] | null;
+    const red: Row = { drug: "", dose: "1+0+1", food: "Before meal", duration: "7 days", checked: true, isMedicine: true, continuation: false };
+    expect(update([red])?.[0]).toMatchObject({ dose: "১+০+১", food: "খাবারের আগে", duration: "৭ দিন" });
+    expect(update(null)).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { adviceSuggestions } from "@/data/suggestions";
@@ -10,7 +10,8 @@ import InvestigationGroups from "@/components/investigation/InvestigationGroups"
 import Lock from "@/components/common/Lock";
 import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
 import { usePadSync } from "@/lib/usePadSync";
-import { unwritableRows, writableItems } from "@/lib/rxRows";
+import { writableItems } from "@/lib/rxRows";
+import { lineText } from "@/lib/rxPadHold";
 import { tell } from "@/lib/dialogs";
 import { useKbdLang } from "@/lib/kbdLang";
 import { rxItemsIn } from "@/lib/rxLanguage";
@@ -31,7 +32,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     rxItems, setRxItems,
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
-    can, savedDrugAdvice, activeWorkstationId, currentPatientId, setRxPadUnwritable, editorEpoch,
+    can, savedDrugAdvice, activeWorkstationId, currentPatientId, rxPadHeld, setRxPadHeld, editorEpoch,
   } = useMuqsit();
 
   // ••• special advice (physician's design, 2026-09-24): which medicine's box is open.
@@ -44,13 +45,23 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     open: (row: Row) => setAdviceBox({ drug: row.drug.trim(), generic: row.generic }),
   };
 
+  // ⚕️ A line the pad cannot write that a redraw took off (lib/rxPadHold.ts):
+  // it no longer fitted the prescription it was written beside. Said in a box,
+  // because it is something the doctor typed and it is gone.
+  const onDropped = useCallback((lost: Row[]) => {
+    const one = lost.length === 1;
+    tell({
+      title: one ? "A line was taken off the ℞ pad" : `${lost.length} lines were taken off the ℞ pad`,
+      body: `${one ? "It had" : "They had"} no medicine name, so ${one ? "it was" : "they were"} not part of the prescription, and the prescription changed so that ${one ? "it" : "they"} no longer fitted: ${lost.map((r) => `“${lineText(r)}”`).join(", ")}. If ${one ? "it is" : "they are"} still wanted, write ${one ? "it" : "them"} again on the line of ${one ? "its" : "their"} medicine.`,
+    });
+  }, []);
   // Pad edits → prescription model, and changes made elsewhere (templates,
   // prescribe-clear, Move to Rx, the BAN/EN switch) → pad: lib/usePadSync.ts.
-  const [rows, setRows] = usePadSync(rxItems, setRxItems, editorEpoch);
-  // ⚕️ Lines the pad cannot write: Save & print refuses while any is there.
-  const unwritable = unwritableRows(rows).length;
-  useEffect(() => { setRxPadUnwritable(unwritable); }, [unwritable, setRxPadUnwritable]);
-  useEffect(() => () => setRxPadUnwritable(0), [setRxPadUnwritable]);
+  // ⚕️ Lines the pad cannot write are HELD beside `rxItems` in the editor state
+  // (`rxPadHeld`), so they travel with the visit — the draft, `incompleteRx`,
+  // the device mirror — and the store refuses Save & print while any is held,
+  // also with this column off the screen (19/10/2026).
+  const [rows, setRows] = usePadSync(rxItems, setRxItems, editorEpoch, { held: rxPadHeld, setHeld: setRxPadHeld, onDropped });
 
   // Quick templates: only the doctor's own saved OPD templates (from the server).
   const [tplSearch, setTplSearch] = useState("");
@@ -88,15 +99,18 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   // was scrolled to instead, one line short of every medicine added (seen in
   // a browser, on a made-up pad, before this was committed). The pad has
   // drawn them when its rows are no longer the ones it had at the press
-  // (`from`) — they are made again from `rxItems`, so a line's place on the
-  // pad is then its place in `rxItems`, which is what `first` and `last` are.
+  // (`from`). They are then the last `count` lines before the typing line —
+  // counted from the END, because a line the pad holds and cannot write
+  // (lib/rxPadHold.ts) stays on the pad and is in no `rxItems`, so a line's
+  // place in `rxItems` is not its place on the pad.
   const columnRef = useRef<HTMLDivElement>(null);
-  const [added, setAdded] = useState<{ first: number; last: number; from: Row[] } | null>(null);
+  const [added, setAdded] = useState<{ count: number; from: Row[] } | null>(null);
   useEffect(() => {
     if (!added || rows === added.from) return;
     const row = (i: number) => columnRef.current?.querySelector<HTMLElement>(`[data-rx-row="${i}"]`);
-    row(added.last)?.scrollIntoView?.({ block: "nearest" });
-    row(added.first)?.scrollIntoView?.({ block: "nearest" });
+    const last = rows.length - 2;
+    row(last)?.scrollIntoView?.({ block: "nearest" });
+    row(last - added.count + 1)?.scrollIntoView?.({ block: "nearest" });
     setAdded(null);
   }, [rows, added]);
   // Another patient's pad is not scrolled for what was added to the last one's.
@@ -145,7 +159,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           allowed={can("rx.medicines")}
           existing={rxItems}
           onAppend={(items) => {
-            setAdded({ first: rxItems.length, last: rxItems.length + items.length - 1, from: rows });
+            setAdded({ count: items.length, from: rows });
             setRxItems((prev) => [...prev, ...rxItemsIn(items, lang)]);
           }}
         />

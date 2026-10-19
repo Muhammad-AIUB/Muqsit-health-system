@@ -6,7 +6,7 @@ import { shadowCard, shadowMenu, tabInk, tabOn } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput";
 import { savedKbdLang, setKbdLang, useKbdLang, type KbdLang } from "@/lib/kbdLang";
-import { rxItemsIn } from "@/lib/rxLanguage";
+import { rxItemsIn, rxRowsIn } from "@/lib/rxLanguage";
 import { useMuqsit } from "@/context/MuqsitContext";
 
 // BAN / EN — the header switch and the keyboard handler behind it
@@ -26,7 +26,7 @@ export { setKbdLang, type KbdLang } from "@/lib/kbdLang";
 // ── Header switch ─────────────────────────────────────────────
 export function LanguageToggle() {
   const { user } = useAuth();
-  const { setRxItems } = useMuqsit();
+  const { setRxItems, setRxPadHeld } = useMuqsit();
   const lang = useKbdLang();
 
   // Restore this user's last choice; anything unreadable is English. Only the
@@ -37,9 +37,13 @@ export function LanguageToggle() {
   // (physician's decision, 2026-10-14): Bangla for BAN, English for EN, by the
   // physician's own table (`lib/rxLanguage.ts`). Only on THIS device's press —
   // a pad arriving from a mirrored device is left as that device wrote it.
+  // ⚕️ The lines the pad holds and cannot write (lib/rxPadHold.ts) are lines on
+  // the pad too, and are written with the rest in the same press: converted on
+  // one side only, they no longer fitted `rxItems` and came off the pad.
   const choose = (value: KbdLang) => {
     setKbdLang(value, user?.id);
     setRxItems((prev) => rxItemsIn(prev, value));
+    setRxPadHeld((held) => (held ? rxRowsIn(held, value) : held));
   };
 
   const opt = (value: KbdLang, label: string, title: string) => {

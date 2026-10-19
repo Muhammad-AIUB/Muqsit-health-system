@@ -1,4 +1,4 @@
-import { NAPA, addMedicine, apiPatientsByMobile, apiPrescriptions, createPatient, expect, login, padRow, printDialog, saveAndOpenSheet, saveAndPrint, settle, test, uniqueMobile } from './helpers';
+import { API_URL, NAPA, addMedicine, apiPatientsByMobile, apiPrescriptions, createPatient, expect, login, newRxButton, padRow, printDialog, saveAndOpenSheet, saveAndPrint, settle, test, uniqueMobile } from './helpers';
 
 // ⚕️ A `>>>` line belongs to the medicine line directly above it. Before
 // 18/10/2026, clearing that medicine's name left its `>>>` dose standing under
@@ -86,6 +86,44 @@ test('a line with a dose and no medicine name is refused by Save & print, Previe
   await notParked.getByRole('button', { name: 'OK' }).click();
   await expect(padRow(page, 1).getByPlaceholder('dose')).toHaveValue(BARCAVIR.dose);
 
+  const [patient] = await apiPatientsByMobile(page, mobile);
+  expect(await apiPrescriptions(page, patient.id)).toEqual([]);
+});
+
+// ⚕️ 19/10/2026: such a line is never in the prescription's items, and it lived
+// in the pad's rows alone — a reload drew the pad without it, and nothing said
+// so. It is now held with the visit (client/src/lib/rxPadHold.ts) and comes
+// back with the draft: still red, still refused. This holds what the unit tests
+// cannot: the real auto-save and the real reload, in a real browser.
+test('a line with a dose and no medicine name comes back after a reload, still refused', async ({ page }) => {
+  await login(page, 'taperHeld');
+  const mobile = uniqueMobile();
+  await createPatient(page, mobile, 'Held Line Patient');
+
+  await addMedicine(page, 0, NAPA);
+  await addMedicine(page, 1, BARCAVIR);
+  // The debounced auto-save that carries the held line. Armed before the edit.
+  const heldSaved = page.waitForResponse((r) => r.url() === `${API_URL}/prescription-draft`
+    && r.request().method() === 'PUT' && r.ok()
+    && (r.request().postData() ?? '').includes('"rxPadHeld":['), { timeout: 60_000 });
+  const name = padRow(page, 1).locator('input').first();
+  await name.fill('');
+  await name.blur();
+  await settle(page);
+  await expect(page.getByRole('status').filter({ hasText: 'no medicine name' })).toBeVisible();
+  await heldSaved;
+
+  await page.reload();
+  await expect(newRxButton(page)).toBeVisible();
+  await expect(padRow(page, 0).locator('input').first()).toHaveValue(NAPA.label);
+  await expect(padRow(page, 1).locator('input').first()).toHaveValue('');
+  await expect(padRow(page, 1).getByPlaceholder('dose')).toHaveValue(BARCAVIR.dose);
+  await expect(page.getByRole('status').filter({ hasText: 'no medicine name' })).toBeVisible();
+
+  await saveAndPrint(page).click();
+  const refused = page.getByRole('alertdialog', { name: 'The prescription was not saved.' });
+  await expect(refused).toContainText('has no medicine name');
+  await refused.getByRole('button', { name: 'OK' }).click();
   const [patient] = await apiPatientsByMobile(page, mobile);
   expect(await apiPrescriptions(page, patient.id)).toEqual([]);
 });

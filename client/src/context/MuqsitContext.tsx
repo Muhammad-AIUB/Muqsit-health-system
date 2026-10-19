@@ -25,7 +25,9 @@ import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib
 import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn, mergeWithRecord } from "@/lib/rxDrugHistory";
-import { writableItems } from "@/lib/rxRows";
+import { unwritableRows, writableItems } from "@/lib/rxRows";
+import { readPadHold } from "@/lib/rxPadHold";
+import type { Row } from "@/components/prescription/MedicinePad";
 import { adviceLinesFor, padMedicines, syncRxAdvice } from "@/lib/rxDrugAdvice";
 import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
@@ -85,6 +87,22 @@ const initialOeData: OeData = {
 /** Said when Save & print refuses a pad with a line it cannot write. */
 export const UNWRITABLE_PAD =
   "Not saved: a line on the prescription has no medicine name (marked in red on the ℞ pad). Type the medicine's name on that line — for a >>> line, on the line above it — or remove the line.";
+
+// ⚕️ The ℞ pad's held lines, read back from a draft or another device
+// (lib/rxPadHold.ts). A hold that is there and cannot be read is SAID — its
+// lines are not on the pad — never dropped without a word (independent
+// review, 19/10/2026). Nothing this build writes reads back as unreadable.
+function heldFrom(x: unknown): Row[] | null {
+  const rows = readPadHold(x);
+  if (rows === null && x !== undefined && x !== null) {
+    console.warn("[rx] lines the ℞ pad held could not be read back:", x);
+    void tell({
+      title: "Lines of the ℞ pad could not be brought back",
+      body: "The visit was restored, but lines on its ℞ pad that had no medicine name could not be read, and they are not on the pad. Check the prescription before saving it.",
+    });
+  }
+  return rows;
+}
 
 // Returns today's date as YYYY-MM-DD (ISO) in the device's local timezone.
 // Using an explicit template keeps the format stable on stripped-ICU runtimes
@@ -239,12 +257,23 @@ function useMuqsitStore() {
     setSavedMsg(notice);
     setTimeout(() => setSavedMsg((now) => (now === notice ? null : now)), ms);
   }, []);
-  // ⚕️ How many lines of the OPD ℞ pad cannot be written as they stand
-  // (`unwritableRows`, lib/rxRows.ts) — reported by RightColumn, which holds the
-  // pad's rows. While any is there, Save & print refuses: a >>> line with no
-  // medicine above it was printed under the medicine before (18/10/2026).
-  // Derived from the pad on each device; never stored or mirrored.
-  const [rxPadUnwritable, setRxPadUnwritable] = useState(0);
+  // ⚕️ The OPD ℞ pad's rows, HELD while a line on them cannot be written
+  // (`unwritableRows`, lib/rxRows.ts; lib/rxPadHold.ts) — a dose with no
+  // medicine name, a >>> line with no named medicine directly above it. Such a
+  // line is never in `rxItems` (the printed sheet reads a nameless line as a
+  // >>> line), so until 19/10/2026 a pad drawn again from `rxItems` — another
+  // tab, a reload, a mirrored device — was drawn without it, and nothing said
+  // so. Part of the visit: it rides the draft, `incompleteRx` and the device
+  // mirror, and `resetEditor` clears it. Written by the pad (`usePadSync`);
+  // `null` while every line can be written.
+  const [rxPadHeld, setRxPadHeld] = useState<Row[] | null>(null);
+  // How many lines of the pad cannot be written as they stand. While any is,
+  // Save & print, Preview PDF and Save to complete later refuse: a >>> line
+  // with no medicine above it was printed under the medicine before
+  // (18/10/2026). From the hold, so it holds with the ℞ column off the screen
+  // and on a mirrored device (it was reported by RightColumn, and set to 0 as
+  // the column left the screen).
+  const rxPadUnwritable = useMemo(() => (rxPadHeld ? unwritableRows(rxPadHeld).length : 0), [rxPadHeld]);
   // Bumped by every `resetEditor`, and by the device mirror when it brings
   // another patient: a new visit, which redraws the ℞ pad from `rxItems`
   // (lib/usePadSync.ts) — never carries one patient's lines over.
@@ -856,6 +885,7 @@ function useMuqsitStore() {
     setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
     setRxItems([]); setAdvice([]); setAdviceTest([]); setRxAdviceOwned([]); setRxAdviceOff([]); setRxMirrorOwned(null);
+    setRxPadHeld(null);
     setFollowUpNum(""); setFollowUpUnit("day"); setFollowUpMandatory(false);
     setInvImages({}); setOeData(initialOeData);
     setIgnoredAlerts(new Set());
@@ -897,6 +927,9 @@ function useMuqsitStore() {
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
     arr("rxAdviceOwned", setRxAdviceOwned); arr("rxAdviceOff", setRxAdviceOff);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
+    // ⚕️ With the items, the pad's lines that cannot be written (lib/rxPadHold.ts).
+    // The pad draws them back only where they still fit these items.
+    setRxPadHeld(heldFrom(d.rxPadHeld));
     // What the mirror owns, as the draft recorded it. A draft from before the
     // record existed, resumed on a LATER day: its ℞ lines at the old date are
     // taken as the mirror's, so they are re-stamped to today — left at
@@ -1360,9 +1393,11 @@ function useMuqsitStore() {
   // True once the editor holds real prescription work (any clinical detail or a
   // medicine) — distinguishes a started-but-unprinted visit from an empty one.
   // Drug history counts only where it differs from the stored record — see
-  // `drugHistoryBaselineRef`.
+  // `drugHistoryBaselineRef`. A line the ℞ pad holds and cannot write is work
+  // too: a pad holding nothing else is parked in `incompleteRx`, not left out.
   const hasRxContent =
     rxItems.length > 0 ||
+    rxPadHeld !== null ||
     drugHistoryIsVisitContent(drugHistory) ||
     [chiefComplaints, previousComplaints, history, investigation,
       onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
@@ -1386,7 +1421,7 @@ function useMuqsitStore() {
       ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
       chiefComplaints, previousComplaints, history, investigation, drugHistory,
       onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
-      rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+      rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
       rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
       hideDrugHistory,
       invImages, oeData, currentPatientId,
@@ -1426,7 +1461,7 @@ function useMuqsitStore() {
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
-    rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
     hideDrugHistory,
     invImages, oeData, currentPatientId,
@@ -1519,7 +1554,7 @@ function useMuqsitStore() {
     // Never an admission's findings on loan to an IPD detail (invBorrowRef).
     investigation: invBorrowRef.current?.inv ?? investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
-    rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
     hideDrugHistory,
     invImages: invBorrowRef.current?.img ?? invImages, oeData,
@@ -1534,7 +1569,7 @@ function useMuqsitStore() {
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history, investigation, drugHistory,
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
-    rxItems, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
+    rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
     hideDrugHistory,
     invImages, oeData,
@@ -1609,6 +1644,12 @@ function useMuqsitStore() {
     arr("advice", setAdvice); arr("adviceTest", setAdviceTest);
     arr("rxAdviceOwned", setRxAdviceOwned); arr("rxAdviceOff", setRxAdviceOff);
     if (Array.isArray(d.rxItems)) setRxItems(d.rxItems as RxItem[]);
+    // ⚕️ And the peer's lines that cannot be written (lib/rxPadHold.ts), which
+    // the pad draws only where they still fit those items. A build from before
+    // the hold sends no key: what is held here then stays held — the pad keeps
+    // it while it fits — except for another patient, a new visit.
+    if ("rxPadHeld" in d) setRxPadHeld(heldFrom(d.rxPadHeld));
+    else if (pid !== patientIdRef.current) setRxPadHeld(null);
     // With the pad and the history it describes: the peer's record of what its
     // mirror inserted (absent from an older build → not known).
     setRxMirrorOwned(Array.isArray(d.rxMirrorOwned) ? (d.rxMirrorOwned as string[]) : null);
@@ -1687,7 +1728,7 @@ function useMuqsitStore() {
     history, setHistory, investigation, setInvestigation,
     hiddenInvestigation, setHiddenInvestigation,
     hideDrugHistory, setHideDrugHistory,
-    rxPadUnwritable, setRxPadUnwritable, editorEpoch,
+    rxPadUnwritable, rxPadHeld, setRxPadHeld, editorEpoch,
     drugHistory, setDrugHistory, addDrugHistoryEntry, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,

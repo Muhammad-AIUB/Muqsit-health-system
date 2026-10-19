@@ -51,6 +51,7 @@ import { MuqsitProvider, UNWRITABLE_PAD, useMuqsit } from "./MuqsitContext";
 import { drugKeyOf } from "@/lib/rxDrugAdvice";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import type { RxItem } from "@/types";
+import type { Row } from "@/components/prescription/MedicinePad";
 
 const STORED = ["01/01/2026: Tablet. Napa 500 mg — 1+0+1 — After meal — 5 days"];
 const patient = (over: Partial<Patient> = {}): Patient =>
@@ -847,7 +848,13 @@ describe("a visit mirrored to another device across midnight", () => {
 // ⚕️ Save & print refuses while the ℞ pad has a line it cannot write — a >>>
 // line with no medicine directly above it, or a dose with no medicine name —
 // rather than print the dose under another medicine, or not at all (physician,
-// 18/10/2026: "dangerous bug"). The pad reports the count (RightColumn).
+// 18/10/2026: "dangerous bug"). The pad holds its rows while such a line is on
+// it (`rxPadHeld`, lib/rxPadHold.ts), and the count is read from the hold.
+const redPad = (): Row[] => [
+  { drug: "Tablet. Napa 500 mg", dose: "1+1+1", food: "", duration: "5 days", checked: true, isMedicine: true, continuation: false },
+  { drug: "", dose: "1+0+1", food: "", duration: "", checked: true, isMedicine: true, continuation: false },
+  { drug: "", dose: "", food: "", duration: "", checked: true, isMedicine: false, continuation: false },
+];
 describe("Save & print with a line the ℞ pad cannot write", () => {
   it("is refused, says why, and saves nothing", async () => {
     const { result } = await setup();
@@ -855,7 +862,7 @@ describe("Save & print with a line the ℞ pad cannot write", () => {
     await tick(50);
     act(() => {
       result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" }]);
-      result.current.setRxPadUnwritable(1);
+      result.current.setRxPadHeld(redPad());
     });
     let ok = true;
     await act(async () => { ok = await result.current.savePrescription(); });
@@ -871,9 +878,9 @@ describe("Save & print with a line the ℞ pad cannot write", () => {
     await tick(50);
     act(() => {
       result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" }]);
-      result.current.setRxPadUnwritable(1);
+      result.current.setRxPadHeld(redPad());
     });
-    act(() => result.current.setRxPadUnwritable(0));
+    act(() => result.current.setRxPadHeld(null));
     await act(async () => { await result.current.savePrescription(); });
     expect(api.rxCreate).toHaveBeenCalledTimes(1);
   });
@@ -896,13 +903,13 @@ describe("the ℞ items themselves are checked at save", () => {
     expect(told()).toEqual([{ title: "The prescription was not saved.", body: UNWRITABLE_PAD, tone: "danger" }]);
   });
 
-  it("Save to complete later is refused too — it would clear the pad and lose the line", async () => {
+  it("Save to complete later is refused too, and nothing is cleared", async () => {
     const { result } = await setup();
     act(() => result.current.loadPatient(patient()));
     await tick(50);
     act(() => {
       result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "" }]);
-      result.current.setRxPadUnwritable(1);
+      result.current.setRxPadHeld(redPad());
     });
     await tick(1500);
     let ok = true;

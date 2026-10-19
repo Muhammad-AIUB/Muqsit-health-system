@@ -22,7 +22,7 @@ const ROLES = [
   'sheetSave', 'sheetKeys', 'sheetEnter', 'headerSwitch', 'noteMirror',
   'invUnits', 'invUnitsPlain', 'loginWait', 'bulkMed', 'bulkKeys', 'bulkOffline', 'bulkPhone', 'bulkMany', 'moveRx',
   'monthlyCost',
-  'taperOrphan', 'taperRefused',
+  'taperOrphan', 'taperRefused', 'taperHeld',
   'saveFailed', 'draftFailed',
 ] as const;
 
