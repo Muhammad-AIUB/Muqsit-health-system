@@ -30,7 +30,7 @@ afterEach(() => cleanup());
 
 const DATE = "15/10/2026";
 const openRow = (existing: { drug: string; dose: string; food: string; duration: string }[] = []) => {
-  const onAdd = vi.fn();
+  const onAdd = vi.fn((_: string[]) => true);
   render(<AddMedicineRow existing={existing} tabLabel="Current medications" date={DATE} onAdd={onAdd} />);
   fireEvent.click(screen.getByText("+ Add medicine"));
   return { onAdd };
@@ -89,7 +89,7 @@ describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
     type("na");
     pick("Tablet. Napa 500 mg");
     fireEvent.click(addBtn());
-    expect(onAdd).toHaveBeenCalledWith("15/10/2026: Tablet. Napa 500 mg —  —  — ");
+    expect(onAdd).toHaveBeenCalledWith(["15/10/2026: Tablet. Napa 500 mg —  —  — "]);
   });
 
   it("reads the pad's shorthand in dose, food and duration", () => {
@@ -99,7 +99,7 @@ describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
     write("dose", "101");
     write("duration", "5d");
     fireEvent.click(addBtn());
-    expect(onAdd).toHaveBeenCalledWith("15/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 5 days");
+    expect(onAdd).toHaveBeenCalledWith(["15/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 5 days"]);
   });
 
   it("empties the pad and stays open after an add", () => {
@@ -132,7 +132,18 @@ describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
     pick("Tablet. Napa 500 mg");
     write("dose", "1+0+1");
     fireEvent.click(addBtn());
-    expect(onAdd).toHaveBeenCalledWith("15/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — ");
+    expect(onAdd).toHaveBeenCalledWith(["15/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — "]);
+  });
+
+  it("keeps what was typed when the lines are not taken (the store has said why)", () => {
+    const onAdd = vi.fn((_: string[]) => false);
+    render(<AddMedicineRow existing={[]} tabLabel="Current medications" date={DATE} onAdd={onAdd} />);
+    fireEvent.click(screen.getByText("+ Add medicine"));
+    type("na");
+    pick("Tablet. Napa 500 mg");
+    fireEvent.click(addBtn());
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(screen.getByDisplayValue("Tablet. Napa 500 mg")).toBeTruthy();
   });
 
   it("Cancel collapses the row and clears what was typed", () => {

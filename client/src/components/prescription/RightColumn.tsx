@@ -33,6 +33,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     advice, setAdvice, adviceTest, setAdviceTest, allFieldValues,
     followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit, followUpMandatory, setFollowUpMandatory,
     can, savedDrugAdvice, activeWorkstationId, currentPatientId, rxPadHeld, setRxPadHeld, editorEpoch,
+    visitPrinted,
   } = useMuqsit();
 
   // ••• special advice (physician's design, 2026-09-24): which medicine's box is open.
@@ -189,6 +190,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             showCheck={false}
             showHabits
             bangla
+            keepCells={visitPrinted === true}
             reorderable
             numberNotes
             alertInput={alertInput}

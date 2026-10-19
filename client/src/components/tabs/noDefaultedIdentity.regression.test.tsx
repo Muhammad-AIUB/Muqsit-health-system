@@ -21,7 +21,7 @@ let ctx: Record<string, ReturnType<typeof vi.fn> | null>;
 const freshCtx = () => ({
   setPtName: vi.fn(), setPtAge: vi.fn(), setPtGender: vi.fn(), setPtPhone: vi.fn(), setActiveTab: vi.fn(),
   setRxItems: vi.fn(), setCurrentPatientId: vi.fn(), setPtInfo: vi.fn(),
-  resetEditor: vi.fn(), loadPatientById: vi.fn(), loadPatient: vi.fn(), setPtSettingsTab: vi.fn(),
+  resetEditor: vi.fn(), flushEditorDraft: vi.fn(), loadPatientById: vi.fn(), loadPatient: vi.fn(), setPtSettingsTab: vi.fn(),
   activeWorkstationId: null,
 });
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
@@ -65,6 +65,8 @@ describe("35e7039: PatientsView — '+ New patient' opens a form with nothing pr
     // A new patient is a new editor: nothing of the previous one is kept.
     expect(ctx.resetEditor).toHaveBeenCalledTimes(1);
     expect(ctx.setCurrentPatientId).toHaveBeenCalledWith(null);
+    // …once the previous one's latest edits are parked (review of dfdd1c4).
+    expect(ctx.flushEditorDraft!.mock.invocationCallOrder[0]).toBeLessThan(ctx.resetEditor!.mock.invocationCallOrder[0]);
   });
 });
 
@@ -83,6 +85,11 @@ describe("35e7039: OpdView — 'Prescribe' on a walk-in with no saved record", (
     expect(info.mobile).toBe("01700000000");
     expect(info.religion).toBe("");
     for (const k of NEVER_DEFAULTED) expect(info[k], k).toBe("");
+  });
+
+  it("parks the previous patient's latest edits before the editor is cleared for the walk-in", () => {
+    prescribe({});
+    expect(ctx.flushEditorDraft!.mock.invocationCallOrder[0]).toBeLessThan(ctx.resetEditor!.mock.invocationCallOrder[0]);
   });
 
   it("an unrecorded sex and age stay unrecorded in the editor", () => {

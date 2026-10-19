@@ -76,7 +76,7 @@ interface Props {
 }
 
 export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
-  const { setRxItems, rxItems, ptDate, can, addDrugHistoryEntry } = useMuqsit();
+  const { setRxItems, rxItems, ptDate, can, addDrugHistoryEntries } = useMuqsit();
   const lang = useKbdLang();
   // A line's dose / food / duration is SHOWN in the current language — Bangla in
   // BAN, English in EN (physician's request, 2026-10-15). Display only: the
@@ -244,7 +244,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px" }}>
               {tab === "current" ? (
                 <>
-                  <AddMedicineRow key="current" existing={currentMedEntries} tabLabel="Current medications" date={cd} onAdd={addDrugHistoryEntry} />
+                  <AddMedicineRow key="current" existing={currentMedEntries} tabLabel="Current medications" date={cd} onAdd={addDrugHistoryEntries} />
                   {todays.length === 0 ? (
                     <>
                       <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px 6px" }}>
@@ -307,7 +307,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                 </>
               ) : (
                 <>
-                  <AddMedicineRow key="past" existing={pastMedEntries} tabLabel="Distant past medication" date={PAST_MARKER} onAdd={addDrugHistoryEntry} />
+                  <AddMedicineRow key="past" existing={pastMedEntries} tabLabel="Distant past medication" date={PAST_MARKER} onAdd={addDrugHistoryEntries} />
                   {pastGroups.length === 0 ? (
                     <div style={{ fontSize: 12.5, color: C.n[500], padding: "14px 4px" }}>No earlier-visit medications yet. Whatever is prescribed today moves here on the patient&apos;s next visit.</div>
                   ) : (

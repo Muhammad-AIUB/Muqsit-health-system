@@ -235,6 +235,11 @@ interface Props {
   // BAN mode types Bangla into dose / food / duration (physician's decision,
   // 2026-09-23) — OPD pad only. The medicine name never: it is a search.
   bangla?: boolean;
+  // The pad holds a visit that is printed and unchanged: a cell only passed
+  // through (blur, Enter) is kept as written, not rewritten in BAN's Bangla —
+  // rewritten, the visit was no longer what was printed (review of dfdd1c4).
+  // A cell that is typed in is a change, and is written as ever.
+  keepCells?: boolean;
   // Lines can be moved: drag a line by its serial number, or ▲ / ▼ while
   // ✎ Edit is on (physician's request, 2026-09-23). A medicine always moves
   // together with its >>> tapering lines — see lib/rxRowMove.ts. OPD pad only.
@@ -250,7 +255,7 @@ interface Props {
   drugAdvice?: { has: (row: Row) => boolean; open: (row: Row) => void };
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, reorderable = false, numberNotes = false, drugAdvice }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, keepCells = false, reorderable = false, numberNotes = false, drugAdvice }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   // Which drug box the caret is in. Only used to decide whether that line
   // shows its plain <input> text or the read-only overlay that sets the brand
@@ -395,7 +400,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // 2026-10-14) on the OPD pad only (`bangla`). A typed cell is written when it
   // is committed — the moment its shorthand is expanded — never mid-typing.
   const lang = useKbdLang();
-  const commit = (s: string) => (bangla && lang === "bn" ? rxCellIn(s, "bn") : s);
+  const commit = (s: string) => (bangla && lang === "bn" && !keepCells ? rxCellIn(s, "bn") : s);
   // A learned line is SHOWN in the pad's language too — Bangla in BAN, English
   // in EN (physician's request, 2026-10-15) — as it would be inserted. Display
   // only: what is stored is untouched.

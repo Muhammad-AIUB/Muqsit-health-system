@@ -83,3 +83,31 @@ describe("MedicinePad — BAN writes a committed cell in Bangla", () => {
     expect(cell("dose").value).toBe("1+0+1");
   });
 });
+
+// ⚕️ Review of dfdd1c4: in BAN, passing through a cell of a printed visit
+// (blur, Enter) rewrote it in Bangla — the visit no longer what was printed.
+describe("MedicinePad — a printed visit's cells are kept as written (keepCells)", () => {
+  function Printed({ keepCells }: { keepCells: boolean }) {
+    const [rows, setRows] = useState<Row[]>([{ ...napa(), dose: "1+0+1", food: "After meal", duration: "7 days" }, blank()]);
+    return <MedicinePad rows={rows} setRows={setRows} showCheck={false} bangla keepCells={keepCells} />;
+  }
+  const passThrough = (placeholder: string) => { const el = cell(placeholder); fireEvent.focus(el); fireEvent.blur(el); };
+
+  it("a cell only passed through in BAN stays as written", () => {
+    render(<Printed keepCells />);
+    act(() => setKbdLang("bn"));
+    passThrough("dose");
+    passThrough("food");
+    fireEvent.keyDown(cell("duration"), { key: "Enter" });
+    expect(cell("dose").value).toBe("1+0+1");
+    expect(cell("food").value).toBe("After meal");
+    expect(cell("duration").value).toBe("7 days");
+  });
+
+  it("…where without it the same pass writes them in Bangla", () => {
+    render(<Printed keepCells={false} />);
+    act(() => setKbdLang("bn"));
+    passThrough("dose");
+    expect(cell("dose").value).toBe("১+০+১");
+  });
+});

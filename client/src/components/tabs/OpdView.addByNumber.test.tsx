@@ -27,7 +27,7 @@ vi.mock("@/lib/api", () => ({
 
 const ctx = {
   setPtName: vi.fn(), setPtAge: vi.fn(), setPtGender: vi.fn(), setPtPhone: vi.fn(), setActiveTab: vi.fn(),
-  setRxItems: vi.fn(), setCurrentPatientId: vi.fn(), setPtInfo: vi.fn(), resetEditor: vi.fn(), loadPatientById: vi.fn(),
+  setRxItems: vi.fn(), setCurrentPatientId: vi.fn(), setPtInfo: vi.fn(), resetEditor: vi.fn(), flushEditorDraft: vi.fn(), loadPatientById: vi.fn(),
   activeWorkstationId: null,
 };
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));

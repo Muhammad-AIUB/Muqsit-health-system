@@ -29,8 +29,9 @@ interface Props {
   tabLabel: string;
   /** The date this tab stamps: the visit's, or the no-date marker. */
   date: string;
-  /** Called once per new entry, in pad order. */
-  onAdd: (entry: string) => void;
+  /** Called once per press with every new entry, in pad order. False: they
+   *  were not taken (the caller has said why), and the pad keeps them. */
+  onAdd: (entries: string[]) => boolean;
 }
 
 const fresh = (): Row[] => [emptyRow()];
@@ -58,7 +59,7 @@ export default function AddMedicineRow({ existing, tabLabel, date, onAdd }: Prop
       return;
     }
     const { entries, skipped } = drugHistoryEntriesFromPad(rows, date, existing);
-    for (const e of entries) onAdd(e);
+    if (entries.length && !onAdd(entries)) return;
     if (entries.length) setRows(fresh());
     setMsg(skipped.length ? `Already in ${tabLabel}: ${skipped.join(", ")}` : "");
   };

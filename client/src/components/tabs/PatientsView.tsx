@@ -62,7 +62,7 @@ const smallBtn = (filled: boolean) => (filled ? btnPrimary("sm") : btnSecondary(
 
 export default function PatientsView() {
   const {
-    setActiveTab, setPtInfo, setCurrentPatientId, setPtSettingsTab, resetEditor, loadPatient,
+    setActiveTab, setPtInfo, setCurrentPatientId, setPtSettingsTab, resetEditor, flushEditorDraft, loadPatient,
     activeWorkstationId,
   } = useMuqsit();
 
@@ -86,6 +86,7 @@ export default function PatientsView() {
   };
 
   const newPatient = () => {
+    flushEditorDraft(); // the last patient's latest edits are parked first
     resetEditor(); // clear any previous patient's in-progress prescription
     setPtInfo(EMPTY_PT_INFO);
     setCurrentPatientId(null);

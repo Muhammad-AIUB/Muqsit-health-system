@@ -18,7 +18,7 @@ const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 export default function OpdView() {
-  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setCurrentPatientId, setPtInfo, resetEditor, loadPatientById } = useMuqsit();
+  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setCurrentPatientId, setPtInfo, resetEditor, flushEditorDraft, loadPatientById } = useMuqsit();
   const { data: queue = [], isLoading, error, refetch, isFetching } = useOpdQueue();
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
@@ -149,6 +149,7 @@ export default function OpdView() {
                       if (p.patientId) {
                         void loadPatientById(p.patientId);
                       } else {
+                        flushEditorDraft(); // the last patient's latest edits are parked first
                         resetEditor();
                         // The queue row holds either "Male"/"Female" (written by
                         // MuqsitContext from the editor) or "M"/"F" (written by

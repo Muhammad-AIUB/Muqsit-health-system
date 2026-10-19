@@ -25,7 +25,7 @@ vi.mock("@/context/MuqsitContext", () => ({
     ptDate: "2026-10-15",
     can: () => true,
     canEditLabel: () => true,
-    addDrugHistoryEntry: vi.fn(),
+    addDrugHistoryEntries: vi.fn(() => true),
   }),
 }));
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
