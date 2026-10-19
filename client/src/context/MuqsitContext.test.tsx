@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Patient } from "@/lib/api";
+import { ApiError, type Patient } from "@/lib/api";
 
 const api = vi.hoisted(() => ({
   patientGet: vi.fn(),
@@ -38,12 +38,16 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "doc1" } }) }));
+// A box the doctor has to read (lib/dialogs.ts). Watched, not drawn: there is
+// no DialogHost here, and jsdom has no window.alert to fall back on.
+const tell = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock("@/lib/dialogs", async (original) => ({ ...(await original<typeof import("@/lib/dialogs")>()), tell }));
 // The doctor's saved special advice. ONE array for the whole run of a test, as
 // React Query hands out: a fresh array on every call would re-run the mirror for ever.
 const savedAdvice = vi.hoisted(() => ({ list: [] as unknown[] }));
 vi.mock("@/hooks/useDrugAdvice", () => ({ useDrugAdvice: () => ({ data: savedAdvice.list, isSuccess: true }) }));
 
-import { MuqsitProvider, useMuqsit } from "./MuqsitContext";
+import { MuqsitProvider, UNWRITABLE_PAD, useMuqsit } from "./MuqsitContext";
 import { drugKeyOf } from "@/lib/rxDrugAdvice";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import type { RxItem } from "@/types";
@@ -67,9 +71,12 @@ async function setup() {
 }
 const tick = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 const incompleteWrites = () => api.patientUpdate.mock.calls.filter(([, body]) => "incompleteRx" in (body as object));
+/** Every box raised so far, as it was asked for. */
+const told = () => (tell.mock.calls as unknown as [{ title: string; body?: string; tone?: string }][]).map(([r]) => r);
 
 beforeEach(() => {
   vi.useFakeTimers();
+  tell.mockClear();
   for (const f of Object.values(api)) f.mockReset();
   api.draftGet.mockResolvedValue({ data: {} });
   api.draftSave.mockResolvedValue({});
@@ -374,7 +381,16 @@ describe("Save & print before the history has loaded (G2)", () => {
     act(() => result.current.setInvestigation(["01/09/2026:Hb:12"]));
     await act(async () => { await result.current.savePrescription(); });
     await tick(50);
-    expect(result.current.savedMsg).toMatch(/could not be updated/);
+    // In a box: after Save & print the print sheet covers the line under the
+    // buttons, and a line there was never seen. It names only what failed —
+    // here the investigation history; the drug history was written. The save
+    // itself still is said.
+    expect(told()).toEqual([{
+      title: "Prescription saved, but the patient's history could not be updated.",
+      body: "The investigation history kept in the patient's record was not updated. The prescription itself is saved, with everything written on it.",
+      tone: "danger",
+    }]);
+    expect(result.current.savedMsg).toEqual({ kind: "ok", text: "Prescription saved!" });
   });
 });
 
@@ -845,7 +861,8 @@ describe("Save & print with a line the ℞ pad cannot write", () => {
     await act(async () => { ok = await result.current.savePrescription(); });
     expect(ok).toBe(false);
     expect(api.rxCreate).not.toHaveBeenCalled();
-    expect(result.current.savedMsg).toMatch(/no medicine/i);
+    expect(told()).toEqual([{ title: "The prescription was not saved.", body: UNWRITABLE_PAD, tone: "danger" }]);
+    expect(result.current.savedMsg).toBeNull();
   });
 
   it("saves once the line is put right", async () => {
@@ -876,7 +893,7 @@ describe("the ℞ items themselves are checked at save", () => {
     ]));
     await act(async () => { await result.current.savePrescription(); });
     expect(api.rxCreate).not.toHaveBeenCalled();
-    expect(result.current.savedMsg).toMatch(/no medicine/i);
+    expect(told()).toEqual([{ title: "The prescription was not saved.", body: UNWRITABLE_PAD, tone: "danger" }]);
   });
 
   it("Save to complete later is refused too — it would clear the pad and lose the line", async () => {
@@ -892,7 +909,150 @@ describe("the ℞ items themselves are checked at save", () => {
     await act(async () => { ok = await result.current.saveDraftNow(); });
     expect(ok).toBe(false);
     expect(result.current.rxItems).toHaveLength(1); // nothing cleared
-    expect(result.current.savedMsg).toMatch(/no medicine/i);
+    expect(told()).toEqual([{ title: "The visit was not saved for later.", body: UNWRITABLE_PAD, tone: "danger" }]);
+  });
+});
+
+// ⚕️ The line under the Save buttons was drawn in the "saved" green for every
+// message, failures included, and two of them ended "Is the API running?" — a
+// question a doctor cannot answer about a server they cannot start (release
+// review, 18/10/2026). The line now carries its KIND with its words, and a
+// save that did not happen is never that line: it is a box the doctor has to
+// read, saying what did not happen and what they can check.
+describe("what the Save buttons say", () => {
+  const NAPA_LINE: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "", duration: "5 days" };
+  async function opened() {
+    const r = await setup();
+    act(() => r.result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => r.result.current.setRxItems([NAPA_LINE]));
+    return r;
+  }
+
+  it("a saved prescription is said on the line, as done (ok)", async () => {
+    const { result } = await opened();
+    await act(async () => { await result.current.savePrescription(); });
+    expect(result.current.savedMsg).toEqual({ kind: "ok", text: "Prescription saved!" });
+    expect(tell).not.toHaveBeenCalled();
+  });
+
+  it("an empty form is refused on the line, as a warning (warn), and nothing is saved", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    await act(async () => { await result.current.savePrescription(); });
+    expect(api.rxCreate).not.toHaveBeenCalled();
+    expect(result.current.savedMsg).toEqual({ kind: "warn", text: "Add a medicine or some clinical detail before saving." });
+    expect(tell).not.toHaveBeenCalled();
+  });
+
+  it("a save that never reached the server is a box in the doctor's words — not the line, and never 'the API'", async () => {
+    api.rxCreate.mockRejectedValue(new TypeError("Failed to fetch"));
+    const { result } = await opened();
+    let ok = true;
+    await act(async () => { ok = await result.current.savePrescription(); });
+    expect(ok).toBe(false);
+    expect(told()).toEqual([{
+      title: "The prescription was not saved.",
+      body: "Check your internet connection and try again. Everything you wrote is still here.",
+      tone: "danger",
+    }]);
+    expect(result.current.savedMsg).toBeNull();
+    expect(result.current.rxItems).toEqual([NAPA_LINE]);
+    await tick(10_000);
+    expect(JSON.stringify([told(), result.current.savedMsg])).not.toMatch(/\bAPI\b|running|Failed to fetch/);
+  });
+
+  it("a refusal the server words for a person is shown as written", async () => {
+    api.rxCreate.mockRejectedValue(new ApiError(403, "You do not have permission to save prescriptions"));
+    const { result } = await opened();
+    await act(async () => { await result.current.savePrescription(); });
+    expect(told()).toEqual([expect.objectContaining({
+      title: "The prescription was not saved.",
+      body: "You do not have permission to save prescriptions. Everything you wrote is still here.",
+    })]);
+  });
+
+  it("the framework's words are not shown: a server error says the server could not save it", async () => {
+    api.rxCreate.mockRejectedValue(new ApiError(500, "Internal server error"));
+    const { result } = await opened();
+    await act(async () => { await result.current.savePrescription(); });
+    expect(told()).toEqual([expect.objectContaining({
+      body: "The server could not save it just now. Please try again in a moment. Everything you wrote is still here.",
+    })]);
+  });
+
+  // A throw AFTER the prescription was created used to reach the same catch and
+  // say "Save failed" of a visit that is on the record — the doctor presses
+  // again, and the server stores a second prescription. And the visit must be
+  // marked complete all the same: left "Incomplete", with the saved visit as
+  // its draft, it is resumed and filed a second time (review, 18/10/2026).
+  it("never says 'not saved' of a saved prescription when what came after it threw — and still completes the visit", async () => {
+    const { result } = await opened();
+    api.patientUpdate.mockImplementation((_id: string, body: object) => {
+      if ("investigationSummary" in body) throw new Error("thrown, not rejected");
+      return Promise.resolve({});
+    });
+    act(() => result.current.setInvestigation(["01/09/2026:Hb:12"]));
+    let ok = false;
+    await act(async () => { ok = await result.current.savePrescription(); });
+    expect(ok).toBe(true);
+    expect(api.rxCreate).toHaveBeenCalledTimes(1);
+    expect(told()).toEqual([{
+      title: "Prescription saved, but the patient's history could not be updated.",
+      body: "The patient's record may not have been brought up to date with this visit. The prescription itself is saved, with everything written on it.",
+      tone: "danger",
+    }]);
+    expect(result.current.savedMsg).toEqual({ kind: "ok", text: "Prescription saved!" });
+    expect(api.patientUpdate).toHaveBeenCalledWith("X", { incompleteRx: null });
+    expect(api.setRxStatus).toHaveBeenCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "complete" }));
+    // …and the next edit does not park the printed visit again.
+    api.patientUpdate.mockClear();
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    expect(incompleteWrites()).toHaveLength(0);
+  });
+
+  it("a stored draft is said on the line, as done (ok)", async () => {
+    const { result } = await opened();
+    await tick(1500);
+    await act(async () => { await result.current.saveDraftNow(); });
+    expect(result.current.savedMsg).toEqual({ kind: "ok", text: "Draft saved — you can complete it later." });
+    expect(tell).not.toHaveBeenCalled();
+  });
+
+  it("a draft that was not stored is a box too, and the editor is left exactly as it was", async () => {
+    const { result } = await opened();
+    await tick(1500);
+    api.draftSave.mockRejectedValue(new TypeError("Failed to fetch"));
+    let ok = true;
+    await act(async () => { ok = await result.current.saveDraftNow(); });
+    expect(ok).toBe(false);
+    expect(told()).toEqual([{
+      title: "The visit was not saved for later.",
+      body: "Check your internet connection and try again. Everything you wrote is still here.",
+      tone: "danger",
+    }]);
+    expect(result.current.savedMsg).toBeNull();
+    expect(result.current.rxItems).toEqual([NAPA_LINE]);
+    expect(result.current.currentPatientId).toBe("X");
+  });
+
+  // The timers were one per message and cleared whatever was on the line when
+  // they ran: the warning's three seconds took "Prescription saved!" off one
+  // second after it appeared.
+  it("each line goes after its own time — an earlier line's timer does not take a later one off", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    await act(async () => { await result.current.savePrescription(); }); // empty → the warning, 3 s
+    await tick(2000);
+    act(() => result.current.setRxItems([NAPA_LINE]));
+    await act(async () => { await result.current.savePrescription(); }); // saved, 3 s
+    await tick(1500); // 3.5 s after the warning, 1.5 s after the save
+    expect(result.current.savedMsg).toEqual({ kind: "ok", text: "Prescription saved!" });
+    await tick(2000);
+    expect(result.current.savedMsg).toBeNull();
   });
 });
 

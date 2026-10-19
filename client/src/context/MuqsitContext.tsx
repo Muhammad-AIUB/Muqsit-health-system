@@ -14,7 +14,7 @@ import React, {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
-import { ApiError, activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
+import { activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { createRxSnapshotGate } from "@/lib/rxSnapshot";
 import { mergeThumbs, safeThumbMap, type ThumbMap } from "@/lib/imageThumbs";
 import { buildRxAlertInput, checkRxAlerts } from "@/lib/rxAlerts";
@@ -30,6 +30,8 @@ import { adviceLinesFor, padMedicines, syncRxAdvice } from "@/lib/rxDrugAdvice";
 import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
+import { tell } from "@/lib/dialogs";
+import { historyNotUpdated, notSavedBody, type SaveNotice, type SaveNoticeKind } from "@/lib/saveNotice";
 import type {
   Page,
   View,
@@ -226,7 +228,17 @@ function useMuqsitStore() {
   // not known (a draft or a peer from before it existed): the mirror then claims
   // what the pad writes, as it always did.
   const [rxMirrorOwned, setRxMirrorOwned] = useState<StringList | null>(null);
-  const [savedMsg, setSavedMsg] = useState("");
+  // The line under the Save buttons, with its KIND (lib/saveNotice.ts) — a
+  // save that did not happen is a box (`tell()`), never this line.
+  const [savedMsg, setSavedMsg] = useState<SaveNotice | null>(null);
+  // Each line takes ITSELF off after its time, and nothing else: one timer per
+  // message used to clear whatever was showing when it ran, and a warning's
+  // three seconds took "Prescription saved!" off a second after it appeared.
+  const notify = useCallback((kind: SaveNoticeKind, text: string, ms: number) => {
+    const notice: SaveNotice = { kind, text };
+    setSavedMsg(notice);
+    setTimeout(() => setSavedMsg((now) => (now === notice ? null : now)), ms);
+  }, []);
   // ⚕️ How many lines of the OPD ℞ pad cannot be written as they stand
   // (`unwritableRows`, lib/rxRows.ts) — reported by RightColumn, which holds the
   // pad's rows. While any is there, Save & print refuses: a >>> line with no
@@ -372,8 +384,7 @@ function useMuqsitStore() {
     // as the pad reports it, or as the items themselves read (an old draft, a
     // peer device: `writableItems`).
     if (rxPadUnwritableRef.current > 0 || writableItems(rxItems).dropped > 0) {
-      setSavedMsg(UNWRITABLE_PAD);
-      setTimeout(() => setSavedMsg(""), 8000);
+      tell({ title: "The prescription was not saved.", body: UNWRITABLE_PAD, tone: "danger" });
       return false;
     }
     // A prescription is saveable with a medicine OR any clinical detail/advice —
@@ -387,8 +398,7 @@ function useMuqsitStore() {
         advice, adviceTest,
       ].some((a) => a.length > 0);
     if (!hasContent) {
-      setSavedMsg("Add a medicine or some clinical detail before saving.");
-      setTimeout(() => setSavedMsg(""), 3000);
+      notify("warn", "Add a medicine or some clinical detail before saving.", 3000);
       return false;
     }
     let ok = false;
@@ -456,8 +466,26 @@ function useMuqsitStore() {
           });
         })(),
       });
-      setSavedMsg("Prescription saved!");
+      notify("ok", "Prescription saved!", 3000);
       ok = true;
+
+      // "Save & print" = complete: clear the patient's incomplete draft and flag
+      // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
+      // ⚕️ FIRST, before anything that could throw: a visit on the record left
+      // "Incomplete", with itself as its draft, is resumed and filed a second
+      // time (review, 18/10/2026 — it ran last, and a throw in the history merge
+      // skipped it).
+      if (pid) {
+        rxCompletedRef.current = pid;
+        setRxCompletedPid(pid); // carried to mirror devices — see mirrorSnapshot
+        rxFlaggedRef.current = null;
+        void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
+        void opdApi.setRxStatus({
+          patientId: pid, rxStatus: "complete",
+          name: ptName.trim() || undefined, phone: ptPhone || undefined,
+          age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["opd"] })).catch(() => {});
+      }
 
       // Measurement for "Your usual": what share of ℞ lines the suggestions
       // actually saved the doctor from typing. There is no proxy for this
@@ -519,7 +547,8 @@ function useMuqsitStore() {
         // / Health monitoring read it through these keys, and would otherwise
         // show the history without it until the cache went stale.
         void queryClient.invalidateQueries({ queryKey: ["prescriptions", pid] });
-        const patientWrites: Promise<unknown>[] = [];
+        // Each with what it writes, so a failure says WHICH history it was.
+        const patientWrites: { what: string; done: Promise<unknown> }[] = [];
         // ⚕️ Both histories are merged in memory and PATCHed WHOLE, so only once
         // this patient's stored history is actually in hand (`recordHydratedRef`).
         // Merging into the blank stand-in — a reload whose patient fetch is slow
@@ -531,14 +560,14 @@ function useMuqsitStore() {
         if (parsed.length && historyInHand) {
           const merged = mergeFindings(investigationSummary, parsed);
           setInvestigationSummary(merged);
-          patientWrites.push(patientsApi.update(pid, { investigationSummary: merged }));
+          patientWrites.push({ what: "investigation history", done: patientsApi.update(pid, { investigationSummary: merged }) });
         }
         // Same for on-examination: keep a dated record of this visit's findings.
         const oeAdds = oeEntriesForDate(onExamination, isoToDdmmyyyy(ptDate));
         if (oeAdds.length && historyInHand) {
           const mergedOe = mergeOe(onExaminationSummary, oeAdds);
           setOnExaminationSummary(mergedOe);
-          patientWrites.push(patientsApi.update(pid, { onExaminationSummary: mergedOe }));
+          patientWrites.push({ what: "examination history", done: patientsApi.update(pid, { onExaminationSummary: mergedOe }) });
         }
         if ((parsed.length || oeAdds.length) && !historyInHand) {
           console.warn("[patient] record not loaded — this visit's findings were saved on the prescription, the history summary was left as stored");
@@ -553,44 +582,42 @@ function useMuqsitStore() {
         // medicines, which is exactly what makes the loss look like real data.
         if (drugHistoryHydratedRef.current === pid) {
           drugHistoryBaselineRef.current = drugHistory;
-          patientWrites.push(patientsApi.update(pid, { drugHistory }));
+          patientWrites.push({ what: "drug history", done: patientsApi.update(pid, { drugHistory }) });
         }
         // The patient record (drug history for Health monitoring) is re-read once
         // the writes above have landed, not before — a refetch racing them would
         // bring back the old record. A write that failed is SAID: the prescription
         // itself is saved, but the doctor must not believe the history is too.
+        // In a box: after Save & print the print sheet covers the line under the
+        // buttons, so a line there was said to nobody.
         const donePid = pid;
-        void Promise.allSettled(patientWrites)
+        void Promise.allSettled(patientWrites.map((w) => w.done))
           .then((results) => {
-            const failed = results.filter((r) => r.status === "rejected");
+            const failed = patientWrites.filter((_, i) => results[i].status === "rejected");
             if (failed.length) {
-              console.error("[patient] history update failed after save:", failed);
-              setSavedMsg("Prescription saved, but the patient's history (investigations / examination / drug history) could not be updated.");
-              setTimeout(() => setSavedMsg(""), 8000);
+              console.error("[patient] history update failed after save:", results.filter((r) => r.status === "rejected"));
+              tell(historyNotUpdated(failed.map((w) => w.what)));
             }
             return queryClient.invalidateQueries({ queryKey: ["patient", donePid] });
           })
           .catch(() => {});
       }
-      // "Save & print" = complete: clear the patient's incomplete draft and flag
-      // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
-      if (pid) {
-        rxCompletedRef.current = pid;
-        setRxCompletedPid(pid); // carried to mirror devices — see mirrorSnapshot
-        rxFlaggedRef.current = null;
-        void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
-        void opdApi.setRxStatus({
-          patientId: pid, rxStatus: "complete",
-          name: ptName.trim() || undefined, phone: ptPhone || undefined,
-          age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
-        }).then(() => queryClient.invalidateQueries({ queryKey: ["opd"] })).catch(() => {});
-      }
     } catch (e) {
-      setSavedMsg(e instanceof ApiError ? `Save failed: ${e.message}` : "Save failed. Is the API running?");
+      if (ok) {
+        // ⚕️ The prescription IS on the record; what threw came after it — the
+        // history merge. Never "not saved" of a saved visit: the doctor would
+        // press again, and the server stores a second prescription.
+        console.error("[patient] after the prescription was saved:", e);
+        tell(historyNotUpdated(null));
+      } else {
+        // ⚕️ The visit is NOT on the record: a box the doctor has to read, never
+        // a line that goes after three seconds (Save & print closes its sheet).
+        console.error("[rx] the prescription was not saved:", e);
+        tell({ title: "The prescription was not saved.", body: notSavedBody(e), tone: "danger" });
+      }
     }
     // The visit is on the record — the next one asks about its warnings afresh.
     if (ok) setIgnoredAlerts(new Set());
-    setTimeout(() => setSavedMsg(""), 3000);
     return ok;
   };
 
@@ -1419,14 +1446,12 @@ function useMuqsitStore() {
     // ⚕️ It clears the editor once the draft is stored, and a line the pad
     // cannot write never reaches the draft: refused, or that line is lost.
     if (rxPadUnwritableRef.current > 0) {
-      setSavedMsg(UNWRITABLE_PAD);
-      setTimeout(() => setSavedMsg(""), 8000);
+      tell({ title: "The visit was not saved for later.", body: UNWRITABLE_PAD, tone: "danger" });
       return false;
     }
     const p = pendingDraftRef.current;
     if (!draftReadyRef.current || !p || !p.pid || !p.hasRx) {
-      setSavedMsg("Add a medicine or some clinical detail before saving.");
-      setTimeout(() => setSavedMsg(""), 3000);
+      notify("warn", "Add a medicine or some clinical detail before saving.", 3000);
       return false;
     }
     const pid = p.pid;
@@ -1445,16 +1470,17 @@ function useMuqsitStore() {
         void queryClient.invalidateQueries({ queryKey: ["opd"] });
       }
     } catch (e) {
-      setSavedMsg(e instanceof ApiError ? `Draft NOT saved: ${e.message}` : "Draft NOT saved. Is the API running?");
-      setTimeout(() => setSavedMsg(""), 5000);
+      // ⚕️ Said in a box the doctor has to read: they are about to walk away
+      // believing the visit is parked.
+      console.error("[draft] the visit was not saved for later:", e);
+      tell({ title: "The visit was not saved for later.", body: notSavedBody(e), tone: "danger" });
       return false;                    // editor left intact — nothing is lost
     }
     resetEditor();
     setCurrentPatientId(null);
-    setSavedMsg("Draft saved — you can complete it later.");
-    setTimeout(() => setSavedMsg(""), 3000);
+    notify("ok", "Draft saved — you can complete it later.", 3000);
     return true;
-  }, [resetEditor, ptName, ptPhone, ptAge, ptGender]);
+  }, [resetEditor, notify, ptName, ptPhone, ptAge, ptGender]);
 
   // ── Device mirroring (real-time multi-device sync, primary only) ──────────
   // A serialisable snapshot of the mirrorable app state (navigation + the
@@ -1667,7 +1693,7 @@ function useMuqsitStore() {
     finalDiagnosis, setFinalDiagnosis,
     rxItems, setRxItems, advice, setAdvice, adviceTest, setAdviceTest,
     rxAdviceOff, setRxAdviceOff, savedDrugAdvice, savedDrugAdviceReady,
-    savedMsg, setSavedMsg, followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit,
+    savedMsg, followUpNum, setFollowUpNum, followUpUnit, setFollowUpUnit,
     followUpMandatory, setFollowUpMandatory,
     showInvPopup, setShowInvPopup, invActiveCat, setInvActiveCat, invFormData, setInvFormData,
     calDate, setCalDate, showMonthPicker, setShowMonthPicker, invSearch, setInvSearch,

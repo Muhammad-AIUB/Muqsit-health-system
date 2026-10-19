@@ -27,6 +27,7 @@ import PatientGate from "./PatientGate";
 import PatientChat from "./PatientChat";
 import RxAlerts from "./RxAlerts";
 import PrintSheetModal from "./PrintSheetModal";
+import SaveNoticeLine from "./SaveNoticeLine";
 import Icon from "@/components/common/Icon";
 import { Loading } from "@/components/common/ListState";
 
@@ -234,7 +235,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     if (!ok) {
       // Never leave a printable prescription on screen for a visit that did not
       // save — the doctor could hand the patient a document the record has no
-      // copy of. The failure reason is already shown under the buttons.
+      // copy of. `savePrescription` has already said why: a failure in a box,
+      // an empty form on the line under the buttons.
       closeSheet();
       return;
     }
@@ -290,7 +292,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   // ⚕️ "Save to complete later" clears the editor once the draft is stored, and
   // the draft holds only what the pad can write: a line it cannot is refused
   // here as Save & print refuses it — in a box the doctor has to read, not the
-  // green line under the buttons (fourth review, 18/10/2026). `saveDraftNow`
+  // line under the buttons (fourth review, 18/10/2026). `saveDraftNow`
   // refuses too.
   const saveForLater = () => {
     if (m.rxPadUnwritable > 0) {
@@ -323,7 +325,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         </PatientGate>
         <button onClick={saveForLater} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled), width: "100%", marginBottom: 8 }}>Save to complete later</button>
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), width: "100%" }}>{saving ? "Saving…" : "Save & print"}</button>
-        {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 6 }}>{savedMsg}</div>}
+        <SaveNoticeLine notice={savedMsg} gap={6} />
         {gateOpen && <><ReportsSection /><PatientChat /></>}
         {sheet.open && <PrintSheetModal html={sheet.html} afterSave={sheet.afterSave} onClose={closeSheet} />}
       </>
@@ -356,7 +358,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), flex: 1 }}>{saving ? "Saving…" : "Save & print prescription"}</button>
         <button onClick={previewPdf} style={btnSecondary("lg")}>Preview PDF</button>
       </div>
-      {savedMsg && <div style={{ textAlign: "center", fontSize: 12, color: C.ok[600], fontWeight: 500, marginTop: 8 }}>{savedMsg}</div>}
+      <SaveNoticeLine notice={savedMsg} />
       {gateOpen && <><ReportsSection /><PatientChat /></>}
       {sheet.open && <PrintSheetModal html={sheet.html} afterSave={sheet.afterSave} onClose={closeSheet} />}
     </>
