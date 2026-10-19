@@ -508,7 +508,10 @@ function useMuqsitStore() {
         rxCompletedRef.current = pid;
         setRxCompletedPid(pid); // carried to mirror devices — see mirrorSnapshot
         rxFlaggedRef.current = null;
-        void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
+        // The practice's own parked visit is on the record now: a supervising
+        // practice keeps it in a place of its own, the owner's on the patient.
+        if (supervisedRef.current) void patientsApi.setSupervisedDraft(pid, null).catch(() => {});
+        else void patientsApi.update(pid, { incompleteRx: null }).catch(() => {});
         void opdApi.setRxStatus({
           patientId: pid, rxStatus: "complete",
           name: ptName.trim() || undefined, phone: ptPhone || undefined,
@@ -973,14 +976,16 @@ function useMuqsitStore() {
   // are hydrated by the currentPatientId effect below.
   // Synchronously persist the pending editor snapshot for the OUTGOING patient
   // before we reset the editor for a new one, so the last <1200 ms of edits are
-  // not lost. Never writes the owner's incompleteRx for a supervised patient.
+  // not lost. Never writes the owner's incompleteRx for a supervised patient:
+  // a supervising practice parks it in a place of its own (19/10/2026).
   const flushEditorDraft = useCallback(() => {
     if (!draftReadyRef.current) return;
     const p = pendingDraftRef.current;
     if (!p) return;
     void prescriptionDraftApi.save(p.snapshot).catch(() => {});
-    if (p.pid && p.hasRx && !p.supervised && rxCompletedRef.current !== p.pid) {
-      void patientsApi.update(p.pid, { incompleteRx: p.snapshot }).catch(() => {});
+    if (p.pid && p.hasRx && rxCompletedRef.current !== p.pid) {
+      if (p.supervised) void patientsApi.setSupervisedDraft(p.pid, p.snapshot).catch(() => {});
+      else void patientsApi.update(p.pid, { incompleteRx: p.snapshot }).catch(() => {});
     }
   }, []);
 
@@ -1042,13 +1047,20 @@ function useMuqsitStore() {
     // ahead of the list would make the blank editor read as a changed history.
     drugHistoryBaselineRef.current = null;
     const inc = p.incompleteRx;
-    if (!supervised && inc && typeof inc === "object" && Object.keys(inc).length > 0) {
+    // ⚕️ `incompleteRx` is the parked visit of the practice that READ the patient
+    // (19/10/2026): the owner's practice gets the patient's own; a supervising
+    // practice gets its own (never the owner's — the server gives it no other).
+    // And for a supervising practice it is opened only when it says it was
+    // written in this practice: an owner's draft carries the owner's.
+    const parked = !!inc && typeof inc === "object" && Object.keys(inc).length > 0 &&
+      (!supervised || (inc as Record<string, unknown>).workstationId === effectiveDoctor);
+    if (parked) {
       applyEditorSnapshot(inc as Record<string, unknown>, p.drugHistory); // advances ptDate if draft is stale
       // The parked draft carries this patient's own drug history, so it is a valid
       // base to mirror onto while the background patient fetch is still in flight.
       drugHistoryHydratedRef.current = p.id;
       drugHistoryBaselineRef.current = (p.drugHistory as string[]) ?? [];
-      rxFlaggedRef.current = p.id; // already saved as incomplete
+      rxFlaggedRef.current = supervised ? null : p.id; // already saved as incomplete
     } else {
       rxFlaggedRef.current = null;
     }
@@ -1326,17 +1338,22 @@ function useMuqsitStore() {
     const stale = () => cancelled || editorEpochRef.current !== epoch;
     const restore = async (d: Record<string, unknown>) => {
       const pid = typeof d.currentPatientId === "string" ? d.currentPatientId : null;
-      // Guard: if the draft points at a SUPERVISED patient (another doctor's),
-      // never restore its editor content — that would resurrect the owner's
-      // prescription. Reload the patient fresh instead (blank Rx, header only).
+      // ⚕️ A SUPERVISED patient (another practice's) comes back with what THIS
+      // practice wrote for them (19/10/2026; a reload used to throw it away).
+      // The draft is this user's own, written in this practice — it never held
+      // the owner's prescription, which a supervised patient never opens with.
+      // A draft that does not say where it was written (from before that field)
+      // still reloads the patient fresh, as it always did.
       let record: Patient | null = null;
+      let supervised = false;
       if (pid) {
         try {
           const p = await patientsApi.get(pid);
           record = p;
           if (stale()) return;
           const me = activeWsRef.current ?? authIdRef.current;
-          if (p.doctorId && me && p.doctorId !== me) {
+          supervised = !!p.doctorId && !!me && p.doctorId !== me;
+          if (supervised && d.workstationId !== me) {
             loadPatient(p); // sets supervisedRef and gives a fresh Rx
             return;
           }
@@ -1352,9 +1369,15 @@ function useMuqsitStore() {
       }
       if (stale()) return;
       draftHeldRef.current = false;
-      supervisedRef.current = false; // own patient (or none) — normal restore
+      supervisedRef.current = supervised; // gates where the visit is parked
       applyEditorSnapshot(d, record?.drugHistory);
       if (pid) { drugHistoryHydratedRef.current = pid; setCurrentPatientId(pid); }
+      // ⚕️ A visit printed before the reload is still printed (19/10/2026):
+      // read as unprinted, it was parked again and put back to "Incomplete" in
+      // OPD, to be filed a second time.
+      const printed = pid && d.rxCompletedPid === pid ? pid : null;
+      rxCompletedRef.current = printed;
+      setRxCompletedPid(printed);
       // The draft carries the editor, not the patient's record: the photo, the
       // Patient Settings form and the watch flag come from the record, exactly
       // as loadPatient sets them. Without this a reload showed 👤 and a blank
@@ -1403,6 +1426,34 @@ function useMuqsitStore() {
       onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
       advice, adviceTest].some((a) => a.length > 0);
 
+  // ⚕️ A CHANGE MADE AFTER SAVE & PRINT IS UNPRINTED WORK (19/10/2026). It was
+  // kept only in the one-slot editor draft, so another patient opened and it
+  // was gone — a correction the doctor believed made, never on the record.
+  // Once what the visit says differs from what was printed, the printed mark
+  // goes: the change is parked like any unprinted visit and the patient is
+  // "Incomplete" in OPD until it is printed again. What the visit says is what
+  // prints and the pad's lines it could not write — NOT the drug history (the
+  // record's own list lands in it after a print) and not the header (the
+  // patient record keeps that).
+  const visitSig = useMemo(() => JSON.stringify([
+    chiefComplaints, previousComplaints, history, investigation, onExamination, note, plan,
+    provisionalDiagnosis, associatedIllness, finalDiagnosis, advice, adviceTest, rxItems, rxPadHeld,
+    followUpNum, followUpUnit, followUpMandatory, hideDrugHistory, hiddenInvestigation,
+  ]), [
+    chiefComplaints, previousComplaints, history, investigation, onExamination, note, plan,
+    provisionalDiagnosis, associatedIllness, finalDiagnosis, advice, adviceTest, rxItems, rxPadHeld,
+    followUpNum, followUpUnit, followUpMandatory, hideDrugHistory, hiddenInvestigation,
+  ]);
+  const printedSigRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!rxCompletedPid || rxCompletedPid !== currentPatientId) { printedSigRef.current = null; return; }
+    if (printedSigRef.current === null) { printedSigRef.current = visitSig; return; } // as printed
+    if (visitSig === printedSigRef.current) return;
+    printedSigRef.current = null;
+    rxCompletedRef.current = null;
+    setRxCompletedPid(null);
+  }, [visitSig, rxCompletedPid, currentPatientId]);
+
   // Auto-save the live editor to the server (debounced) on any change. While a
   // patient is loaded with real content, also persist it as that patient's
   // incomplete (not-yet-printed) prescription and flag them "Incomplete" in OPD.
@@ -1428,6 +1479,9 @@ function useMuqsitStore() {
       hiddenInvestigation,
       // The practice this draft was written in (checked on reload).
       workstationId: activeWsRef.current ?? authIdRef.current,
+      // The visit was printed, and nothing has changed since (read back on a
+      // reload — see restore).
+      rxCompletedPid,
     };
     // Keep the latest snapshot available for a synchronous flush on switch.
     pendingDraftRef.current = { snapshot, pid: currentPatientId, supervised: supervisedRef.current, hasRx: hasRxContent };
@@ -1440,8 +1494,11 @@ function useMuqsitStore() {
     if (mirrorAppliedRef.current) return;
     const t = setTimeout(() => {
       void prescriptionDraftApi.save(snapshot).catch((e) => console.warn("[draft] save failed:", e));
-      // A supervising doctor's edits go only to their own per-user draft above —
-      // never into the owner's shared Patient.incompleteRx or their OPD queue.
+      // A supervising practice parks its visit in a place of its own — never
+      // the owner's shared Patient.incompleteRx, never their OPD queue.
+      if (supervisedRef.current && currentPatientId && hasRxContent && rxCompletedRef.current !== currentPatientId) {
+        void patientsApi.setSupervisedDraft(currentPatientId, snapshot).catch(() => {});
+      }
       if (!supervisedRef.current && currentPatientId && hasRxContent && rxCompletedRef.current !== currentPatientId) {
         const pid = currentPatientId;
         void patientsApi.update(pid, { incompleteRx: snapshot }).catch(() => {});
@@ -1465,7 +1522,7 @@ function useMuqsitStore() {
     rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
     hideDrugHistory,
     invImages, oeData, currentPatientId,
-    hiddenInvestigation,
+    hiddenInvestigation, rxCompletedPid,
   ]);
 
   // "Save to complete later" — the doctor-initiated twin of the auto-save above, for a visit
@@ -1492,8 +1549,11 @@ function useMuqsitStore() {
     const pid = p.pid;
     try {
       await prescriptionDraftApi.save(p.snapshot);
-      // A supervising doctor's draft stays in their own per-user draft only —
+      // A supervising practice parks it in a place of its own (19/10/2026) —
       // never the owner's shared incompleteRx, never the owner's OPD queue.
+      if (p.supervised && rxCompletedRef.current !== pid) {
+        await patientsApi.setSupervisedDraft(pid, p.snapshot);
+      }
       if (!p.supervised && rxCompletedRef.current !== pid) {
         await patientsApi.update(pid, { incompleteRx: p.snapshot });
         await opdApi.setRxStatus({

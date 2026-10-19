@@ -1,10 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prescription, PrescriptionItem } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ROW_LOCK_TX } from '../prisma/row-lock';
 import { forViewer } from '../patients/patients.service';
 import { CreatePrescriptionDto } from './dto/prescription.dto';
 import { RxHabitsService } from '../rx-habits/rx-habits.service';
 import { DoctorPhrasesService } from '../doctor-phrases/doctor-phrases.service';
+import { REPEAT_WINDOW_MS, sameContent } from './repeat';
 
 @Injectable()
 export class PrescriptionsService {
@@ -26,17 +28,35 @@ export class PrescriptionsService {
     if (!patient) throw new NotFoundException('Patient not found');
 
     const { patientId, items, ...fields } = dto;
-    const rx = await this.prisma.prescription.create({
-      data: {
-        ...fields,
-        patientId,
-        doctorId,
-        items: {
-          create: items.map((item, i) => ({ ...item, order: item.order ?? i })),
-        },
-      },
-      include: { items: { orderBy: { order: 'asc' } } },
-    });
+    const lines = items.map((item, i) => ({ ...item, order: item.order ?? i }));
+
+    // ⚕️ THE SAME PRESCRIPTION SENT AGAIN IS THE ONE ON RECORD (19/10/2026).
+    // A save whose answer was lost on the way back (a connection that dropped
+    // after this write) reads to the doctor as "not saved", and they press
+    // again: before this, the visit was filed twice. The doctor's LATEST
+    // prescription for this patient, from the last half hour, with every field
+    // and every line the same (`repeat.ts`), is answered instead of a second
+    // row — and teaches "Your usual" nothing a second time. One save per doctor
+    // and patient at a time: a copy that arrives while the first is still being
+    // written waits for it, and then finds it.
+    const { rx, repeat } = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rx:${doctorId}:${patientId}`}))`;
+      const latest = await tx.prescription.findFirst({
+        where: { doctorId, patientId, createdAt: { gte: new Date(Date.now() - REPEAT_WINDOW_MS) } },
+        orderBy: { createdAt: 'desc' },
+        include: { items: { orderBy: { order: 'asc' } } },
+      });
+      if (latest && sameContent(latest, fields, lines)) return { rx: latest, repeat: true };
+      const created = await tx.prescription.create({
+        data: { ...fields, patientId, doctorId, items: { create: lines } },
+        include: { items: { orderBy: { order: 'asc' } } },
+      });
+      return { rx: created, repeat: false };
+    }, ROW_LOCK_TX);
+    if (repeat) {
+      this.log.log(`prescription ${rx.id} sent again — answered with the one on record`);
+      return rx;
+    }
 
     // ⚕️ THE PRESCRIPTION IS COMMITTED BEFORE ANYTHING BELOW CAN FAIL.
     //

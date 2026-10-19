@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OpdVisit, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ROW_LOCK_TX } from '../prisma/row-lock';
 import { startOfDhakaDay } from './dhaka-day';
 import {
   CreateOpdVisitDto,
@@ -19,6 +20,14 @@ export class OpdService {
       where: { doctorId, createdAt: { gte: startOfDay } },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  // ⚕️ One write to a doctor's queue at a time (19/10/2026). Each of them reads
+  // today's queue and then writes: two at once each saw the other missing — two
+  // tokens for one patient, or one token for two. The lock is the
+  // transaction's, and is let go when it ends.
+  private lockQueue(tx: Prisma.TransactionClient, doctorId: string) {
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`opd:${doctorId}`}))`;
   }
 
   // Allocate the next per-doctor-per-day token (T-NN) from the MAX existing
@@ -52,11 +61,23 @@ export class OpdService {
     // Token: T-<serial of today>, per doctor.
     const startOfDay = startOfDhakaDay();
     return this.prisma.$transaction(async (tx) => {
+      await this.lockQueue(tx, doctorId);
+      // ⚕️ A patient still WAITING in today's queue keeps their place and token
+      // (19/10/2026): an add whose answer was lost on the way back, pressed
+      // again, put the same patient in the queue twice. Seen already today
+      // ("done"), they are queued again — a second visit is a real one.
+      if (dto.patientId) {
+        const waiting = await tx.opdVisit.findFirst({
+          where: { doctorId, patientId: dto.patientId, createdAt: { gte: startOfDay }, status: 'waiting' },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (waiting) return waiting;
+      }
       const token = await this.nextToken(tx, doctorId, startOfDay);
       return tx.opdVisit.create({
         data: { ...dto, type: dto.type ?? 'New', doctorId, token },
       });
-    });
+    }, ROW_LOCK_TX);
   }
 
   async setStatus(doctorId: string, id: string, dto: UpdateOpdStatusDto): Promise<OpdVisit> {
@@ -71,6 +92,7 @@ export class OpdService {
   async setRxStatusByPatient(doctorId: string, dto: SetRxStatusDto): Promise<OpdVisit> {
     const startOfDay = startOfDhakaDay();
     return this.prisma.$transaction(async (tx) => {
+      await this.lockQueue(tx, doctorId);
       const existing = await tx.opdVisit.findFirst({
         where: { doctorId, patientId: dto.patientId, createdAt: { gte: startOfDay } },
         orderBy: { createdAt: 'desc' },
@@ -95,6 +117,6 @@ export class OpdService {
           token,
         },
       });
-    });
+    }, ROW_LOCK_TX);
   }
 }

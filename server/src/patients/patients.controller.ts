@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { PatientsService } from './patients.service';
 import {
   CreatePatientDto,
   LinkPatientDto,
+  SupervisedDraftDto,
   UpdatePatientDto,
 } from './dto/patient.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -122,6 +124,23 @@ export class PatientsController {
       }
     }
     return this.patients.update(doctorId, id, dto);
+  }
+
+  // ⚕️ A supervising practice parks its unprinted prescription for a patient it
+  // supervises (19/10/2026) — what `incompleteRx` is for the owner's practice,
+  // which a supervising doctor may never write. Gated for an assistant like
+  // `incompleteRx` in PATCH above: any prescription key.
+  @Put(':id/supervised-draft')
+  setSupervisedDraft(
+    @WorkstationDoctorId() doctorId: string,
+    @ActiveWorkstation() ws: Workstation,
+    @Param('id') id: string,
+    @Body() dto: SupervisedDraftDto,
+  ) {
+    if (ws.role === 'assistant' && !ws.permissions.some((p) => p.startsWith('rx.'))) {
+      throw new ForbiddenException('You do not have permission to update prescriptions');
+    }
+    return this.patients.setSupervisedDraft(doctorId, id, dto.data);
   }
 
   @Delete(':id')

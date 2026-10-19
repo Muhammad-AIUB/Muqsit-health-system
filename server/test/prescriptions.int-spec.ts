@@ -126,7 +126,9 @@ describe('prescriptions (integration)', () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].patientCount).toBe(1);
 
-      await save(browser, pts[0].id);
+      // A second VISIT (the same prescription sent again is the one on record —
+      // repeat-save.int-spec.ts — and would teach nothing).
+      await save(browser, pts[0].id, { chiefComplaints: ['Second visit'] });
       rows = await napaHabit(doctor);
       expect(rows).toHaveLength(1);
       expect(rows[0].patientCount).toBe(1);
@@ -186,7 +188,7 @@ describe('prescriptions (integration)', () => {
       const { doctor, browser, pts } = await setup(2);
 
       await save(browser, pts[0].id);
-      await save(browser, pts[0].id);
+      await save(browser, pts[0].id, { chiefComplaints: ['Second visit'] }); // a second visit
       let advice = await phrase(doctor, 'advice');
       let notes = await phrase(doctor, 'rxNote');
       expect(advice).toHaveLength(1);

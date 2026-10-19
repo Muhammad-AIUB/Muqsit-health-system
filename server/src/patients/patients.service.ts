@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
@@ -123,7 +123,48 @@ export class PatientsService {
       where: { id, ...this.accessibleWhere(doctorId) },
     });
     if (!patient) throw new NotFoundException('Patient not found');
-    return forViewer(patient, doctorId);
+    return (await this.withOwnDraft(doctorId, [patient]))[0];
+  }
+
+  // ⚕️ Each practice reads ITS OWN parked visit as `incompleteRx` (19/10/2026):
+  // the owner's practice the patient's own column, a supervising practice its
+  // `SupervisedDraft` — never the owner's (forViewer), never another's.
+  private async withOwnDraft(doctorId: string, patients: Patient[]): Promise<Patient[]> {
+    const foreign = patients.filter((p) => p.doctorId !== doctorId).map((p) => p.id);
+    const drafts = foreign.length
+      ? await this.prisma.supervisedDraft.findMany({
+          where: { doctorId, patientId: { in: foreign } },
+          select: { patientId: true, data: true },
+        })
+      : [];
+    const mine = new Map(drafts.map((d) => [d.patientId, d.data]));
+    return patients.map((p) =>
+      p.doctorId === doctorId ? p : { ...forViewer(p, doctorId), incompleteRx: mine.get(p.id) ?? null },
+    );
+  }
+
+  // A supervising practice parks its unprinted visit here (`data`), or takes
+  // it away (null). The owner's practice parks in the patient's own
+  // `incompleteRx` (PATCH /patients/:id), and is refused here.
+  async setSupervisedDraft(doctorId: string, id: string, data: Record<string, unknown> | null): Promise<{ ok: true }> {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id, ...this.accessibleWhere(doctorId) },
+      select: { id: true, doctorId: true },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
+    if (patient.doctorId === doctorId) {
+      throw new BadRequestException("This is your practice's patient: their unprinted prescription is kept on the patient record.");
+    }
+    if (data === null) {
+      await this.prisma.supervisedDraft.deleteMany({ where: { doctorId, patientId: id } });
+    } else {
+      await this.prisma.supervisedDraft.upsert({
+        where: { doctorId_patientId: { doctorId, patientId: id } },
+        create: { doctorId, patientId: id, data: data as Prisma.InputJsonValue },
+        update: { data: data as Prisma.InputJsonValue },
+      });
+    }
+    return { ok: true };
   }
 
   // Every patient sharing a phone number, newest first. Powers the prescription
@@ -137,7 +178,7 @@ export class PatientsService {
         where: { mobile: m, ...this.accessibleWhere(doctorId) },
         orderBy: { updatedAt: 'desc' },
       })
-      .then((rows) => rows.map((r) => forViewer(r, doctorId)));
+      .then((rows) => this.withOwnDraft(doctorId, rows));
   }
 
   // Family-tree members (across the doctor's patients) whose number matches —

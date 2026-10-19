@@ -110,6 +110,9 @@ model User {
   // Private notes this user wrote about patients — theirs alone.
   personalNotes DoctorPatientNote[]
   revisionNote  DoctorRevisionNote?
+  // The unprinted visits this doctor's practice is writing for patients it
+  // SUPERVISES (another practice's) — see SupervisedDraft.
+  supervisedDrafts SupervisedDraft[]
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -387,6 +390,7 @@ model Patient {
   // patient (they get cross-doctor access to the chat).
   chatMessages PatientChatMessage[]
   supervisors  PatientSupervisor[]
+  supervisedDrafts SupervisedDraft[]
   personalNotes DoctorPatientNote[]
 
   createdAt DateTime @default(now())
@@ -797,4 +801,31 @@ model DoctorRevisionNote {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// ⚕️ A supervising practice's unprinted prescription for a patient it
+/// supervises (19/10/2026) — what `Patient.incompleteRx` is for the owner's
+/// practice. A supervising doctor may never write the owner's `incompleteRx`,
+/// so their visit was kept nowhere but their own one-slot editor draft: a
+/// reload, another patient opened or the next sign-in lost it. A read of the
+/// patient (`GET /patients/:id`, `/patients/by-mobile`) answers a supervising
+/// practice with THIS row's data as `incompleteRx`, never the owner's; it is
+/// written only by `PUT /patients/:id/supervised-draft`.
+/// Keyed by the practice (the workstation doctor), as `incompleteRx` is shared
+/// by the owner's practice. `manual-supervised-draft.sql`.
+model SupervisedDraft {
+  id        String  @id @default(cuid())
+  doctorId  String
+  doctor    User    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  /// The editor snapshot, opaque to the server (the client owns its shape).
+  data Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doctorId, patientId])
+  @@index([patientId])
 }

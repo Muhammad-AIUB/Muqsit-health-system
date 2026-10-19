@@ -414,12 +414,14 @@ describe('patient access matrix (server/CLAUDE.md Rule 2)', () => {
     it("create: owner and a granted assistant write under the OWNER's doctorId", async () => {
       const p = await supervisedPatient();
 
-      const byOwner = await a.post('/api/prescriptions').send(rxBody(p.id));
+      // Each its own prescription: the same one sent again within half an hour
+      // is answered with the one on record (repeat-save.int-spec.ts).
+      const byOwner = await a.post('/api/prescriptions').send(rxBody(p.id, { chiefComplaints: ['by owner'] }));
       expect(byOwner.status).toBe(201);
       expect(byOwner.body.doctorId).toBe(A.id);
 
-      for (const assistant of [full, rxOnly]) {
-        const res = await assistant.post('/api/prescriptions').set(inA()).send(rxBody(p.id));
+      for (const [i, assistant] of [full, rxOnly].entries()) {
+        const res = await assistant.post('/api/prescriptions').set(inA()).send(rxBody(p.id, { chiefComplaints: [`by assistant ${i}`] }));
         expect(res.status).toBe(201);
         expect(res.body.doctorId).toBe(A.id);
         expect(res.body.patientId).toBe(p.id);
@@ -589,10 +591,11 @@ describe('patient access matrix (server/CLAUDE.md Rule 2)', () => {
       expect(owner.body.doctorId).toBe(A.id);
 
       // An assistant cannot file a prescription under their own id either.
+      // (its own prescription: the same one again would be the owner's, on record)
       const asst = await full
         .post('/api/prescriptions')
         .set(inA())
-        .send(rxBody(p.id, { doctorId: asstFull.id }));
+        .send(rxBody(p.id, { doctorId: asstFull.id, chiefComplaints: ['by assistant'] }));
       expect(asst.status).toBe(201);
       expect(asst.body.doctorId).toBe(A.id);
 

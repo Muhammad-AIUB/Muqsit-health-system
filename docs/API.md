@@ -174,6 +174,7 @@ Server-side enforcement today (the UI gate is never the boundary):
 | `POST /prescriptions` | an assistant needs `rx.savePrint` |
 | `PATCH /patients/:id` | per-field: demographic fields need `pt.info`, `familyMembers` needs `pt.family`, and the prescription-lifecycle fields (`incompleteRx`, `drugHistory`, `investigationSummary`, `onExaminationSummary`, `hmSelectedDrugs`) need any `rx.*` grant |
 | `PATCH /patients/:id` with `hmDrugDates` / `hmSymptomDates` | **owner only** — an assistant is refused by the controller, a supervising doctor by the `patient.doctorId` check in the service |
+| `PUT /patients/:id/supervised-draft` | a supervising practice only (the owner's practice gets 400); an assistant of it needs any `rx.*` grant |
 | `DELETE /patients/:id` | **owner only, always**; 409 while another doctor (a supervisor) holds prescriptions for the patient — those would cascade away unseen |
 | `/ipd/:id/analogue*` | the doctor and their assistants pass without a key; any other actor needs `ipd.analogue` |
 
@@ -277,10 +278,11 @@ the ward; that door must be built inside `ipd.service`, never by extending
 | GET | `/patients/watched` | the "keep an eye on this patient" list |
 | GET | `/patients/by-mobile?mobile=` | every patient on that number, newest first — powers the prescription mobile lookup. Includes supervised patients |
 | GET | `/patients/relatives-by-mobile?mobile=` | family-tree entries matching a number → `{ patientId, patientName, name, relation, sex, mobile }[]` (info only) |
-| GET | `/patients/:id` | `404` if not accessible. For a supervising doctor `incompleteRx` (the owner's draft) is returned as `null` — same on `by-mobile` and a prescription's included `patient` |
+| GET | `/patients/:id` | `404` if not accessible. `incompleteRx` is the CALLER'S practice's own unprinted visit: the owner's practice gets the patient's column; a supervising practice gets its own `SupervisedDraft` (or `null`), never the owner's — same on `by-mobile`. A prescription's included `patient` gives a supervising doctor `null` |
 | POST | `/patients` | `CreatePatientDto` |
 | POST | `/patients/link` | `LinkPatientDto` — creates a NEW patient related to an existing one and writes reciprocal family links to both. Owner only: a supervising doctor gets 403, since it rewrites the owner's family tree |
 | PATCH | `/patients/:id` | `UpdatePatientDto` — the **only** route that accepts it |
+| PUT | `/patients/:id/supervised-draft` | `{ data: object \| null }` — a SUPERVISING practice parks its unprinted visit for the patient (what `incompleteRx` is for the owner's practice, which a supervising doctor may never write), or takes it away with `null`. `200 { ok: true }`; `400` for the owner's practice (its visit is the patient's `incompleteRx`) or a `data` that is not an object or null; `404` if not accessible. Keyed by the practice, so its assistants share it, as the owner's practice shares `incompleteRx` (19/10/2026) |
 | DELETE | `/patients/:id` | **owner only** |
 
 `CreatePatientDto`: `name` (required), `hospitalId?`, `bloodGroup?`, `dob?`
@@ -333,7 +335,7 @@ resolved per request inside the service.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint` |
+| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint`. **The same prescription sent again is the one on record** (19/10/2026): when this doctor's latest prescription for the patient, from the last 30 minutes, has every field and every line the same, it is answered (201) instead of a second row, and "Your usual" learns nothing from the repeat — a save whose answer was lost on the way back is pressed again. One save per doctor and patient at a time (an advisory lock), so two copies arriving together are one |
 | GET | `/prescriptions?patientId=` | this doctor's prescriptions for that patient only |
 | GET | `/prescriptions/:id` | |
 
@@ -410,13 +412,14 @@ touching anything here.
 | Method | Path | Body / Notes |
 |---|---|---|
 | GET | `/opd` | **today's** queue only (`createdAt >= start of day`), oldest first |
-| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type? }`; `type` is `New` / `Follow-up` / `Urgent`. The server allocates the token |
+| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type? }`; `type` is `New` / `Follow-up` / `Urgent`. The server allocates the token. A `patientId` still **waiting** in today's queue is answered with that visit — same token, no second row (19/10/2026: an add whose answer was lost, pressed again). Seen already today (`done`), the patient is queued again |
 | POST | `/opd/rx-status` | `{ patientId, rxStatus: "incomplete" \| "complete", name?, phone?, age?, gender? }` — upserts today's entry for that patient |
 | PATCH | `/opd/:id/status` | `{ status: "waiting" \| "done" }` |
 
 Tokens are `T-01`, `T-02`, … per doctor per day, derived from the **max** existing
 serial inside a transaction so a mid-day deletion cannot make two visits share a
-number.
+number. `POST /opd` and `POST /opd/rx-status` take one advisory lock per doctor,
+so two writes to one queue never read it at the same moment.
 
 ### 5.13 IPD — `/ipd` (JWT + WS)
 

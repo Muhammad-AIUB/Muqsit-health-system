@@ -21,6 +21,8 @@ const makePrisma = (patient: { id: string; doctorId: string }, foreignRx = 0) =>
         delete: del,
       },
       prescription: { count: jest.fn().mockResolvedValue(foreignRx) },
+      // A supervising practice's own parked visit (none here) — read with the patient.
+      supervisedDraft: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: transaction,
     } as unknown as PrismaService,
     del,

@@ -721,6 +721,12 @@ export const patientsApi = {
     apiFetch<Patient>("/patients", { method: "POST", body: JSON.stringify(input) }),
   update: (id: string, input: Partial<PatientInput>) =>
     apiFetch<Patient>(`/patients/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  // ⚕️ A SUPERVISING practice's unprinted visit for this patient (null takes it
+  // away) — what `incompleteRx` is for the owner's practice, which a
+  // supervising doctor may never write. A read of the patient gives each
+  // practice its own as `incompleteRx`.
+  setSupervisedDraft: (id: string, data: Record<string, unknown> | null) =>
+    apiFetch<{ ok: true }>(`/patients/${id}/supervised-draft`, { method: "PUT", body: JSON.stringify({ data: data }) }),
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
 };
 

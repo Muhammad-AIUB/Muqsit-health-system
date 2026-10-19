@@ -33,12 +33,28 @@ const DTO = {
   items: [{ drug: 'Tablet. Napa 500mg', dose: '1+1+1', duration: '7 days', instruction: '' }],
 } as never;
 
+// The write runs in a transaction (a save sent again is answered with the one on
+// record — repeat.ts); `onCommit` marks the moment it resolves.
+function txPrisma(create: jest.Mock, patient: unknown = { id: 'pt_1', doctorId: 'doc_1' }, onCommit?: () => void) {
+  const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
+    prescription: { findFirst: jest.fn().mockResolvedValue(null), create },
+  };
+  return {
+    patient: { findFirst: jest.fn().mockResolvedValue(patient) },
+    prescription: { create },
+    $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<unknown>) => {
+      const out = await fn(tx);
+      onCommit?.();
+      return out;
+    }),
+    tx,
+  } as unknown as PrismaService & { tx: typeof tx };
+}
+
 function makeService(habitImpl: () => Promise<void>) {
   const create = jest.fn().mockResolvedValue(RX);
-  const prisma = {
-    patient: { findFirst: jest.fn().mockResolvedValue({ id: 'pt_1', doctorId: 'doc_1' }) },
-    prescription: { create },
-  } as unknown as PrismaService;
+  const prisma = txPrisma(create);
 
   const recordFrom = jest.fn(habitImpl);
   const habits = { recordFrom } as unknown as RxHabitsService;
@@ -100,10 +116,7 @@ describe('PrescriptionsService.create — the habit write must never cost the re
       order.push('prescription.create');
       return RX;
     });
-    const prisma = {
-      patient: { findFirst: jest.fn().mockResolvedValue({ id: 'pt_1' }) },
-      prescription: { create },
-    } as unknown as PrismaService;
+    const prisma = txPrisma(create, { id: 'pt_1' }, () => order.push('commit'));
     const habits = {
       recordFrom: jest.fn(async () => {
         order.push('habits.recordFrom');
@@ -112,7 +125,7 @@ describe('PrescriptionsService.create — the habit write must never cost the re
 
     const phrases = { recordFrom: jest.fn(async () => {}) } as unknown as DoctorPhrasesService;
     await new PrescriptionsService(prisma, habits, phrases).create('doc_1', DTO);
-    expect(order).toEqual(['prescription.create', 'habits.recordFrom']);
+    expect(order).toEqual(['prescription.create', 'commit', 'habits.recordFrom']);
   });
 
   it('passes the committed prescription id so the patient is not double-counted', async () => {
@@ -140,15 +153,25 @@ describe('PrescriptionsService.create — the habit write must never cost the re
   });
 
   it('still refuses a patient that is neither owned nor supervised', async () => {
-    const prisma = {
-      patient: { findFirst: jest.fn().mockResolvedValue(null) },
-      prescription: { create: jest.fn() },
-    } as unknown as PrismaService;
+    const prisma = txPrisma(jest.fn(), null);
     const habits = { recordFrom: jest.fn() } as unknown as RxHabitsService;
     const phrases = { recordFrom: jest.fn() } as unknown as DoctorPhrasesService;
     const service = new PrescriptionsService(prisma, habits, phrases);
 
     await expect(service.create('doc_1', DTO)).rejects.toBeInstanceOf(NotFoundException);
     expect(habits.recordFrom).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  // ⚕️ A save sent again (its answer lost on the way back) is answered with the
+  // prescription on record: nothing is written, and nothing is learned twice.
+  it('answers a repeat with the stored prescription, writes nothing and learns nothing', async () => {
+    const { service, create, recordFrom, recordPhrases, prisma } = makeService(async () => {});
+    const stored = { ...RX, items: [{ ...RX.items[0], sf: null, isCont: null }], advice: [], chiefComplaints: [], previousComplaints: [], history: [], investigation: [], drugHistory: [], onExamination: [], note: [], plan: [], provisionalDiagnosis: [], associatedIllness: [], finalDiagnosis: [], adviceTest: [], followUpNum: null, followUpUnit: null, followUpMandatory: false };
+    (prisma as unknown as { tx: { prescription: { findFirst: jest.Mock } } }).tx.prescription.findFirst.mockResolvedValue(stored);
+    await expect(service.create('doc_1', DTO)).resolves.toBe(stored);
+    expect(create).not.toHaveBeenCalled();
+    expect(recordFrom).not.toHaveBeenCalled();
+    expect(recordPhrases).not.toHaveBeenCalled();
   });
 });

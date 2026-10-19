@@ -13,6 +13,7 @@ import {
   Min,
   MinLength,
   Validate,
+  ValidateIf,
   ValidatorConstraint,
   type ValidatorConstraintInterface,
 } from 'class-validator';
@@ -121,6 +122,14 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
 // links to both. `relation` is the NEW patient's role relative to the existing
 // patient (X is T's <relation>) — son | daughter | spouse | father | mother |
 // brother | sister. See PatientsService.linkNew for the gender-aware mapping.
+// PUT /patients/:id/supervised-draft — a supervising practice's unprinted
+// visit (an editor snapshot, opaque to the server), or null to take it away.
+export class SupervisedDraftDto {
+  @ValidateIf((o: SupervisedDraftDto) => o.data !== null)
+  @IsObject()
+  data!: Record<string, unknown> | null;
+}
+
 export class LinkPatientDto {
   @IsString() existingId!: string;
 
