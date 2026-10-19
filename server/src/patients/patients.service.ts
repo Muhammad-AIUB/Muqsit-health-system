@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
@@ -88,6 +88,8 @@ export function forViewer<T extends { doctorId: string | null; incompleteRx?: un
 
 @Injectable()
 export class PatientsService {
+  private readonly log = new Logger(PatientsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   list(doctorId: string, search?: string): Promise<Patient[]> {
@@ -129,14 +131,25 @@ export class PatientsService {
   // ⚕️ Each practice reads ITS OWN parked visit as `incompleteRx` (19/10/2026):
   // the owner's practice the patient's own column, a supervising practice its
   // `SupervisedDraft` — never the owner's (forViewer), never another's.
+  //
+  // ⚕️ `SupervisedDraft` is applied by hand (manual-supervised-draft.sql). If it
+  // is missing, the parked visit is read as none — as before that table — and
+  // the log says why: the patient is never refused for it (review, 19/10/2026:
+  // every supervised patient answered 500).
   private async withOwnDraft(doctorId: string, patients: Patient[]): Promise<Patient[]> {
     const foreign = patients.filter((p) => p.doctorId !== doctorId).map((p) => p.id);
-    const drafts = foreign.length
-      ? await this.prisma.supervisedDraft.findMany({
+    let drafts: { patientId: string; data: Prisma.JsonValue }[] = [];
+    if (foreign.length) {
+      try {
+        drafts = await this.prisma.supervisedDraft.findMany({
           where: { doctorId, patientId: { in: foreign } },
           select: { patientId: true, data: true },
-        })
-      : [];
+        });
+      } catch (e) {
+        if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021')) throw e;
+        this.log.error('SupervisedDraft does not exist — apply prisma/manual-supervised-draft.sql. A supervising practice\'s parked visit reads as none until it is.');
+      }
+    }
     const mine = new Map(drafts.map((d) => [d.patientId, d.data]));
     return patients.map((p) =>
       p.doctorId === doctorId ? p : { ...forViewer(p, doctorId), incompleteRx: mine.get(p.id) ?? null },

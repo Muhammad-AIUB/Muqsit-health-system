@@ -138,7 +138,13 @@ export class PatientChatService {
 
   async removeSupervisor(patientId: string, ownerId: string, doctorId: string) {
     await this.assertOwner(patientId, ownerId);
-    await this.prisma.patientSupervisor.deleteMany({ where: { patientId, doctorId } });
+    // Their unprinted visit for this patient goes with the link (19/10/2026):
+    // they can no longer reach it, and kept, a re-assignment months later
+    // reopened it as that day's visit.
+    await this.prisma.$transaction([
+      this.prisma.patientSupervisor.deleteMany({ where: { patientId, doctorId } }),
+      this.prisma.supervisedDraft.deleteMany({ where: { patientId, doctorId } }),
+    ]);
     return { doctorId };
   }
 

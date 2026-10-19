@@ -169,7 +169,8 @@ describe('PrescriptionsService.create — the habit write must never cost the re
     const { service, create, recordFrom, recordPhrases, prisma } = makeService(async () => {});
     const stored = { ...RX, items: [{ ...RX.items[0], sf: null, isCont: null }], advice: [], chiefComplaints: [], previousComplaints: [], history: [], investigation: [], drugHistory: [], onExamination: [], note: [], plan: [], provisionalDiagnosis: [], associatedIllness: [], finalDiagnosis: [], adviceTest: [], followUpNum: null, followUpUnit: null, followUpMandatory: false };
     (prisma as unknown as { tx: { prescription: { findFirst: jest.Mock } } }).tx.prescription.findFirst.mockResolvedValue(stored);
-    await expect(service.create('doc_1', DTO)).resolves.toBe(stored);
+    // …and says it is a repeat, so the client does not log the visit twice.
+    await expect(service.create('doc_1', DTO)).resolves.toEqual({ ...stored, repeat: true });
     expect(create).not.toHaveBeenCalled();
     expect(recordFrom).not.toHaveBeenCalled();
     expect(recordPhrases).not.toHaveBeenCalled();

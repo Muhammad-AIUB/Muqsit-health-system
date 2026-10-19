@@ -1282,5 +1282,8 @@ The physician, on being told what a reload or another patient opened could still
 Open:
 - [ ] **The 30-minute window is a choice, not the physician's.** An identical prescription for the same patient by the same doctor within half an hour is taken for the same one (a re-print of an unchanged visit no longer adds a row); after that it is a new visit.
 - [ ] **A new patient created from the "Add New" box whose answer was lost**, pressed again, is a second patient on the number — not covered by the above.
-- [ ] **A printed visit whose saved special advice changes before a reload** (the ••• advice mirror re-writing Advice) reads as changed after printing, and is parked again. Rare; it is a real change to what would print.
+- [x] **"Printed" was a one-way latch — closed in review, before release.** An IPD admission's findings on loan, the records' "+ Add" box, or a letter typed and deleted dropped the mark for good. A visit is printed while what it says is what was SENT; put back, it is printed again.
+- [ ] **A printed visit whose saved special advice changes before a reload** (the ••• advice mirror re-writing Advice) reads as changed after printing, and is parked again until it is printed or the advice is put back. Rare; it is a real change to what would print.
+- [ ] **The owner's patient DELETE removes a supervising practice's parked visit** with the patient (it refuses only over another doctor's prescriptions). There is no screen for the delete today.
+- [ ] **A parked visit written as the user switches practice** can land under the new practice when the request is retried after a 401 (`apiFetch` re-reads the header) — for a user assisting two practices that both supervise the patient. Rare.
 

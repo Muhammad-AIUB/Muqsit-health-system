@@ -100,6 +100,32 @@ describe("a supervising practice's parked visit", () => {
     expect((await o.get(`/api/patients/${p.id}`)).body.incompleteRx).toEqual({ owner: 'visit' });
   });
 
+  // Review, 19/10/2026: taking `doctorId` out of the read left every test green.
+  it('two supervising practices on one patient: each reads and writes only its own', async () => {
+    const p = await supervised();
+    const second = await makeDoctor(t.prisma);
+    await makeSupervisor(t.prisma, p.id, second.id);
+    const s2 = await loginAs(t, second);
+    await park(s, p, { practice: 'first' });
+    await park(s2, p, { practice: 'second' });
+    expect((await s.get(`/api/patients/${p.id}`)).body.incompleteRx).toEqual({ practice: 'first' });
+    expect((await s2.get(`/api/patients/${p.id}`)).body.incompleteRx).toEqual({ practice: 'second' });
+    const bySecond = await s2.get(`/api/patients/by-mobile?mobile=${p.mobile}`);
+    expect(bySecond.body.find((r: Patient) => r.id === p.id).incompleteRx).toEqual({ practice: 'second' });
+    await park(s2, p, null);
+    expect((await s.get(`/api/patients/${p.id}`)).body.incompleteRx).toEqual({ practice: 'first' });
+  });
+
+  it("removing a supervising doctor takes their parked visit with the link — a later re-assignment opens none", async () => {
+    const p = await supervised();
+    await park(s, p, { stale: true });
+    const removed = await o.delete(`/api/patients/${p.id}/supervisors/${supervisor.id}`);
+    expect(removed.status).toBe(200);
+    expect(await t.prisma.supervisedDraft.count({ where: { patientId: p.id, doctorId: supervisor.id } })).toBe(0);
+    await makeSupervisor(t.prisma, p.id, supervisor.id);
+    expect((await s.get(`/api/patients/${p.id}`)).body.incompleteRx).toBeNull();
+  });
+
   it('a body that is not an object (or null) is refused', async () => {
     const p = await supervised();
     expect((await park(s, p, 'text')).status).toBe(400);

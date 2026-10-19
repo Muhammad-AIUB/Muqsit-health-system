@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PatientsService } from './patients.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -29,6 +29,34 @@ const makePrisma = (patient: { id: string; doctorId: string }, foreignRx = 0) =>
     transaction,
   };
 };
+
+// ⚕️ Release gate (review, 19/10/2026): a read by a supervising practice asks
+// `SupervisedDraft`, a table applied by hand (manual-supervised-draft.sql).
+// Missing, it must cost the parked visit — read as none, as before that table —
+// and never the patient: every supervised patient answered 500.
+describe('PatientsService — a supervising practice read without the SupervisedDraft table', () => {
+  it('answers the patient with no parked visit, and says so in the log', async () => {
+    const { Prisma } = jest.requireActual('@prisma/client');
+    const missing = new Prisma.PrismaClientKnownRequestError('The table `public.SupervisedDraft` does not exist', { code: 'P2021', clientVersion: 'x' });
+    const prisma = {
+      patient: { findFirst: jest.fn().mockResolvedValue({ id: 'p1', doctorId: OWNER, incompleteRx: { owner: 'visit' } }) },
+      supervisedDraft: { findMany: jest.fn().mockRejectedValue(missing) },
+    } as unknown as PrismaService;
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const p = await new PatientsService(prisma).get(SUPERVISOR, 'p1');
+    expect(p.incompleteRx).toBeNull();
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it('any other failure is still a failure', async () => {
+    const prisma = {
+      patient: { findFirst: jest.fn().mockResolvedValue({ id: 'p1', doctorId: OWNER, incompleteRx: null }) },
+      supervisedDraft: { findMany: jest.fn().mockRejectedValue(new Error('connection lost')) },
+    } as unknown as PrismaService;
+    await expect(new PatientsService(prisma).get(SUPERVISOR, 'p1')).rejects.toThrow('connection lost');
+  });
+});
 
 describe('PatientsService — owner-record boundaries', () => {
   it('linkNew refuses a supervising doctor and writes nothing', async () => {

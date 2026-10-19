@@ -30,6 +30,11 @@ export const ITEM_FIELDS = ['drug', 'dose', 'duration', 'instruction', 'order', 
 type Fields = Omit<CreatePrescriptionDto, 'patientId' | 'items'>;
 type Line = RxItemDto & { order: number };
 
+/** What a line property absent from a request is stored as. `isCont` is
+ *  nullable on purpose (schema.prisma): absent is null, never false. */
+const ITEM_DEFAULT: Partial<Record<(typeof ITEM_FIELDS)[number], unknown>> = { isNote: false };
+const itemValue = (k: (typeof ITEM_FIELDS)[number], v: unknown) => v ?? (k in ITEM_DEFAULT ? ITEM_DEFAULT[k] : null);
+
 const sameList = (a: readonly string[] | null | undefined, b: readonly string[] | null | undefined) => {
   const x = a ?? [];
   const y = b ?? [];
@@ -45,18 +50,10 @@ export function sameContent(
   for (const k of TEXT_FIELDS) if ((stored[k] ?? null) !== (fields[k] ?? null)) return false;
   for (const k of FLAG_FIELDS) if (stored[k] !== (fields[k] ?? false)) return false;
   if (stored.items.length !== lines.length) return false;
-  return lines.every((l, i) => {
-    const s = stored.items[i];
-    return (
-      s.drug === l.drug &&
-      s.dose === l.dose &&
-      s.duration === l.duration &&
-      s.instruction === l.instruction &&
-      s.order === l.order &&
-      s.isNote === (l.isNote ?? false) &&
-      (s.sf ?? null) === (l.sf ?? null) &&
-      // Nullable on purpose (schema.prisma): absent is null, never false.
-      (s.isCont ?? null) === (l.isCont ?? null)
-    );
-  });
+  // Every property of every line, from the one list `repeat.spec.ts` holds
+  // against the DTO (a comparison written out by hand lost one in review and
+  // no test saw it).
+  return lines.every((l, i) =>
+    ITEM_FIELDS.every((k) => itemValue(k, stored.items[i][k]) === itemValue(k, l[k])),
+  );
 }

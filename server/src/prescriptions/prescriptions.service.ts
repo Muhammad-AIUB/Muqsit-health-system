@@ -55,7 +55,8 @@ export class PrescriptionsService {
     }, ROW_LOCK_TX);
     if (repeat) {
       this.log.log(`prescription ${rx.id} sent again — answered with the one on record`);
-      return rx;
+      // Said, so the client does not write this visit's audit lines twice.
+      return { ...rx, repeat: true } as Prescription;
     }
 
     // ⚕️ THE PRESCRIPTION IS COMMITTED BEFORE ANYTHING BELOW CAN FAIL.

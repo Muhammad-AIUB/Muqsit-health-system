@@ -62,13 +62,18 @@ export class OpdService {
     const startOfDay = startOfDhakaDay();
     return this.prisma.$transaction(async (tx) => {
       await this.lockQueue(tx, doctorId);
-      // ⚕️ A patient still WAITING in today's queue keeps their place and token
-      // (19/10/2026): an add whose answer was lost on the way back, pressed
-      // again, put the same patient in the queue twice. Seen already today
-      // ("done"), they are queued again — a second visit is a real one.
+      // ⚕️ A patient still WAITING in today's queue, their prescription not yet
+      // printed, keeps their place and token (19/10/2026): an add whose answer
+      // was lost on the way back, pressed again, put the same patient in the
+      // queue twice. Seen already today — Done pressed, or the prescription
+      // printed (Save & print marks it complete and leaves it waiting) — they
+      // are queued again: a second visit is a real one (review, 19/10/2026).
       if (dto.patientId) {
         const waiting = await tx.opdVisit.findFirst({
-          where: { doctorId, patientId: dto.patientId, createdAt: { gte: startOfDay }, status: 'waiting' },
+          where: {
+            doctorId, patientId: dto.patientId, createdAt: { gte: startOfDay }, status: 'waiting',
+            OR: [{ rxStatus: null }, { rxStatus: 'incomplete' }],
+          },
           orderBy: { createdAt: 'desc' },
         });
         if (waiting) return waiting;

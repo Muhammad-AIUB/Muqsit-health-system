@@ -24,6 +24,7 @@ const api = vi.hoisted(() => ({
   setRxStatus: vi.fn(),
   rxCreate: vi.fn(),
   supervisedDraft: vi.fn(),
+  activityLog: vi.fn(),
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -35,7 +36,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     prescriptionDraftApi: { get: api.draftGet, save: api.draftSave },
     opdApi: { setRxStatus: api.setRxStatus },
     prescriptionsApi: { create: api.rxCreate },
-    activityApi: { log: vi.fn(() => Promise.resolve()) },
+    activityApi: { log: api.activityLog },
   };
 });
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "doc1" } }) }));
@@ -86,6 +87,7 @@ beforeEach(() => {
   api.setRxStatus.mockResolvedValue({});
   api.rxCreate.mockResolvedValue({});
   api.supervisedDraft.mockResolvedValue({ ok: true });
+  api.activityLog.mockResolvedValue({});
   api.patientGet.mockImplementation(async (id: string) => patient({ id }));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -1121,8 +1123,9 @@ describe("a change made after Save & print is not lost", () => {
     await tick(1500);
     expect(incompleteWrites().at(-1)?.[1]).toMatchObject({ incompleteRx: expect.objectContaining({ chiefComplaints: ["Fever", "Cough"] }) });
     expect(api.setRxStatus).toHaveBeenCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "incomplete" }));
-    // and a reload after it reads as unprinted: the draft no longer says printed
-    expect(api.draftSave.mock.calls.at(-1)?.[0]).toMatchObject({ rxCompletedPid: null });
+    // and a reload after it reads as unprinted: the draft says what was SENT,
+    // and the changed visit it carries is not that
+    expect(api.draftSave.mock.calls.at(-1)?.[0]).toMatchObject({ rxCompletedPid: "X", rxPrintedSig: expect.any(String) });
   });
 
   it("a switch to another patient right after the change still parks it", async () => {
@@ -1226,6 +1229,123 @@ describe("a supervising doctor's unprinted visit is kept", () => {
     api.supervisedDraft.mockRejectedValue(new Error("offline"));
     await act(async () => { await result.current.saveDraftNow(); });
     expect(result.current.chiefComplaints).toEqual(["Fever"]);
+  });
+});
+
+// ⚕️ Review of the above (19/10/2026): "printed" was a one-way latch. Anything
+// that moved the editor off what was printed for a moment — an IPD admission's
+// findings on loan, the records' "+ Add" box, a letter typed and deleted — put
+// a printed patient back to "Incomplete" for good, their printed visit parked
+// to be printed (and, after half an hour, filed) again. A visit is printed while
+// what it says IS what was sent, read off the OPD editor's own findings.
+describe("printed means: what the visit says is what was sent", () => {
+  const noReparking = () => {
+    expect(incompleteWrites()).toHaveLength(0);
+    expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ rxStatus: "incomplete" }));
+  };
+  const printedThenQuiet = async () => {
+    const r = await setup();
+    await typeAndPrint(r.result);
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    return r;
+  };
+
+  it("lent to an IPD admission's detail and given back, it is still printed", async () => {
+    const { result } = await printedThenQuiet();
+    act(() => result.current.beginInvBorrow());
+    act(() => result.current.setInvestigation(["01/10/2026:Hb:9"]));
+    await tick(1500);
+    act(() => result.current.endInvBorrow());
+    await tick(3000);
+    noReparking();
+  });
+
+  it("the records' + Add box (summary mode) neither parks it nor files its finding into the visit's draft", async () => {
+    const { result } = await printedThenQuiet();
+    act(() => result.current.openInvForSummary());
+    act(() => result.current.setInvestigation((prev) => [...prev, "01/10/2026:Hb:9"]));
+    await tick(1500);
+    noReparking();
+    expect(JSON.stringify(api.draftSave.mock.calls.at(-1)?.[0] ?? {})).not.toContain("01/10/2026:Hb:9");
+    act(() => result.current.setShowInvPopup(false));
+    await tick(3000);
+    noReparking();
+  });
+
+  it("a letter typed and taken back again changes nothing", async () => {
+    const { result } = await printedThenQuiet();
+    act(() => result.current.setChiefComplaints(["Fever", "x"]));
+    await tick(100);
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(3000);
+    noReparking();
+  });
+
+  it("a change parked and then undone is printed again: the parked copy goes, and OPD says complete", async () => {
+    const { result } = await printedThenQuiet();
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    expect(incompleteWrites()).toHaveLength(1);
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toEqual({ incompleteRx: null });
+    expect(api.setRxStatus).toHaveBeenLastCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "complete" }));
+  });
+
+  it("what is typed while Save & print is on its way is not printed: it is parked", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    let land!: (v: unknown) => void;
+    api.rxCreate.mockImplementation(() => new Promise((r) => { land = r; }));
+    let saving!: Promise<boolean>;
+    act(() => { saving = result.current.savePrescription(); });
+    act(() => result.current.setNote(["Typed while saving"]));
+    await act(async () => { land({}); await saving; });
+    api.patientUpdate.mockClear();
+    await tick(1500);
+    expect(incompleteWrites().some(([, body]) => JSON.stringify(body).includes("Typed while saving"))).toBe(true);
+  });
+
+  it("read back after a reload with its keys in another order, it is still printed", async () => {
+    const first = await setup();
+    act(() => first.result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => first.result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", duration: "5 days", instruction: "After meal", isCont: false }]));
+    await tick(1500);
+    await act(async () => { await first.result.current.savePrescription(); });
+    act(() => first.result.current.setDrugHistory([...first.result.current.drugHistory]));
+    await tick(1500);
+    const stored = api.draftSave.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(typeof stored.rxPrintedSig).toBe("string");
+    const reorder = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).reverse());
+    const reloaded = reorder({ ...stored, rxItems: (stored.rxItems as Record<string, unknown>[]).map(reorder) });
+    first.unmount();
+    api.draftGet.mockResolvedValue({ data: reloaded });
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    const second = await setup();
+    await tick(50);
+    act(() => second.result.current.setDrugHistory([...second.result.current.drugHistory]));
+    await tick(3000);
+    noReparking();
+  });
+
+  it("the same prescription answered by the server as a repeat writes its audit lines once", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", duration: "5 days", instruction: "", isCont: false, fromHabit: true }]));
+    await tick(50);
+    await act(async () => { await result.current.savePrescription(); });
+    const habitLines = () => api.activityLog.mock.calls.filter(([e]) => (e as { section: string }).section === "Prescribing habits");
+    expect(habitLines()).toHaveLength(1);
+    api.rxCreate.mockResolvedValue({ repeat: true });
+    await act(async () => { await result.current.savePrescription(); });
+    expect(habitLines()).toHaveLength(1);
   });
 });
 

@@ -66,6 +66,14 @@ describe('sameContent', () => {
     expect(sameContent(s, {}, [])).toBe(false);
   });
 
+  // Review, 19/10/2026: dropping one property from the line comparison left
+  // every other test green — a duration corrected within 30 minutes would have
+  // been answered with the old prescription. Each one, in turn.
+  it.each(ITEM_FIELDS.map((k) => [k]))('a line that differs only in %s is another prescription', (k) => {
+    const changed: Record<string, unknown> = { drug: 'x', dose: 'x', duration: 'x', instruction: 'x', order: 7, isNote: true, sf: 'x', isCont: true };
+    expect(sameContent(stored(), {}, [line({ [k]: changed[k] })])).toBe(false);
+  });
+
   it('>>> is nullable on purpose: absent is null, and false is another answer', () => {
     expect(sameContent(stored(), {}, [line({ isCont: undefined })])).toBe(true);
     expect(sameContent(stored(), {}, [line({ isCont: false })])).toBe(false);

@@ -335,7 +335,7 @@ resolved per request inside the service.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint`. **The same prescription sent again is the one on record** (19/10/2026): when this doctor's latest prescription for the patient, from the last 30 minutes, has every field and every line the same, it is answered (201) instead of a second row, and "Your usual" learns nothing from the repeat — a save whose answer was lost on the way back is pressed again. One save per doctor and patient at a time (an advisory lock), so two copies arriving together are one |
+| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint`. **The same prescription sent again is the one on record** (19/10/2026): when this doctor's latest prescription for the patient, from the last 30 minutes, has every field and every line the same, it is answered (201, with `repeat: true` added so the client writes its audit lines once) instead of a second row, and "Your usual" learns nothing from the repeat — a save whose answer was lost on the way back is pressed again. One save per doctor and patient at a time (an advisory lock), so two copies arriving together are one |
 | GET | `/prescriptions?patientId=` | this doctor's prescriptions for that patient only |
 | GET | `/prescriptions/:id` | |
 
@@ -412,7 +412,7 @@ touching anything here.
 | Method | Path | Body / Notes |
 |---|---|---|
 | GET | `/opd` | **today's** queue only (`createdAt >= start of day`), oldest first |
-| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type? }`; `type` is `New` / `Follow-up` / `Urgent`. The server allocates the token. A `patientId` still **waiting** in today's queue is answered with that visit — same token, no second row (19/10/2026: an add whose answer was lost, pressed again). Seen already today (`done`), the patient is queued again |
+| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type? }`; `type` is `New` / `Follow-up` / `Urgent`. The server allocates the token. A `patientId` still **waiting** in today's queue with its prescription not yet printed (`rxStatus` null or `incomplete`) is answered with that visit — same token, its own `type`, no second row (19/10/2026: an add whose answer was lost, pressed again). Seen already today (`done`, or the prescription printed: `rxStatus: complete`), the patient is queued again |
 | POST | `/opd/rx-status` | `{ patientId, rxStatus: "incomplete" \| "complete", name?, phone?, age?, gender? }` — upserts today's entry for that patient |
 | PATCH | `/opd/:id/status` | `{ status: "waiting" \| "done" }` |
 

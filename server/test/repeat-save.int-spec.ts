@@ -48,6 +48,22 @@ describe('a save sent again is not filed twice', () => {
       expect(again.body.id).toBe(first.body.id);
       expect(again.body.items).toHaveLength(RX_LINES.length);
       expect(await rows(doctor, patient)).toHaveLength(1);
+      // …and says so, so the client does not log the visit's audit lines twice.
+      expect(first.body.repeat).toBeUndefined();
+      expect(again.body.repeat).toBe(true);
+    });
+
+    it('a save waits for one of the same patient still being written (the lock), then finds it', async () => {
+      const { doctor, browser, patient } = await setup();
+      let settled = false;
+      let pending!: Promise<{ status: number; body: { id: string } }>;
+      await t.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rx:${doctor.id}:${patient.id}`}))`;
+        pending = post(browser, patient.id).then((r) => { settled = true; return r; });
+        await new Promise((r) => setTimeout(r, 800));
+        expect(settled).toBe(false); // held behind the lock
+      }, { timeout: 15_000 });
+      expect((await pending).status).toBe(201);
     });
 
     it('the repeat teaches "Your usual" and the learned phrases nothing', async () => {
@@ -151,6 +167,40 @@ describe('a save sent again is not filed twice', () => {
       const { doctor, browser, patient } = await setup();
       const [a, b] = await Promise.all([add(browser, patient), add(browser, patient)]);
       expect(a.body.id).toBe(b.body.id);
+      expect(await today(doctor)).toHaveLength(1);
+    });
+
+    it('an add waits for another write to the same queue (the lock)', async () => {
+      const { doctor, browser, patient } = await setup();
+      let settled = false;
+      let pending!: Promise<{ status: number }>;
+      await t.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`opd:${doctor.id}`}))`;
+        pending = add(browser, patient).then((r) => { settled = true; return r; });
+        await new Promise((r) => setTimeout(r, 800));
+        expect(settled).toBe(false);
+      }, { timeout: 15_000 });
+      expect((await pending).status).toBe(201);
+    });
+
+    it('a patient whose prescription was printed today is queued again for a second visit (review, 19/10/2026)', async () => {
+      const { doctor, browser, patient } = await setup();
+      const a = await add(browser, patient);
+      // Save & print marks the visit complete; nobody pressed Done.
+      const printed = await browser.post('/api/opd/rx-status').send({ patientId: patient.id, rxStatus: 'complete' });
+      expect(printed.status).toBe(201);
+      const b = await add(browser, patient);
+      expect(b.body.id).not.toBe(a.body.id);
+      expect(b.body.token).not.toBe(a.body.token);
+      expect(await today(doctor)).toHaveLength(2);
+    });
+
+    it('a patient whose visit is started (Incomplete) keeps it', async () => {
+      const { doctor, browser, patient } = await setup();
+      const a = await add(browser, patient);
+      await browser.post('/api/opd/rx-status').send({ patientId: patient.id, rxStatus: 'incomplete' });
+      const b = await add(browser, patient);
+      expect(b.body.id).toBe(a.body.id);
       expect(await today(doctor)).toHaveLength(1);
     });
 
