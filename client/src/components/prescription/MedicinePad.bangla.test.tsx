@@ -106,6 +106,21 @@ describe("MedicinePad — a cell only passed through is kept as written", () => 
     expect(cell("duration").value).toBe("7 days");
   });
 
+  it("a cell changed under the caret by another device is not rewritten when the caret leaves", () => {
+    let setOutside: (rows: Row[]) => void = () => {};
+    function Driven() {
+      const [rows, setRows] = useState<Row[]>([{ ...napa(), dose: "1+0+1" }, blank()]);
+      setOutside = setRows;
+      return <MedicinePad rows={rows} setRows={setRows} showCheck={false} bangla />;
+    }
+    render(<Driven />);
+    act(() => setKbdLang("bn"));
+    fireEvent.focus(cell("dose"));
+    act(() => setOutside([{ ...napa(), dose: "1+1+1" }, blank()])); // the device mirror
+    fireEvent.blur(cell("dose"));
+    expect(cell("dose").value).toBe("1+1+1");
+  });
+
   it("a cell typed in is written in Bangla, its neighbours left as they were", () => {
     render(<Written />);
     act(() => setKbdLang("bn"));

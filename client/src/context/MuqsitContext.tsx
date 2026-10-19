@@ -138,7 +138,15 @@ function opdWho(s: Record<string, unknown>) {
 // it — a printed visit left "Incomplete" (review of 409be0b).
 function wholeAge(s: string): number | undefined {
   const t = s.trim();
-  return /^\d{1,3}$/.test(t) ? Number(t) : undefined;
+  return /^\d{1,3}$/.test(t) && Number(t) <= 150 ? Number(t) : undefined;
+}
+
+// Whether the list holds these entries together, in this order.
+function hasRun(list: string[], entries: string[]): boolean {
+  for (let i = 0; i + entries.length <= list.length; i++) {
+    if (entries.every((e, k) => list[i + k] === e)) return true;
+  }
+  return false;
 }
 
 // The list without the LAST run of exactly these entries, together and in this
@@ -253,6 +261,12 @@ function useMuqsitStore() {
   // appends after it (review of 409be0b: a line added right after the print
   // was lost when the print's list landed after it).
   const dhWritesRef = useRef<Promise<unknown>>(Promise.resolve());
+  // Lines a failed "+ Add medicine" took back off the screen. A whole-list
+  // write queued BEFORE that was known (a re-print, its list taken with the
+  // line) sends its list without them (review of b8e4a3e: the doctor was told
+  // the line was not added, and the re-print then wrote it).
+  const dhWithdrawnRef = useRef<{ pid: string; entries: string[]; seq: number }[]>([]);
+  const dhSeqRef = useRef(0);
   const drugHistoryIsVisitContent = (list: string[]) => !sameEntries(list, drugHistoryBaselineRef.current ?? []);
   const [onExamination, setOnExamination] = useState<StringList>([]);
   // "Note / plan" was one field until 2026-09-07; the physician split it into
@@ -667,7 +681,10 @@ function useMuqsitStore() {
         if (drugHistoryHydratedRef.current === pid) {
           drugHistoryBaselineRef.current = drugHistory;
           const list = drugHistory;
-          const write = () => patientsApi.update(pid as string, { drugHistory: list });
+          const since = dhSeqRef.current;
+          const write = () => patientsApi.update(pid as string, {
+            drugHistory: dhWithdrawnRef.current.reduce((l, w) => (w.pid === pid && w.seq > since ? withoutBlock(l, w.entries) : l), list),
+          });
           const done = dhWritesRef.current.then(write, write);
           dhWritesRef.current = done.catch(() => {});
           patientWrites.push({ what: "drug history", done });
@@ -1435,28 +1452,53 @@ function useMuqsitStore() {
     // patient's list (review of 409be0b). On the queue behind Save & print's
     // own write, so the print's list never lands after the line.
     const name = ptNameRef.current.trim();
+    const shown = entries.filter((x) => !/^[^:]*\(cont\):/.test(x)).map((x) => `“${x.replace(/^[^:]*:\s*/, "").split(" — ")[0]}”`);
+    const whose = name ? `${name}'s` : "the patient's";
+    // The record as it now stands, taken only by this patient's own editor once
+    // its list is in hand (another patient's would make an untouched patient
+    // read as changed and be parked "Incomplete"). Opened again while the line
+    // was on its way, that editor's list is the record from before it: the
+    // line is taken back into it (review of b8e4a3e — the next Save & print
+    // wrote the list without it).
+    const adopt = (list: unknown) => {
+      if (!Array.isArray(list) || patientIdRef.current !== pid || drugHistoryHydratedRef.current !== pid) return;
+      const record = list as string[];
+      drugHistoryBaselineRef.current = record;
+      setDrugHistory((live) => (hasRun(live, entries) ? live : mergeWithRecord(record, live)));
+    };
     const send = () => patientsApi.appendDrugHistory(pid, entries);
-    const done = dhWritesRef.current.then(send, send);
-    dhWritesRef.current = done.catch(() => {});
-    done.then((res) => {
-      // The record as it now stands — taken only by this patient's own editor,
-      // once its list is in hand (another patient's would make an untouched
-      // patient read as changed and be parked "Incomplete").
-      if (patientIdRef.current === pid && drugHistoryHydratedRef.current === pid && Array.isArray(res?.drugHistory)) {
-        drugHistoryBaselineRef.current = res.drugHistory;
+    const outcome = dhWritesRef.current.then(send, send).then((res) => adopt(res?.drugHistory), async (e) => {
+      // No answer is not "not added": the answer may be what was lost (review
+      // of b8e4a3e — the doctor added the line again, and it was stored twice).
+      // The record says which.
+      console.error("[drug history] no answer for an added line:", e);
+      let stored: unknown;
+      try { stored = (await patientsApi.get(pid)).drugHistory; } catch { stored = undefined; }
+      if (Array.isArray(stored) && hasRun(stored as string[], entries)) { adopt(stored); return; }
+      if (!Array.isArray(stored)) {
+        // Not known either way: the line stays on the screen, and the doctor
+        // is asked to look.
+        tell({
+          title: "The medicine may not have been added.",
+          body: `${shown.join(", ")} could not be confirmed in ${whose} drug history. ${whyNotSaved(e)} Open the drug history again in a moment to see whether it is there.`,
+          tone: "danger",
+        });
+        return;
       }
-    }, (e) => {
-      // Said, and taken back off the list on the screen: a line shown there
-      // that is not on the record would be lost unseen with the next patient.
-      console.error("[drug history] a line was not added:", e);
+      // Not on the record: said, and taken back off the screen — a line shown
+      // there that is not on the record would be lost unseen with the next
+      // patient — and out of any write already queued with it.
+      dhSeqRef.current += 1;
+      dhWithdrawnRef.current.push({ pid, entries, seq: dhSeqRef.current });
       if (patientIdRef.current === pid) setDrugHistory((prev) => withoutBlock(prev, entries));
-      const shown = entries.filter((x) => !/^[^:]*\(cont\):/.test(x)).map((x) => `“${x.replace(/^[^:]*:\s*/, "").split(" — ")[0]}”`);
       tell({
         title: "The medicine was not added.",
-        body: `${shown.join(", ")} ${shown.length === 1 ? "is" : "are"} not in ${name ? `${name}'s` : "the patient's"} drug history. ${whyNotSaved(e)}`,
+        body: `${shown.join(", ")} ${shown.length === 1 ? "is" : "are"} not in ${whose} drug history. ${whyNotSaved(e)}`,
         tone: "danger",
       });
     });
+    // The next queued write waits for this outcome, withdrawal included.
+    dhWritesRef.current = outcome.catch(() => {});
     return true;
   }, []);
 
@@ -1947,7 +1989,9 @@ function useMuqsitStore() {
     const sentSig = completed && typeof d.rxPrintedSig === "string" ? d.rxPrintedSig : null;
     printedSigRef.current = sentSig;
     setRxPrintedSig(sentSig);
-    printedOnRef.current = completed && typeof d.rxPrintedOn === "string" ? d.rxPrintedOn : null;
+    // A device on an older build sends no day: its mark is taken as today's
+    // (review of b8e4a3e — read as an earlier day's, the first change dropped it).
+    printedOnRef.current = completed ? (typeof d.rxPrintedOn === "string" ? d.rxPrintedOn : todayISO()) : null;
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
     str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
     // Same stale-date guard as applyEditorSnapshot: a secondary device joining

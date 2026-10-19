@@ -401,12 +401,16 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   // through — blur or Enter — is kept as written: a printed visit's cells were
   // rewritten in Bangla and the visit no longer said what was printed, and so
   // were cells that arrived from another device or a draft ("never on
-  // arrival"). Where the caret entered the cell, and what it held then:
-  const enteredRef = useRef<{ key: string; value: string } | null>(null);
-  const enter = (key: string, value: string) => { enteredRef.current = { key, value }; };
-  const commit = (key: string, raw: string, s: string) => {
+  // arrival"). Typed in means an edit in this cell since the caret entered it
+  // — not a value that changed under the caret, which another device can do
+  // (review of b8e4a3e). The BAN keyboard types through the cell's own input
+  // event, so it counts.
+  const enteredRef = useRef<{ key: string; typed: boolean } | null>(null);
+  const enter = (key: string) => { enteredRef.current = { key, typed: false }; };
+  const typedIn = (key: string) => { if (enteredRef.current?.key === key) enteredRef.current.typed = true; };
+  const commit = (key: string, s: string) => {
     const at = enteredRef.current;
-    const typed = !at || at.key !== key || at.value !== raw;
+    const typed = !at || at.key !== key || at.typed;
     return bangla && lang === "bn" && typed ? rxCellIn(s, "bn") : s;
   };
   // A learned line is SHOWN in the pad's language too — Bangla in BAN, English
@@ -914,10 +918,10 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                   <AutoCell
                     refCb={(el) => { doseRefs.current[idx] = el; }}
                     value={row.dose}
-                    onChange={(v) => updateRow(idx, { dose: v })}
-                    onFocus={() => enter(`${idx}:dose`, row.dose)}
-                    onBlur={() => updateRow(idx, { dose: commit(`${idx}:dose`, row.dose, parseDose(row.dose)) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: commit(`${idx}:dose`, row.dose, parseDose(row.dose)) }); foodRefs.current[idx]?.focus(); } }}
+                    onChange={(v) => { typedIn(`${idx}:dose`); updateRow(idx, { dose: v }); }}
+                    onFocus={() => enter(`${idx}:dose`)}
+                    onBlur={() => updateRow(idx, { dose: commit(`${idx}:dose`, parseDose(row.dose)) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: commit(`${idx}:dose`, parseDose(row.dose)) }); foodRefs.current[idx]?.focus(); } }}
                     placeholder="dose"
                     bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.dose.length)} 1 0`, minWidth: 52 }}
@@ -925,10 +929,10 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                   <AutoCell
                     refCb={(el) => { foodRefs.current[idx] = el; }}
                     value={row.food}
-                    onChange={(v) => updateRow(idx, { food: v })}
-                    onFocus={() => enter(`${idx}:food`, row.food)}
-                    onBlur={() => updateRow(idx, { food: commit(`${idx}:food`, row.food, parseFood(row.food)) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: commit(`${idx}:food`, row.food, parseFood(row.food)) }); durRefs.current[idx]?.focus(); } }}
+                    onChange={(v) => { typedIn(`${idx}:food`); updateRow(idx, { food: v }); }}
+                    onFocus={() => enter(`${idx}:food`)}
+                    onBlur={() => updateRow(idx, { food: commit(`${idx}:food`, parseFood(row.food)) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: commit(`${idx}:food`, parseFood(row.food)) }); durRefs.current[idx]?.focus(); } }}
                     placeholder="food"
                     bangla={bangla}
                     title={FOOD_HINT}
@@ -937,10 +941,10 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                   <AutoCell
                     refCb={(el) => { durRefs.current[idx] = el; }}
                     value={row.duration}
-                    onChange={(v) => updateRow(idx, { duration: v })}
-                    onFocus={() => enter(`${idx}:duration`, row.duration)}
-                    onBlur={() => updateRow(idx, { duration: commit(`${idx}:duration`, row.duration, parseDuration(row.duration)) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: commit(`${idx}:duration`, row.duration, parseDuration(row.duration)) }); drugRefs.current[idx + 1]?.focus(); } }}
+                    onChange={(v) => { typedIn(`${idx}:duration`); updateRow(idx, { duration: v }); }}
+                    onFocus={() => enter(`${idx}:duration`)}
+                    onBlur={() => updateRow(idx, { duration: commit(`${idx}:duration`, parseDuration(row.duration)) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: commit(`${idx}:duration`, parseDuration(row.duration)) }); drugRefs.current[idx + 1]?.focus(); } }}
                     placeholder="duration"
                     bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.duration.length)} 1 0`, minWidth: 52 }}

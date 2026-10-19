@@ -1532,6 +1532,21 @@ describe("a printed visit and the next one", () => {
     expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ rxStatus: "complete" }));
   });
 
+  it("a print mark from a device on an older build (no day) is today's: a change undone is printed again", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "X", rxCompletedPid: "X", chiefComplaints: ["Fever"] }));
+    await tick(500);
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown")); });
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toMatchObject({ incompleteRx: expect.objectContaining({ chiefComplaints: ["Fever", "Cough"] }) });
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toEqual({ incompleteRx: null });
+  });
+
   it("an OPD status write never sends an age the queue refuses", async () => {
     const { result } = await setup();
     await typeAndPrint(result);
@@ -1674,6 +1689,58 @@ describe("a printed visit and the next one", () => {
     expect(result.current.drugHistory).toEqual(STORED);
     expect(tell).toHaveBeenLastCalledWith(expect.objectContaining({ title: "The medicine was not added.", tone: "danger" }));
     expect(JSON.stringify(tell.mock.calls.at(-1))).toContain("Tablet. Seclo 20 mg");
+  });
+
+  it("an add whose answer was lost but which IS on the record is kept, and nothing is said", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    api.dhAppend.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    api.patientGet.mockImplementation(async (id: string) => patient({ id, drugHistory: [...STORED, SECLO] }));
+    tell.mockClear();
+    await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
+    await tick(50);
+    expect(result.current.drugHistory).toEqual([...STORED, SECLO]);
+    expect(tell).not.toHaveBeenCalled();
+  });
+
+  it("neither the add nor the check answers: the line stays, and the doctor is asked to look", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    api.dhAppend.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    api.patientGet.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
+    await tick(50);
+    expect(result.current.drugHistory).toEqual([...STORED, SECLO]);
+    expect(tell).toHaveBeenLastCalledWith(expect.objectContaining({ title: "The medicine may not have been added." }));
+  });
+
+  it("a re-print queued behind a line that was not added does not write it", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    let fail = () => {};
+    api.dhAppend.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = () => reject(new TypeError("Failed to fetch")); }));
+    await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"])); // a correction
+    await tick(1500);
+    api.patientUpdate.mockClear();
+    await act(async () => { await result.current.savePrescription(); }); // its list is taken with the line
+    await act(async () => { fail(); });
+    await tick(50);
+    expect(dhWrites()).toHaveLength(1);
+    expect(dhWrites()[0]).not.toContain(SECLO);
+  });
+
+  it("opened again while the line was on its way, the editor takes the line back from the answer", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    let release = () => {};
+    api.dhAppend.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ drugHistory: [...STORED, SECLO] }); }));
+    await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
+    act(() => result.current.loadPatient(patient())); // the record, read before the line landed
+    await tick(50);
+    expect(result.current.drugHistory).toEqual(STORED);
+    await act(async () => { release(); });
+    expect(result.current.drugHistory).toEqual([...STORED, SECLO]);
   });
 
   it("…and only its own lines: another medicine's identical taper stays under that medicine", async () => {
