@@ -84,30 +84,34 @@ describe("MedicinePad — BAN writes a committed cell in Bangla", () => {
   });
 });
 
-// ⚕️ Review of dfdd1c4: in BAN, passing through a cell of a printed visit
-// (blur, Enter) rewrote it in Bangla — the visit no longer what was printed.
-describe("MedicinePad — a printed visit's cells are kept as written (keepCells)", () => {
-  function Printed({ keepCells }: { keepCells: boolean }) {
+// ⚕️ Reviews of dfdd1c4 and 409be0b: in BAN, passing through a cell (blur,
+// Enter) rewrote it in Bangla — a printed visit's then no longer said what was
+// printed. A cell is written in Bangla when it was TYPED IN.
+describe("MedicinePad — a cell only passed through is kept as written", () => {
+  function Written() {
     const [rows, setRows] = useState<Row[]>([{ ...napa(), dose: "1+0+1", food: "After meal", duration: "7 days" }, blank()]);
-    return <MedicinePad rows={rows} setRows={setRows} showCheck={false} bangla keepCells={keepCells} />;
+    return <MedicinePad rows={rows} setRows={setRows} showCheck={false} bangla />;
   }
   const passThrough = (placeholder: string) => { const el = cell(placeholder); fireEvent.focus(el); fireEvent.blur(el); };
 
-  it("a cell only passed through in BAN stays as written", () => {
-    render(<Printed keepCells />);
+  it("blur or Enter on an untouched cell in BAN keeps it", () => {
+    render(<Written />);
     act(() => setKbdLang("bn"));
     passThrough("dose");
     passThrough("food");
+    fireEvent.focus(cell("duration"));
     fireEvent.keyDown(cell("duration"), { key: "Enter" });
     expect(cell("dose").value).toBe("1+0+1");
     expect(cell("food").value).toBe("After meal");
     expect(cell("duration").value).toBe("7 days");
   });
 
-  it("…where without it the same pass writes them in Bangla", () => {
-    render(<Printed keepCells={false} />);
+  it("a cell typed in is written in Bangla, its neighbours left as they were", () => {
+    render(<Written />);
     act(() => setKbdLang("bn"));
-    passThrough("dose");
-    expect(cell("dose").value).toBe("১+০+১");
+    passThrough("food");
+    fireEvent.blur(write("dose", "1+0+0"));
+    expect(cell("dose").value).toBe("১+০+০");
+    expect(cell("food").value).toBe("After meal");
   });
 });

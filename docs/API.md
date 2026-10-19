@@ -175,6 +175,7 @@ Server-side enforcement today (the UI gate is never the boundary):
 | `PATCH /patients/:id` | per-field: demographic fields need `pt.info`, `familyMembers` needs `pt.family`, and the prescription-lifecycle fields (`incompleteRx`, `drugHistory`, `investigationSummary`, `onExaminationSummary`, `hmSelectedDrugs`) need any `rx.*` grant |
 | `PATCH /patients/:id` with `hmDrugDates` / `hmSymptomDates` | **owner only** — an assistant is refused by the controller, a supervising doctor by the `patient.doctorId` check in the service |
 | `PUT /patients/:id/supervised-draft` | a supervising practice only (the owner's practice gets 400); an assistant of it needs any `rx.*` grant |
+| `POST /patients/:id/drug-history` | the owner's practice only (a supervising doctor gets 403, as for `PATCH`); an assistant needs any `rx.*` grant |
 | `DELETE /patients/:id` | **owner only, always**; 409 while another doctor (a supervisor) holds prescriptions for the patient — those would cascade away unseen |
 | `/ipd/:id/analogue*` | the doctor and their assistants pass without a key; any other actor needs `ipd.analogue` |
 
@@ -282,6 +283,7 @@ the ward; that door must be built inside `ipd.service`, never by extending
 | POST | `/patients` | `CreatePatientDto` |
 | POST | `/patients/link` | `LinkPatientDto` — creates a NEW patient related to an existing one and writes reciprocal family links to both. Owner only: a supervising doctor gets 403, since it rewrites the owner's family tree |
 | PATCH | `/patients/:id` | `UpdatePatientDto` — the **only** route that accepts it |
+| POST | `/patients/:id/drug-history` | `{ entries: string[] }` (1 or more, each at most 2000 characters) — lines ADDED to the patient's drug history ("+ Add medicine" after Save & print, 19/10/2026), appended by the server under the row's lock to whatever the record holds; `201 { drugHistory }`, the list as stored. Never a whole list from the client: one device's copy, behind the record, erased what another device had just printed. `403` for a supervising doctor, `404` if not accessible, `409` when the stored value is not a list (nothing is written) |
 | PUT | `/patients/:id/supervised-draft` | `{ data: object \| null }` — a SUPERVISING practice parks its unprinted visit for the patient (what `incompleteRx` is for the owner's practice, which a supervising doctor may never write), or takes it away with `null`. `200 { ok: true }`; `400` for the owner's practice (its visit is the patient's `incompleteRx`) or a `data` that is not an object or null; `404` if not accessible. Keyed by the practice, so its assistants share it, as the owner's practice shares `incompleteRx` (19/10/2026) |
 | DELETE | `/patients/:id` | **owner only** |
 

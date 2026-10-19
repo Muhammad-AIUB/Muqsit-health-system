@@ -25,6 +25,7 @@ const api = vi.hoisted(() => ({
   rxCreate: vi.fn(),
   supervisedDraft: vi.fn(),
   activityLog: vi.fn(),
+  dhAppend: vi.fn(),
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -32,7 +33,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...actual,
     setActiveWorkstationId: () => {},
-    patientsApi: { get: api.patientGet, update: api.patientUpdate, create: vi.fn(), setSupervisedDraft: api.supervisedDraft },
+    patientsApi: { get: api.patientGet, update: api.patientUpdate, create: vi.fn(), setSupervisedDraft: api.supervisedDraft, appendDrugHistory: api.dhAppend },
     prescriptionDraftApi: { get: api.draftGet, save: api.draftSave },
     opdApi: { setRxStatus: api.setRxStatus },
     prescriptionsApi: { create: api.rxCreate },
@@ -89,6 +90,7 @@ beforeEach(() => {
   api.supervisedDraft.mockResolvedValue({ ok: true });
   api.activityLog.mockResolvedValue({});
   api.patientGet.mockImplementation(async (id: string) => patient({ id }));
+  api.dhAppend.mockImplementation(async (_id: string, entries: string[]) => ({ drugHistory: [...STORED, ...entries] }));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
@@ -1480,7 +1482,8 @@ describe("a printed visit and the next one", () => {
     const parked = (incompleteWrites().at(-1)?.[1] as { incompleteRx: Record<string, unknown> }).incompleteRx;
     act(() => result.current.loadPatient(patient({ id: "Y" })));
     await tick(50);
-    act(() => result.current.loadPatient(patient({ incompleteRx: { ...parked, ptDate: "2026-01-05" } })));
+    expect(parked.rxPrintedOn).toEqual(expect.any(String)); // the day rides with the mark
+    act(() => result.current.loadPatient(patient({ incompleteRx: { ...parked, rxPrintedOn: "2026-01-05" } })));
     await tick(50);
     expect(result.current.visitPrinted).toBe(false);
     api.patientUpdate.mockClear();
@@ -1489,6 +1492,57 @@ describe("a printed visit and the next one", () => {
     await tick(1500);
     expect(incompleteWrites().at(-1)?.[1]).toMatchObject({ incompleteRx: expect.objectContaining({ chiefComplaints: ["Fever"] }) });
     expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ rxStatus: "complete" }));
+  });
+
+  it("a back-dated visit printed today keeps its mark: the day is the print's, not the visit's", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    act(() => result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    const parked = (incompleteWrites().at(-1)?.[1] as { incompleteRx: Record<string, unknown> }).incompleteRx;
+    act(() => result.current.loadPatient(patient({ id: "Y" })));
+    await tick(50);
+    act(() => result.current.loadPatient(patient({ incompleteRx: { ...parked, ptDate: "2026-01-05" } })));
+    await tick(50);
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toEqual({ incompleteRx: null });
+  });
+
+  it("printed on an earlier day and kept by a reload, it is that day's visit once changed: undone, nothing is marked complete", async () => {
+    const a = await setup();
+    await typeAndPrint(a.result);
+    act(() => a.result.current.setDrugHistory([...a.result.current.drugHistory])); // a save after the print
+    await tick(1500);
+    const draft = { ...(api.draftSave.mock.calls.at(-1)?.[0] as Record<string, unknown>), rxPrintedOn: "2026-01-05" };
+    a.unmount();
+    api.draftGet.mockResolvedValue({ data: draft });
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    const b = await setup();
+    await tick(50);
+    expect(b.result.current.visitPrinted).toBe(true); // unchanged: still the printed visit, not parked again
+    act(() => b.result.current.setChiefComplaints(["Fever", "Cough"]));
+    await tick(1500);
+    act(() => b.result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    expect(incompleteWrites().at(-1)?.[1]).toMatchObject({ incompleteRx: expect.objectContaining({ chiefComplaints: ["Fever"] }) });
+    expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ rxStatus: "complete" }));
+  });
+
+  it("an OPD status write never sends an age the queue refuses", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    act(() => result.current.setPtAge("1.5"));
+    act(() => result.current.setNote(["Review in a week"]));
+    await tick(100); // inside the auto-save's wait
+    api.setRxStatus.mockClear();
+    act(() => result.current.loadPatient(patient({ id: "Y" })));
+    const sent = api.setRxStatus.mock.calls.map(([b]) => b as Record<string, unknown>);
+    expect(sent.some((b) => b.patientId === "X" && b.rxStatus === "incomplete")).toBe(true);
+    for (const b of sent) expect(b.age).toBeUndefined();
   });
 
   it("Save to complete later straight after the undo takes the parked copy back, not parks it", async () => {
@@ -1535,26 +1589,27 @@ describe("a printed visit and the next one", () => {
     expect(summaries).toHaveLength(0);
   });
 
-  it("a Drug history line added after Save & print is kept: written to the patient's record at once", async () => {
+  // ⚕️ Reviews of dfdd1c4 and 409be0b: a whole list built in the editor — its
+  // own list (which follows the ℞ pad), then its copy of the record (one
+  // device's, behind the record) — erased printed medicines, or wrote an
+  // unprinted one, or another patient's. The lines are APPENDED by the server.
+  it("a Drug history line added after Save & print is appended by the server: the request carries the new lines alone", async () => {
     const { result } = await setup();
     await typeAndPrint(result);
     api.patientUpdate.mockClear();
     api.setRxStatus.mockClear();
     const line = "01/01/2000: Tablet. Barcavir 0.5 mg — 1+0+0 —  — ";
     const taper = "01/01/2000(cont): 0+0+1 —  — ";
-    // One press: a medicine and its taper, in ONE write.
     await act(async () => { expect(result.current.addDrugHistoryEntries([line, taper])).toBe(true); });
-    expect(dhWrites()).toEqual([[...STORED, line, taper]]);
+    expect(api.dhAppend.mock.calls).toEqual([["X", [line, taper]]]);
+    expect(dhWrites()).toHaveLength(0); // no whole list
     expect(result.current.drugHistory).toEqual([...STORED, line, taper]);
     await tick(1500);
     // The prescription itself is still the one printed.
     expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ rxStatus: "incomplete" }));
   });
 
-  // ⚕️ Review of dfdd1c4: the write was the editor's whole list, which follows
-  // the ℞ pad — an unprinted change went to the record with it, and a printed
-  // line the change had taken off the pad was erased from it.
-  it("what is written is the record's list and the line — never a ℞ line the print did not carry", async () => {
+  it("an unprinted ℞ line on the pad is not sent with it", async () => {
     const { result } = await setup();
     await typeAndPrint(result);
     act(() => result.current.setRxItems([BEX]));
@@ -1562,45 +1617,58 @@ describe("a printed visit and the next one", () => {
     expect(result.current.drugHistory.some((e) => e.includes("Bex"))).toBe(true); // the ℞ mirror, not printed
     api.patientUpdate.mockClear();
     await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
-    expect(dhWrites()).toEqual([[...STORED, SECLO]]);
+    expect(api.dhAppend.mock.calls).toEqual([["X", [SECLO]]]);
+    expect(dhWrites()).toHaveLength(0);
   });
 
-  it("…and a printed ℞ line the pad has since lost stays on the record", async () => {
+  it("on a device that received the print through the mirror, only the new line is sent", async () => {
     const { result } = await setup();
     act(() => result.current.loadPatient(patient()));
     await tick(50);
-    act(() => result.current.setRxItems([BEX]));
-    await tick(1500);
-    await act(async () => { await result.current.savePrescription(); });
-    await tick(50);
-    const printed = dhWrites().at(-1) ?? [];
-    expect(printed.some((e) => e.includes("Bex"))).toBe(true);
-    act(() => result.current.setRxItems([]));
-    await tick(50);
+    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "X", rxCompletedPid: "X", rxPrintedSig: "p", rxPrintedOn: "2026-10-19", chiefComplaints: ["Fever"] }));
+    await tick(500);
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown")); });
     api.patientUpdate.mockClear();
     await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
-    expect(dhWrites()).toEqual([[...printed, SECLO]]);
+    expect(api.dhAppend.mock.calls).toEqual([["X", [SECLO]]]);
+    expect(dhWrites()).toHaveLength(0);
   });
 
-  it("two presses close together are written one after the other, the second over the first", async () => {
+  it("Save & print's own list is written first: a line added straight after it waits for it", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setChiefComplaints(["Fever"]));
+    await tick(1500);
+    let release = () => {};
+    api.patientUpdate.mockImplementation(async (_id: string, body: Record<string, unknown>) =>
+      "drugHistory" in body ? new Promise((resolve) => { release = () => resolve({}); }) : {});
+    await act(async () => { await result.current.savePrescription(); });
+    expect(dhWrites()).toHaveLength(1); // the print's list, on its way
+    await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
+    expect(api.dhAppend).not.toHaveBeenCalled();
+    await act(async () => { release(); });
+    expect(api.dhAppend.mock.calls).toEqual([["X", [SECLO]]]);
+  });
+
+  it("two presses close together are sent one after the other", async () => {
     const { result } = await setup();
     await typeAndPrint(result);
-    api.patientUpdate.mockClear();
     let release = () => {};
-    api.patientUpdate.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({}); }));
+    api.dhAppend.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ drugHistory: [] }); }));
     const a = "01/01/2000: Tablet. Alpha 1 mg —  —  — ";
     const b = "01/01/2000: Tablet. Beta 1 mg —  —  — ";
     await act(async () => { result.current.addDrugHistoryEntries([a]); });
     await act(async () => { result.current.addDrugHistoryEntries([b]); });
-    expect(dhWrites()).toEqual([[...STORED, a]]); // the second waits for the first
+    expect(api.dhAppend.mock.calls).toEqual([["X", [a]]]);
     await act(async () => { release(); });
-    expect(dhWrites()).toEqual([[...STORED, a], [...STORED, a, b]]);
+    expect(api.dhAppend.mock.calls).toEqual([["X", [a]], ["X", [b]]]);
   });
 
   it("a write that fails is said, and the line is taken back off the screen", async () => {
     const { result } = await setup();
     await typeAndPrint(result);
-    api.patientUpdate.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    api.dhAppend.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
     await act(async () => {});
     expect(result.current.drugHistory).toEqual(STORED);
@@ -1608,7 +1676,39 @@ describe("a printed visit and the next one", () => {
     expect(JSON.stringify(tell.mock.calls.at(-1))).toContain("Tablet. Seclo 20 mg");
   });
 
-  it("a supervising doctor's line after Save & print is refused with the reason — nothing is written, the box keeps it", async () => {
+  it("…and only its own lines: another medicine's identical taper stays under that medicine", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    const taper = "01/01/2000(cont): 0+0+1 —  — ";
+    const mono = "01/01/2000: Tablet. Mono 1 mg — 1+0+0 —  — ";
+    const bex = "20/10/2026: Tablet. Bexo 1 mg — 1+0+0 —  — ";
+    let fail = () => {};
+    api.dhAppend.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = () => reject(new TypeError("Failed to fetch")); }));
+    await act(async () => { result.current.addDrugHistoryEntries([mono, taper]); });
+    act(() => result.current.setDrugHistory((prev) => [...prev, bex, taper])); // the same taper under another medicine
+    await act(async () => { fail(); });
+    expect(result.current.drugHistory).toEqual([...STORED, bex, taper]);
+  });
+
+  it("a write that lands after another patient is opened leaves that patient untouched", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    let release = () => {};
+    api.dhAppend.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ drugHistory: [...STORED, SECLO] }); }));
+    await act(async () => { result.current.addDrugHistoryEntries([SECLO]); });
+    act(() => result.current.loadPatient(patient({ id: "Y" })));
+    await tick(50);
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    await act(async () => { release(); });
+    act(() => result.current.setDrugHistory([...result.current.drugHistory])); // Y's next render, nothing changed
+    await tick(3000);
+    expect(incompleteWrites().filter(([pid]) => pid === "Y")).toHaveLength(0);
+    expect(api.setRxStatus).not.toHaveBeenCalled();
+    expect(result.current.drugHistory).toEqual(STORED);
+  });
+
+  it("a supervising doctor's line after Save & print is refused with the reason — nothing is sent, the box keeps it", async () => {
     api.patientGet.mockImplementation(async (id: string) => patient({ id, doctorId: OTHER_PRACTICE }));
     const { result } = await setup();
     await typeAndPrint(result, patient({ id: "S", doctorId: OTHER_PRACTICE }));
@@ -1616,13 +1716,12 @@ describe("a printed visit and the next one", () => {
     let took = true;
     act(() => { took = result.current.addDrugHistoryEntries([SECLO]); });
     expect(took).toBe(false);
+    expect(api.dhAppend).not.toHaveBeenCalled();
     expect(dhWrites("S")).toHaveLength(0);
     expect(tell).toHaveBeenLastCalledWith(expect.objectContaining({ title: "The medicine was not added." }));
   });
 
-  // The review's case: a parked copy opened before the patient's record has
-  // loaded hands the editor a list (and a print mark) that is not the record.
-  it("before the record has loaded, a line after Save & print is not taken: nothing is written over a list not in hand", async () => {
+  it("before the record has loaded, the line is still appended by the server — nothing is written over a list not in hand", async () => {
     const { result } = await setup();
     await typeAndPrint(result);
     act(() => result.current.setChiefComplaints(["Fever", "Cough"]));
@@ -1634,11 +1733,9 @@ describe("a printed visit and the next one", () => {
     act(() => result.current.loadPatient(patient({ incompleteRx: parked })));
     await tick(50);
     api.patientUpdate.mockClear();
-    let took = true;
-    act(() => { took = result.current.addDrugHistoryEntries([SECLO]); });
-    expect(took).toBe(false);
+    await act(async () => { expect(result.current.addDrugHistoryEntries([SECLO])).toBe(true); });
+    expect(api.dhAppend.mock.calls).toEqual([["X", [SECLO]]]);
     expect(dhWrites()).toHaveLength(0);
-    expect(tell).toHaveBeenLastCalledWith(expect.objectContaining({ title: "The medicine was not added yet." }));
   });
 
   it("a repeat answered after a reload writes no audit lines again: the print mark rides the draft", async () => {
@@ -1662,6 +1759,24 @@ describe("a printed visit and the next one", () => {
     expect(habitLines()).toHaveLength(1);
   });
 
+  it("a corrected re-print whose answer was lost writes its own audit lines when pressed again", async () => {
+    const habitLines = () => api.activityLog.mock.calls.filter(([e]) => (e as { section: string }).section === "Prescribing habits");
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setRxItems([{ ...BEX, fromHabit: true }]));
+    await tick(1500);
+    await act(async () => { await result.current.savePrescription(); });
+    expect(habitLines()).toHaveLength(1);
+    act(() => result.current.setRxItems([{ ...BEX, fromHabit: true }, { ...BEX, drug: "Tablet. Napa 500 mg", fromHabit: true }]));
+    await tick(1500);
+    api.rxCreate.mockRejectedValueOnce(new TypeError("Failed to fetch")); // stored, answer lost
+    await act(async () => { await result.current.savePrescription(); });
+    api.rxCreate.mockResolvedValueOnce({ repeat: true });
+    await act(async () => { await result.current.savePrescription(); });
+    expect(habitLines()).toHaveLength(2);
+  });
+
   it("another patient arriving through the device mirror ends the records' + Add box too", async () => {
     const { result } = await setup();
     act(() => result.current.loadPatient(patient()));
@@ -1669,10 +1784,10 @@ describe("a printed visit and the next one", () => {
     act(() => result.current.setInvestigation(["01/09/2026:Hb:12"])); // X's own finding
     act(() => result.current.openInvForSummary());
     act(() => result.current.setInvestigation((prev) => [...prev, "01/10/2026:Hb:9"]));
-    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "Z", investigation: ["05/10/2026:Cr:1.1"], showInvPopup: true }));
+    act(() => result.current.applyMirrorSnapshot({ workstationId: "doc1", currentPatientId: "Z", investigation: ["05/10/2026:Cr:1.1"] }));
     await tick(500);
+    expect(result.current.showInvPopup).toBe(false); // the box went with its patient
     act(() => { document.dispatchEvent(new KeyboardEvent("keydown")); });
-    act(() => result.current.setShowInvPopup(false)); // the box closed here
     await tick(50);
     expect(result.current.investigation).toEqual(["05/10/2026:Cr:1.1"]);
     const summaries = api.patientUpdate.mock.calls.filter(([, body]) => "investigationSummary" in (body as object));

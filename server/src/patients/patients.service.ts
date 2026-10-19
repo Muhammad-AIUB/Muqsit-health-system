@@ -180,6 +180,36 @@ export class PatientsService {
     return { ok: true };
   }
 
+  // ⚕️ Lines ADDED to the drug history (19/10/2026): appended, under the row's
+  // lock, to whatever the record holds at that moment — never a list a client
+  // built. "+ Add medicine" after Save & print first sent the editor's whole
+  // list (independent review, before release): one device's copy, behind the
+  // record, erased the medicines another device had just printed. The owner's
+  // practice only, as PATCH: a supervising doctor never writes the owner's
+  // record. A stored value that is not a list is refused, never replaced.
+  async appendDrugHistory(doctorId: string, id: string, entries: string[]): Promise<{ drugHistory: unknown[] }> {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id, ...this.accessibleWhere(doctorId) },
+      select: { id: true, doctorId: true },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
+    if (patient.doctorId !== doctorId) {
+      throw new ForbiddenException('Supervising doctors cannot modify the patient record');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ drugHistory: unknown }>>`
+        SELECT "drugHistory" FROM "Patient" WHERE "id" = ${id} FOR UPDATE
+      `;
+      const stored = locked[0]?.drugHistory;
+      if (!Array.isArray(stored)) {
+        throw new ConflictException("This patient's drug history could not be read, so nothing was added to it.");
+      }
+      const next = [...stored, ...entries];
+      await tx.patient.update({ where: { id }, data: { drugHistory: next as Prisma.InputJsonValue } });
+      return { drugHistory: next };
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
+  }
+
   // Every patient sharing a phone number, newest first. Powers the prescription
   // mobile-lookup dropdown (one number can map to several family members).
   // Includes patients this doctor supervises.

@@ -1,6 +1,7 @@
 import { PartialType } from '@nestjs/mapped-types';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsInt,
@@ -128,6 +129,14 @@ export class SupervisedDraftDto {
   @ValidateIf((o: SupervisedDraftDto) => o.data !== null)
   @IsObject()
   data!: Record<string, unknown> | null;
+}
+
+// POST /patients/:id/drug-history — lines ADDED to the patient's drug history
+// ("+ Add medicine" after Save & print, 19/10/2026), appended by the server to
+// whatever the record holds. Never a whole list built by a client.
+export class AppendDrugHistoryDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(HISTORY_MAX) @IsString({ each: true }) @MaxLength(2000, { each: true })
+  entries!: string[];
 }
 
 export class LinkPatientDto {

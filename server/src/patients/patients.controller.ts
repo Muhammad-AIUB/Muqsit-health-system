@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { PatientsService } from './patients.service';
 import {
+  AppendDrugHistoryDto,
   CreatePatientDto,
   LinkPatientDto,
   SupervisedDraftDto,
@@ -141,6 +142,23 @@ export class PatientsController {
       throw new ForbiddenException('You do not have permission to update prescriptions');
     }
     return this.patients.setSupervisedDraft(doctorId, id, dto.data);
+  }
+
+  // "+ Add medicine" after Save & print (19/10/2026): lines appended to the
+  // stored drug history by the server — see the service. Gated for an assistant
+  // as `drugHistory` is in PATCH above: any prescription key. A supervising
+  // doctor is refused in the service, as for PATCH.
+  @Post(':id/drug-history')
+  appendDrugHistory(
+    @WorkstationDoctorId() doctorId: string,
+    @ActiveWorkstation() ws: Workstation,
+    @Param('id') id: string,
+    @Body() dto: AppendDrugHistoryDto,
+  ) {
+    if (ws.role === 'assistant' && !ws.permissions.some((p) => p.startsWith('rx.'))) {
+      throw new ForbiddenException('You do not have permission to update prescriptions');
+    }
+    return this.patients.appendDrugHistory(doctorId, id, dto.entries);
   }
 
   @Delete(':id')

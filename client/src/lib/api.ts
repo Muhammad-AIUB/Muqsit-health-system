@@ -727,6 +727,11 @@ export const patientsApi = {
   // practice its own as `incompleteRx`.
   setSupervisedDraft: (id: string, data: Record<string, unknown> | null) =>
     apiFetch<{ ok: true }>(`/patients/${id}/supervised-draft`, { method: "PUT", body: JSON.stringify({ data: data }) }),
+  // ⚕️ Lines ADDED to the patient's drug history ("+ Add medicine" after Save
+  // & print, 19/10/2026), appended by the server to whatever the record holds —
+  // never a whole list built here. Answers with the list as stored.
+  appendDrugHistory: (id: string, entries: string[]) =>
+    apiFetch<{ drugHistory: string[] }>(`/patients/${id}/drug-history`, { method: "POST", body: JSON.stringify({ entries: entries }) }),
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
 };
 

@@ -129,18 +129,26 @@ function opdWho(s: Record<string, unknown>) {
   const str = (k: string) => (typeof s[k] === "string" ? (s[k] as string) : "");
   return {
     name: str("ptName").trim() || undefined, phone: str("ptPhone") || undefined,
-    age: str("ptAge") ? Number(str("ptAge")) : undefined, gender: str("ptGender") || undefined,
+    age: wholeAge(str("ptAge")), gender: str("ptGender") || undefined,
   };
 }
 
-// The list without the LAST copy of each of these entries.
-function withoutLast(list: string[], entries: string[]): string[] {
-  const out = [...list];
-  for (const e of [...entries].reverse()) {
-    const i = out.lastIndexOf(e);
-    if (i >= 0) out.splice(i, 1);
+// An age the OPD queue takes: a whole number of years, or nothing. A typed
+// `1.5` sent as it stands was refused (`@IsInt`), and the status write with
+// it — a printed visit left "Incomplete" (review of 409be0b).
+function wholeAge(s: string): number | undefined {
+  const t = s.trim();
+  return /^\d{1,3}$/.test(t) ? Number(t) : undefined;
+}
+
+// The list without the LAST run of exactly these entries, together and in this
+// order — the lines one press added. Line by line, a failed medicine's taper
+// took another medicine's identical taper off the list (review of 409be0b).
+function withoutBlock(list: string[], entries: string[]): string[] {
+  for (let i = list.length - entries.length; i >= 0; i--) {
+    if (entries.every((e, k) => list[i + k] === e)) return [...list.slice(0, i), ...list.slice(i + entries.length)];
   }
-  return out;
+  return list;
 }
 
 function surfaced<T>(p: Promise<T>, what: string): Promise<T> {
@@ -240,6 +248,11 @@ function useMuqsitStore() {
   // prescription and put a token in today's OPD queue for someone never seen.
   // Only a list that differs from this baseline is visit content.
   const drugHistoryBaselineRef = useRef<string[] | null>(null);
+  // Every write this editor makes to a patient's drug history goes through this
+  // queue, one after another: Save & print's whole list, and "+ Add medicine"'s
+  // appends after it (review of 409be0b: a line added right after the print
+  // was lost when the print's list landed after it).
+  const dhWritesRef = useRef<Promise<unknown>>(Promise.resolve());
   const drugHistoryIsVisitContent = (list: string[]) => !sameEntries(list, drugHistoryBaselineRef.current ?? []);
   const [onExamination, setOnExamination] = useState<StringList>([]);
   // "Note / plan" was one field until 2026-09-07; the physician split it into
@@ -523,14 +536,15 @@ function useMuqsitStore() {
       ok = true;
       // The server answered with the prescription already on record (the same
       // one sent again — server/src/prescriptions/repeat.ts). Its audit lines
-      // are written once per print: a repeat of a visit this editor knows was
-      // printed writes none — known by the print mark, which rides the draft
-      // and the device mirror (review of dfdd1c4: a mark kept in this device's
-      // memory wrote them again after a reload, and on a second device) — while
-      // a repeat answering a save whose answer was lost writes them, since
-      // nothing was printed and nothing written then.
+      // are written once per print: a repeat of what this editor knows it
+      // printed — the print mark and what was sent, which ride the draft and
+      // the device mirror — writes none (review of dfdd1c4: a mark kept in one
+      // device's memory wrote them again after a reload, and on a second
+      // device); a repeat answering a save whose answer was lost writes them,
+      // nothing having been written then — also for a corrected re-print of a
+      // visit printed before (review of 409be0b).
       const repeat = (created as { repeat?: boolean } | undefined)?.repeat === true;
-      const audit = !repeat || rxCompletedRef.current !== pid;
+      const audit = !repeat || !(rxCompletedRef.current === pid && printedSigRef.current === sentSig);
 
       // "Save & print" = complete: clear the patient's incomplete draft and flag
       // their OPD entry Complete (don't let the auto-save re-mark it incomplete).
@@ -543,6 +557,7 @@ function useMuqsitStore() {
         setRxCompletedPid(pid); // carried to mirror devices — see mirrorSnapshot
         printedSigRef.current = sentSig;
         setRxPrintedSig(sentSig);
+        printedOnRef.current = todayISO();
         changedSincePrintRef.current = null;
         rxFlaggedRef.current = null;
         // The practice's own parked visit is on the record now: a supervising
@@ -552,7 +567,7 @@ function useMuqsitStore() {
         void opdApi.setRxStatus({
           patientId: pid, rxStatus: "complete",
           name: ptName.trim() || undefined, phone: ptPhone || undefined,
-          age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
+          age: wholeAge(ptAge), gender: ptGender || undefined,
         }).then(() => queryClient.invalidateQueries({ queryKey: ["opd"] })).catch(() => {});
       }
 
@@ -651,7 +666,11 @@ function useMuqsitStore() {
         // medicines, which is exactly what makes the loss look like real data.
         if (drugHistoryHydratedRef.current === pid) {
           drugHistoryBaselineRef.current = drugHistory;
-          patientWrites.push({ what: "drug history", done: patientsApi.update(pid, { drugHistory }) });
+          const list = drugHistory;
+          const write = () => patientsApi.update(pid as string, { drugHistory: list });
+          const done = dhWritesRef.current.then(write, write);
+          dhWritesRef.current = done.catch(() => {});
+          patientWrites.push({ what: "drug history", done });
         }
         // The patient record (drug history for Health monitoring) is re-read once
         // the writes above have landed, not before — a refetch racing them would
@@ -942,6 +961,7 @@ function useMuqsitStore() {
     setRxCompletedPid(null);
     printedSigRef.current = null;
     setRxPrintedSig(null);
+    printedOnRef.current = null;
     changedSincePrintRef.current = null;
     setInvSummaryMode(false);
     invSnapshotRef.current = [];
@@ -1020,6 +1040,11 @@ function useMuqsitStore() {
   const [rxPrintedSig, setRxPrintedSig] = useState<string | null>(null);
   const printedSigRef = useRef<string | null>(null);
   printedSigRef.current = rxPrintedSig;
+  // The day of that print (ISO), riding with the mark: a parked copy carries
+  // the mark only on that day, and a printed visit kept across midnight by a
+  // reload is that day's visit once it is changed (review of 409be0b: the
+  // visit's own date was read for it, and a back-dated visit lost its mark).
+  const printedOnRef = useRef<string | null>(null);
   const visitSigRef = useRef("");
   // A change after the print may be PARKED — parked here, its parked copy
   // opened, or the changed visit arrived from another device that parked it —
@@ -1046,7 +1071,18 @@ function useMuqsitStore() {
       return "unparked";
     }
     if (!hasRx) return null;
-    if (rxCompletedRef.current === pid) changedSincePrintRef.current = pid;
+    if (rxCompletedRef.current === pid) {
+      if (printedOnRef.current === todayISO()) changedSincePrintRef.current = pid;
+      else {
+        // Printed on an earlier day and changed today: today's visit, unprinted.
+        rxCompletedRef.current = null;
+        setRxCompletedPid(null);
+        printedSigRef.current = null;
+        setRxPrintedSig(null);
+        printedOnRef.current = null;
+        changedSincePrintRef.current = null;
+      }
+    }
     if (supervised) void patientsApi.setSupervisedDraft(pid, snapshot).catch(() => {});
     else void patientsApi.update(pid, { incompleteRx: snapshot }).catch(() => {});
     return "parked";
@@ -1116,6 +1152,7 @@ function useMuqsitStore() {
     setRxCompletedPid(null);
     printedSigRef.current = null;
     setRxPrintedSig(null);
+    printedOnRef.current = null;
     changedSincePrintRef.current = null;
     // Their record collections are fetched afresh (also on a re-open), and
     // nothing may be written over them as a whole until that lands.
@@ -1158,15 +1195,16 @@ function useMuqsitStore() {
       // print's mark and what was sent, so that putting the change back takes
       // the parked copy back (third review: undone after a switch and return,
       // it stayed parked and "Incomplete").
-      // Only on the day of the print: opened on a later day it is that day's
-      // visit, and nothing has been printed for it (review of dfdd1c4) — as a
-      // draft resumed on a later day is a new visit.
+      // Only on the day of the PRINT: opened on a later day it is that day's
+      // visit, and nothing has been printed for it (reviews of dfdd1c4 and
+      // 409be0b) — as a draft resumed on a later day is a new visit.
       const incRec = inc as Record<string, unknown>;
-      if (incRec.rxCompletedPid === p.id && typeof incRec.rxPrintedSig === "string" && incRec.ptDate === todayISO()) {
+      if (incRec.rxCompletedPid === p.id && typeof incRec.rxPrintedSig === "string" && incRec.rxPrintedOn === todayISO()) {
         rxCompletedRef.current = p.id;
         setRxCompletedPid(p.id);
         printedSigRef.current = incRec.rxPrintedSig;
         setRxPrintedSig(incRec.rxPrintedSig);
+        printedOnRef.current = incRec.rxPrintedOn;
         changedSincePrintRef.current = p.id;
       }
       // The parked draft carries this patient's own drug history, so it is a valid
@@ -1360,14 +1398,14 @@ function useMuqsitStore() {
     if (rxMirrorOwned === null || !sameEntries(claims, rxMirrorOwned)) setRxMirrorOwned(claims);
   }, [rxItems, ptDate, currentPatientId, drugHistory, rxMirrorOwned]);
 
-  // ⚕️ "+ Add medicine" (Drug history, 2026-10-14). A plain append — the
-  // background patient fetch above is what protects it from being lost to a
-  // slow network response (it merges against live state, never overwrites).
+  // ⚕️ "+ Add medicine" (Drug history, 2026-10-14). Before Save & print a plain
+  // append to the editor's list — the background patient fetch above is what
+  // protects it from being lost to a slow network response (it merges against
+  // live state, never overwrites); after it, appended by the server (below).
   //
   // Takes one press's lines together (a medicine and its tapers) and says
   // whether it took them: when it did not, it has said why in a box, and the
   // "+ Add medicine" pad keeps what was typed.
-  const dhWritesRef = useRef<Promise<unknown>>(Promise.resolve());
   const addDrugHistoryEntries = useCallback((entries: string[]): boolean => {
     if (!entries.length) return true;
     const pid = patientIdRef.current;
@@ -1388,34 +1426,30 @@ function useMuqsitStore() {
       });
       return false;
     }
-    if (recordHydratedRef.current !== pid || drugHistoryHydratedRef.current !== pid || !drugHistoryBaselineRef.current) {
-      tell({
-        title: "The medicine was not added yet.",
-        body: "This patient's record has not loaded yet. Try again in a moment — what you typed is still in the box.",
-        tone: "info",
-      });
-      return false;
-    }
     setDrugHistory((prev) => [...prev, ...entries]);
-    // ⚕️ What is written is the RECORD's list with the new lines — never the
-    // editor's list (review of dfdd1c4): that one follows the ℞ pad, and a
-    // change made after the print and not printed went to the record with it,
-    // or a printed line the change had taken off the pad was erased from it.
-    // One write at a time, each over the list as the one before it left it: two
-    // presses close together could otherwise land the older list last.
+    // ⚕️ APPENDED BY THE SERVER to whatever the record holds — never a list
+    // built here. The editor's list follows the ℞ pad (an unprinted change went
+    // to the record with it: review of dfdd1c4), and any copy kept here is one
+    // device's, behind the record: written over it, it erased what another
+    // device had just printed, or, written after a patient switch, another
+    // patient's list (review of 409be0b). On the queue behind Save & print's
+    // own write, so the print's list never lands after the line.
     const name = ptNameRef.current.trim();
-    const write = async () => {
-      const next = [...(drugHistoryBaselineRef.current ?? []), ...entries];
-      await patientsApi.update(pid, { drugHistory: next });
-      drugHistoryBaselineRef.current = next;
-    };
-    const done = dhWritesRef.current.then(write, write);
+    const send = () => patientsApi.appendDrugHistory(pid, entries);
+    const done = dhWritesRef.current.then(send, send);
     dhWritesRef.current = done.catch(() => {});
-    done.catch((e) => {
+    done.then((res) => {
+      // The record as it now stands — taken only by this patient's own editor,
+      // once its list is in hand (another patient's would make an untouched
+      // patient read as changed and be parked "Incomplete").
+      if (patientIdRef.current === pid && drugHistoryHydratedRef.current === pid && Array.isArray(res?.drugHistory)) {
+        drugHistoryBaselineRef.current = res.drugHistory;
+      }
+    }, (e) => {
       // Said, and taken back off the list on the screen: a line shown there
       // that is not on the record would be lost unseen with the next patient.
       console.error("[drug history] a line was not added:", e);
-      if (patientIdRef.current === pid) setDrugHistory((prev) => withoutLast(prev, entries));
+      if (patientIdRef.current === pid) setDrugHistory((prev) => withoutBlock(prev, entries));
       const shown = entries.filter((x) => !/^[^:]*\(cont\):/.test(x)).map((x) => `“${x.replace(/^[^:]*:\s*/, "").split(" — ")[0]}”`);
       tell({
         title: "The medicine was not added.",
@@ -1554,6 +1588,9 @@ function useMuqsitStore() {
       const sig = printed && typeof d.rxPrintedSig === "string" ? d.rxPrintedSig : null;
       printedSigRef.current = sig;
       setRxPrintedSig(sig);
+      // Kept across midnight while the visit is unchanged; changed, it is that
+      // day's visit (parkVisit).
+      printedOnRef.current = printed && typeof d.rxPrintedOn === "string" ? d.rxPrintedOn : null;
       // The draft carries the editor, not the patient's record: the photo, the
       // Patient Settings form and the watch flag come from the record, exactly
       // as loadPatient sets them. Without this a reload showed 👤 and a blank
@@ -1689,6 +1726,7 @@ function useMuqsitStore() {
       // another patient's (third review).
       rxCompletedPid: rxCompletedPid === currentPatientId ? rxCompletedPid : null,
       rxPrintedSig: rxCompletedPid === currentPatientId ? rxPrintedSig : null,
+      rxPrintedOn: rxCompletedPid === currentPatientId ? printedOnRef.current : null,
     };
     // Keep the latest snapshot available for a synchronous flush on switch.
     pendingDraftRef.current = { snapshot, pid: currentPatientId, supervised: supervisedRef.current, hasRx: hasRxContent };
@@ -1711,7 +1749,7 @@ function useMuqsitStore() {
       const flag = (rxStatus: "incomplete" | "complete") => void opdApi.setRxStatus({
         patientId: pid, rxStatus,
         name: ptName.trim() || undefined, phone: ptPhone || undefined,
-        age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
+        age: wholeAge(ptAge), gender: ptGender || undefined,
       }).then(() => queryClient.invalidateQueries({ queryKey: ["opd"] })).catch(() => {});
       if (done === "parked" && rxFlaggedRef.current !== pid) {
         rxFlaggedRef.current = pid;
@@ -1780,7 +1818,7 @@ function useMuqsitStore() {
         await opdApi.setRxStatus({
           patientId: pid, rxStatus: "incomplete",
           name: ptName.trim() || undefined, phone: ptPhone || undefined,
-          age: ptAge ? Number(ptAge) : undefined, gender: ptGender || undefined,
+          age: wholeAge(ptAge), gender: ptGender || undefined,
         });
         rxFlaggedRef.current = pid;
         void queryClient.invalidateQueries({ queryKey: ["opd"] });
@@ -1831,6 +1869,7 @@ function useMuqsitStore() {
     workstationId: activeWorkstationId ?? authUser?.id ?? null,
     rxCompletedPid: rxCompletedPid === currentPatientId ? rxCompletedPid : null,
     rxPrintedSig: rxCompletedPid === currentPatientId ? rxPrintedSig : null,
+    rxPrintedOn: rxCompletedPid === currentPatientId ? printedOnRef.current : null,
     ptName, ptAge, ptGender, ptAddress, ptWeight, ptDate, ptPhone, ptHospitalId,
     chiefComplaints, previousComplaints, history,
     // The visit's own findings: never an admission's on loan to an IPD detail
@@ -1889,6 +1928,10 @@ function useMuqsitStore() {
       changedSincePrintRef.current = null;
       setInvSummaryMode(false);
       invSnapshotRef.current = [];
+      // The box closes with it (the other device's own popup, when its state
+      // says one is open, is opened again below): left open, what was typed
+      // next went into the new patient's visit (review of 409be0b).
+      setShowInvPopup(false);
     }
     setCurrentPatientId(pid);
     // Keep supervisedRef consistent with the peer device so this device's
@@ -1904,6 +1947,7 @@ function useMuqsitStore() {
     const sentSig = completed && typeof d.rxPrintedSig === "string" ? d.rxPrintedSig : null;
     printedSigRef.current = sentSig;
     setRxPrintedSig(sentSig);
+    printedOnRef.current = completed && typeof d.rxPrintedOn === "string" ? d.rxPrintedOn : null;
     str("ptName", setPtName); str("ptAge", setPtAge); str("ptGender", setPtGender);
     str("ptAddress", setPtAddress); str("ptWeight", setPtWeight);
     // Same stale-date guard as applyEditorSnapshot: a secondary device joining
