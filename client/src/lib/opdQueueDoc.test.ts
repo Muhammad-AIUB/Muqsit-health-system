@@ -15,7 +15,7 @@ describe("buildQueueDoc", () => {
     const head = doc.querySelector("header")?.textContent ?? "";
     expect(head).toContain("Dr. Rahim");
     expect(head).toContain("30/10/2026");
-    expect(head).toContain("2");
+    expect(head).toContain("Total patients: 2");
   });
 
   it("prints no name line when no doctor is known", () => {
@@ -66,5 +66,30 @@ describe("buildQueueDoc", () => {
     expect(html).toMatch(/thead\s*{[^}]*display:\s*table-header-group/);
     expect(html).toMatch(/tr\s*{[^}]*break-inside:\s*avoid/);
     expect(html).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+
+  it("escapes the day too: a day string cannot open an element in the title", () => {
+    const html = buildQueueDoc({ doctorName: "", day: '"><script>x', rows: [row("A")], times: [] });
+    expect(parse(html).querySelector("script")).toBeNull();
+  });
+
+  it("prints an unbroken 60-character name and mobile whole, in their own cells", () => {
+    const name = "N".repeat(60);
+    const phone = "9".repeat(60);
+    const cells = cellsOf(buildQueueDoc({ doctorName: "", day: "2026-10-30", rows: [row(name, { phone })], times: [] }));
+    expect(cells[0][1]).toBe(name);
+    expect(cells[0][4]).toBe(phone);
+  });
+
+  it("prints a dash for a name and a phone that are only spaces", () => {
+    const cells = cellsOf(buildQueueDoc({ doctorName: "", day: "2026-10-30", rows: [row("   ", { phone: "  	 " })], times: [] }));
+    expect(cells[0][1]).toBe("—");
+    expect(cells[0][4]).toBe("—");
+  });
+
+  it("prints a time where there is one and a dash where there is none, row by row", () => {
+    const cells = cellsOf(buildQueueDoc({ doctorName: "", day: "2026-10-30", rows: [row("A"), row("B")], times: [600, undefined] }));
+    expect(cells[0][5]).toBe("10:00 AM");
+    expect(cells[1][5]).toBe("—");
   });
 });
