@@ -24,7 +24,7 @@ export default function PatientAvatar({ url, sex, name, size = 34 }: {
       {showPicture
         ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url as string} alt="" onError={() => setBroken(url as string)}
+          <img src={url as string} alt="" loading="lazy" decoding="async" onError={() => setBroken(url as string)}
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         )
         : <Icon name={photoPlaceholder(sex)} size={Math.round(size * 0.6)} style={{ color: C.n[500] }} />}
