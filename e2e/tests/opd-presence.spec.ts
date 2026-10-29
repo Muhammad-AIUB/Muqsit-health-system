@@ -6,11 +6,8 @@ import { addFieldLine, API_URL, expect, login, test, uniqueMobile } from './help
 // urgent attention, a row colour, and a status worked out from the visit.
 // Real browser, real API, throwaway database; every name is made up.
 //
-// Uses the `opdQueueDay` doctor: it is the only seeded doctor for an OPD journey,
-// and it adds two patients to TODAY's queue, which opd-queue-day.spec.ts expects
-// to be empty. Run the two files in separate runs, or give this one a seeded
-// doctor of its own (server/test/seed-e2e.ts + helpers.ts Role) before running
-// the whole suite.
+// Uses its own seeded doctor, `opdPresence`: it queues patients on TODAY, which
+// opd-queue-day.spec.ts (the `opdQueueDay` doctor) expects to be empty.
 
 const A = 'Presence Patient A';
 const B = 'Presence Patient B';
@@ -55,7 +52,7 @@ async function tick(page: Page, kind: 'Present' | 'Critically ill' | 'Pt needs u
 }
 
 test('a queue row shows a photo, three marks, a time, a colour and a status; the server keeps them', async ({ page }) => {
-  await login(page, 'opdQueueDay');
+  await login(page, 'opdPresence');
   await page.goto('/opd');
   await expect(page.getByText('No one is in the queue')).toBeVisible();
   await addNewToQueue(page, A);
