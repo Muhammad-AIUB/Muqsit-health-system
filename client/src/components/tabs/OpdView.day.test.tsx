@@ -37,6 +37,7 @@ vi.mock("@/hooks/useOpd", () => ({
   useOpdSchedule: (day: string) => ({ data: { day, ...mocks.schedule }, isLoading: false, error: null, refetch: vi.fn(), isFetching: false }),
   useAddOpdVisit: () => ({ mutateAsync: mocks.add, isPending: false }),
   useSetOpdStatus: () => ({ mutate: mocks.setStatus }),
+  useSetOpdPresence: () => ({ mutate: vi.fn() }),
   useMoveOpdVisit: () => ({ mutate: mocks.move, isPending: false }),
   useSaveOpdSchedule: () => ({ mutateAsync: mocks.save }),
 }));
@@ -50,7 +51,7 @@ const LATER = shiftDay(TODAY, 2);
 const PAST = shiftDay(TODAY, -2);
 
 const row = (id: string, name: string, token: string, status = "waiting", day = TODAY) => ({
-  id, name, token, status, type: "New", phone: "01810101515", age: 34, gender: "Male", patientId: id, rxStatus: null, queueDate: day, position: null,
+  id, name, token, status, type: "New", phone: "01810101515", age: 34, gender: "Male", patientId: id, rxStatus: null, queueDate: day, position: null, presentAt: null, criticallyIll: false, urgent: false,
 });
 const queueOf = (day: string, ...names: [string, string?][]) =>
   names.map(([n, status], i) => row(`${day}-${i}`, n, `T-0${i + 1}`, status ?? "waiting", day));
@@ -78,7 +79,7 @@ describe("OPD queue — the day on show", () => {
     render(<OpdView />);
     expect(dateButton().textContent).toContain(dayLabel(TODAY));
     expect(mocks.asked.at(-1)).toBe(TODAY);
-    expect(screen.getByText("Total today")).toBeTruthy();
+    expect(screen.getByText("Total Serial")).toBeTruthy();
   });
 
   it("the date opens the calendar, and choosing a day closes it and shows that day's queue", () => {
@@ -92,8 +93,7 @@ describe("OPD queue — the day on show", () => {
     expect(dateButton().textContent).toContain(dayLabel(LATER));
     expect(mocks.asked.at(-1)).toBe(LATER);
     expect(screen.getByText("Later Patient")).toBeTruthy();
-    expect(screen.queryByText("Total today")).toBeNull();
-    expect(screen.getByText("Total")).toBeTruthy();
+    expect(screen.getByText("Total Serial")).toBeTruthy();
   });
 });
 
@@ -182,13 +182,31 @@ describe("OPD queue — the order", () => {
     expect((screen.getByRole("button", { name: "Move Waiting B up" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("the serial follows the order shown and the token stays with the patient", () => {
+  it("the serial follows the order shown (the token is no longer shown)", () => {
     mocks.rows[TODAY] = [row("b", "Second Booked", "T-02"), row("a", "First Booked", "T-01")];
     const { container } = render(<OpdView />);
     const rows = rowsOf(container);
     expect(rows.map((r) => r.querySelector("[data-serial]")?.textContent)).toEqual(["1", "2"]);
-    expect(rows[0].textContent).toContain("T-02");
-    expect(rows[1].textContent).toContain("T-01");
+    expect(rows[0].textContent).not.toContain("T-02");
+    expect(rows[1].textContent).not.toContain("T-01");
+  });
+});
+
+describe("OPD queue — the marks are today only", () => {
+  const boxes = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLInputElement>(".queue-row input[type=checkbox]"));
+  it("are enabled on today and shown but disabled on a later day and on a day that has passed", () => {
+    mocks.rows[TODAY] = queueOf(TODAY, ["T One"]);
+    mocks.rows[LATER] = queueOf(LATER, ["L One"]);
+    mocks.rows[PAST] = queueOf(PAST, ["P One"]);
+    const { container } = render(<OpdView />);
+    expect(boxes(container)).toHaveLength(3);
+    expect(boxes(container).every((b) => !b.disabled)).toBe(true);
+    pickDay(LATER);
+    expect(boxes(container)).toHaveLength(3);
+    expect(boxes(container).every((b) => b.disabled)).toBe(true);
+    pickDay(PAST);
+    expect(boxes(container)).toHaveLength(3);
+    expect(boxes(container).every((b) => b.disabled)).toBe(true);
   });
 });
 

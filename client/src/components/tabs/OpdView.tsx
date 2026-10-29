@@ -6,12 +6,14 @@ import { btnDisabled, btnPrimary, btnSecondary, inputMd, pageTitle } from "@/the
 import { useMuqsit } from "@/context/MuqsitContext";
 import type { Patient } from "@/lib/api";
 import {
-  useAddOpdVisit, useMoveOpdVisit, useOpdQueue, useOpdSchedule, useSaveOpdSchedule, useSetOpdStatus,
+  useAddOpdVisit, useMoveOpdVisit, useOpdQueue, useOpdSchedule, useSaveOpdSchedule, useSetOpdPresence, useSetOpdStatus,
 } from "@/hooks/useOpd";
 import { displayAge } from "@/lib/age";
 import { dayLabel, dayRelation, dhakaToday } from "@/lib/opdDay";
 import { clockText, slotTimes } from "@/lib/opdSchedule";
 import { normaliseSex, sexLabel } from "@/lib/sex";
+import { presentClock, queueCounts, rowTone, visitStatus } from "@/lib/opdPresence";
+import PatientAvatar from "@/components/opd/PatientAvatar";
 import Pill from "@/components/common/Pill";
 import Icon from "@/components/common/Icon";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
@@ -21,8 +23,6 @@ import EmptyState from "@/components/common/EmptyState";
 import { Loading, LoadError } from "@/components/common/ListState";
 
 const typeColor = (type: string) => (type === "Urgent" ? "danger" : type === "Follow-up" ? "pri" : "warn");
-const initials = (name: string) =>
-  name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
 const PAST_HINT = "A day that has passed cannot be changed";
 const REL_WORD = { past: "Locked", today: "Today", future: "Upcoming" } as const;
@@ -46,6 +46,7 @@ export default function OpdView() {
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
   const move = useMoveOpdVisit(day);
+  const setPresence = useSetOpdPresence(day);
   const saveSchedule = useSaveOpdSchedule();
 
   // Add-to-queue form. It asks for the mobile number and nothing else
@@ -58,8 +59,7 @@ export default function OpdView() {
   const [phone, setPhone] = useState("");
   const [addError, setAddError] = useState("");
 
-  const waiting = queue.filter((v) => v.status === "waiting").length;
-  const done = queue.filter((v) => v.status === "done").length;
+  const counts = queueCounts(queue.map((v) => ({ ...v, padStage: v.padStage ?? null })));
 
   // ⚕️ The time each patient is told comes from the day's SAVED schedule — never
   // from the boxes in the bar, which hold what is typed until the server has it.
@@ -181,9 +181,12 @@ export default function OpdView() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
-        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.n[600] }}>{rel === "today" ? "Total today" : "Total"}</div><div style={{ fontSize: 24, fontWeight: 600 }}>{queue.length}</div></div>
-        <div style={{ background: C.ok[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.ok[600] }}>Completed</div><div style={{ fontSize: 24, fontWeight: 600, color: C.ok[600] }}>{done}</div></div>
-        <div style={{ background: C.warn[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.warn[800] }}>Waiting</div><div style={{ fontSize: 24, fontWeight: 600, color: C.warn[800] }}>{waiting}</div></div>
+        {/* data-card / data-card-value: the words Present, Completed and Waiting
+            also stand in every row, so the cards are found by their own hook. */}
+        <div data-card="Total Serial" style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.n[600] }}>Total Serial</div><div data-card-value style={{ fontSize: 24, fontWeight: 600 }}>{counts.total}</div></div>
+        <div data-card="Present" style={{ background: C.ok[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.ok[600] }}>Present</div><div data-card-value style={{ fontSize: 24, fontWeight: 600, color: C.ok[600] }}>{counts.present}</div></div>
+        <div data-card="Completed" style={{ background: C.ok[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.ok[600] }}>Completed</div><div data-card-value style={{ fontSize: 24, fontWeight: 600, color: C.ok[600] }}>{counts.completed}</div></div>
+        <div data-card="Waiting" style={{ background: C.warn[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.warn[800] }}>Waiting</div><div data-card-value style={{ fontSize: 24, fontWeight: 600, color: C.warn[800] }}>{counts.waiting}</div></div>
       </div>
 
       {move.isError && (
@@ -203,17 +206,27 @@ export default function OpdView() {
         {queue.map((p, i) => {
           const color = typeColor(p.type);
           const time = times[i];
+          const tone = rowTone(p);
+          const status = visitStatus({ ...p, padStage: p.padStage ?? null });
+          const toneBg = tone ? C[tone][50] : undefined;
+          // Marks can be changed on today's queue only; the server refuses any other day.
+          const canMark = rel === "today";
+          const marks: { aria: string; text: string; checked: boolean; patch: (on: boolean) => { present: boolean } | { criticallyIll: boolean } | { urgent: boolean } }[] = [
+            { aria: "Present", text: "Present", checked: !!p.presentAt, patch: (on) => ({ present: on }) },
+            { aria: "Critically ill", text: "Critically ill", checked: p.criticallyIll, patch: (on) => ({ criticallyIll: on }) },
+            { aria: "Pt needs urgent attention", text: "Urgent attention", checked: p.urgent, patch: (on) => ({ urgent: on }) },
+          ];
           return (
             // On a phone the row wraps, and `.row-after` (globals.css) sends the
             // visit pill and the actions to the second line — so the token is
             // always at the end of the first, beside the name it belongs to.
-            <div key={p.id} className="queue-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
+            <div key={p.id} className="queue-row" data-tone={tone ?? undefined} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", background: toneBg, borderRadius: toneBg ? 8 : 0, paddingLeft: toneBg ? 8 : 0, paddingRight: toneBg ? 8 : 0, borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
               {/* Serial 1, 2, 3 … in the order shown (physician's request,
                   18/10/2026). Not the token: T-01 is what the patient is called
                   by, and it is not renumbered when the queue changes. */}
               <span data-serial aria-label={`Serial ${i + 1}: ${p.name}`}
                 style={{ minWidth: 22, textAlign: "right", fontSize: 13, fontWeight: 600, color: C.n[700], fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{i + 1}</span>
-              <div style={{ width: 34, height: 34, borderRadius: "50%", background: colorOf(color).bg, color: colorOf(color).fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{initials(p.name)}</div>
+              <PatientAvatar url={p.pictureUrl} sex={p.gender} name={p.name} />
               <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
                 {/* Normalised for display: the column holds both "Female" and "F". */}
@@ -222,14 +235,29 @@ export default function OpdView() {
               {time !== undefined && (
                 <span data-time aria-label={`Time ${clockText(time)}`} style={{ fontSize: 12, fontWeight: 600, color: C.n[800], fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{clockText(time)}</span>
               )}
-              {p.rxStatus === "incomplete" ? (
-                <Pill className="row-after" bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
-              ) : p.rxStatus === "complete" ? (
-                <Pill className="row-after" bg={C.ok[50]} fg={C.ok[600]}>Complete</Pill>
-              ) : p.type && p.type !== "New" && p.type !== "Rx" ? (
+              {p.type && p.type !== "New" && p.type !== "Rx" && (
                 <Pill className="row-after" bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
-              ) : null}
-              <Pill bg={C.n[100]} fg={C.n[800]}>{p.token}</Pill>
+              )}
+              {/* Reception's marks (physician's sheet, 29/10/2026). Present records
+                  the time and shows it under the box. Changeable on today's queue
+                  only; on another day they are shown, not editable. */}
+              <span className="row-after" style={{ display: "inline-flex", gap: 12, alignItems: "flex-start" }}>
+                {marks.map((m) => (
+                  <label key={m.aria} style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, fontSize: 11, color: C.n[700], cursor: canMark ? "pointer" : "default" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <input type="checkbox" aria-label={`${m.aria}: ${p.name}`} checked={m.checked} disabled={!canMark}
+                        onChange={(e) => setPresence.mutate({ id: p.id, ...m.patch(e.target.checked) })} />
+                      {m.text}
+                    </span>
+                    {m.aria === "Present" && p.presentAt && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: C.ok[600], fontVariantNumeric: "tabular-nums" }}>{presentClock(p.presentAt)}</span>
+                    )}
+                  </label>
+                ))}
+              </span>
+              {status && (
+                <span data-status className="row-after" style={{ fontSize: 12, fontWeight: 600, color: status === "Completed" ? C.ok[600] : C.n[800], whiteSpace: "nowrap" }}>{status}</span>
+              )}
               {/* ▲ ▼ put a patient before or after the next one still waiting. A
                   day that has passed, and a patient already seen, have none. */}
               {canEdit && p.status === "waiting" && (

@@ -31,6 +31,7 @@ vi.mock("@/hooks/useOpd", () => ({
   useOpdQueue: () => ({ data: queue, isLoading: false, error: null }),
   useAddOpdVisit: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetOpdStatus: () => ({ mutate: vi.fn() }),
+  useSetOpdPresence: () => ({ mutate: vi.fn() }),
   useOpdSchedule: () => ({ data: undefined, isLoading: false, error: null }),
   useMoveOpdVisit: () => ({ mutate: vi.fn(), isPending: false }),
   useSaveOpdSchedule: () => ({ mutateAsync: vi.fn() }),

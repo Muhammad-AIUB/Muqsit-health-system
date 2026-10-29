@@ -21,6 +21,7 @@ vi.mock("@/hooks/useOpd", () => ({
   useOpdQueue: () => ({ data: queue.rows, isLoading: false, error: null }),
   useAddOpdVisit: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetOpdStatus: () => ({ mutate: vi.fn() }),
+  useSetOpdPresence: () => ({ mutate: vi.fn() }),
   useOpdSchedule: () => ({ data: undefined, isLoading: false, error: null }),
   useMoveOpdVisit: () => ({ mutate: vi.fn(), isPending: false }),
   useSaveOpdSchedule: () => ({ mutateAsync: vi.fn() }),
@@ -31,7 +32,7 @@ import OpdView from "./OpdView";
 afterEach(() => { cleanup(); queue.rows = []; });
 
 const row = (id: string, name: string, token: string, status = "waiting") =>
-  ({ id, name, token, status, type: "New", phone: "01810101515", age: 34, gender: "Male", patientId: id, rxStatus: null });
+  ({ id, name, token, status, type: "New", phone: "01810101515", age: 34, gender: "Male", patientId: id, rxStatus: null, presentAt: null, criticallyIll: false, urgent: false });
 
 describe("OPD queue — serial numbers", () => {
   it("numbers the patients 1, 2, 3 in the order shown, each at the start of its row", () => {
@@ -45,13 +46,10 @@ describe("OPD queue — serial numbers", () => {
     expect(screen.getByLabelText("Serial 2: mr test 5")).toBeTruthy();
   });
 
-  it("keeps each patient's own token beside the serial", () => {
-    queue.rows = [row("a", "mr. samir", "T-07"), row("b", "mr. abir", "T-03")];
+  it("does not show the token any more", () => {
+    queue.rows = [row("a", "mr. samir", "T-07")];
     const { container } = render(<OpdView />);
-    const rows = Array.from(container.querySelectorAll<HTMLElement>(".queue-row"));
-    expect(rows.map((r) => r.querySelector("[data-serial]")?.textContent)).toEqual(["1", "2"]);
-    expect(rows[0].textContent).toContain("T-07");
-    expect(rows[1].textContent).toContain("T-03");
+    expect(container.querySelector(".queue-row")?.textContent).not.toContain("T-07");
   });
 
   it("a patient already seen keeps a number", () => {
