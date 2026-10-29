@@ -37,7 +37,7 @@ Spec: `docs/superpowers/specs/2026-10-29-opd-queue-presence-design.md`.
 | `server/src/opd/opd.service.spec.ts`, `server/test/opd-queue.int-spec.ts` (modify) | refusals; database behaviour |
 | `client/src/lib/opdPresence.ts` (create) + test | pure: status, row colour, clock text, counts |
 | `client/src/lib/api.ts`, `client/src/hooks/useOpd.ts` (modify) | types, `setPresence`, optimistic hook |
-| `client/src/components/opd/PatientAvatar.tsx` (create) + test | photo or silhouette |
+| `client/src/components/opd/PatientAvatar.tsx` (create) + test | photo or the app's placeholder |
 | `client/src/components/tabs/OpdView.tsx` (modify) + tests | the row and the cards |
 | docs (modify) | API.md, both CLAUDE.md, DOMAIN.md |
 
@@ -726,122 +726,16 @@ git commit -m "feat(opd): client types and an optimistic presence hook"
 
 ---
 
-### Task 6: `PatientAvatar` — the photo or a silhouette
+### Task 6: `PatientAvatar` — the photo or the app's own placeholder
 
 **Files:**
 - Create: `client/src/components/opd/PatientAvatar.tsx`, `client/src/components/opd/PatientAvatar.test.tsx`
 
 **Interfaces:**
 - Consumes: `normaliseSex(x): "Male" | "Female" | "Other" | ""` from `@/lib/sex` (it returns `""` for an unknown value — check its exact return values first and match them).
-- Produces: `<PatientAvatar url={string | null | undefined} sex={string | null} name={string} size?: number />`. A picture that fails to load falls back to the silhouette.
+- Produces: `<PatientAvatar url={string | null | undefined} sex={string | null} name={string} size?: number />`. A picture that fails to load falls back to the placeholder.
 
-No new silhouettes are drawn: it uses the app's existing placeholder (`photoPlaceholder` + `Icon`, as in the prescription header). As built, the test asserts the icon via `data-icon` (`male` / `female` / `user`) instead of `data-silhouette`.
-
-- [ ] **Step 1: Failing test** `PatientAvatar.test.tsx`:
-
-```tsx
-// @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
-import PatientAvatar from "./PatientAvatar";
-
-afterEach(cleanup);
-
-describe("PatientAvatar", () => {
-  it("shows the stored picture when there is one", () => {
-    const { container } = render(<PatientAvatar url="https://example.test/a.jpg" sex="Male" name="mr test 5" />);
-    expect(container.querySelector("img")?.getAttribute("src")).toBe("https://example.test/a.jpg");
-  });
-
-  it("without a picture, draws the silhouette for the sex", () => {
-    for (const [sex, kind] of [["Male", "male"], ["Female", "female"], ["", "neutral"], [null, "neutral"], ["Other", "neutral"]] as const) {
-      const { container, unmount } = render(<PatientAvatar url={null} sex={sex} name="x" />);
-      expect(container.querySelector("img")).toBeNull();
-      expect(container.querySelector("svg")?.getAttribute("data-silhouette")).toBe(kind);
-      unmount();
-    }
-  });
-
-  it("a picture that cannot be loaded falls back to the silhouette", () => {
-    const { container } = render(<PatientAvatar url="https://example.test/gone.jpg" sex="Female" name="x" />);
-    fireEvent.error(container.querySelector("img") as HTMLImageElement);
-    expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector("svg")?.getAttribute("data-silhouette")).toBe("female");
-  });
-
-  it("is named for a screen reader by the patient", () => {
-    const { getByRole } = render(<PatientAvatar url={null} sex="Male" name="mr test 5" />);
-    expect(getByRole("img", { name: "Photo of mr test 5" })).toBeTruthy();
-  });
-});
-```
-
-- [ ] **Step 2: Run to see it fail.** Run: `cd client && npx vitest run src/components/opd/PatientAvatar.test.tsx` — Expected: FAIL (module missing).
-
-- [ ] **Step 3: Implement** `PatientAvatar.tsx`:
-
-```tsx
-"use client";
-
-import { useState } from "react";
-import { C } from "@/theme";
-import { normaliseSex } from "@/lib/sex";
-
-// The patient's picture, or the silhouette for their sex (physician's sheet,
-// 29/10/2026): a ring with a head and shoulders — the woman with a bob — in a
-// quiet grey. Drawn here, so no file or network is needed; a picture that does
-// not load falls back to it rather than a broken-image box.
-type Kind = "male" | "female" | "neutral";
-
-const kindOf = (sex: string | null | undefined): Kind => {
-  const s = normaliseSex(sex ?? "");
-  return s === "Male" ? "male" : s === "Female" ? "female" : "neutral";
-};
-
-function Silhouette({ kind, size }: { kind: Kind; size: number }) {
-  const body = C.n[300];
-  return (
-    <svg data-silhouette={kind} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-      <defs><clipPath id={`av-${kind}`}><circle cx="32" cy="32" r="29" /></clipPath></defs>
-      <circle cx="32" cy="32" r="29.5" fill={C.n[0]} stroke={body} strokeWidth="2" />
-      <g clipPath={`url(#av-${kind})`} fill={body}>
-        <path d="M6 64c1-12 9-17 18-19l8 3 8-3c9 2 17 7 18 19z" />
-        {kind === "female"
-          ? <path d="M21 26c0-8 4-13 11-13s11 5 11 13l3 13-7-3-3-6h-8l-3 6-7 3z" />
-          : <ellipse cx="32" cy="27" rx="9" ry="11" />}
-        {kind === "neutral" && <rect x="28" y="36" width="8" height="10" rx="3" />}
-      </g>
-    </svg>
-  );
-}
-
-export default function PatientAvatar({ url, sex, name, size = 34 }: {
-  url?: string | null; sex?: string | null; name: string; size?: number;
-}) {
-  const [broken, setBroken] = useState<string | null>(null);
-  const showPicture = !!url && broken !== url;
-  return (
-    <span role="img" aria-label={`Photo of ${name}`}
-      style={{ width: size, height: size, borderRadius: "50%", overflow: "hidden", display: "inline-flex", flexShrink: 0 }}>
-      {showPicture
-        ? <img src={url as string} alt="" width={size} height={size} onError={() => setBroken(url as string)}
-            style={{ width: size, height: size, objectFit: "cover", display: "block" }} />
-        : <Silhouette kind={kindOf(sex)} size={size} />}
-    </span>
-  );
-}
-```
-
-(`clipPath` ids repeat per row; identical definitions, so harmless.)
-
-- [ ] **Step 4: Run to verify it passes.** Run: `cd client && npx vitest run src/components/opd/PatientAvatar.test.tsx` — Expected: PASS (4 tests). If `normaliseSex` returns other strings than `"Male"`/`"Female"`, adjust `kindOf` to them (read `client/src/lib/sex.ts`).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add client/src/components/opd/PatientAvatar.tsx client/src/components/opd/PatientAvatar.test.tsx
-git commit -m "feat(opd): a patient's photo, or a silhouette for their sex"
-```
+**As built (29/10/2026) — the first draft of this task drew its own SVG silhouettes; that design was dropped and its test and implementation code are removed from this plan so nobody rebuilds it.** The component uses the app's existing placeholder (`photoPlaceholder(sex)` from `@/lib/sex` + `Icon`, as in the prescription header), and its test asserts the icon through `data-icon` (`male` / `female` / `user`). Read `client/src/components/opd/PatientAvatar.tsx` and `PatientAvatar.test.tsx` for the real thing.
 
 ---
 
@@ -1105,7 +999,7 @@ git commit -m "docs(opd): presence, urgency and status"
 
 ## Self-review
 
-**Spec coverage:** row layout (Task 7), photo/silhouette (6), three checkboxes + colours + time (3, 4, 7), status table incl. later-wins and the "ptDate" guard (2, 4), cards (4, 7), columns + SQL (1), route + DTO + today-only + docs/API.md (3), tests listed in the spec (2, 3, 4, 6, 7, 8), CLAUDE.md/DOMAIN updates (8). Unchanged items (Prescribe/Done, calendar, schedule, add-by-number) are not touched.
+**Spec coverage:** row layout (Task 7), photo/placeholder (6), three checkboxes + colours + time (3, 4, 7), status table incl. later-wins and the "ptDate" guard (2, 4), cards (4, 7), columns + SQL (1), route + DTO + today-only + docs/API.md (3), tests listed in the spec (2, 3, 4, 6, 7, 8), CLAUDE.md/DOMAIN updates (8). Unchanged items (Prescribe/Done, calendar, schedule, add-by-number) are not touched.
 
 **Gaps/deviations flagged:** (1) the spec's "Completed = unchanged" would disagree with a row reading "Completed" after Save & print; Task 4 counts Completed by what rows say — to confirm with the physician. (2) The spec's open question (which fields) is resolved as "all text fields except medicines/investigations" per the physician's "any data entry", in one named constant. (3) A draft not dated today shows no stage (not in the spec; chosen so a visit parked yesterday never reads "History taken").
 

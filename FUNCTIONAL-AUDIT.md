@@ -1312,3 +1312,12 @@ Open:
 - [ ] **A past day's "Not marked seen"** is shown for a patient who was queued and never marked Done; nothing was ever recorded for them beyond that.
 - [x] **Browser journey:** `e2e/tests/opd-queue-day.spec.ts` (calendar → later day → schedule → three patients → order → reload → empty today → locked past day) passed in Chromium against the throwaway database. Only Chromium was run.
 
+### OPD queue: presence, urgency and status (29/10/2026) - open for the physician
+
+- [ ] **Which editor fields make "History taken".** Built as every text field of the editor except medicines and investigations (physician: "Chief complaints or any data entry"), in ONE constant, `HISTORY_FIELDS` in `server/src/opd/pad-stage.ts` (`PENDING_FIELDS` is `investigation`; a medicine on the pad also makes "Prescription pending"). The physician to confirm the list.
+- [ ] **The "Completed" card changed meaning.** It counted visits marked Done; it now counts Done OR a printed prescription. "Waiting" now means present and not completed (it counted visits whose status was waiting). Both follow the status column, to be confirmed.
+- [ ] **A Done visit shows "Completed" and the "done" pill** - the same thing twice. Left as is.
+- [ ] **SMS to every patient of a day and Print Queue** (same sheet) are the next specs; neither is built.
+- [ ] **`manual-opd-presence.sql` is NOT applied to the shared database** and must be applied before the release (three columns the queue reads).
+- [ ] **A flaky pair in `server/test/opd-queue.int-spec.ts`** ('rows an older build wrote with no place', 'a patient added after such rows') seeds rows at now minus one hour, so it fails when run within the first hour after Dhaka midnight. It pre-dates this feature and is not fixed here; a test whose outcome varies is a defect to fix on its own.
+- [ ] **Not run:** Safari, and a supervised patient's stage in a browser (server logic is covered by unit and integration tests).
