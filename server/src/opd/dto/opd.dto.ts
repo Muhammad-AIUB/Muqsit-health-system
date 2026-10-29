@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Matches, Max, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min, MinLength } from 'class-validator';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -55,4 +55,12 @@ export class SetRxStatusDto {
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(150) age?: number;
   @IsOptional() @IsString() gender?: string;
+}
+
+// Reception's marks on one visit. Each field is optional and changes only itself;
+// `present: true` records the time, `present: false` clears it.
+export class SetOpdPresenceDto {
+  @IsOptional() @IsBoolean() present?: boolean;
+  @IsOptional() @IsBoolean() criticallyIll?: boolean;
+  @IsOptional() @IsBoolean() urgent?: boolean;
 }

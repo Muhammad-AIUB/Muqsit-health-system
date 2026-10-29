@@ -14,6 +14,7 @@ import {
   CreateOpdVisitDto,
   MoveOpdVisitDto,
   SaveOpdScheduleDto,
+  SetOpdPresenceDto,
   SetRxStatusDto,
   UpdateOpdStatusDto,
 } from './dto/opd.dto';
@@ -62,6 +63,16 @@ export class OpdController {
     @Body() dto: UpdateOpdStatusDto,
   ) {
     return this.opd.setStatus(doctorId, id, dto);
+  }
+
+  // Reception's marks: present (with the time), critically ill, urgent. Today only.
+  @Patch(':id/presence')
+  setPresence(
+    @WorkstationDoctorId() doctorId: string,
+    @Param('id') id: string,
+    @Body() dto: SetOpdPresenceDto,
+  ) {
+    return this.opd.setPresence(doctorId, id, dto);
   }
 
   // Move a visit one place up or down within its day; answers that day's queue.

@@ -1,7 +1,7 @@
 import type { OpdVisit, User } from '@prisma/client';
 import { dhakaDayKey } from '../src/opd/dhaka-day';
 import { createTestApp, TestApp } from './support/app';
-import { loginAs, makeAssistantLink, makeDoctor, makePatient } from './support/fixtures';
+import { loginAs, makeAssistantLink, makeDoctor, makePatient, makeSupervisor } from './support/fixtures';
 import { WS } from './support/fixtures-clinical';
 import { resetDb } from './support/test-db';
 
@@ -362,6 +362,72 @@ describe('OPD queue by day', () => {
       const { browser: other } = await setup();
       await putSchedule(browser, LATER, { startTime: '15:00' });
       expect((await getSchedule(other, LATER)).body).toMatchObject({ startTime: '18:00', saved: false });
+    });
+  });
+
+  describe('presence', () => {
+    it('ticks Present with the server time, keeps it, and clears it', async () => {
+      const { browser } = await setup();
+      const v = (await add(browser, 'Present One')).body as OpdVisit;
+      const on = await browser.patch(`/api/opd/${v.id}/presence`).send({ present: true });
+      expect(on.status).toBe(200);
+      expect(on.body.presentAt).toEqual(expect.any(String));
+      const again = await browser.patch(`/api/opd/${v.id}/presence`).send({ present: true });
+      expect(again.body.presentAt).toBe(on.body.presentAt);
+      const off = await browser.patch(`/api/opd/${v.id}/presence`).send({ present: false });
+      expect(off.body.presentAt).toBeNull();
+    });
+
+    it('the two flags are independent of Present and of each other', async () => {
+      const { browser } = await setup();
+      const v = (await add(browser, 'Flags')).body as OpdVisit;
+      await browser.patch(`/api/opd/${v.id}/presence`).send({ urgent: true });
+      const row = (await list(browser))[0] as OpdVisit;
+      expect([row.urgent, row.criticallyIll, row.presentAt]).toEqual([true, false, null]);
+    });
+
+    it("refuses a later day and a past day, and another doctor's visit", async () => {
+      const { doctor, browser } = await setup();
+      const later = (await add(browser, 'Later', LATER)).body as OpdVisit;
+      const past = await pastVisit(doctor, 'Past');
+      expect((await browser.patch(`/api/opd/${later.id}/presence`).send({ present: true })).status).toBe(400);
+      expect((await browser.patch(`/api/opd/${past.id}/presence`).send({ present: true })).status).toBe(400);
+      const other = await setup();
+      const mine = (await add(browser, 'Mine')).body as OpdVisit;
+      expect((await other.browser.patch(`/api/opd/${mine.id}/presence`).send({ urgent: true })).status).toBe(404);
+    });
+
+    it('a field that is not on the DTO is dropped, and a non-boolean is refused', async () => {
+      const { browser } = await setup();
+      const v = (await add(browser, 'Dto')).body as OpdVisit;
+      expect((await browser.patch(`/api/opd/${v.id}/presence`).send({ urgent: 'yes' })).status).toBe(400);
+    });
+  });
+
+  describe('the row carries the picture and how far the parked visit has got', () => {
+    it("reads the owner's parked visit, and only today's", async () => {
+      const { doctor, browser } = await setup();
+      const p = await makePatient(t.prisma, doctor.id, { pictureUrl: 'https://example.test/p.jpg' });
+      await add(browser, 'With Draft', undefined, p.id);
+      await t.prisma.patient.update({ where: { id: p.id }, data: { incompleteRx: { ptDate: TODAY, chiefComplaints: ['fever'] } } });
+      let row = (await list(browser))[0] as OpdVisit & { pictureUrl: string | null; padStage: string | null };
+      expect([row.pictureUrl, row.padStage]).toEqual(['https://example.test/p.jpg', 'history']);
+      await t.prisma.patient.update({ where: { id: p.id }, data: { incompleteRx: { ptDate: YESTERDAY, chiefComplaints: ['fever'] } } });
+      row = (await list(browser))[0] as typeof row;
+      expect(row.padStage).toBeNull();
+    });
+
+    it("never shows the owner's draft to a supervising practice", async () => {
+      const owner = await makeDoctor(t.prisma);
+      const supervisor = await setup();
+      const p = await makePatient(t.prisma, owner.id);
+      await t.prisma.patient.update({ where: { id: p.id }, data: { incompleteRx: { ptDate: TODAY, rxItems: [{ drug: 'Napa' }] } } });
+      await makeSupervisor(t.prisma, p.id, supervisor.doctor.id);
+      await add(supervisor.browser, 'Supervised', undefined, p.id);
+      const row = (await list(supervisor.browser))[0] as OpdVisit & { padStage: string | null };
+      expect(row.padStage).toBeNull();
+      await t.prisma.supervisedDraft.create({ data: { doctorId: supervisor.doctor.id, patientId: p.id, data: { ptDate: TODAY, chiefComplaints: ['cough'] } } });
+      expect(((await list(supervisor.browser))[0] as typeof row).padStage).toBe('history');
     });
   });
 });

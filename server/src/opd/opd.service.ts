@@ -7,15 +7,22 @@ import {
   CreateOpdVisitDto,
   MoveOpdVisitDto,
   SaveOpdScheduleDto,
+  SetOpdPresenceDto,
   SetRxStatusDto,
   UpdateOpdStatusDto,
 } from './dto/opd.dto';
+import { padStage, PadStage } from './pad-stage';
 import { planMove, renumber } from './queue-order';
 import { DEFAULT_OPD_SCHEDULE, OpdSchedule, scheduleProblem } from './schedule';
 
 const NOT_A_DAY = 'That is not a day on the calendar.';
 const PAST_DAY = 'A day that has passed cannot be changed.';
 const TODAY_ONLY = "Only today's queue can be marked seen.";
+const PRESENCE_TODAY_ONLY = "Only today's queue can be marked present.";
+
+// A queue row as the doctor's screen reads it: the visit, the patient's picture,
+// and how far the parked visit has got (never the draft itself).
+export type OpdVisitRow = OpdVisit & { pictureUrl: string | null; padStage: PadStage };
 
 // One day's queue in the order shown: by place, then arrival. A row an older
 // build wrote with no place comes last, in the order it arrived.
@@ -57,9 +64,45 @@ export class OpdService {
   }
 
   // A day's queue for this doctor, in the order shown (default: today).
-  async list(doctorId: string, day: string = dhakaDayKey()): Promise<OpdVisit[]> {
+  async list(doctorId: string, day: string = dhakaDayKey()): Promise<OpdVisitRow[]> {
     this.requireDay(day);
-    return this.prisma.opdVisit.findMany({ where: this.dayWhere(doctorId, day), orderBy: DISPLAY_ORDER });
+    const rows = await this.prisma.opdVisit.findMany({ where: this.dayWhere(doctorId, day), orderBy: DISPLAY_ORDER });
+    return this.decorate(this.prisma, doctorId, rows);
+  }
+
+  // ⚕️ The patient's picture and how far THIS practice's parked visit has got.
+  // The draft read is this practice's own: the owner's `incompleteRx` when the
+  // patient is theirs, else this doctor's own `SupervisedDraft` — never another
+  // practice's (server/CLAUDE.md, Rule 2). A missing SupervisedDraft table costs
+  // only the stage, never the queue.
+  private async decorate(
+    db: Pick<Prisma.TransactionClient, 'patient' | 'supervisedDraft'>,
+    doctorId: string,
+    rows: OpdVisit[],
+  ): Promise<OpdVisitRow[]> {
+    const ids = [...new Set(rows.map((r) => r.patientId).filter((id): id is string => !!id))];
+    if (ids.length === 0) return rows.map((r) => ({ ...r, pictureUrl: null, padStage: null }));
+    const patients = await db.patient.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, doctorId: true, pictureUrl: true, incompleteRx: true },
+    });
+    let supervised: { patientId: string; data: Prisma.JsonValue }[] = [];
+    try {
+      supervised = await db.supervisedDraft.findMany({
+        where: { doctorId, patientId: { in: ids } },
+        select: { patientId: true, data: true },
+      });
+    } catch {
+      supervised = [];
+    }
+    const byId = new Map(patients.map((p) => [p.id, p]));
+    const draftOf = new Map(supervised.map((s) => [s.patientId, s.data]));
+    const today = dhakaDayKey();
+    return rows.map((r) => {
+      const p = r.patientId ? byId.get(r.patientId) : undefined;
+      const draft = p ? (p.doctorId === doctorId ? p.incompleteRx : draftOf.get(p.id)) : null;
+      return { ...r, pictureUrl: p?.pictureUrl ?? null, padStage: padStage(draft, today) };
+    });
   }
 
   private dayRows(tx: Prisma.TransactionClient, doctorId: string, day: string): Promise<OpdVisit[]> {
@@ -191,13 +234,13 @@ export class OpdService {
 
   // Move a patient one place up or down in their day, under the queue's lock.
   // Answers the day's queue as it now stands.
-  async move(doctorId: string, id: string, dto: MoveOpdVisitDto): Promise<OpdVisit[]> {
+  async move(doctorId: string, id: string, dto: MoveOpdVisitDto): Promise<OpdVisitRow[]> {
     const visit = await this.prisma.opdVisit.findFirst({ where: { id, doctorId } });
     if (!visit) throw new NotFoundException('Visit not found');
     const day = this.visitDay(visit);
     if (day < dhakaDayKey()) throw new BadRequestException(PAST_DAY);
 
-    return this.prisma.$transaction(async (tx) => {
+    const moved = await this.prisma.$transaction(async (tx) => {
       await this.lockQueue(tx, doctorId);
       const rows = await this.dayRows(tx, doctorId, day);
       const plan = planMove(rows, id, dto.direction);
@@ -211,6 +254,23 @@ export class OpdService {
       }
       return this.dayRows(tx, doctorId, day);
     }, ROW_LOCK_TX);
+    return this.decorate(this.prisma, doctorId, moved);
+  }
+
+  // ⚕️ Reception's marks. Today's queue only: a later day's patient has not
+  // arrived, and a day that has passed keeps what it holds. Each field changes
+  // only itself; `present` records the SERVER's time once (pressed again it keeps
+  // the first time) and clears it when taken off.
+  async setPresence(doctorId: string, id: string, dto: SetOpdPresenceDto): Promise<OpdVisit> {
+    const visit = await this.prisma.opdVisit.findFirst({ where: { id, doctorId } });
+    if (!visit) throw new NotFoundException('Visit not found');
+    if (this.visitDay(visit) !== dhakaDayKey()) throw new BadRequestException(PRESENCE_TODAY_ONLY);
+    const data: Prisma.OpdVisitUpdateInput = {};
+    if (dto.present === true && !visit.presentAt) data.presentAt = new Date();
+    if (dto.present === false) data.presentAt = null;
+    if (dto.criticallyIll !== undefined) data.criticallyIll = dto.criticallyIll;
+    if (dto.urgent !== undefined) data.urgent = dto.urgent;
+    return this.prisma.opdVisit.update({ where: { id }, data });
   }
 
   // A day's schedule: its own if it has one, else the latest earlier day's, else

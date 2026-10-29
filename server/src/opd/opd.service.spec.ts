@@ -13,6 +13,8 @@ function build() {
     $transaction: jest.fn(),
     opdVisit: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     opdDaySetting: { findUnique: jest.fn(), findFirst: jest.fn(), upsert: jest.fn() },
+    patient: { findMany: jest.fn().mockResolvedValue([]) },
+    supervisedDraft: { findMany: jest.fn().mockResolvedValue([]) },
   };
   return { prisma, service: new OpdService(prisma as never) };
 }
@@ -126,6 +128,46 @@ describe('OpdService — what a day may be asked to do', () => {
       const { prisma, service } = build();
       await expect(service.saveSchedule('doc', { ...good, date: '2026-02-30' })).rejects.toThrow(/not a day/i);
       nothingWritten(prisma);
+    });
+  });
+
+  describe('setPresence', () => {
+    it("refuses a visit that is not this doctor's, before writing", async () => {
+      const { prisma, service } = build();
+      prisma.opdVisit.findFirst.mockResolvedValue(null);
+      await expect(service.setPresence('doc', 'v1', { present: true })).rejects.toThrow(/not found/i);
+      expect(prisma.opdVisit.update).not.toHaveBeenCalled();
+    });
+
+    it("refuses any day but today's, before writing", async () => {
+      for (const queueDate of ['2026-10-27', '2026-10-29']) {
+        const { prisma, service } = build();
+        prisma.opdVisit.findFirst.mockResolvedValue({ id: 'v1', queueDate, createdAt: new Date(), presentAt: null });
+        await expect(service.setPresence('doc', 'v1', { present: true })).rejects.toThrow(/today/i);
+        expect(prisma.opdVisit.update).not.toHaveBeenCalled();
+      }
+    });
+
+    it('records the server time on present and keeps the first time when pressed again', async () => {
+      const { prisma, service } = build();
+      prisma.opdVisit.findFirst.mockResolvedValue({ id: 'v1', queueDate: '2026-10-28', createdAt: new Date(), presentAt: null });
+      prisma.opdVisit.update.mockImplementation(async ({ data }: { data: object }) => data);
+      const first = (await service.setPresence('doc', 'v1', { present: true })) as unknown as { presentAt: Date };
+      expect(first.presentAt.toISOString()).toBe('2026-10-28T10:00:00.000Z');
+
+      const earlier = new Date('2026-10-28T09:00:00Z');
+      prisma.opdVisit.findFirst.mockResolvedValue({ id: 'v1', queueDate: '2026-10-28', createdAt: new Date(), presentAt: earlier });
+      prisma.opdVisit.update.mockClear();
+      await service.setPresence('doc', 'v1', { present: true });
+      expect(prisma.opdVisit.update.mock.calls[0][0].data).not.toHaveProperty('presentAt');
+    });
+
+    it('clears the time on present:false and changes only the fields sent', async () => {
+      const { prisma, service } = build();
+      prisma.opdVisit.findFirst.mockResolvedValue({ id: 'v1', queueDate: '2026-10-28', createdAt: new Date(), presentAt: new Date() });
+      prisma.opdVisit.update.mockImplementation(async ({ data }: { data: object }) => data);
+      expect(await service.setPresence('doc', 'v1', { present: false })).toEqual({ presentAt: null });
+      expect(await service.setPresence('doc', 'v1', { urgent: true })).toEqual({ urgent: true });
     });
   });
 });
