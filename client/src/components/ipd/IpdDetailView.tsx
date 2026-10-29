@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { C, font } from "@/theme";
 import { btnSecondary, btnPrimary, btnDisabled } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
@@ -19,6 +19,32 @@ import { useWards } from "@/hooks/useWards";
 import { ApiError, type IpdClinical, type IpdFollowUp, type IpdFollowUpEntry } from "@/lib/api";
 import Icon from "@/components/common/Icon";
 import { dayMonthYear, stamp } from "@/lib/stamp";
+import { tell } from "@/lib/dialogs";
+import { notSavedBody, whyNotSaved, type SaveNotice, type SaveNoticeKind } from "@/lib/saveNotice";
+import SaveNoticeLine from "@/components/prescription/SaveNoticeLine";
+
+// ⚕️ What the two Saves say (20/10/2026) — the OPD Save buttons' rule
+// (lib/saveNotice.ts): a save that did not happen is a box the doctor has to
+// read, in their words. Until then the line beside Save said "Save failed" with
+// no reason for 2.5 s, its colour was picked by comparing its text with
+// "Saved!", and a refusal was a red line that went after 8 s.
+const NOT_SAVED = "The changes to this admission were not saved.";
+const UNWRITABLE =
+  "Not saved: a line on the Prescription has no medicine name (marked in red there). Type the name — for a >>> line, on the line above it — or remove the line. Nothing typed here is lost.";
+// The sheet went (Back to ward, another tab) while the save was on its way, and
+// what was typed on it went with it: "still here" would not be true.
+const CLOSED_BEFORE_ANSWER =
+  "The sheet was closed before the answer came, so the changes are no longer on the screen. Open the admission and enter them again.";
+
+// What is left in the follow-up boxes once a save of `sent` has landed: a box
+// as it was sent is emptied, one typed in since keeps what it holds.
+const draftAfterSave = (now: IpdFollowUp, sent: IpdFollowUp): IpdFollowUp => {
+  const left: IpdFollowUp = {};
+  for (const k of Object.keys(now) as (keyof IpdFollowUp)[]) {
+    if (now[k] !== sent[k]) left[k] = now[k];
+  }
+  return left;
+};
 
 // `9 Oct 2026` and `9 Oct 2026 · 17:04` — written out in lib/stamp.ts, so the
 // admission date and the entries under it read the same way on every machine.
@@ -151,7 +177,24 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   };
   const view = IPD_VIEWS.find((v) => v.id === viewId) ?? NO_VIEW;
 
-  const [savedMsg, setSavedMsg] = useState("");
+  // The line beside Save, with its KIND (lib/saveNotice.ts). Each line takes
+  // ITSELF off after its time, and nothing else.
+  const [notice, setNotice] = useState<SaveNotice | null>(null);
+  const notify = useCallback((kind: SaveNoticeKind, text: string, ms: number) => {
+    const n: SaveNotice = { kind, text };
+    setNotice(n);
+    setTimeout(() => setNotice((now) => (now === n ? null : now)), ms);
+  }, []);
+  // One save at a time: the follow-up boxes keep their vitals until the answer,
+  // so a second press would send them again and log them twice — and
+  // `update.isPending` is a render late for a quick second press.
+  const savingRef = useRef(false);
+  // Whether the sheet is still on the screen when a save's answer comes.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const [eventMsg, setEventMsg] = useState("");
 
   // ⚕️ Live prescribing alerts for the order sheet — same rules and same
@@ -215,15 +258,31 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
     return clinical;
   };
 
-  const persist = async (clinical: IpdClinical) => {
-    // ⚕️ Never file the ward's prescription with a line the pad cannot write: a
-    // >>> dose with no medicine above it was saved under the medicine before
-    // (18/10/2026). The pad marks the line in red.
-    if (unwritableRows(rows).length > 0) {
-      setSavedMsg("Not saved: a line on the prescription has no medicine name (marked in red). Type the name — for a >>> line, on the line above it — or remove the line.");
-      setTimeout(() => setSavedMsg(""), 8000);
-      return;
-    }
+  // ⚕️ Never file the ward's prescription with a line the pad cannot write: a
+  // >>> dose with no medicine above it was saved under the medicine before
+  // (18/10/2026). The pad marks the line in red. Checked FIRST, before anything
+  // is sent or a follow-up box is touched: refused after the typed vitals were
+  // moved into the log, they showed there as recorded and were never sent
+  // (review, 18/10/2026). In a box — the Prescription may be hidden in the view
+  // the doctor is in, and a line beside Save may be out of sight.
+  const refuseUnwritable = () => {
+    if (unwritableRows(rows).length === 0) return false;
+    void tell({ title: NOT_SAVED, body: UNWRITABLE, tone: "danger" });
+    return true;
+  };
+
+  // Sends the whole sheet, with `entry` — the follow-up typed in the boxes —
+  // added to its log. ⚕️ The entry joins the log, and leaves its boxes, only
+  // once the server has it: moved there at the press, a save that failed left
+  // the vitals in the log looking recorded, to be lost with the sheet when it
+  // was closed (20/10/2026). The PATCH writes the admission in ONE transaction
+  // (`ipd.service.ts#update`), so a save that failed wrote nothing of it.
+  const persist = async (entry?: IpdFollowUpEntry) => {
+    if (refuseUnwritable()) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
+    const sentDraft = draft;
+    const sentFollowUps = entry ? [...followUps, entry] : followUps;
     try {
       await update.mutateAsync({
         id: admission.id,
@@ -235,43 +294,36 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
           // Only sent when it changed: an untouched admission must not have its
           // free-typed ward text overwritten by the server's ward-name sync.
           ...(wardId !== (admission.wardId ?? "") ? { wardId: wardId || null } : {}),
-          diagnosis: diagnosis.join(", "), clinical,
+          diagnosis: diagnosis.join(", "), clinical: buildClinical(sentFollowUps),
         },
       });
-      setSavedMsg("Saved!");
-    } catch {
-      setSavedMsg("Save failed");
+    } catch (e) {
+      console.error("[ipd] the admission was not saved:", e);
+      void tell({
+        title: NOT_SAVED,
+        body: mountedRef.current ? notSavedBody(e) : `${whyNotSaved(e)} ${CLOSED_BEFORE_ANSWER}`,
+        tone: "danger",
+      });
+      return;
+    } finally {
+      savingRef.current = false;
     }
-    setTimeout(() => setSavedMsg(""), 2500);
-  };
-
-  // ⚕️ Checked FIRST, before a follow-up entry is moved into the log or a box
-  // is emptied: refused afterwards, the typed vitals showed in the log as
-  // recorded and were never sent (review, 18/10/2026). Said where the doctor
-  // is — the Prescription may be hidden in the view they are in.
-  const refuseUnwritable = () => {
-    if (unwritableRows(rows).length === 0) return false;
-    setSavedMsg("Not saved: a line on the Prescription has no medicine name (marked in red there). Type the name — for a >>> line, on the line above it — or remove the line. Nothing typed here is lost.");
-    setTimeout(() => setSavedMsg(""), 8000);
-    return true;
+    if (entry) {
+      setFollowUps(sentFollowUps);
+      setDraft((now) => draftAfterSave(now, sentDraft));
+    }
+    notify("ok", "Saved!", 2500);
   };
 
   // Top "Save" — also commits a non-empty follow-up draft so it isn't lost.
   const save = () => {
-    if (refuseUnwritable()) return;
-    const next = draftHasValue ? [...followUps, { ...draft, ts: new Date().toISOString() }] : followUps;
-    if (draftHasValue) { setFollowUps(next); setDraft({}); }
-    void persist(buildClinical(next));
+    void persist(draftHasValue ? { ...draft, ts: new Date().toISOString() } : undefined);
   };
 
   // Follow-Up "Save" — append the current draft as a timestamped entry.
   const saveFollowUp = () => {
     if (!draftHasValue) return;
-    if (refuseUnwritable()) return;
-    const next = [...followUps, { ...draft, ts: new Date().toISOString() }];
-    setFollowUps(next);
-    setDraft({});
-    void persist(buildClinical(next));
+    void persist({ ...draft, ts: new Date().toISOString() });
   };
 
 
@@ -328,8 +380,6 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
             <button onClick={saveFollowUp} disabled={!draftHasValue || update.isPending} style={{ ...btnSave, ...(!draftHasValue || update.isPending ? btnDisabled : null) }}>Save follow up</button>
-            {/* A refusal is said here too — the header's message may be out of sight. */}
-            {savedMsg.startsWith("Not saved") && <span role="status" style={{ fontSize: 12, color: C.danger[800] }}>{savedMsg}</span>}
           </div>
         </div>
 
@@ -381,8 +431,9 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
       {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <button onClick={onBack} style={btnBack}><Icon name="arrowLeft" size={14} /> Back to ward</button>
-        <div style={{ flex: 1 }} />
-        {savedMsg && <span style={{ fontSize: 12, color: savedMsg === "Saved!" ? C.ok[600] : C.danger[800] }}>{savedMsg}</span>}
+        {/* The spacer holds the line, so the region — on the page from the
+            start, empty — moves nothing while it has nothing to say. */}
+        <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}><SaveNoticeLine notice={notice} gap={0} /></div>
         <button onClick={() => void save()} disabled={update.isPending} style={btnSave}>{update.isPending ? "Saving…" : "Save"}</button>
       </div>
 

@@ -58,6 +58,31 @@ export function notSavedBody(e: unknown): string {
   return why === SIGN_IN_AGAIN ? why : `${why} ${STILL_HERE}`;
 }
 
+// A lost answer (`sendAgain.ts`): the server answers the same prescription sent
+// again within half an hour with the one on record (REPEAT_WINDOW_MS,
+// server/src/prescriptions/repeat.ts — `saveNotice.test.ts` reads it there).
+export const MAY_BE_SAVED = "It may have reached the record all the same: if you press Save & print again within half an hour without changing anything, it will not be filed twice.";
+
+/**
+ * The box for a Save & print that did not come back saved. `answerLost`: some
+ * answer was lost on the way (`sendAgain.ts`), so the prescription may be on the
+ * record — "not saved" of a stored prescription is what made a doctor change a
+ * word and file the visit twice. Only text refused AS WRITTEN (400, 413) is
+ * known not to be there: no copy of it got past the server.
+ */
+export function rxNotSaved(e: unknown, answerLost: boolean): NoticeRequest {
+  const why = whyNotSaved(e);
+  if (!answerLost || why === SERVER_REFUSED_AS_WRITTEN) {
+    return { title: "The prescription was not saved.", body: notSavedBody(e), tone: "danger" };
+  }
+  return {
+    title: "The prescription may not have been saved.",
+    // Over the sign-in page there is nothing to press again, and nothing "still here".
+    body: why === SIGN_IN_AGAIN ? why : `${why} ${MAY_BE_SAVED} ${STILL_HERE}`,
+    tone: "danger",
+  };
+}
+
 const listed = (items: string[]) =>
   items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 

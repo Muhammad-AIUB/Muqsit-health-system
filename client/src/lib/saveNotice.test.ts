@@ -1,6 +1,8 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "./api";
-import { CHECK_CONNECTION, SERVER_COULD_NOT_SAVE, SERVER_REFUSED_AS_WRITTEN, SIGN_IN_AGAIN, STILL_HERE, historyNotUpdated, notSavedBody, whyNotSaved } from "./saveNotice";
+import { CHECK_CONNECTION, MAY_BE_SAVED, SERVER_COULD_NOT_SAVE, SERVER_REFUSED_AS_WRITTEN, SIGN_IN_AGAIN, STILL_HERE, historyNotUpdated, notSavedBody, rxNotSaved, whyNotSaved } from "./saveNotice";
 
 // ⚕️ What a doctor is told when Save & print or "Save to complete later" did
 // NOT reach the record. Two of these sentences used to end "Is the API
@@ -92,5 +94,62 @@ describe("historyNotUpdated", () => {
   it("when it cannot be known what was written, says so rather than naming any", () => {
     expect(historyNotUpdated(null).body)
       .toBe(`The patient's record may not have been brought up to date with this visit. ${SAVED}`);
+  });
+});
+
+// ⚕️ Save & print, with what the client knows about it. Every answer the server
+// gave itself says the prescription was NOT stored. A lost answer does not:
+// it may have been stored before the connection went (`sendAgain.ts`, which has
+// already sent it again a few times by then) — and a box that says "not saved"
+// of a stored prescription is what made the doctor change something and file
+// the visit twice.
+describe("rxNotSaved", () => {
+  const NOT_SAVED = "The prescription was not saved.";
+  const MAY_NOT = "The prescription may not have been saved.";
+
+  it("an answer of the server's own is \"not saved\", with the reason, as before", () => {
+    expect(rxNotSaved(new ApiError(500, "Internal server error"), false)).toEqual({
+      title: NOT_SAVED, body: `${SERVER_COULD_NOT_SAVE} ${STILL_HERE}`, tone: "danger",
+    });
+    expect(rxNotSaved(new ApiError(403, "You do not have permission to save prescriptions"), false).title).toBe(NOT_SAVED);
+  });
+
+  it("an answer that was lost says it may have been saved, and how to press again without filing it twice", () => {
+    expect(rxNotSaved(new TypeError("Failed to fetch"), true)).toEqual({
+      title: MAY_NOT,
+      body: `${CHECK_CONNECTION} ${MAY_BE_SAVED} ${STILL_HERE}`,
+      tone: "danger",
+    });
+    expect(rxNotSaved(new ApiError(504, "Request failed (504)"), true).body)
+      .toBe(`${SERVER_COULD_NOT_SAVE} ${MAY_BE_SAVED} ${STILL_HERE}`);
+    expect(MAY_BE_SAVED).toBe("It may have reached the record all the same: if you press Save & print again within half an hour without changing anything, it will not be filed twice.");
+  });
+
+  // An earlier answer was lost, and the last one is the server's own: what was
+  // stored before the connection went is still not known — except where the
+  // very same text was refused as written, which no copy of it got past.
+  it("an earlier lost answer keeps it unknown — unless the same text was refused as written", () => {
+    expect(rxNotSaved(new ApiError(500, "Internal server error"), true).title).toBe(MAY_NOT);
+    expect(rxNotSaved(new ApiError(400, "note must be shorter"), true)).toEqual({
+      title: NOT_SAVED, body: `${SERVER_REFUSED_AS_WRITTEN} ${STILL_HERE}`, tone: "danger",
+    });
+    expect(rxNotSaved(new ApiError(413, "request entity too large"), true).title).toBe(NOT_SAVED);
+  });
+
+  // Over the sign-in page there is nothing to press again, and nothing "still here".
+  it("a 401 after a lost answer promises nothing about the editor", () => {
+    expect(rxNotSaved(new ApiError(401, "Unauthorized"), true)).toEqual({ title: MAY_NOT, body: SIGN_IN_AGAIN, tone: "danger" });
+  });
+
+  it("no sentence names the API, or asks the doctor to start anything", () => {
+    expect(MAY_BE_SAVED).not.toMatch(/\bAPI\b|running/i);
+  });
+
+  // "Within half an hour" is the server's window for answering the same
+  // prescription with the one on record. A sentence that outlives a change to
+  // that window would promise what the server no longer keeps.
+  it("\"half an hour\" is the server's own window for a repeat", () => {
+    const repeat = readFileSync(join(__dirname, "..", "..", "..", "server", "src", "prescriptions", "repeat.ts"), "utf8");
+    expect(repeat).toMatch(/export const REPEAT_WINDOW_MS = 30 \* 60 \* 1000;/);
   });
 });

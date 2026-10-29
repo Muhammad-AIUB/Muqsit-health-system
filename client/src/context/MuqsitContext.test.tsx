@@ -53,6 +53,8 @@ vi.mock("@/hooks/useDrugAdvice", () => ({ useDrugAdvice: () => ({ data: savedAdv
 import { MuqsitProvider, UNWRITABLE_PAD, useMuqsit } from "./MuqsitContext";
 import { drugKeyOf } from "@/lib/rxDrugAdvice";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
+import { splitDrugHistory } from "@/lib/drugHistorySplit";
+import { isoToDdmmyyyy } from "@/lib/dateInput";
 import type { RxItem } from "@/types";
 import type { Row } from "@/components/prescription/MedicinePad";
 
@@ -74,6 +76,15 @@ async function setup() {
   return r;
 }
 const tick = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+/** Save & print, with time let run for the quiet re-sends of a lost answer (`lib/sendAgain.ts`). */
+async function pressSave(result: { current: ReturnType<typeof useMuqsit> }): Promise<boolean> {
+  let done!: Promise<boolean>;
+  await act(async () => {
+    done = result.current.savePrescription();
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  return done;
+}
 const incompleteWrites = () => api.patientUpdate.mock.calls.filter(([, body]) => "incompleteRx" in (body as object));
 /** Every box raised so far, as it was asked for. */
 const told = () => (tell.mock.calls as unknown as [{ title: string; body?: string; tone?: string }][]).map(([r]) => r);
@@ -503,6 +514,153 @@ describe("a draft that arrives after the doctor opened a patient (G6)", () => {
     expect(result.current.currentPatientId).toBe("Y");
     expect(result.current.ptName).toBe("Patient Y");
     expect(result.current.chiefComplaints).toEqual([]);
+  });
+});
+
+// ⚕️ Independent review of ab18cf1 (19/10/2026), older than that change: G6
+// dropped a late draft only when the editor had been RESET while it was on its
+// way. Another device's state arriving through the mirror moves the editor on
+// too, and the draft was written over it — the patient that device had just
+// brought, its visit, its held ℞ lines, and its open Investigation box with a
+// result half typed (left open, now over the draft's patient).
+describe("a draft that arrives after another device's state (G6b)", () => {
+  const NAPA: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+1+1", instruction: "", duration: "5 days" };
+  /** What device B sends through the mirror, after it opened patient Y and did `work`. */
+  async function fromDeviceB(work: (s: ReturnType<typeof useMuqsit>) => unknown) {
+    const b = await setup();
+    act(() => b.result.current.loadPatient(patient({ id: "Y", name: "Patient Y", drugHistory: [] })));
+    await tick(1500);
+    await act(async () => { await work(b.result.current); await vi.advanceTimersByTimeAsync(50); });
+    const sent = JSON.parse(JSON.stringify(b.result.current.mirrorSnapshot)) as Record<string, unknown>;
+    b.unmount();
+    for (const f of [api.draftSave, api.patientUpdate, api.setRxStatus, api.patientGet]) f.mockClear();
+    return sent;
+  }
+  /** Device A reloading: its stored draft still on its way. */
+  async function reloading() {
+    const d = deferred<{ data: unknown }>();
+    api.draftGet.mockReturnValue(d.promise);
+    const a = await setup();
+    const draftArrives = (data: Record<string, unknown>) =>
+      act(async () => { d.resolve({ data }); await vi.advanceTimersByTimeAsync(50); });
+    return { ...a, draftArrives };
+  }
+  /** The stored draft: patient X, as this device left it before the reload. */
+  const DRAFT_X = { currentPatientId: "X", workstationId: "doc1", ptName: "Patient X", chiefComplaints: ["Fever"], rxItems: [], rxPadHeld: null };
+  /** Every write of this device about `pid`: the draft, the patient's record, the OPD queue. */
+  const wroteFor = (pid: string) => [
+    ...api.draftSave.mock.calls.filter(([s]) => (s as { currentPatientId?: unknown }).currentPatientId === pid),
+    ...api.patientUpdate.mock.calls.filter(([id]) => id === pid),
+    ...api.setRxStatus.mock.calls.filter(([o]) => (o as { patientId?: unknown }).patientId === pid),
+  ];
+
+  it("is dropped instead of replacing the patient that device brought", async () => {
+    const sent = await fromDeviceB((s) => {
+      s.setChiefComplaints(["Cough"]);
+      s.setRxItems([NAPA]);
+      s.setRxPadHeld(redPad());
+      s.setShowInvPopup(true);
+      s.setInvFormData({ Hb: "11" });
+    });
+    const a = await reloading();
+    act(() => a.result.current.applyMirrorSnapshot(sent));
+    await tick(400); // past the mirror's echo guard
+    await a.draftArrives(DRAFT_X);
+    await tick(3000);
+    const s = a.result.current;
+    expect(s.currentPatientId).toBe("Y");
+    expect(s.ptName).toBe("Patient Y");
+    expect(s.chiefComplaints).toEqual(["Cough"]);
+    expect(s.rxItems).toEqual([NAPA]);
+    expect(s.rxPadHeld).toEqual(redPad());
+    // The Investigation box stays Y's, with Y's half-typed result in it.
+    expect(s.showInvPopup).toBe(true);
+    expect(s.invFormData).toEqual({ Hb: "11" });
+    // …and nothing of the old draft is written from here.
+    expect(wroteFor("X")).toEqual([]);
+  });
+
+  it("is dropped when that state arrives while the draft's own patient is being fetched", async () => {
+    const sent = await fromDeviceB((s) => s.setChiefComplaints(["Cough"]));
+    const x = deferred<Patient>();
+    api.patientGet.mockImplementation((id: string) => (id === "X" ? x.promise : Promise.resolve(patient({ id, name: "Patient Y", drugHistory: [] }))));
+    const a = await reloading();
+    await a.draftArrives(DRAFT_X); // the draft is here; its patient is not yet
+    act(() => a.result.current.applyMirrorSnapshot(sent));
+    await act(async () => { x.resolve(patient()); await vi.advanceTimersByTimeAsync(50); });
+    expect(a.result.current.currentPatientId).toBe("Y");
+    expect(a.result.current.chiefComplaints).toEqual(["Cough"]);
+  });
+
+  // The same patient: the draft is that device's own earlier save of it, and
+  // put back it took back what was typed there since.
+  it("is dropped for the same patient too: what arrived is the newer", async () => {
+    const sent = await fromDeviceB((s) => s.setChiefComplaints(["Fever", "Cough"]));
+    const a = await reloading();
+    act(() => a.result.current.applyMirrorSnapshot(sent));
+    await tick(400);
+    await a.draftArrives({ ...DRAFT_X, currentPatientId: "Y", ptName: "Patient Y" });
+    expect(a.result.current.currentPatientId).toBe("Y");
+    expect(a.result.current.chiefComplaints).toEqual(["Fever", "Cough"]);
+  });
+
+  // No patient: device B saved its visit for later and its editor is empty. The
+  // draft, read before that, would put the visit back here — unprinted, parked
+  // again and flagged "Incomplete" from this device, while B shows nothing.
+  it("is dropped when that device's editor is empty — its visit saved for later", async () => {
+    const b = await setup();
+    act(() => b.result.current.loadPatient(patient({ id: "Y", name: "Patient Y", drugHistory: [] })));
+    await tick(1500);
+    act(() => b.result.current.setChiefComplaints(["Cough"]));
+    await tick(1500);
+    await act(async () => { await b.result.current.saveDraftNow(); });
+    await tick(50);
+    const cleared = JSON.parse(JSON.stringify(b.result.current.mirrorSnapshot)) as Record<string, unknown>;
+    b.unmount();
+    for (const f of [api.draftSave, api.patientUpdate, api.setRxStatus, api.patientGet]) f.mockClear();
+    expect(cleared.currentPatientId).toBeNull();
+    const a = await reloading();
+    act(() => a.result.current.applyMirrorSnapshot(cleared));
+    await tick(400);
+    await a.draftArrives({ ...DRAFT_X, currentPatientId: "Y", ptName: "Patient Y", chiefComplaints: ["Cough"] });
+    await tick(3000);
+    expect(a.result.current.currentPatientId).toBeNull();
+    expect(a.result.current.chiefComplaints).toEqual([]);
+    expect(wroteFor("Y")).toEqual([]);
+  });
+
+  it("a state refused as another practice's moves nothing on: the draft is restored", async () => {
+    const a = await reloading();
+    act(() => a.result.current.applyMirrorSnapshot({ workstationId: "W2", currentPatientId: "Q", chiefComplaints: ["Elsewhere"] }));
+    await tick(400);
+    await a.draftArrives(DRAFT_X);
+    expect(a.result.current.currentPatientId).toBe("X");
+    expect(a.result.current.chiefComplaints).toEqual(["Fever"]);
+  });
+
+  // G3 holds here as it does when the state arrives after the draft: what
+  // arrived is that device's to persist, until something is done on this one.
+  it("what arrived is not written from here until a local edit", async () => {
+    const sent = await fromDeviceB((s) => s.setChiefComplaints(["Cough"]));
+    const y = deferred<Patient>();
+    api.patientGet.mockImplementation((id: string) => (id === "Y" ? y.promise : Promise.resolve(patient({ id }))));
+    const a = await reloading();
+    act(() => a.result.current.applyMirrorSnapshot(sent));
+    await tick(400);
+    await a.draftArrives(DRAFT_X);
+    // Y's record lands after the draft, holding a line the state that arrived
+    // did not: a change here that nobody typed.
+    const later = "02/01/2026: Tablet. Seclo 20 mg — 1+0+0 — Before meal — 30 days";
+    await act(async () => { y.resolve(patient({ id: "Y", name: "Patient Y", drugHistory: [...STORED, later] })); await vi.advanceTimersByTimeAsync(50); });
+    expect(a.result.current.drugHistory).toContain(later);
+    await tick(3000);
+    expect(api.draftSave).not.toHaveBeenCalled();
+    expect(incompleteWrites()).toHaveLength(0);
+    expect(api.setRxStatus).not.toHaveBeenCalled();
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown")); });
+    act(() => a.result.current.setChiefComplaints(["Cough", "Fever"]));
+    await tick(1500);
+    expect(wroteFor("Y").length).toBeGreaterThan(0);
   });
 });
 
@@ -964,15 +1122,18 @@ describe("what the Save buttons say", () => {
     expect(tell).not.toHaveBeenCalled();
   });
 
-  it("a save that never reached the server is a box in the doctor's words — not the line, and never 'the API'", async () => {
+  // The client cannot tell a request that never left from one whose answer was
+  // lost after the server stored it: it sends the same request again a few
+  // times (`lib/sendAgain.ts`), and when no answer comes, says what it knows.
+  it("a save with no answer is sent again, then said in a box in the doctor's words — 'may not have been saved', never 'the API'", async () => {
     api.rxCreate.mockRejectedValue(new TypeError("Failed to fetch"));
     const { result } = await opened();
-    let ok = true;
-    await act(async () => { ok = await result.current.savePrescription(); });
+    const ok = await pressSave(result);
     expect(ok).toBe(false);
+    expect(api.rxCreate).toHaveBeenCalledTimes(4);
     expect(told()).toEqual([{
-      title: "The prescription was not saved.",
-      body: "Check your internet connection and try again. Everything you wrote is still here.",
+      title: "The prescription may not have been saved.",
+      body: "Check your internet connection and try again. It may have reached the record all the same: if you press Save & print again within half an hour without changing anything, it will not be filed twice. Everything you wrote is still here.",
       tone: "danger",
     }]);
     expect(result.current.savedMsg).toBeNull();
@@ -996,8 +1157,53 @@ describe("what the Save buttons say", () => {
     const { result } = await opened();
     await act(async () => { await result.current.savePrescription(); });
     expect(told()).toEqual([expect.objectContaining({
+      title: "The prescription was not saved.",
       body: "The server could not save it just now. Please try again in a moment. Everything you wrote is still here.",
     })]);
+    // An answer of the server's own says what happened: it is not sent again.
+    expect(api.rxCreate).toHaveBeenCalledTimes(1);
+  });
+
+  // ⚕️ A Save & print the server STORED, whose answer was lost on the way back,
+  // was said as "not saved" — the visit left "Incomplete" with a prescription on
+  // the record, and a doctor who changed a word before pressing again filed it
+  // twice. The very same request is sent again; the server answers it with the
+  // one on record (`repeat: true`, server/src/prescriptions/repeat.ts).
+  it("a save whose answer was lost is sent again — the very same request — and the one on record is taken as saved", async () => {
+    api.rxCreate
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(new ApiError(504, "Request failed (504)"))
+      .mockResolvedValueOnce({ id: "rx1", repeat: true });
+    const { result } = await opened();
+    let done!: Promise<boolean>;
+    act(() => { done = result.current.savePrescription(); });
+    await tick(1000 + 2000); // the first two waits of `sendAgain.ts`
+    expect(await done).toBe(true);
+    expect(api.rxCreate).toHaveBeenCalledTimes(3);
+    const [[first], [second], [third]] = api.rxCreate.mock.calls;
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+    expect(tell).not.toHaveBeenCalled();
+    expect(result.current.savedMsg).toEqual({ kind: "ok", text: "Prescription saved!" });
+    // …and the visit is complete, as for any saved prescription.
+    expect(api.patientUpdate).toHaveBeenCalledWith("X", { incompleteRx: null });
+    expect(api.setRxStatus).toHaveBeenCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "complete" }));
+  });
+
+  it("an answer lost on every try: pressed again, unchanged, it is the one on record — the visit completes once", async () => {
+    api.rxCreate.mockRejectedValue(new TypeError("Failed to fetch"));
+    const { result } = await opened();
+    expect(await pressSave(result)).toBe(false);
+    expect(told().map((t) => t.title)).toEqual(["The prescription may not have been saved."]);
+    expect(api.setRxStatus).not.toHaveBeenCalledWith(expect.objectContaining({ rxStatus: "complete" }));
+    const sent = api.rxCreate.mock.calls[0][0];
+    api.rxCreate.mockReset();
+    api.rxCreate.mockResolvedValue({ id: "rx1", repeat: true });
+    expect(await pressSave(result)).toBe(true);
+    expect(api.rxCreate).toHaveBeenCalledTimes(1);
+    expect(api.rxCreate.mock.calls[0][0]).toEqual(sent);
+    expect(told()).toHaveLength(1);
+    expect(api.setRxStatus).toHaveBeenCalledWith(expect.objectContaining({ patientId: "X", rxStatus: "complete" }));
   });
 
   // A throw AFTER the prescription was created used to reach the same catch and
@@ -1423,16 +1629,31 @@ describe("a printed visit and the next one", () => {
     expect(sig).not.toContain("Fever");
   });
 
-  it("a save whose answer was lost writes its audit lines when it is pressed again", async () => {
+  it("a save whose answer was lost writes its audit lines once, when its re-send is answered with the one on record", async () => {
     const { result } = await setup();
     act(() => result.current.loadPatient(patient()));
     await tick(50);
     act(() => result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", duration: "5 days", instruction: "", isCont: false, fromHabit: true }]));
     await tick(50);
-    api.rxCreate.mockRejectedValueOnce(new TypeError("Failed to fetch")); // stored, answer lost
-    await act(async () => { await result.current.savePrescription(); });
-    api.rxCreate.mockResolvedValueOnce({ repeat: true });
-    await act(async () => { await result.current.savePrescription(); });
+    api.rxCreate
+      .mockRejectedValueOnce(new TypeError("Failed to fetch")) // stored, answer lost
+      .mockResolvedValueOnce({ repeat: true }); // the re-send
+    expect(await pressSave(result)).toBe(true);
+    const habitLines = api.activityLog.mock.calls.filter(([e]) => (e as { section: string }).section === "Prescribing habits");
+    expect(habitLines).toHaveLength(1);
+  });
+
+  it("a save whose answer was lost on every try writes its audit lines when it is pressed again", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", duration: "5 days", instruction: "", isCont: false, fromHabit: true }]));
+    await tick(50);
+    api.rxCreate.mockRejectedValue(new TypeError("Failed to fetch")); // stored, every answer lost
+    expect(await pressSave(result)).toBe(false);
+    api.rxCreate.mockReset();
+    api.rxCreate.mockResolvedValue({ repeat: true });
+    expect(await pressSave(result)).toBe(true);
     const habitLines = api.activityLog.mock.calls.filter(([e]) => (e as { section: string }).section === "Prescribing habits");
     expect(habitLines).toHaveLength(1);
   });
@@ -1847,7 +2068,7 @@ describe("a printed visit and the next one", () => {
     expect(habitLines()).toHaveLength(1);
   });
 
-  it("a corrected re-print whose answer was lost writes its own audit lines when pressed again", async () => {
+  it("a corrected re-print whose answer was lost writes its own audit lines when its re-send is answered", async () => {
     const habitLines = () => api.activityLog.mock.calls.filter(([e]) => (e as { section: string }).section === "Prescribing habits");
     const { result } = await setup();
     act(() => result.current.loadPatient(patient()));
@@ -1858,10 +2079,10 @@ describe("a printed visit and the next one", () => {
     expect(habitLines()).toHaveLength(1);
     act(() => result.current.setRxItems([{ ...BEX, fromHabit: true }, { ...BEX, drug: "Tablet. Napa 500 mg", fromHabit: true }]));
     await tick(1500);
-    api.rxCreate.mockRejectedValueOnce(new TypeError("Failed to fetch")); // stored, answer lost
-    await act(async () => { await result.current.savePrescription(); });
-    api.rxCreate.mockResolvedValueOnce({ repeat: true });
-    await act(async () => { await result.current.savePrescription(); });
+    api.rxCreate
+      .mockRejectedValueOnce(new TypeError("Failed to fetch")) // stored, answer lost
+      .mockResolvedValueOnce({ repeat: true }); // the re-send
+    expect(await pressSave(result)).toBe(true);
     expect(habitLines()).toHaveLength(2);
   });
 
@@ -1891,3 +2112,89 @@ describe("a printed visit and the next one", () => {
   });
 });
 
+// ⚕️ Found by reading (20/10/2026), after the device mirror stopped moving a
+// PRINTED visit to today (6e4cbbf): does a page reload after midnight do what
+// the mirror did? The draft carries the print mark (5de1eef), so the visit is
+// not parked again. But the reload's `applyEditorSnapshot` still moves its date
+// to today, and the ℞ mirror then writes the printed medicine into Drug history
+// a second time, under today's date.
+describe("a printed visit reloaded after midnight", () => {
+  const napa: RxItem = { drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "", duration: "5 days" };
+  const printed = () => rxDrugHistoryEntries([napa], "17/10/2026");
+  /** Save & print at `at`, then reload at `reloadAt`, with the print on the record. */
+  const printThenReload = async (at: Date, reloadAt: Date, printedOn: string) => {
+    vi.setSystemTime(at);
+    const pt = patient({ drugHistory: [] });
+    api.patientGet.mockResolvedValue(pt);
+    const a = await setup();
+    act(() => a.result.current.loadPatient(pt));
+    await tick(50);
+    act(() => a.result.current.setRxItems([napa]));
+    await tick(10);
+    await act(async () => { await a.result.current.savePrescription(); });
+    await tick(1500); // the draft the auto-save writes after the print
+    const draft = api.draftSave.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(draft).toMatchObject({ rxCompletedPid: "X", rxPrintedOn: printedOn });
+    a.unmount();
+    vi.setSystemTime(reloadAt);
+    api.draftGet.mockResolvedValue({ data: draft });
+    api.patientGet.mockResolvedValue(patient({ drugHistory: rxDrugHistoryEntries([napa], isoToDdmmyyyy(printedOn)) }));
+    api.patientUpdate.mockClear();
+    api.setRxStatus.mockClear();
+    const b = await setup();
+    await tick(3000);
+    return b;
+  };
+  const sentDrugHistory = () => api.rxCreate.mock.calls.map(([d]) => (d as { drugHistory: string[] }).drugHistory);
+  const printAgain = async (b: Awaited<ReturnType<typeof setup>>) => {
+    await act(async () => { await b.result.current.savePrescription(); });
+    await tick(50);
+  };
+
+  it("is not parked again, nor put back to Incomplete", async () => {
+    const b = await printThenReload(new Date(2026, 9, 17, 23, 58), new Date(2026, 9, 18, 0, 5), "2026-10-17");
+    expect(b.result.current.currentPatientId).toBe("X");
+    expect(incompleteWrites()).toHaveLength(0);
+    expect(api.setRxStatus).not.toHaveBeenCalled();
+  });
+
+  // The same day: Save & print again sends what was printed, so the server can
+  // answer it with the prescription on record (repeat.ts compares every field).
+  it("on the same day, Save & print again sends exactly what was printed", async () => {
+    const b = await printThenReload(new Date(2026, 9, 17, 12), new Date(2026, 9, 17, 12, 7), "2026-10-17");
+    expect(b.result.current.ptDate).toBe("2026-10-17");
+    expect(b.result.current.drugHistory).toEqual(printed());
+    await printAgain(b);
+    expect(sentDrugHistory()).toEqual([printed(), printed()]);
+  });
+
+  // What a reload after midnight does today — written down beside the defect
+  // below, and expected to change with its fix.
+  it("after midnight, today: the date moves on and the printed medicine is in Drug history twice", async () => {
+    const b = await printThenReload(new Date(2026, 9, 17, 23, 58), new Date(2026, 9, 18, 0, 5), "2026-10-17");
+    const s = b.result.current;
+    expect(s.ptDate).toBe("2026-10-18");
+    const again = rxDrugHistoryEntries([napa], "18/10/2026");
+    expect(s.drugHistory).toEqual([...printed(), ...again]); // the printed line is kept (withoutBlocksIn), a copy is added
+    // Current medications: the visit on the pad reads as its own "previous visit".
+    const split = splitDrugHistory(s.drugHistory, "18/10/2026", again);
+    expect(split.previousDate).toBe("17/10/2026");
+    expect(split.current.map((r) => r.raw)).toEqual(printed());
+    // Save & print again, seven minutes after the print: not what was printed,
+    // so the server files a second prescription, and the record gets the copy.
+    await printAgain(b);
+    expect(sentDrugHistory()).toEqual([printed(), [...printed(), ...again]]);
+    expect(dhWrites().at(-1)).toEqual([...printed(), ...again]);
+  });
+
+  // DEFECT-RELOAD-MIDNIGHT: a printed, unchanged visit restored by a reload
+  // after midnight is no longer what was printed. Which fix is the physician's
+  // to choose (keep the visit's date as the device mirror does, or open the
+  // patient as a new visit on a later day); either way these hold.
+  it.fails("DEFECT-RELOAD-MIDNIGHT: after midnight, nothing printed is written again under another date", async () => {
+    const b = await printThenReload(new Date(2026, 9, 17, 23, 58), new Date(2026, 9, 18, 0, 5), "2026-10-17");
+    expect(b.result.current.drugHistory).toEqual(printed());
+    await printAgain(b);
+    for (const sent of sentDrugHistory().slice(1)) expect(sent).toEqual(printed());
+  });
+});

@@ -34,7 +34,8 @@ import { useDrugAdvice } from "@/hooks/useDrugAdvice";
 import { pruneHidden } from "@/lib/investigationHidden";
 import { PERM_KEY_OF_LABEL, ALWAYS_ALLOWED } from "@/lib/permissions";
 import { tell } from "@/lib/dialogs";
-import { historyNotUpdated, notSavedBody, whyNotSaved, type SaveNotice, type SaveNoticeKind } from "@/lib/saveNotice";
+import { historyNotUpdated, notSavedBody, rxNotSaved, whyNotSaved, type SaveNotice, type SaveNoticeKind } from "@/lib/saveNotice";
+import { sendUntilAnswered } from "@/lib/sendAgain";
 import type {
   Page,
   View,
@@ -400,7 +401,8 @@ function useMuqsitStore() {
   // them overwrites the stored record.
   const recordHydratedRef = useRef<string | null>(null);
   // Bumped whenever the editor is reset (patient opened / new / workstation
-  // switch), so the mount-time draft hydration can tell it is no longer wanted.
+  // switch) and whenever another device's state is applied to it (the device
+  // mirror), so the mount-time draft hydration can tell it is no longer wanted.
   const editorEpochRef = useRef(0);
   // Family members the doctor deliberately removed from this patient's tree, by
   // identity (`familyKey`), so the merge in `saveFamilyMembers` does not bring
@@ -479,6 +481,9 @@ function useMuqsitStore() {
       return false;
     }
     let ok = false;
+    // An answer of the create was lost on the way: the prescription MAY be on
+    // the record (`rxNotSaved`).
+    let answerLost = false;
     // What is SENT is what is printed (review, 19/10/2026): anything typed while
     // the save is on its way is not on the record, and is parked.
     const sentSig = visitSigRef.current;
@@ -529,7 +534,14 @@ function useMuqsitStore() {
         }
       }
 
-      const created = await prescriptionsApi.create({
+      // ⚕️ ONE request, built once and sent again AS IT IS while its answer is
+      // lost (`lib/sendAgain.ts`): the server answers the very same
+      // prescription with the one on record (server/src/prescriptions/
+      // repeat.ts), so a re-send never files the visit twice — the "not saved"
+      // said of a stored one did, once the doctor changed a word and pressed
+      // again. A re-send built afresh, with anything in it changed, would be a
+      // second prescription.
+      const sent: Parameters<typeof prescriptionsApi.create>[0] = {
         patientId: pid,
         chiefComplaints, previousComplaints, history, investigation, drugHistory, onExamination,
         note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
@@ -550,7 +562,8 @@ function useMuqsitStore() {
             return { ...r, drug: r.drug.trim() || lastDrug, order: i };
           });
         })(),
-      });
+      };
+      const created = await sendUntilAnswered(() => prescriptionsApi.create(sent), () => { answerLost = true; });
       notify("ok", "Prescription saved!", 3000);
       ok = true;
       // The server answered with the prescription already on record (the same
@@ -719,10 +732,11 @@ function useMuqsitStore() {
         console.error("[patient] after the prescription was saved:", e);
         tell(historyNotUpdated(null));
       } else {
-        // ⚕️ The visit is NOT on the record: a box the doctor has to read, never
-        // a line that goes after three seconds (Save & print closes its sheet).
+        // ⚕️ The visit did not come back saved: a box the doctor has to read,
+        // never a line that goes after three seconds (Save & print closes its
+        // sheet) — and "may not have been saved" where an answer was lost.
         console.error("[rx] the prescription was not saved:", e);
-        tell({ title: "The prescription was not saved.", body: notSavedBody(e), tone: "danger" });
+        tell(rxNotSaved(e, answerLost));
       }
     }
     // The visit is on the record — the next one asks about its warnings afresh.
@@ -1585,7 +1599,12 @@ function useMuqsitStore() {
     let cancelled = false;
     // ⚕️ The draft arrives asynchronously. If the doctor opened a patient (or
     // the editor was reset) meanwhile, what they opened wins: the late draft is
-    // dropped rather than written over that patient's editor.
+    // dropped rather than written over that patient's editor. So too when
+    // another device's state arrived through the mirror meanwhile — any state,
+    // its patient or another or none: it is newer than anything stored. Written
+    // over it, the draft's patient replaced the one that device had just
+    // brought, under that patient's open Investigation box and half-typed
+    // result (independent review, 19/10/2026; `applyMirrorSnapshot`).
     const epoch = editorEpochRef.current;
     const stale = () => cancelled || editorEpochRef.current !== epoch;
     const restore = async (d: Record<string, unknown>) => {
@@ -1746,7 +1765,14 @@ function useMuqsitStore() {
   // patient is loaded with real content, also persist it as that patient's
   // incomplete (not-yet-printed) prescription and flag them "Incomplete" in OPD.
   useEffect(() => {
-    if (!draftReadyRef.current) return;
+    if (!draftReadyRef.current) {
+      // ⚕️ State that arrives from another device while a reload's draft is
+      // still on its way is that device's too (below): unmarked, it was written
+      // from here as this device's own at the next change nobody typed — a
+      // record landing — and a device on an older build sends no print mark.
+      if (mirrorApplyingRef.current) mirrorAppliedRef.current = true;
+      return;
+    }
     // An IPD admission's findings are in `investigation`/`invImages` right now —
     // saving would file them in this patient's draft and incompleteRx. The
     // pending snapshot from before the loan stays in place for a flush.
@@ -1955,6 +1981,10 @@ function useMuqsitStore() {
     const localWs = activeWsRef.current ?? authIdRef.current;
     if ((typeof d.workstationId === "string" ? d.workstationId : null) !== localWs) return;
     mirrorApplyingRef.current = true;
+    // ⚕️ The editor now holds that device's state: a draft a reload asked for
+    // before it arrived is older, and is not applied over it (the mount-time
+    // draft hydration).
+    editorEpochRef.current += 1;
     const str = (k: string, set: (v: string) => void) => { if (typeof d[k] === "string") set(d[k] as string); };
     const arr = (k: string, set: (v: string[]) => void) => { if (Array.isArray(d[k])) set(d[k] as string[]); };
     if (typeof d.activeTab === "string") setActiveTab(d.activeTab as TabId);
