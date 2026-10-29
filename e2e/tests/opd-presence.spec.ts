@@ -51,7 +51,7 @@ async function tick(page: Page, kind: 'Present' | 'Critically ill' | 'Pt needs u
   else await expect(box(page, kind, name)).not.toBeChecked();
 }
 
-test('a queue row shows a photo, three marks, a time, a colour and a status; the server keeps them', async ({ page }) => {
+test('a queue row shows a photo, three marks, a time, a colour and a status; the server keeps them', async ({ page }, testInfo) => {
   await login(page, 'opdPresence');
   await page.goto('/opd');
   await expect(page.getByText('No one is in the queue')).toBeVisible();
@@ -141,7 +141,7 @@ test('a queue row shows a photo, three marks, a time, a colour and a status; the
   // bring the middle row (and so the other two) into view first.
   const shot = async (name: string) => {
     await row(page, B).scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `evidence/opd-presence-${name}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`opd-presence-${name}.png`), fullPage: true });
   };
   await page.setViewportSize({ width: 1280, height: 800 });
   await shot('desktop');
