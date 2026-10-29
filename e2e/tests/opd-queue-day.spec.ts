@@ -58,7 +58,9 @@ test('a later day is booked, timed and put in order; today is untouched; a day t
   // ── A later day, from the calendar ─────────────────────────────────────────
   await chooseDay(page, LATER);
   await expect(dateButton(page)).toContainText('Upcoming');
-  await expect(page.getByText('Total', { exact: true })).toBeVisible(); // not "Total today"
+  // The first card is "Total Serial" on every day (it was "Total today" / "Total").
+  await expect(page.locator('[data-card="Total Serial"]')).toBeVisible();
+  await expect(page.getByText('Total today')).toHaveCount(0);
 
   // Its schedule: 6 PM, a break from 8 to 9 PM, 10 minutes each.
   await page.getByLabel('Start time').fill('18:00');
