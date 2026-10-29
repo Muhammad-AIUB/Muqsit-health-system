@@ -509,6 +509,13 @@ model OpdVisit {
   queueDate String?
   position  Int?
 
+  // Reception's marks (physician's sheet, 29/10/2026). `presentAt` is when the
+  // patient was marked present (server clock), NULL = not present; the two flags
+  // are independent of it. Status, colour and counts are derived, never stored.
+  presentAt     DateTime?
+  criticallyIll Boolean   @default(false)
+  urgent        Boolean   @default(false)
+
   createdAt DateTime @default(now())
 
   @@index([doctorId, createdAt])
