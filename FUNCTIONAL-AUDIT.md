@@ -1306,18 +1306,27 @@ Open:
 
 - [x] **The date is a calendar; a patient can be booked for a later day; serials can be put in order; a day that has passed is locked** (the server refuses it as well). Each day has its own schedule — start, break, minutes per patient — and the serial's time is worked out from the SAVED one (`docs/DOMAIN.md`, "OPD queue by day").
 - [x] **`manual-opd-queue-date.sql` was applied to the shared database on 29/10/2026** (product owner's go-ahead), before the release. All 275 existing visits got a `queueDate` and a `position`; none was changed otherwise. The old token-unique index had never been applied there, and 14 doctor-day-token groups already shared a token, so the new unique index `OpdVisit_doctorId_queueDate_token_key` was NOT created (the script reports it and goes on); tokens are allocated under a lock and do not depend on it.
-- [ ] **"Send SMS to all patients" and "Print Queue" (same sheet) are not built.** SMS needs the physician's wording, when it goes, and whether a patient consented; a send reaches a real person and spends a real balance. No button stands in for either.
+- [ ] **"Send SMS to all patients" (same sheet) is not built.** ("Print Queue" is built, 30/10/2026: see its block below.) SMS needs the physician's wording, when it goes, and whether a patient consented; a send reaches a real person and spends a real balance. No button stands in for it.
 - [ ] **Pre-set schedule is the sheet's own example** (18:00, no break, 10 minutes) for a doctor who never saved one — the physician's to change.
 - [ ] **A patient cannot be taken OFF a later day's list, or moved to another day.** Only added and put in order, as the sheet asked. A mistaken booking stays on that day.
 - [ ] **A past day's "Not marked seen"** is shown for a patient who was queued and never marked Done; nothing was ever recorded for them beyond that.
 - [x] **Browser journey:** `e2e/tests/opd-queue-day.spec.ts` (calendar → later day → schedule → three patients → order → reload → empty today → locked past day) passed in Chromium against the throwaway database. Only Chromium was run.
+
+### OPD queue: Print Queue (30/10/2026) - open for the physician
+
+- [x] **Built:** a "Print Queue" button beside the date opens a sheet of the day on show (`client/src/lib/opdQueueDoc.ts`, shown in `PrintSheetModal`). It is off while the queue or the day's schedule is loading, and while the day holds no one.
+- [ ] **What the sheet prints, to be confirmed:** under a header with the practice doctor's name, the day and the patient count, one row per patient: Serial, Name, Gender, Age (as `34y`), Mobile, Appointment time. It prints no token, no marks (present, critically ill, urgent) and no status.
+- [ ] **A day that has passed can be printed** (the button is not locked with the day).
+- [ ] **The doctor named is the workstation's doctor** (`activeWorkstation.name`); with no workstation chosen the sheet has no name line.
+- [ ] **Times are the SAVED schedule's,** as on the screen; where the screen shows none (a past day never given a schedule) the sheet shows a dash.
+- [ ] **NOT run:** Safari and Firefox, a real printer, and how the header wraps at phone width. Pinned in `OpdView.print.test.tsx` and `opdQueueDoc.test.ts` (jsdom only).
 
 ### OPD queue: presence, urgency and status (29/10/2026) - open for the physician
 
 - [ ] **Which editor fields make "History taken".** Built as every text field of the editor except medicines and investigations (physician: "Chief complaints or any data entry"), in ONE constant, `HISTORY_FIELDS` in `server/src/opd/pad-stage.ts` (`PENDING_FIELDS` is `investigation`; a medicine on the pad also makes "Prescription pending"). The physician to confirm the list.
 - [ ] **The "Completed" card changed meaning.** It counted visits marked Done; it now counts Done OR a printed prescription. "Waiting" now means present and not completed (it counted visits whose status was waiting). Both follow the status column, to be confirmed.
 - [ ] **A Done visit shows "Completed" and the "done" pill** - the same thing twice. Left as is.
-- [ ] **SMS to every patient of a day and Print Queue** (same sheet) are the next specs; neither is built.
+- [ ] **SMS to every patient of a day** (same sheet) is the next spec; it is not built. Print Queue is built (block below).
 - [ ] **`manual-opd-presence.sql` is NOT applied to the shared database** and must be applied before the release (three columns the queue reads).
 - [ ] **A flaky pair in `server/test/opd-queue.int-spec.ts`** ('rows an older build wrote with no place', 'a patient added after such rows') seeds rows at now minus one hour, so it fails when run within the first hour after Dhaka midnight. It pre-dates this feature and is not fixed here; a test whose outcome varies is a defect to fix on its own.
 - [ ] **Not run:** Safari, and a supervised patient's stage in a browser (server logic is covered by unit and integration tests).

@@ -155,9 +155,9 @@ export default function OpdView() {
           <button
             type="button"
             aria-label="Print Queue"
-            disabled={isLoading || queue.length === 0}
+            disabled={isLoading || scheduleQuery.isLoading || queue.length === 0}
             onClick={() => setPrinting(true)}
-            style={{ ...btnSecondary("md"), display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600, ...(isLoading || queue.length === 0 ? btnDisabled : null) }}
+            style={{ ...btnSecondary("md"), display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600, ...(isLoading || scheduleQuery.isLoading || queue.length === 0 ? btnDisabled : null) }}
           >
             <Icon name="printer" size={16} />
             Print Queue

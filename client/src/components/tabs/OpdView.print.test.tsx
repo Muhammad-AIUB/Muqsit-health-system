@@ -63,6 +63,16 @@ describe("OPD queue — Print Queue", () => {
     expect(printButton().disabled).toBe(true);
   });
 
+  it("is off while the day's schedule is loading, on once it has arrived", () => {
+    mocks.rows[TODAY] = [visit("a", "Amy Khan")];
+    mocks.scheduleLoading = true;
+    const { rerender } = render(<OpdView />);
+    expect(printButton().disabled).toBe(true);
+    mocks.scheduleLoading = false;
+    rerender(<OpdView />);
+    expect(printButton().disabled).toBe(false);
+  });
+
   it("opens a sheet of the day's patients with the workstation doctor's name and saved times", () => {
     mocks.rows[TODAY] = [visit("a", "Amy Khan"), visit("b", "Bob Roy", { age: null })];
     render(<OpdView />);
