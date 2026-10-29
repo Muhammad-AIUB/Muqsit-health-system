@@ -73,7 +73,22 @@ describe('OpdService — what a day may be asked to do', () => {
       expect(out).toHaveLength(1);
       expect(out[0].padStage).toBeNull();
       expect(err).toHaveBeenCalledWith(expect.stringContaining('manual-supervised-draft.sql'));
+      // Said once per process: the next list still answers, and says nothing more.
+      err.mockClear();
+      const again = await service.list('doc');
+      expect(again).toHaveLength(1);
+      expect(again[0].padStage).toBeNull();
+      expect(err).not.toHaveBeenCalled();
       err.mockRestore();
+    });
+    it("a row of a day other than today carries no stage, even with today's draft", async () => {
+      const draft = { ptDate: '2026-10-28', chiefComplaints: ['fever'] };
+      const { prisma, service } = build();
+      prisma.patient.findMany.mockResolvedValue([{ id: 'p1', doctorId: 'doc', pictureUrl: null, incompleteRx: draft }]);
+      const row = (queueDate: string) => ({ id: 'v-' + queueDate, patientId: 'p1', doctorId: 'doc', name: 'N', queueDate, createdAt: new Date('2026-10-28T09:00:00Z') });
+      prisma.opdVisit.findMany.mockResolvedValue([row('2026-10-29'), row('2026-10-28'), row('2026-10-27')]);
+      const out = await service.list('doc', '2026-10-29');
+      expect(out.map((r) => r.padStage)).toEqual([null, 'history', null]);
     });
     it('rethrows any other error', async () => {
       const { prisma, service } = build();

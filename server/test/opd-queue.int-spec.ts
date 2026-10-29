@@ -421,6 +421,20 @@ describe('OPD queue by day', () => {
       expect(row.padStage).toBeNull();
     });
 
+    it("a row booked for another day shows no stage, while the same patient's row for today still does", async () => {
+      const { doctor, browser } = await setup();
+      const p = await makePatient(t.prisma, doctor.id);
+      await add(browser, 'Tomorrow Row', TOMORROW, p.id);
+      await add(browser, 'Today Row', undefined, p.id);
+      await t.prisma.patient.update({ where: { id: p.id }, data: { incompleteRx: { ptDate: TODAY, chiefComplaints: ['fever'] } } });
+      const tomorrow = (await list(browser, TOMORROW))[0] as OpdVisit & { padStage: string | null };
+      expect(tomorrow.name).toBe('Tomorrow Row');
+      expect(tomorrow.padStage).toBeNull();
+      const today = (await list(browser))[0] as typeof tomorrow;
+      expect(today.name).toBe('Today Row');
+      expect(today.padStage).toBe('history');
+    });
+
     it("never shows the owner's draft to a supervising practice", async () => {
       const owner = await makeDoctor(t.prisma);
       const supervisor = await setup();

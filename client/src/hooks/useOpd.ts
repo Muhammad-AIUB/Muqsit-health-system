@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { dhakaToday } from "@/lib/opdDay";
 import { opdApi, type OpdPresenceInput, type OpdScheduleAnswer, type OpdScheduleInput, type OpdVisit, type OpdVisitInput } from "@/lib/api";
 
 const OPD_KEY = ["opd"] as const;
@@ -9,10 +10,20 @@ const scheduleKey = (day: string) => [...OPD_KEY, "schedule", day] as const;
 
 // A day's queue (default: today). One cache entry per day, so going back to a
 // day shows it at once and a refresh settles it.
+//
+// Today's queue is read again every OPD_POLL_MS, so a mark that reception makes
+// (Present, Critically ill, Urgent) shows on a doctor's screen that is already
+// open. Any other day does not poll: nobody changes it under the reader. A
+// background tab does not poll either (React Query's default). A poll does not
+// undo a tick just made: `useSetOpdPresence` cancels the day's in-flight read
+// before it writes, and reads again once its own request settles.
+export const OPD_POLL_MS = 10_000;
 export function useOpdQueue(day?: string) {
   return useQuery({
     queryKey: day ? dayKey(day) : OPD_KEY,
     queryFn: () => opdApi.list(day),
+    refetchInterval: day === dhakaToday() ? OPD_POLL_MS : false,
+    refetchIntervalInBackground: false,
   });
 }
 

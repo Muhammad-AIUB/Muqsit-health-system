@@ -41,6 +41,8 @@ export interface OpdScheduleAnswer extends OpdSchedule {
 @Injectable()
 export class OpdService {
   private readonly log = new Logger(OpdService.name);
+  // The missing-table message is said once per process, not on every list call.
+  private supervisedDraftMissingLogged = false;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -69,7 +71,7 @@ export class OpdService {
   async list(doctorId: string, day: string = dhakaDayKey()): Promise<OpdVisitRow[]> {
     this.requireDay(day);
     const rows = await this.prisma.opdVisit.findMany({ where: this.dayWhere(doctorId, day), orderBy: DISPLAY_ORDER });
-    return this.decorate(this.prisma, doctorId, rows);
+    return this.decorate(doctorId, rows);
   }
 
   // ⚕️ The patient's picture and how far THIS practice's parked visit has got.
@@ -77,14 +79,13 @@ export class OpdService {
   // patient is theirs, else this doctor's own `SupervisedDraft` — never another
   // practice's (server/CLAUDE.md, Rule 2). A missing SupervisedDraft table costs
   // only the stage, never the queue.
-  private async decorate(
-    db: Pick<Prisma.TransactionClient, 'patient' | 'supervisedDraft'>,
-    doctorId: string,
-    rows: OpdVisit[],
-  ): Promise<OpdVisitRow[]> {
+  // A row of a day other than today carries no stage: the parked visit is
+  // today's, and a visit booked for tomorrow (or left unseen on yesterday's
+  // queue) must not read "History taken" from it.
+  private async decorate(doctorId: string, rows: OpdVisit[]): Promise<OpdVisitRow[]> {
     const ids = [...new Set(rows.map((r) => r.patientId).filter((id): id is string => !!id))];
     if (ids.length === 0) return rows.map((r) => ({ ...r, pictureUrl: null, padStage: null }));
-    const patients = await db.patient.findMany({
+    const patients = await this.prisma.patient.findMany({
       // ⚕️ Scoped like PatientsService.accessibleWhere: create() takes any patientId,
       // so an id outside this practice (own or supervised) must not hand back its picture.
       where: { id: { in: ids }, OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] },
@@ -92,13 +93,16 @@ export class OpdService {
     });
     let supervised: { patientId: string; data: Prisma.JsonValue }[] = [];
     try {
-      supervised = await db.supervisedDraft.findMany({
+      supervised = await this.prisma.supervisedDraft.findMany({
         where: { doctorId, patientId: { in: ids } },
         select: { patientId: true, data: true },
       });
     } catch (e) {
       if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021')) throw e;
-      this.log.error('SupervisedDraft does not exist — apply prisma/manual-supervised-draft.sql. The pad stage of a supervised patient shows as none until it is.');
+      if (!this.supervisedDraftMissingLogged) {
+        this.supervisedDraftMissingLogged = true;
+        this.log.error('SupervisedDraft does not exist — apply prisma/manual-supervised-draft.sql. The pad stage of a supervised patient shows as none until it is.');
+      }
     }
     const byId = new Map(patients.map((p) => [p.id, p]));
     const draftOf = new Map(supervised.map((s) => [s.patientId, s.data]));
@@ -106,7 +110,7 @@ export class OpdService {
     return rows.map((r) => {
       const p = r.patientId ? byId.get(r.patientId) : undefined;
       const draft = p ? (p.doctorId === doctorId ? p.incompleteRx : draftOf.get(p.id)) : null;
-      return { ...r, pictureUrl: p?.pictureUrl ?? null, padStage: padStage(draft, today) };
+      return { ...r, pictureUrl: p?.pictureUrl ?? null, padStage: this.visitDay(r) === today ? padStage(draft, today) : null };
     });
   }
 
@@ -259,7 +263,7 @@ export class OpdService {
       }
       return this.dayRows(tx, doctorId, day);
     }, ROW_LOCK_TX);
-    return this.decorate(this.prisma, doctorId, moved);
+    return this.decorate(doctorId, moved);
   }
 
   // ⚕️ Reception's marks. Today's queue only: a later day's patient has not
