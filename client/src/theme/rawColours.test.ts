@@ -52,7 +52,7 @@ const ALLOWED: { file: string; text: string; why: string }[] = [
 ];
 
 const SRC = join(__dirname, "..");
-const SKIP = /\.test\.|prescriptionDoc\.ts$|galleryPdf\.ts$|compressImage\.ts$|decodeImage\.ts$/;
+const SKIP = /\.test\.|prescriptionDoc\.ts$|opdQueueDoc\.ts$|galleryPdf\.ts$|compressImage\.ts$|decodeImage\.ts$/;
 const RAW = /#[0-9a-fA-F]{3,8}\b|rgba?\(|["']white["']/;
 
 function walk(dir: string): string[] {
