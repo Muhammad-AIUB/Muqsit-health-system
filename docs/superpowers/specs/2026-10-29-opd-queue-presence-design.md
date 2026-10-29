@@ -12,7 +12,7 @@ Serial number, photo, name, mobile and age/sex, appointment time, three checkbox
 
 ## Photo
 
-The patient's stored picture (`pictureUrl`) when there is one. Otherwise the male or female silhouette the physician supplied, by the visit's gender; a neutral silhouette when the gender is unknown.
+The patient's stored picture (`pictureUrl`) when there is one. Otherwise the app's existing placeholder (`photoPlaceholder` + `Icon`, as in the prescription header), by the visit's gender; the plain person when the gender is unknown.
 
 ## Checkboxes
 

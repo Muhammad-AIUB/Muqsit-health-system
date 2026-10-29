@@ -735,7 +735,7 @@ git commit -m "feat(opd): client types and an optimistic presence hook"
 - Consumes: `normaliseSex(x): "Male" | "Female" | "Other" | ""` from `@/lib/sex` (it returns `""` for an unknown value — check its exact return values first and match them).
 - Produces: `<PatientAvatar url={string | null | undefined} sex={string | null} name={string} size?: number />`. A picture that fails to load falls back to the silhouette.
 
-The physician's two silhouettes (a ring, a grey head-and-shoulders; the woman with a bob) are drawn as inline SVG in `C.n[300]` / `C.n[100]`: no asset file, no network.
+No new silhouettes are drawn: it uses the app's existing placeholder (`photoPlaceholder` + `Icon`, as in the prescription header). As built, the test asserts the icon via `data-icon` (`male` / `female` / `user`) instead of `data-silhouette`.
 
 - [ ] **Step 1: Failing test** `PatientAvatar.test.tsx`:
 
@@ -1073,7 +1073,7 @@ git commit -m "feat(opd): photo, three marks, colour, time and status on the que
 
 - [ ] **Step 1: Write the docs.** In each, say (and keep in the project's rule + reason style):
   - server: `presentAt` is the SERVER's clock; today only; `padStage` reads this practice's own draft only (owner `incompleteRx` / own `SupervisedDraft`, a missing table costs only the stage), a draft of another day says nothing, the draft never leaves the server; `manual-opd-presence.sql` is NOT applied to the shared database and must be before release.
-  - client: status/colour/counts are derived in `lib/opdPresence.ts`; ticks are optimistic and rolled back; the silhouette is drawn, not a file; "Completed" counts rows Completed by Done OR a printed prescription.
+  - client: status/colour/counts are derived in `lib/opdPresence.ts`; ticks are optimistic and rolled back; the no-photo placeholder is the app's existing `photoPlaceholder` + `Icon`; "Completed" counts rows Completed by Done OR a printed prescription.
   - DOMAIN: the physician's decisions of 29/10/2026 (three marks, colours, the status table, "Chief complaints or any data entry").
   - `FUNCTIONAL-AUDIT.md` open threads: (1) which fields make "History taken" is every text field of the editor except medicines and investigations — physician to confirm, one constant; (2) the Completed card changed from "Done only" to "Done or printed".
 
