@@ -501,9 +501,38 @@ model OpdVisit {
   // complete (Save & print done). Null for manually-queued visits.
   rxStatus String? // incomplete | complete
 
+  // The Dhaka calendar day this visit is queued for, `yyyy-mm-dd`, and its place
+  // in that day's queue (1, 2, 3 …; the serial the doctor sees). A visit can be
+  // booked for today or a later day; a past day is never written. NULL only on a
+  // row an older build wrote before manual-opd-queue-date.sql was applied —
+  // reads fall back to `createdAt` for those (see opd.service.ts).
+  queueDate String?
+  position  Int?
+
   createdAt DateTime @default(now())
 
   @@index([doctorId, createdAt])
+  @@index([doctorId, queueDate, position])
+}
+
+// One OPD day's chamber schedule: when the first patient is seen, an optional
+// break, and the minutes set aside for each patient. The serial TIMES are worked
+// out from these (client/src/lib/opdSchedule.ts), never stored. A day with no row
+// takes the latest earlier day's; the first patient added to a day saves what it
+// took, so times already told to patients do not move when an earlier day is
+// changed later.
+model OpdDaySetting {
+  id                String   @id @default(cuid())
+  doctorId          String
+  day               String // yyyy-mm-dd, Dhaka
+  startTime         String // HH:mm
+  breakStart        String? // HH:mm, with breakEnd or neither
+  breakEnd          String?
+  minutesPerPatient Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([doctorId, day])
 }
 
 // ── IPD ward ─────────────────────────────────────────────────

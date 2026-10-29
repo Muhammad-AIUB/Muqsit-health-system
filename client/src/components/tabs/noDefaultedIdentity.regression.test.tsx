@@ -31,6 +31,9 @@ vi.mock("@/hooks/useOpd", () => ({
   useOpdQueue: () => ({ data: queue, isLoading: false, error: null }),
   useAddOpdVisit: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetOpdStatus: () => ({ mutate: vi.fn() }),
+  useOpdSchedule: () => ({ data: undefined, isLoading: false, error: null }),
+  useMoveOpdVisit: () => ({ mutate: vi.fn(), isPending: false }),
+  useSaveOpdSchedule: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock("@/hooks/usePatients", () => ({ usePatients: () => ({ data: [], isLoading: false, isError: false, error: null }) }));
 vi.mock("@/components/prescription/PatientMobileLookup", () => ({ default: () => null }));
@@ -46,7 +49,7 @@ afterEach(cleanup);
 
 const visit = (over: Partial<OpdVisit>): OpdVisit => ({
   id: "v1", patientId: null, name: "Patient", phone: "01700000000", age: null, gender: null,
-  type: "New", token: "T-1", status: "waiting", rxStatus: null, createdAt: "2026-09-07T04:00:00.000Z", ...over,
+  type: "New", token: "T-1", status: "waiting", rxStatus: null, queueDate: null, position: null, createdAt: "2026-09-07T04:00:00.000Z", ...over,
 });
 
 /** Every identity field that must arrive blank unless the doctor typed it. */

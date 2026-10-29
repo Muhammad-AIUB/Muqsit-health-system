@@ -12,6 +12,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Patient } from "@/lib/api";
+import { dhakaToday } from "@/lib/opdDay";
 
 const byMobile = vi.fn();
 const create = vi.fn();
@@ -37,11 +38,17 @@ vi.mock("@/hooks/useOpd", () => ({
   useOpdQueue: () => ({ data: [], isLoading: false, error: null }),
   useAddOpdVisit: () => ({ mutateAsync: addVisit, isPending: false }),
   useSetOpdStatus: () => ({ mutate: vi.fn() }),
+  useOpdSchedule: () => ({ data: undefined, isLoading: false, error: null }),
+  useMoveOpdVisit: () => ({ mutate: vi.fn(), isPending: false }),
+  useSaveOpdSchedule: () => ({ mutateAsync: vi.fn() }),
 }));
 
 import OpdView from "./OpdView";
 
 vi.setConfig({ testTimeout: 30_000 });
+
+// The day on show — a patient is added to it (the queue is booked by day).
+const TODAY = dhakaToday();
 
 afterEach(() => { cleanup(); byMobile.mockReset(); create.mockReset(); addVisit.mockReset(); });
 
@@ -71,7 +78,7 @@ describe("OPD — a patient is added by mobile number first", () => {
     const row = await screen.findByText("mr shahariar", {}, { timeout: 3000 });
     await act(async () => { fireEvent.click(row); });
     expect(addVisit).toHaveBeenCalledTimes(1);
-    expect(addVisit).toHaveBeenCalledWith({ name: "mr shahariar", patientId: "p1", phone: "01827115684", age: 38, gender: "Male" });
+    expect(addVisit).toHaveBeenCalledWith({ name: "mr shahariar", patientId: "p1", phone: "01827115684", age: 38, gender: "Male", date: TODAY });
     // Done: the form closes, ready for the next patient.
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Mobile" })).toBeNull());
   });
@@ -84,7 +91,7 @@ describe("OPD — a patient is added by mobile number first", () => {
     typeNumber("01711111111");
     const row = await screen.findByText("Rahim", {}, { timeout: 3000 });
     await act(async () => { fireEvent.click(row); });
-    expect(addVisit).toHaveBeenCalledWith({ name: "Rahim", patientId: "p2", phone: "01711111111", age: undefined, gender: undefined });
+    expect(addVisit).toHaveBeenCalledWith({ name: "Rahim", patientId: "p2", phone: "01711111111", age: undefined, gender: undefined, date: TODAY });
   });
 
   it("no patient on the number: Add New opens the new-patient box, and the new patient joins the queue", async () => {
@@ -98,7 +105,7 @@ describe("OPD — a patient is added by mobile number first", () => {
     expect(screen.getByText("Add new patient")).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText("Full name"), { target: { value: "Karim" } });
     await act(async () => { fireEvent.click(screen.getByText("Save")); });
-    await waitFor(() => expect(addVisit).toHaveBeenCalledWith({ name: "Karim", patientId: "p9", phone: "01722222222", age: undefined, gender: "Male" }));
+    await waitFor(() => expect(addVisit).toHaveBeenCalledWith({ name: "Karim", patientId: "p9", phone: "01722222222", age: undefined, gender: "Male", date: TODAY }));
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: "Karim", mobile: "01722222222" }));
   });
 

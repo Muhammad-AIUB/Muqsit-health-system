@@ -1,6 +1,7 @@
 import type { Patient, User } from '@prisma/client';
 import { RxHabitsService } from '../src/rx-habits/rx-habits.service';
 import { DoctorPhrasesService } from '../src/doctor-phrases/doctor-phrases.service';
+import { dhakaDayKey } from '../src/opd/dhaka-day';
 import { createTestApp, TestApp } from './support/app';
 import { loginAs, makeDoctor, makePatient, makeSupervisor } from './support/fixtures';
 import { RX_LINES, rxBody } from './support/fixtures-clinical';
@@ -218,7 +219,11 @@ describe('a save sent again is not filed twice', () => {
     it('a patient left waiting YESTERDAY is queued today with a new token', async () => {
       const { doctor, browser, patient } = await setup();
       const a = await add(browser, patient);
-      await t.prisma.opdVisit.update({ where: { id: a.body.id }, data: { createdAt: new Date(Date.now() - 36 * 3600 * 1000) } });
+      // The queue's day is `queueDate` (28/10/2026), so "yesterday" is that too.
+      await t.prisma.opdVisit.update({
+        where: { id: a.body.id },
+        data: { createdAt: new Date(Date.now() - 36 * 3600 * 1000), queueDate: dhakaDayKey(new Date(Date.now() - 36 * 3600 * 1000)) },
+      });
       const b = await add(browser, patient);
       expect(b.body.id).not.toBe(a.body.id);
     });

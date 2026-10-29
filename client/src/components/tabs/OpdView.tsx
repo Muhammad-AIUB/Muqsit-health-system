@@ -2,14 +2,21 @@
 
 import { useRef, useState } from "react";
 import { C, colorOf, font } from "@/theme";
-import { btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import type { Patient } from "@/lib/api";
-import { useAddOpdVisit, useOpdQueue, useSetOpdStatus } from "@/hooks/useOpd";
+import {
+  useAddOpdVisit, useMoveOpdVisit, useOpdQueue, useOpdSchedule, useSaveOpdSchedule, useSetOpdStatus,
+} from "@/hooks/useOpd";
 import { displayAge } from "@/lib/age";
+import { dayLabel, dayRelation, dhakaToday } from "@/lib/opdDay";
+import { clockText, slotTimes } from "@/lib/opdSchedule";
 import { normaliseSex, sexLabel } from "@/lib/sex";
 import Pill from "@/components/common/Pill";
+import Icon from "@/components/common/Icon";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
+import OpdDayPicker from "@/components/opd/OpdDayPicker";
+import OpdScheduleBar from "@/components/opd/OpdScheduleBar";
 import EmptyState from "@/components/common/EmptyState";
 import { Loading, LoadError } from "@/components/common/ListState";
 
@@ -17,11 +24,29 @@ const typeColor = (type: string) => (type === "Urgent" ? "danger" : type === "Fo
 const initials = (name: string) =>
   name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
+const PAST_HINT = "A day that has passed cannot be changed";
+const REL_WORD = { past: "Locked", today: "Today", future: "Upcoming" } as const;
+
 export default function OpdView() {
   const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setCurrentPatientId, setPtInfo, resetEditor, flushEditorDraft, loadPatientById } = useMuqsit();
-  const { data: queue = [], isLoading, error, refetch, isFetching } = useOpdQueue();
+
+  // The day on show (yyyy-mm-dd, Dhaka). The queue is booked by day (physician's
+  // sheet, 28/10/2026): today is worked as it always was, a LATER day can have
+  // patients added and put in order, and a day that has PASSED is shown as it was
+  // and cannot be changed — the server refuses it too. `today` is read at every
+  // render, so a screen left open past midnight locks yesterday by itself.
+  const today = dhakaToday();
+  const [day, setDay] = useState(today);
+  const [picking, setPicking] = useState(false);
+  const rel = dayRelation(day, today);
+  const canEdit = rel !== "past";
+
+  const { data: queue = [], isLoading, error, refetch, isFetching } = useOpdQueue(day);
+  const scheduleQuery = useOpdSchedule(day);
   const addVisit = useAddOpdVisit();
   const setStatus = useSetOpdStatus();
+  const move = useMoveOpdVisit(day);
+  const saveSchedule = useSaveOpdSchedule();
 
   // Add-to-queue form. It asks for the mobile number and nothing else
   // (physician's sheet, 15/10/2026: "Add patient a sudhu number dia suru
@@ -35,6 +60,26 @@ export default function OpdView() {
 
   const waiting = queue.filter((v) => v.status === "waiting").length;
   const done = queue.filter((v) => v.status === "done").length;
+
+  // ⚕️ The time each patient is told comes from the day's SAVED schedule — never
+  // from the boxes in the bar, which hold what is typed until the server has it.
+  // A day that has passed with no schedule of its own was never told a time, and
+  // shows none rather than one worked out from another day's.
+  const schedule = scheduleQuery.data;
+  const times = schedule && (canEdit || schedule.saved) ? slotTimes(queue.length, schedule) : [];
+
+  // Whether anyone still WAITING stands above / below a row: a patient already
+  // seen keeps their place, so only waiting patients are moved past each other.
+  const waitingAbove = (i: number) => queue.slice(0, i).some((v) => v.status === "waiting");
+  const waitingBelow = (i: number) => queue.slice(i + 1).some((v) => v.status === "waiting");
+
+  const choose = (picked: string) => {
+    setDay(picked);
+    setPicking(false);
+    // A form left open for one day must not add to another.
+    setShowAdd(false);
+    setAddError("");
+  };
 
   // ⚕️ One add at a time (independent review, 17/10/2026): a pick goes straight
   // to the queue and the server gives a new token each time, so a second pick
@@ -58,6 +103,8 @@ export default function OpdView() {
         age: /^\d+$/.test(age) ? Number(age) : undefined,
         // Omit rather than store "" — an unrecorded sex stays unrecorded.
         gender: normaliseSex(p.sex) || undefined,
+        // The day on show: a patient is added to the day the doctor is looking at.
+        date: day,
       });
     } catch {
       // The number stays in the box: choosing the patient again retries.
@@ -68,18 +115,52 @@ export default function OpdView() {
     setShowAdd(false);
   };
 
+  const emptyHint =
+    rel === "past" ? "No one was queued on this day."
+      : rel === "future" ? "Add the first patient of this day with “+ Add to queue”."
+        : "Add the first patient of the day with “+ Add to queue”.";
+
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={pageTitle}>OPD queue management</div>
-        <button onClick={() => setShowAdd((s) => !s)} style={btnPrimary("md")}>
-          {showAdd ? "Close" : "+ Add to queue"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* The date IS the calendar's button (physician's sheet, 28/10/2026). */}
+          <button
+            type="button"
+            aria-label={`Date: ${dayLabel(day)} — choose another date`}
+            aria-haspopup="dialog"
+            onClick={() => setPicking(true)}
+            style={{ ...btnSecondary("md"), display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }}
+          >
+            <Icon name="calendar" size={16} />
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{dayLabel(day)}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: rel === "past" ? C.n[600] : rel === "today" ? C.ok[600] : C.pri[600] }}>{REL_WORD[rel]}</span>
+          </button>
+          <button
+            onClick={() => setShowAdd((s) => !s)}
+            disabled={!canEdit}
+            title={canEdit ? undefined : PAST_HINT}
+            style={canEdit ? btnPrimary("md") : { ...btnPrimary("md"), ...btnDisabled }}
+          >
+            {showAdd && canEdit ? "Close" : "+ Add to queue"}
+          </button>
+        </div>
       </div>
+
+      {picking && <OpdDayPicker value={day} today={today} onPick={choose} onClose={() => setPicking(false)} />}
+
+      {scheduleQuery.isLoading && <Loading label="Loading schedule…" />}
+      {Boolean(scheduleQuery.error) && (
+        <LoadError compact title="Could not load this day's schedule." onRetry={() => scheduleQuery.refetch()} retrying={scheduleQuery.isFetching} />
+      )}
+      {schedule && (
+        <OpdScheduleBar day={day} today={today} schedule={schedule} onSave={(input) => saveSchedule.mutateAsync(input)} />
+      )}
 
       {/* Every box keeps its caption above it. They used to be named only by a
           placeholder, which is gone the moment something is typed. */}
-      {showAdd && (
+      {showAdd && canEdit && (
         <div className="form-row" style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", gap: 10, rowGap: 6, flexWrap: "wrap", alignItems: "flex-start" }}>
           <PatientMobileLookup
             value={phone}
@@ -100,10 +181,16 @@ export default function OpdView() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 10, marginBottom: 16 }}>
-        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.n[600] }}>Total today</div><div style={{ fontSize: 24, fontWeight: 600 }}>{queue.length}</div></div>
+        <div style={{ background: C.n[100], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.n[600] }}>{rel === "today" ? "Total today" : "Total"}</div><div style={{ fontSize: 24, fontWeight: 600 }}>{queue.length}</div></div>
         <div style={{ background: C.ok[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.ok[600] }}>Completed</div><div style={{ fontSize: 24, fontWeight: 600, color: C.ok[600] }}>{done}</div></div>
         <div style={{ background: C.warn[50], borderRadius: 10, padding: "12px 14px" }}><div style={{ fontSize: 12, fontWeight: 500, color: C.warn[800] }}>Waiting</div><div style={{ fontSize: 24, fontWeight: 600, color: C.warn[800] }}>{waiting}</div></div>
       </div>
+
+      {move.isError && (
+        <div role="alert" style={{ marginBottom: 8, fontSize: 12, color: C.danger[800] }}>
+          Could not change the order. Try again.
+        </div>
+      )}
 
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "4px 14px" }}>
         {isLoading && <Loading label="Loading queue…" />}
@@ -111,10 +198,11 @@ export default function OpdView() {
             of date, so the notice sits above them, smaller. */}
         {Boolean(error) && <LoadError compact={queue.length > 0} title="Could not load the OPD queue." onRetry={() => refetch()} retrying={isFetching} />}
         {!isLoading && !error && queue.length === 0 && (
-          <EmptyState icon="users" title="No one is in the queue" hint="Add the first patient of the day with “+ Add to queue”." />
+          <EmptyState icon="users" title="No one is in the queue" hint={emptyHint} />
         )}
         {queue.map((p, i) => {
           const color = typeColor(p.type);
+          const time = times[i];
           return (
             // On a phone the row wraps, and `.row-after` (globals.css) sends the
             // visit pill and the actions to the second line — so the token is
@@ -131,6 +219,9 @@ export default function OpdView() {
                 {/* Normalised for display: the column holds both "Female" and "F". */}
                 <div style={{ fontSize: 11, color: C.n[600] }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{sexLabel(p.gender)}</div>
               </div>
+              {time !== undefined && (
+                <span data-time aria-label={`Time ${clockText(time)}`} style={{ fontSize: 12, fontWeight: 600, color: C.n[800], fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{clockText(time)}</span>
+              )}
               {p.rxStatus === "incomplete" ? (
                 <Pill className="row-after" bg={C.warn[50]} fg={C.warn[800]}>Incomplete</Pill>
               ) : p.rxStatus === "complete" ? (
@@ -139,47 +230,63 @@ export default function OpdView() {
                 <Pill className="row-after" bg={colorOf(color).bg} fg={colorOf(color).fg}>{p.type}</Pill>
               ) : null}
               <Pill bg={C.n[100]} fg={C.n[800]}>{p.token}</Pill>
+              {/* ▲ ▼ put a patient before or after the next one still waiting. A
+                  day that has passed, and a patient already seen, have none. */}
+              {canEdit && p.status === "waiting" && (
+                <span className="row-after" style={{ display: "inline-flex", gap: 4 }}>
+                  <button type="button" aria-label={`Move ${p.name} up`} disabled={!waitingAbove(i) || move.isPending}
+                    onClick={() => move.mutate({ id: p.id, direction: "up" })}
+                    style={{ ...btnSecondary("sm"), ...(!waitingAbove(i) || move.isPending ? btnDisabled : null) }}>▲</button>
+                  <button type="button" aria-label={`Move ${p.name} down`} disabled={!waitingBelow(i) || move.isPending}
+                    onClick={() => move.mutate({ id: p.id, direction: "down" })}
+                    style={{ ...btnSecondary("sm"), ...(!waitingBelow(i) || move.isPending ? btnDisabled : null) }}>▼</button>
+                </span>
+              )}
               {p.status === "waiting" ? (
-                <>
-                  <button
-                    className="row-after"
-                    onClick={() => {
-                      // A saved patient → full load (restores any incomplete Rx);
-                      // otherwise pre-fill the editor from the queue snapshot.
-                      if (p.patientId) {
-                        void loadPatientById(p.patientId);
-                      } else {
-                        flushEditorDraft(); // the last patient's latest edits are parked first
-                        resetEditor();
-                        // The queue row holds either "Male"/"Female" (written by
-                        // MuqsitContext from the editor) or "M"/"F" (written by
-                        // PatientsView). Testing `=== "F"` read a woman stored as
-                        // "Female" as Male and loaded that into the editor.
-                        const sex = normaliseSex(p.gender);
-                        const age = p.age != null ? String(p.age) : "";
-                        setPtName(p.name);
-                        setPtAge(age);
-                        setPtGender(sex);
-                        if (p.phone) setPtPhone(p.phone);
-                        setCurrentPatientId(p.patientId);
-                        setPtInfo({
-                          name: p.name, hospitalId: "", bloodGroup: "", dob: "", age, sex,
-                          ethnicity: "", religion: "", mobile: p.phone ?? "", nid: "",
-                          spouseMobile: "", relativeMobile: "", relativeRelation: "",
-                          district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
-                        });
-                        setRxItems([]);
-                      }
-                      setActiveTab("prescription");
-                    }}
-                    style={btnPrimary("sm")}
-                  >
-                    Prescribe
-                  </button>
-                  <button className="row-after" onClick={() => setStatus.mutate({ id: p.id, status: "done" })} style={btnSecondary("sm")}>
-                    Done
-                  </button>
-                </>
+                rel === "today" ? (
+                  <>
+                    <button
+                      className="row-after"
+                      onClick={() => {
+                        // A saved patient → full load (restores any incomplete Rx);
+                        // otherwise pre-fill the editor from the queue snapshot.
+                        if (p.patientId) {
+                          void loadPatientById(p.patientId);
+                        } else {
+                          flushEditorDraft(); // the last patient's latest edits are parked first
+                          resetEditor();
+                          // The queue row holds either "Male"/"Female" (written by
+                          // MuqsitContext from the editor) or "M"/"F" (written by
+                          // PatientsView). Testing `=== "F"` read a woman stored as
+                          // "Female" as Male and loaded that into the editor.
+                          const sex = normaliseSex(p.gender);
+                          const age = p.age != null ? String(p.age) : "";
+                          setPtName(p.name);
+                          setPtAge(age);
+                          setPtGender(sex);
+                          if (p.phone) setPtPhone(p.phone);
+                          setCurrentPatientId(p.patientId);
+                          setPtInfo({
+                            name: p.name, hospitalId: "", bloodGroup: "", dob: "", age, sex,
+                            ethnicity: "", religion: "", mobile: p.phone ?? "", nid: "",
+                            spouseMobile: "", relativeMobile: "", relativeRelation: "",
+                            district: "", fullAddress: "", monthlyIncome: "", picture: null, tags: [],
+                          });
+                          setRxItems([]);
+                        }
+                        setActiveTab("prescription");
+                      }}
+                      style={btnPrimary("sm")}
+                    >
+                      Prescribe
+                    </button>
+                    <button className="row-after" onClick={() => setStatus.mutate({ id: p.id, status: "done" })} style={btnSecondary("sm")}>
+                      Done
+                    </button>
+                  </>
+                ) : rel === "past" ? (
+                  <Pill className="row-after" bg={C.n[100]} fg={C.n[700]}>Not marked seen</Pill>
+                ) : null
               ) : (
                 <Pill className="row-after" bg={C.ok[50]} fg={C.ok[600]}>✓ done</Pill>
               )}

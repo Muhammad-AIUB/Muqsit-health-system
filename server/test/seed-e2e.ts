@@ -23,7 +23,8 @@ const ROLES = [
   'invUnits', 'invUnitsPlain', 'loginWait', 'bulkMed', 'bulkKeys', 'bulkOffline', 'bulkPhone', 'bulkMany', 'moveRx',
   'monthlyCost',
   'taperOrphan', 'taperRefused', 'taperHeld',
-  'saveFailed', 'draftFailed', 'keepWork',
+  'saveFailed', 'draftFailed', 'keepWork', 'answerLost', 'answerLostAll',
+  'ipdSaveFailed', 'opdQueueDay',
 ] as const;
 
 // The "Total monthly approximate cost" journey prices from the medicine chart:

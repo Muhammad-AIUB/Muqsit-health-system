@@ -5,11 +5,15 @@ import {
   Param,
   Patch,
   Post,
+  Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { OpdService } from './opd.service';
 import {
   CreateOpdVisitDto,
+  MoveOpdVisitDto,
+  SaveOpdScheduleDto,
   SetRxStatusDto,
   UpdateOpdStatusDto,
 } from './dto/opd.dto';
@@ -23,14 +27,26 @@ import { WorkstationDoctorId } from '../workstations/workstation.decorator';
 export class OpdController {
   constructor(private readonly opd: OpdService) {}
 
+  // A day's queue, `?date=yyyy-mm-dd` (default today), in the order shown.
   @Get()
-  list(@WorkstationDoctorId() doctorId: string) {
-    return this.opd.list(doctorId);
+  list(@WorkstationDoctorId() doctorId: string, @Query('date') date?: string) {
+    return this.opd.list(doctorId, date);
   }
 
   @Post()
   create(@WorkstationDoctorId() doctorId: string, @Body() dto: CreateOpdVisitDto) {
     return this.opd.create(doctorId, dto);
+  }
+
+  // A day's chamber schedule (start, break, minutes per patient).
+  @Get('schedule')
+  schedule(@WorkstationDoctorId() doctorId: string, @Query('date') date?: string) {
+    return this.opd.getSchedule(doctorId, date);
+  }
+
+  @Put('schedule')
+  saveSchedule(@WorkstationDoctorId() doctorId: string, @Body() dto: SaveOpdScheduleDto) {
+    return this.opd.saveSchedule(doctorId, dto);
   }
 
   // Flag a patient's queue entry incomplete / complete (upsert today's visit).
@@ -46,5 +62,15 @@ export class OpdController {
     @Body() dto: UpdateOpdStatusDto,
   ) {
     return this.opd.setStatus(doctorId, id, dto);
+  }
+
+  // Move a visit one place up or down within its day; answers that day's queue.
+  @Patch(':id/move')
+  move(
+    @WorkstationDoctorId() doctorId: string,
+    @Param('id') id: string,
+    @Body() dto: MoveOpdVisitDto,
+  ) {
+    return this.opd.move(doctorId, id, dto);
   }
 }

@@ -847,6 +847,10 @@ export interface OpdVisit {
   token: string;
   status: string;
   rxStatus: string | null;
+  // The Dhaka day the visit is booked for (yyyy-mm-dd) and its place in that
+  // day's queue. Null only on a row an older build wrote.
+  queueDate: string | null;
+  position: number | null;
   createdAt: string;
 }
 
@@ -857,14 +861,45 @@ export interface OpdVisitInput {
   age?: number;
   gender?: string;
   type?: string;
+  // The day to queue for, yyyy-mm-dd: today (the default) or a later day.
+  date?: string;
+}
+
+// One day's chamber schedule (start, optional break, minutes per patient). The
+// serial times are worked out from it (lib/opdSchedule.ts), never stored.
+export interface OpdScheduleInput {
+  date: string;
+  startTime: string;
+  breakStart: string | null;
+  breakEnd: string | null;
+  minutesPerPatient: number;
+}
+
+export interface OpdScheduleAnswer {
+  day: string;
+  startTime: string;
+  breakStart: string | null;
+  breakEnd: string | null;
+  minutesPerPatient: number;
+  // False while the day is showing an earlier day's (or the pre-set) values.
+  saved: boolean;
 }
 
 export const opdApi = {
-  list: () => apiFetch<OpdVisit[]>("/opd"),
+  // A day's queue, yyyy-mm-dd (default today), in the order shown.
+  list: (date?: string) =>
+    apiFetch<OpdVisit[]>(`/opd${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   create: (input: OpdVisitInput) =>
     apiFetch<OpdVisit>("/opd", { method: "POST", body: JSON.stringify(input) }),
   setStatus: (id: string, status: "waiting" | "done") =>
     apiFetch<OpdVisit>(`/opd/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  // One place up or down within the visit's day; answers that day's queue.
+  move: (id: string, direction: "up" | "down") =>
+    apiFetch<OpdVisit[]>(`/opd/${id}/move`, { method: "PATCH", body: JSON.stringify({ direction }) }),
+  schedule: (date: string) =>
+    apiFetch<OpdScheduleAnswer>(`/opd/schedule?date=${encodeURIComponent(date)}`),
+  saveSchedule: (input: OpdScheduleInput) =>
+    apiFetch<OpdScheduleAnswer>("/opd/schedule", { method: "PUT", body: JSON.stringify(input) }),
   // Flag a patient's queue entry incomplete / complete (upserts today's visit).
   setRxStatus: (input: { patientId: string; rxStatus: "incomplete" | "complete"; name?: string; phone?: string; age?: number; gender?: string }) =>
     apiFetch<OpdVisit>("/opd/rx-status", { method: "POST", body: JSON.stringify(input) }),

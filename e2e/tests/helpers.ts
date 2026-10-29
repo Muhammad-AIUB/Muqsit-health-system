@@ -12,7 +12,9 @@ export type Role =
   | 'restore' | 'isoA' | 'isoB' | 'printDefault' | 'printA4' | 'gateKeyboard' | 'probe'
   | 'sheetSave' | 'sheetKeys' | 'sheetEnter' | 'headerSwitch' | 'noteMirror'
   | 'invUnits' | 'invUnitsPlain' | 'loginWait' | 'bulkMed' | 'bulkKeys' | 'bulkOffline' | 'bulkPhone' | 'bulkMany' | 'moveRx'
-  | 'monthlyCost' | 'taperOrphan' | 'taperRefused' | 'taperHeld' | 'saveFailed' | 'draftFailed' | 'keepWork';
+  | 'monthlyCost' | 'taperOrphan' | 'taperRefused' | 'taperHeld' | 'saveFailed' | 'draftFailed' | 'keepWork'
+  | 'answerLost' | 'answerLostAll'
+  | 'ipdSaveFailed' | 'opdQueueDay';
 
 interface Seed { password: string; doctors: Record<Role, { email: string; name: string }> }
 let seedCache: Seed | null = null;

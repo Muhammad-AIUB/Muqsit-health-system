@@ -337,7 +337,7 @@ resolved per request inside the service.
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint`. **The same prescription sent again is the one on record** (19/10/2026): when this doctor's latest prescription for the patient, from the last 30 minutes, has every field and every line the same, it is answered (201, with `repeat: true` added so the client writes its audit lines once) instead of a second row, and "Your usual" learns nothing from the repeat — a save whose answer was lost on the way back is pressed again. One save per doctor and patient at a time (an advisory lock), so two copies arriving together are one |
+| POST | `/prescriptions` | `CreatePrescriptionDto`; an assistant needs `rx.savePrint`. **The same prescription sent again is the one on record** (19/10/2026): when this doctor's latest prescription for the patient, from the last 30 minutes, has every field and every line the same, it is answered (201, with `repeat: true` added so the client writes its audit lines once) instead of a second row, and "Your usual" learns nothing from the repeat — a save whose answer was lost on the way back is pressed again, and since 20/10/2026 the doctor app sends it again by itself (`client/src/lib/sendAgain.ts`), so this rule is what keeps those re-sends from being second prescriptions. One save per doctor and patient at a time (an advisory lock), so two copies arriving together are one |
 | GET | `/prescriptions?patientId=` | this doctor's prescriptions for that patient only |
 | GET | `/prescriptions/:id` | |
 
@@ -411,17 +411,24 @@ touching anything here.
 
 ### 5.12 OPD queue — `/opd` (JWT + WS)
 
+The queue is booked **per Dhaka calendar day**, written `yyyy-mm-dd` (`OpdVisit.queueDate`; 28/10/2026, physician's sheet). A visit can be added for **today or a later day**; a day that has **passed is locked** — the server refuses to add, move or re-time it (400, "A day that has passed cannot be changed."), whatever the client sends. A date that is not a calendar day (`2026-02-30`, `28/10/2026`) is 400 "That is not a day on the calendar.". `manual-opd-queue-date.sql` must be applied **before** the release that reads it.
+
 | Method | Path | Body / Notes |
 |---|---|---|
-| GET | `/opd` | **today's** queue only (`createdAt >= start of day`), oldest first |
-| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type? }`; `type` is `New` / `Follow-up` / `Urgent`. The server allocates the token. A `patientId` still **waiting** in today's queue with its prescription not yet printed (`rxStatus` null or `incomplete`) is answered with that visit — same token, its own `type`, no second row (19/10/2026: an add whose answer was lost, pressed again). Seen already today (`done`, or the prescription printed: `rxStatus: complete`), the patient is queued again |
-| POST | `/opd/rx-status` | `{ patientId, rxStatus: "incomplete" \| "complete", name?, phone?, age?, gender? }` — upserts today's entry for that patient |
-| PATCH | `/opd/:id/status` | `{ status: "waiting" \| "done" }` |
+| GET | `/opd` | `?date=yyyy-mm-dd` (default **today**): that day's queue in the order shown — `position` ascending, then arrival; a row an older build wrote with no `queueDate` / `position` is read as the Dhaka day it was created, and listed last. A past day is answered (read only) |
+| POST | `/opd` | `{ name, patientId?, phone?, age?, gender?, type?, date? }`; `type` is `New` / `Follow-up` / `Urgent`; `date` is the day to queue for (default today; past → 400). The server allocates the token (per doctor **per queue day**, so every day starts at `T-01`) and the place (`position`, the serial 1, 2, 3 …). A `patientId` still **waiting** in that day's queue with its prescription not yet printed (`rxStatus` null or `incomplete`) is answered with that visit — same token, its own `type`, no second row (19/10/2026: an add whose answer was lost, pressed again). Seen already that day (`done`, or the prescription printed: `rxStatus: complete`), the patient is queued again. The first visit added to a day saves the schedule that day took from an earlier one (see `/opd/schedule`) |
+| PATCH | `/opd/:id/move` | `{ direction: "up" \| "down" }` — the patient swaps places with the nearest patient still **waiting** in that direction; a patient already seen keeps their place and cannot be moved (400, "A patient who has been seen cannot be moved."). The first going up or the last going down changes nothing and is not an error. Today or a later day only (past → 400). Answers the day's queue as it now stands, in the order shown. Any row without a place is numbered in the order shown first |
+| PATCH | `/opd/:id/status` | `{ status: "waiting" \| "done" }` — **today's** queue only: a later day's patient has not been seen, and a past day keeps what it holds (400, "Only today's queue can be marked seen.") |
+| POST | `/opd/rx-status` | `{ patientId, rxStatus: "incomplete" \| "complete", name?, phone?, age?, gender? }` — upserts **today's** entry for that patient; a visit booked for a later day is never the one marked |
+| GET | `/opd/schedule` | `?date=yyyy-mm-dd` (default today) → `{ day, startTime, breakStart, breakEnd, minutesPerPatient, saved }` (`HH:mm`; `breakStart` / `breakEnd` are both set or both `null`). A day with none of its own takes the **latest earlier day's** (`saved: false`), else the pre-set values (18:00, no break, 10 minutes). The serial **times** are worked out from this on the client (`client/src/lib/opdSchedule.ts`) and never stored |
+| PUT | `/opd/schedule` | `{ date, startTime, breakStart?, breakEnd?, minutesPerPatient }` — today or a later day (past → 400). `minutesPerPatient` is a whole number from 1 to 120; a break needs both ends and ends after it starts — 400 with the doctor's sentence otherwise (`server/src/opd/schedule.ts`, a copy of the client's `scheduleProblem`; one table of cases in both specs) |
 
-Tokens are `T-01`, `T-02`, … per doctor per day, derived from the **max** existing
-serial inside a transaction so a mid-day deletion cannot make two visits share a
-number. `POST /opd` and `POST /opd/rx-status` take one advisory lock per doctor,
-so two writes to one queue never read it at the same moment.
+Tokens are `T-01`, `T-02`, … per doctor per **queue day**, derived from the **max** existing
+serial of that day inside a transaction so a mid-day deletion cannot make two visits share a
+number. A token is not renumbered when the order changes — it is what the patient is called by;
+the serial the doctor sees is the place in the day's list. `POST /opd`, `POST /opd/rx-status` and
+`PATCH /opd/:id/move` take one advisory lock per doctor, so two writes to one queue never read it at
+the same moment.
 
 ### 5.13 IPD — `/ipd` (JWT + WS)
 
