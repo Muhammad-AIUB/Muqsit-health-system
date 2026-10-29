@@ -214,12 +214,12 @@ export default function OpdView() {
           const marks: { aria: string; text: string; checked: boolean; patch: (on: boolean) => { present: boolean } | { criticallyIll: boolean } | { urgent: boolean } }[] = [
             { aria: "Present", text: "Present", checked: !!p.presentAt, patch: (on) => ({ present: on }) },
             { aria: "Critically ill", text: "Critically ill", checked: p.criticallyIll, patch: (on) => ({ criticallyIll: on }) },
-            { aria: "Pt needs urgent attention", text: "Urgent attention", checked: p.urgent, patch: (on) => ({ urgent: on }) },
+            { aria: "Pt needs urgent attention", text: "Pt needs urgent attention", checked: p.urgent, patch: (on) => ({ urgent: on }) },
           ];
           return (
             // On a phone the row wraps, and `.row-after` (globals.css) sends the
-            // visit pill and the actions to the second line — so the token is
-            // always at the end of the first, beside the name it belongs to.
+            // visit pill, the marks, the status and the actions to the second
+            // line, so the first holds the serial, picture, name and time.
             <div key={p.id} className="queue-row" data-tone={tone ?? undefined} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", background: toneBg, borderRadius: toneBg ? 8 : 0, paddingLeft: toneBg ? 8 : 0, paddingRight: toneBg ? 8 : 0, borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
               {/* Serial 1, 2, 3 … in the order shown (physician's request,
                   18/10/2026). Not the token: T-01 is what the patient is called
@@ -241,7 +241,7 @@ export default function OpdView() {
               {/* Reception's marks (physician's sheet, 29/10/2026). Present records
                   the time and shows it under the box. Changeable on today's queue
                   only; on another day they are shown, not editable. */}
-              <span className="row-after" style={{ display: "inline-flex", gap: 12, alignItems: "flex-start" }}>
+              <span className="row-after" style={{ display: "inline-flex", flexWrap: "wrap", gap: 12, rowGap: 6, alignItems: "flex-start" }}>
                 {marks.map((m) => (
                   <label key={m.aria} style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, fontSize: 11, color: C.n[700], cursor: canMark ? "pointer" : "default" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>

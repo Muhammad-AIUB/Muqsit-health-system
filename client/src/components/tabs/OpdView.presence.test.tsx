@@ -56,6 +56,12 @@ describe("OPD queue — the row", () => {
     expect(h.presence).toHaveBeenLastCalledWith({ id: "a", urgent: true });
   });
 
+  it("writes the third mark in the physician's own words, in full", () => {
+    h.rows = [row()];
+    const { container } = render(<OpdView />);
+    expect(within(rowEl(container)).getByText("Pt needs urgent attention")).toBeTruthy();
+  });
+
   it("a ticked box is shown ticked and unticking sends false", () => {
     h.rows = [row({ presentAt: AT })];
     render(<OpdView />);

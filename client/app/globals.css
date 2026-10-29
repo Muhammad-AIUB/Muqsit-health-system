@@ -288,14 +288,12 @@ fieldset.read-form:disabled button {
   }
 }
 
-/* ── A queue row on a phone: the token keeps its place ───────────
-   A row is avatar, name, [the kind of visit], token, actions — and on a phone
-   it wraps. Left to wrap by itself the token went wherever there was room:
-   beside the name on a row with no visit pill, under the avatar on a row with
-   one. The token is what is called out in the waiting room, so it should be
-   found in one place. Here the visit pill and the actions (`.row-after`) go to
-   the second line, and the token is always at the end of the first, beside
-   the name it belongs to. A wide screen keeps the written order. */
+/* ── A queue row on a phone: what goes to the second line ─────────
+   A row is serial, picture, name, time, [the kind of visit], the three marks,
+   status, actions — and on a phone it wraps. Left to wrap by itself these went
+   wherever there was room. Here the visit pill, the marks, the status and the
+   actions (`.row-after`) go to the second line, so the first is always the
+   patient: serial, picture, name, time. A wide screen keeps the written order. */
 @media (max-width: 767px) {
   .queue-row > .row-after {
     order: 1;
