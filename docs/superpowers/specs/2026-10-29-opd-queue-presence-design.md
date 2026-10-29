@@ -40,7 +40,7 @@ Open question for the implementation plan: which pad fields count as "data enter
 
 ## Summary cards
 
-Total Serial, Present, Completed, Waiting. Present = visits with Present ticked. Waiting = Present ticked and not Completed. Completed = unchanged.
+Total Serial, Present, Completed, Waiting. Present = visits with Present ticked. Waiting = Present ticked and not Completed. Completed = visits marked Done or whose prescription was printed (a change from 'Done only', flagged for the physician in FUNCTIONAL-AUDIT.md).
 
 ## Data
 
