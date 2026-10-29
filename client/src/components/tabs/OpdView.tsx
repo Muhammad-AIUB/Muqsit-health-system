@@ -19,6 +19,8 @@ import Icon from "@/components/common/Icon";
 import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 import OpdDayPicker from "@/components/opd/OpdDayPicker";
 import OpdScheduleBar from "@/components/opd/OpdScheduleBar";
+import PrintSheetModal from "@/components/prescription/PrintSheetModal";
+import { buildQueueDoc } from "@/lib/opdQueueDoc";
 import EmptyState from "@/components/common/EmptyState";
 import { Loading, LoadError } from "@/components/common/ListState";
 
@@ -28,7 +30,7 @@ const PAST_HINT = "A day that has passed cannot be changed";
 const REL_WORD = { past: "Locked", today: "Today", future: "Upcoming" } as const;
 
 export default function OpdView() {
-  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setCurrentPatientId, setPtInfo, resetEditor, flushEditorDraft, loadPatientById } = useMuqsit();
+  const { setPtName, setPtAge, setPtGender, setPtPhone, setActiveTab, setRxItems, setCurrentPatientId, setPtInfo, resetEditor, flushEditorDraft, loadPatientById, activeWorkstation } = useMuqsit();
 
   // The day on show (yyyy-mm-dd, Dhaka). The queue is booked by day (physician's
   // sheet, 28/10/2026): today is worked as it always was, a LATER day can have
@@ -38,6 +40,7 @@ export default function OpdView() {
   const today = dhakaToday();
   const [day, setDay] = useState(today);
   const [picking, setPicking] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const rel = dayRelation(day, today);
   const canEdit = rel !== "past";
 
@@ -67,6 +70,18 @@ export default function OpdView() {
   // shows none rather than one worked out from another day's.
   const schedule = scheduleQuery.data;
   const times = schedule && (canEdit || schedule.saved) ? slotTimes(queue.length, schedule) : [];
+
+  // The printed sheet is made from the rows as they are at the press, and made
+  // again if the list refreshes while it is open. The doctor named is the
+  // workstation's (whose practice this queue is), never the signed-in user.
+  const queueSheet = printing
+    ? buildQueueDoc({
+        doctorName: activeWorkstation?.name ?? "",
+        day,
+        rows: queue.map((v) => ({ name: v.name, phone: v.phone, age: v.age, gender: v.gender })),
+        times,
+      })
+    : null;
 
   // Whether anyone still WAITING stands above / below a row: a patient already
   // seen keeps their place, so only waiting patients are moved past each other.
@@ -138,6 +153,16 @@ export default function OpdView() {
             <span style={{ fontSize: 11, fontWeight: 600, color: rel === "past" ? C.n[600] : rel === "today" ? C.ok[600] : C.pri[600] }}>{REL_WORD[rel]}</span>
           </button>
           <button
+            type="button"
+            aria-label="Print Queue"
+            disabled={isLoading || queue.length === 0}
+            onClick={() => setPrinting(true)}
+            style={{ ...btnSecondary("md"), display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600, ...(isLoading || queue.length === 0 ? btnDisabled : null) }}
+          >
+            <Icon name="printer" size={16} />
+            Print Queue
+          </button>
+          <button
             onClick={() => setShowAdd((s) => !s)}
             disabled={!canEdit}
             title={canEdit ? undefined : PAST_HINT}
@@ -149,6 +174,7 @@ export default function OpdView() {
       </div>
 
       {picking && <OpdDayPicker value={day} today={today} onPick={choose} onClose={() => setPicking(false)} />}
+      {queueSheet !== null && <PrintSheetModal html={queueSheet} label="OPD queue" onClose={() => setPrinting(false)} />}
 
       {scheduleQuery.isLoading && <Loading label="Loading schedule…" />}
       {Boolean(scheduleQuery.error) && (

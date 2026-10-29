@@ -25,12 +25,15 @@ export default function PrintSheetModal({
   html,
   onClose,
   afterSave = false,
+  label = "Prescription",
 }: {
   /** The built sheet, or null while the visit is still being saved. */
   html: string | null;
   onClose: () => void;
   /** The sheet was opened by "Save & print" — a button that SAVES (see below). */
   afterSave?: boolean;
+  /** What the popup is called, for a screen reader. The sheet is a prescription unless a caller says otherwise. */
+  label?: string;
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
@@ -134,7 +137,7 @@ export default function PrintSheetModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Prescription"
+      aria-label={label}
       {...dialog}
       style={{ position: "fixed", inset: 0, zIndex: 2500, display: "flex", flexDirection: "column", background: effectVar("backdrop-print"), fontFamily: font }}
     >
@@ -164,7 +167,7 @@ export default function PrintSheetModal({
             browser would skip it and carry on into the page behind. */}
         <iframe
           ref={frameRef}
-          title="Prescription"
+          title={label}
           tabIndex={html ? 0 : -1}
           style={{ width: "100%", height: "100%", border: "none", background: effectVar("backdrop-print"), visibility: html ? "visible" : "hidden" }}
         />

@@ -35,6 +35,15 @@ describe("PrintSheetModal — the keyboard stays with the sheet", () => {
     render: (onClose) => <PrintSheetModal html={SHEET} onClose={onClose} />,
   });
 
+  it("names itself by the label it is given, 'Prescription' by default", () => {
+    const { unmount } = render(<PrintSheetModal html={SHEET} onClose={() => {}} />);
+    expect(screen.getByRole("dialog", { name: "Prescription" })).toBeTruthy();
+    unmount();
+    render(<PrintSheetModal html={SHEET} onClose={() => {}} label="OPD queue" />);
+    expect(screen.getByRole("dialog", { name: "OPD queue" })).toBeTruthy();
+    expect(screen.getByTitle("OPD queue")).toBeTruthy();
+  });
+
   it("writes the sheet into its frame", () => {
     render(<PrintSheetModal html={SHEET} onClose={() => {}} />);
     expect(frameOf().contentDocument?.body.textContent).toContain("Tablet. Napa 500 mg");
