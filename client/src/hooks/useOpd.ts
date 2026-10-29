@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { opdApi, type OpdScheduleAnswer, type OpdScheduleInput, type OpdVisit, type OpdVisitInput } from "@/lib/api";
+import { opdApi, type OpdPresenceInput, type OpdScheduleAnswer, type OpdScheduleInput, type OpdVisit, type OpdVisitInput } from "@/lib/api";
 
 const OPD_KEY = ["opd"] as const;
 const dayKey = (day: string) => [...OPD_KEY, "day", day] as const;
@@ -54,6 +54,33 @@ export function useMoveOpdVisit(day: string) {
   });
 }
 
+// A tick shows at once and is settled by the server's answer. A failed one is
+// put back, so a box never stays ticked for something the server did not take.
+// The time of a Present tick is the server's: the list is read again when the
+// request settles, which also repairs a rollback that overlapped another tick.
+export function useSetOpdPresence(day: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: string } & OpdPresenceInput) => opdApi.setPresence(id, input),
+    onMutate: async ({ id, ...input }) => {
+      await qc.cancelQueries({ queryKey: dayKey(day) });
+      const before = qc.getQueryData<OpdVisit[]>(dayKey(day));
+      qc.setQueryData<OpdVisit[]>(dayKey(day), (rows) =>
+        rows?.map((r) => (r.id !== id ? r : {
+          ...r,
+          ...(input.criticallyIll !== undefined ? { criticallyIll: input.criticallyIll } : {}),
+          ...(input.urgent !== undefined ? { urgent: input.urgent } : {}),
+          // Present is shown ticked at once; its time arrives with the answer.
+          ...(input.present === false ? { presentAt: null } : {}),
+          ...(input.present === true && !r.presentAt ? { presentAt: new Date().toISOString() } : {}),
+        })));
+      return { before };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.before) qc.setQueryData(dayKey(day), ctx.before); },
+    onSettled: () => qc.invalidateQueries({ queryKey: OPD_KEY }),
+  });
+}
+
 export function useSaveOpdSchedule() {
   const qc = useQueryClient();
   return useMutation({
@@ -65,4 +92,4 @@ export function useSaveOpdSchedule() {
   });
 }
 
-export type { OpdScheduleAnswer, OpdScheduleInput, OpdVisit, OpdVisitInput };
+export type { OpdPresenceInput, OpdScheduleAnswer, OpdScheduleInput, OpdVisit, OpdVisitInput };

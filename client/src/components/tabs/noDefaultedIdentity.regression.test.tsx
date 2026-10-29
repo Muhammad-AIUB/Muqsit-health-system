@@ -49,7 +49,7 @@ afterEach(cleanup);
 
 const visit = (over: Partial<OpdVisit>): OpdVisit => ({
   id: "v1", patientId: null, name: "Patient", phone: "01700000000", age: null, gender: null,
-  type: "New", token: "T-1", status: "waiting", rxStatus: null, queueDate: null, position: null, createdAt: "2026-09-07T04:00:00.000Z", ...over,
+  type: "New", token: "T-1", status: "waiting", rxStatus: null, queueDate: null, position: null, presentAt: null, criticallyIll: false, urgent: false, createdAt: "2026-09-07T04:00:00.000Z", ...over,
 });
 
 /** Every identity field that must arrive blank unless the doctor typed it. */

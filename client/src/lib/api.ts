@@ -10,6 +10,7 @@
 
 import { compressImage } from "./compressImage";
 import type { AdviceScope, DrugAdvice } from "./rxDrugAdvice";
+import type { PadStage } from "./opdPresence";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
@@ -851,7 +852,23 @@ export interface OpdVisit {
   // day's queue. Null only on a row an older build wrote.
   queueDate: string | null;
   position: number | null;
+  // Reception's marks (29/10/2026): when the patient was marked present (the
+  // server's clock; null = not present) and the two flags.
+  presentAt: string | null;
+  criticallyIll: boolean;
+  urgent: boolean;
+  // Only on the queue's list: the patient's picture, and how far this practice's
+  // parked visit has got today. A row answered by an add or a status change has
+  // neither until the list is read again.
+  pictureUrl?: string | null;
+  padStage?: PadStage;
   createdAt: string;
+}
+
+export interface OpdPresenceInput {
+  present?: boolean;
+  criticallyIll?: boolean;
+  urgent?: boolean;
 }
 
 export interface OpdVisitInput {
@@ -896,6 +913,9 @@ export const opdApi = {
   // One place up or down within the visit's day; answers that day's queue.
   move: (id: string, direction: "up" | "down") =>
     apiFetch<OpdVisit[]>(`/opd/${id}/move`, { method: "PATCH", body: JSON.stringify({ direction }) }),
+  // Reception's marks on one visit (today's queue only).
+  setPresence: (id: string, input: OpdPresenceInput) =>
+    apiFetch<OpdVisit>(`/opd/${id}/presence`, { method: "PATCH", body: JSON.stringify(input) }),
   schedule: (date: string) =>
     apiFetch<OpdScheduleAnswer>(`/opd/schedule?date=${encodeURIComponent(date)}`),
   saveSchedule: (input: OpdScheduleInput) =>
