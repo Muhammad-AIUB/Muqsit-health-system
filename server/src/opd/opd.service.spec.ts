@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { OpdService } from './opd.service';
 
 // The OPD queue is booked per day (physician's sheet, 28/10/2026): a visit can
@@ -56,6 +56,31 @@ describe('OpdService — what a day may be asked to do', () => {
     it('refuses a date that is not a day on the calendar', async () => {
       const { service } = build();
       await expect(service.list('doc', '2026-02-30')).rejects.toThrow(/not a day/i);
+    });
+  });
+
+  describe('list — a missing SupervisedDraft table', () => {
+    const rows = [{ id: 'v1', patientId: 'p1', doctorId: 'doc', name: 'N' }];
+    it('still answers, with no stage, and says why in the log', async () => {
+      const { Prisma } = jest.requireActual('@prisma/client');
+      const missing = new Prisma.PrismaClientKnownRequestError('missing', { code: 'P2021', clientVersion: 'x' });
+      const { prisma, service } = build();
+      prisma.opdVisit.findMany.mockResolvedValue(rows);
+      prisma.patient.findMany.mockResolvedValue([{ id: 'p1', doctorId: 'owner', pictureUrl: null, incompleteRx: null }]);
+      prisma.supervisedDraft.findMany.mockRejectedValue(missing);
+      const err = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      const out = await service.list('doc');
+      expect(out).toHaveLength(1);
+      expect(out[0].padStage).toBeNull();
+      expect(err).toHaveBeenCalledWith(expect.stringContaining('manual-supervised-draft.sql'));
+      err.mockRestore();
+    });
+    it('rethrows any other error', async () => {
+      const { prisma, service } = build();
+      prisma.opdVisit.findMany.mockResolvedValue(rows);
+      prisma.patient.findMany.mockResolvedValue([]);
+      prisma.supervisedDraft.findMany.mockRejectedValue(new Error('connection lost'));
+      await expect(service.list('doc')).rejects.toThrow('connection lost');
     });
   });
 

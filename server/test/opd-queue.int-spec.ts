@@ -400,6 +400,10 @@ describe('OPD queue by day', () => {
     it('a field that is not on the DTO is dropped, and a non-boolean is refused', async () => {
       const { browser } = await setup();
       const v = (await add(browser, 'Dto')).body as OpdVisit;
+      const res = await browser.patch(`/api/opd/${v.id}/presence`).send({ status: 'done', urgent: true });
+      expect(res.status).toBe(200);
+      expect(res.body.urgent).toBe(true);
+      expect(res.body.status).toBe('waiting');
       expect((await browser.patch(`/api/opd/${v.id}/presence`).send({ urgent: 'yes' })).status).toBe(400);
     });
   });
@@ -428,6 +432,19 @@ describe('OPD queue by day', () => {
       expect(row.padStage).toBeNull();
       await t.prisma.supervisedDraft.create({ data: { doctorId: supervisor.doctor.id, patientId: p.id, data: { ptDate: TODAY, chiefComplaints: ['cough'] } } });
       expect(((await list(supervisor.browser))[0] as typeof row).padStage).toBe('history');
+    });
+
+    it("⚕️ a patient of another practice, queued by id, shows no picture and no stage; a supervised one keeps its picture", async () => {
+      const owner = await makeDoctor(t.prisma);
+      const { doctor, browser } = await setup();
+      const url = 'https://example.test/foreign.jpg';
+      const foreign = await makePatient(t.prisma, owner.id, { pictureUrl: url, incompleteRx: { ptDate: TODAY, chiefComplaints: ['x'] } });
+      await add(browser, 'Foreign', undefined, foreign.id);
+      let row = (await list(browser))[0] as OpdVisit & { pictureUrl: string | null; padStage: string | null };
+      expect([row.pictureUrl, row.padStage]).toEqual([null, null]);
+      await makeSupervisor(t.prisma, foreign.id, doctor.id);
+      row = (await list(browser))[0] as typeof row;
+      expect(row.pictureUrl).toBe(url);
     });
   });
 });

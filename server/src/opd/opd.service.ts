@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OpdDaySetting, OpdVisit, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
@@ -40,6 +40,8 @@ export interface OpdScheduleAnswer extends OpdSchedule {
 
 @Injectable()
 export class OpdService {
+  private readonly log = new Logger(OpdService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   // ⚕️ The day a visit belongs to. `queueDate` is the day it is booked for; a row
@@ -83,7 +85,9 @@ export class OpdService {
     const ids = [...new Set(rows.map((r) => r.patientId).filter((id): id is string => !!id))];
     if (ids.length === 0) return rows.map((r) => ({ ...r, pictureUrl: null, padStage: null }));
     const patients = await db.patient.findMany({
-      where: { id: { in: ids } },
+      // ⚕️ Scoped like PatientsService.accessibleWhere: create() takes any patientId,
+      // so an id outside this practice (own or supervised) must not hand back its picture.
+      where: { id: { in: ids }, OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] },
       select: { id: true, doctorId: true, pictureUrl: true, incompleteRx: true },
     });
     let supervised: { patientId: string; data: Prisma.JsonValue }[] = [];
@@ -92,8 +96,9 @@ export class OpdService {
         where: { doctorId, patientId: { in: ids } },
         select: { patientId: true, data: true },
       });
-    } catch {
-      supervised = [];
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021')) throw e;
+      this.log.error('SupervisedDraft does not exist — apply prisma/manual-supervised-draft.sql. The pad stage of a supervised patient shows as none until it is.');
     }
     const byId = new Map(patients.map((p) => [p.id, p]));
     const draftOf = new Map(supervised.map((s) => [s.patientId, s.data]));
