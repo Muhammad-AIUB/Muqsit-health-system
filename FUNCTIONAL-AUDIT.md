@@ -1319,6 +1319,8 @@ Open:
 - [ ] **A day that has passed can be printed** (the button is not locked with the day).
 - [ ] **The doctor named is the workstation's doctor** (`activeWorkstation.name`); with no workstation chosen the sheet has no name line.
 - [ ] **Times are the SAVED schedule's,** as on the screen; where the screen shows none (a past day never given a schedule) the sheet shows a dash.
+- [x] **The preview is a snapshot taken at the press.** The queue refreshes every few seconds, but an open sheet is not rebuilt: it shows the rows, times and doctor as they were when Print Queue was pressed. Close it and press again to see newer rows. The button is also off while the day's schedule or the queue failed to load (a failed refresh with old rows held would otherwise print them without a notice).
+- [ ] **Which word heads the column: "Gender" or "Sex"?** The column is headed "Gender" as on the physician's sheet, while `client/CLAUDE.md` says the field is "Sex" on every screen. The physician to say which word the printed column should use.
 - [ ] **NOT run:** Safari and Firefox, a real printer, and how the header wraps at phone width. Pinned in `OpdView.print.test.tsx` and `opdQueueDoc.test.ts` (jsdom only).
 
 ### OPD queue: presence, urgency and status (29/10/2026) - open for the physician

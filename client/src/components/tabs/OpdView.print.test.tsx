@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   rows: {} as Record<string, unknown[]>,
   schedule: { startTime: "18:00", breakStart: null as string | null, breakEnd: null as string | null, minutesPerPatient: 10, saved: true },
   scheduleLoading: false,
+  scheduleError: false,
   queueLoading: false,
+  queueError: false,
   workstation: { doctorId: "d1", name: "Dr. Rahim", role: "owner", permissions: [] } as { name: string } | null,
 }));
 
@@ -24,8 +26,8 @@ vi.mock("@/context/MuqsitContext", () => ({
   }),
 }));
 vi.mock("@/hooks/useOpd", () => ({
-  useOpdQueue: (day?: string) => ({ data: mocks.rows[day ?? ""] ?? [], isLoading: mocks.queueLoading, error: null, refetch: vi.fn(), isFetching: false }),
-  useOpdSchedule: (day: string) => ({ data: mocks.scheduleLoading ? undefined : { day, ...mocks.schedule }, isLoading: mocks.scheduleLoading, error: null, refetch: vi.fn(), isFetching: false }),
+  useOpdQueue: (day?: string) => ({ data: mocks.rows[day ?? ""] ?? [], isLoading: mocks.queueLoading, error: mocks.queueError ? new Error("x") : null, refetch: vi.fn(), isFetching: false }),
+  useOpdSchedule: (day: string) => ({ data: mocks.scheduleLoading || mocks.scheduleError ? undefined : { day, ...mocks.schedule }, isLoading: mocks.scheduleLoading, error: mocks.scheduleError ? new Error("x") : null, refetch: vi.fn(), isFetching: false }),
   useAddOpdVisit: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetOpdStatus: () => ({ mutate: vi.fn() }),
   useSetOpdPresence: () => ({ mutate: vi.fn() }),
@@ -49,7 +51,9 @@ beforeEach(() => {
   mocks.rows = {};
   mocks.schedule = { startTime: "18:00", breakStart: null, breakEnd: null, minutesPerPatient: 10, saved: true };
   mocks.scheduleLoading = false;
+  mocks.scheduleError = false;
   mocks.queueLoading = false;
+  mocks.queueError = false;
   mocks.workstation = { name: "Dr. Rahim" };
 });
 afterEach(cleanup);
@@ -73,6 +77,20 @@ describe("OPD queue — Print Queue", () => {
     expect(printButton().disabled).toBe(false);
   });
 
+  it("is off while the day's schedule failed to load", () => {
+    mocks.rows[TODAY] = [visit("a", "Amy Khan")];
+    mocks.scheduleError = true;
+    render(<OpdView />);
+    expect(printButton().disabled).toBe(true);
+  });
+
+  it("is off while the queue failed to refresh, though old rows are held", () => {
+    mocks.rows[TODAY] = [visit("a", "Amy Khan")];
+    mocks.queueError = true;
+    render(<OpdView />);
+    expect(printButton().disabled).toBe(true);
+  });
+
   it("opens a sheet of the day's patients with the workstation doctor's name and saved times", () => {
     mocks.rows[TODAY] = [visit("a", "Amy Khan"), visit("b", "Bob Roy", { age: null })];
     render(<OpdView />);
@@ -89,7 +107,6 @@ describe("OPD queue — Print Queue", () => {
 
   it("prints a day that has passed", () => {
     mocks.rows[PAST] = [visit("p", "Past Patient", { queueDate: PAST })];
-    mocks.schedule = { ...mocks.schedule, saved: true };
     render(<OpdView />);
     fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
     fireEvent.click(document.querySelector(`[data-day="${PAST}"]`) as Element);
@@ -112,8 +129,42 @@ describe("OPD queue — Print Queue", () => {
     mocks.rows[TODAY] = [visit("a", "Amy Khan")];
     render(<OpdView />);
     fireEvent.click(printButton());
-    expect(sheetText()).not.toContain("Dr.");
+    const frame = screen.getByTitle("OPD queue") as HTMLIFrameElement;
+    expect(frame.contentDocument?.querySelector("[data-doctor]")).toBeNull();
     expect(sheetText()).toContain("Amy Khan");
+  });
+
+  it("the sheet's times are the saved schedule's, not a half-typed box's", () => {
+    mocks.rows[TODAY] = [visit("a", "Amy Khan")];
+    render(<OpdView />);
+    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "09:00" } });
+    fireEvent.click(printButton());
+    const text = sheetText();
+    expect(text).toContain("6:00 PM");
+    expect(text).not.toContain("9:00 AM");
+  });
+
+  it("the open sheet is a snapshot taken at the press; pressing again shows the new row", () => {
+    mocks.rows[TODAY] = [visit("a", "Amy Khan")];
+    const { rerender } = render(<OpdView />);
+    fireEvent.click(printButton());
+    mocks.rows[TODAY] = [visit("a", "Amy Khan"), visit("b", "Late Arrival")];
+    rerender(<OpdView />);
+    expect(sheetText()).toContain("Amy Khan");
+    expect(sheetText()).not.toContain("Late Arrival");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(printButton());
+    expect(sheetText()).toContain("Late Arrival");
+  });
+
+  it("the open sheet keeps its doctor when the workstation changes under it", () => {
+    mocks.rows[TODAY] = [visit("a", "Amy Khan")];
+    const { rerender } = render(<OpdView />);
+    fireEvent.click(printButton());
+    mocks.workstation = { name: "Dr. Karim" };
+    rerender(<OpdView />);
+    expect(sheetText()).toContain("Dr. Rahim");
+    expect(sheetText()).not.toContain("Dr. Karim");
   });
 
   it("closes back to the queue", () => {

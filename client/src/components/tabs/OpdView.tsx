@@ -40,7 +40,8 @@ export default function OpdView() {
   const today = dhakaToday();
   const [day, setDay] = useState(today);
   const [picking, setPicking] = useState(false);
-  const [printing, setPrinting] = useState(false);
+  // The open Print Queue sheet: the finished page, built at the press and kept as it was.
+  const [sheet, setSheet] = useState<string | null>(null);
   const rel = dayRelation(day, today);
   const canEdit = rel !== "past";
 
@@ -71,17 +72,23 @@ export default function OpdView() {
   const schedule = scheduleQuery.data;
   const times = schedule && (canEdit || schedule.saved) ? slotTimes(queue.length, schedule) : [];
 
-  // The printed sheet is made from the rows as they are at the press, and made
-  // again if the list refreshes while it is open. The doctor named is the
-  // workstation's (whose practice this queue is), never the signed-in user.
-  const queueSheet = printing
-    ? buildQueueDoc({
+  // The printed sheet is made ONCE, at the press, from the rows as they are then,
+  // and kept as it was while it is open: the list refreshes every few seconds and
+  // a preview that was rewritten under the reader lost its place, and after a
+  // workstation switch would have put the new doctor's name over the old
+  // practice's rows. The doctor named is the workstation's (whose practice this
+  // queue is), never the signed-in user. Not offered while the queue or the day's
+  // schedule is loading or failed: a failed refresh still holds old rows.
+  const printBlocked = isLoading || scheduleQuery.isLoading || Boolean(scheduleQuery.error) || !schedule || Boolean(error) || queue.length === 0;
+  const openSheet = () =>
+    setSheet(
+      buildQueueDoc({
         doctorName: activeWorkstation?.name ?? "",
         day,
         rows: queue.map((v) => ({ name: v.name, phone: v.phone, age: v.age, gender: v.gender })),
         times,
-      })
-    : null;
+      }),
+    );
 
   // Whether anyone still WAITING stands above / below a row: a patient already
   // seen keeps their place, so only waiting patients are moved past each other.
@@ -155,9 +162,9 @@ export default function OpdView() {
           <button
             type="button"
             aria-label="Print Queue"
-            disabled={isLoading || scheduleQuery.isLoading || queue.length === 0}
-            onClick={() => setPrinting(true)}
-            style={{ ...btnSecondary("md"), display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600, ...(isLoading || scheduleQuery.isLoading || queue.length === 0 ? btnDisabled : null) }}
+            disabled={printBlocked}
+            onClick={openSheet}
+            style={{ ...btnSecondary("md"), display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600, ...(printBlocked ? btnDisabled : null) }}
           >
             <Icon name="printer" size={16} />
             Print Queue
@@ -174,7 +181,7 @@ export default function OpdView() {
       </div>
 
       {picking && <OpdDayPicker value={day} today={today} onPick={choose} onClose={() => setPicking(false)} />}
-      {queueSheet !== null && <PrintSheetModal html={queueSheet} label="OPD queue" onClose={() => setPrinting(false)} />}
+      {sheet !== null && <PrintSheetModal html={sheet} label="OPD queue" onClose={() => setSheet(null)} />}
 
       {scheduleQuery.isLoading && <Loading label="Loading schedule…" />}
       {Boolean(scheduleQuery.error) && (
