@@ -59,7 +59,12 @@ export function buildQueueDoc({ doctorName, day, rows, times }: QueueDocInput): 
   table { width: 100%; border-collapse: collapse; }
   thead { display: table-header-group; }
   th { text-align: left; font-size: 12px; border-bottom: 1.5px solid #1a1a1a; padding: 6px 8px; }
+  th { white-space: nowrap; }
   td { padding: 6px 8px; border-bottom: 0.5px solid #bbb; vertical-align: top; overflow-wrap: anywhere; }
+  /* Only the name may wrap. Gender, age, mobile and time stay on one line: with the
+     name taking the spare width, "Female" printed as "Femal / e" and a number the
+     reception dials was split in two (browser pass, 30/10/2026). */
+  td:nth-child(n+3) { white-space: nowrap; overflow-wrap: normal; }
   tr { break-inside: avoid; page-break-inside: avoid; }
   td:first-child, th:first-child { width: 48px; }
   @media print { body { padding: 0; } }

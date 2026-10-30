@@ -66,6 +66,10 @@ describe("buildQueueDoc", () => {
     expect(html).toMatch(/thead\s*{[^}]*display:\s*table-header-group/);
     expect(html).toMatch(/tr\s*{[^}]*break-inside:\s*avoid/);
     expect(html).toMatch(/overflow-wrap:\s*anywhere/);
+    // ⚕️ Only the name wraps: "Female" was printed "Femal / e" and a mobile number
+    // split in two when the name took the spare width.
+    expect(html).toMatch(/td:nth-child\(n\+3\)\s*{[^}]*white-space:\s*nowrap/);
+    expect(html).toMatch(/th\s*{\s*white-space:\s*nowrap/);
   });
 
   it("escapes the day too: a day string cannot open an element in the title", () => {
