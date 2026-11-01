@@ -7,6 +7,7 @@ import {
   onAuthFailure,
   PROFESSION_LABELS,
   type AuthUser,
+  type PaymentRequestRow,
   type Registration,
 } from "@/lib/api";
 
@@ -152,6 +153,7 @@ const NAV = [
   { id: "primary", label: "Primary accounts" },
   { id: "secondary", label: "Secondary accounts" },
   { id: "trash", label: "Trash" },
+  { id: "payments", label: "SMS payments" },
 ] as const;
 type NavId = (typeof NAV)[number]["id"];
 
@@ -161,6 +163,7 @@ const NAV_ICON: Record<NavId, React.ReactNode> = {
   primary: <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" />,
   secondary: <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8" />,
   trash: <path d="M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />,
+  payments: <path d="M2 6h20v12H2z M2 10h20 M6 15h4" />,
 };
 
 // Stored dates are shown dd/mm/yyyy across the product.
@@ -217,7 +220,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
 
       {/* ── Main content ── */}
       <main style={{ flex: 1, padding: "26px 30px", overflow: "auto" }}>
-        <AccountsPage mode={nav} />
+        {nav === "payments" ? <PaymentsPage /> : <AccountsPage mode={nav} />}
       </main>
     </div>
   );
@@ -496,6 +499,112 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
 // `confirm` given: a question — Cancel holds the focus, so a stray Enter keeps
 // what was there; Escape and a click on the backdrop mean no. Without it: a
 // message, which stays until OK and is not dismissed by a click beside it.
+// ── SMS payments (Settings → Payment in the doctor app, 2026-11-01) ────────
+// A doctor asks for SMS (or a renewal); no payment gateway exists, so the admin
+// credits the wallet here once the payment has come in. Credit is one
+// transaction on the server (wallet + ledger + request) and a request pressed
+// twice is credited once (409). 1 SMS = 1 taka.
+function PaymentsPage() {
+  const [rows, setRows] = useState<PaymentRequestRow[]>([]);
+  const [status, setStatus] = useState<"pending" | "">("pending");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [ask, setAsk] = useState<(Question & { answer: (ok: boolean) => void }) | null>(null);
+  const [failed, setFailed] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setRows(await adminApi.paymentRequests(status || undefined));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to load payment requests");
+    } finally {
+      setLoading(false);
+    }
+  }, [status]);
+  useEffect(() => { void load(); }, [load]);
+
+  const act = async (r: PaymentRequestRow, kind: "credit" | "reject") => {
+    const who = r.doctor?.displayName || r.doctor?.name || "this doctor";
+    const question: Question = kind === "credit"
+      ? r.kind === "sms"
+        ? { title: `Add ${r.quantity ?? 0} SMS to ${who}'s balance?`, body: "Do this only after the payment has been received. 1 SMS = 1 taka.", confirm: "Add SMS" }
+        : { title: `Mark ${who}'s renewal as done?`, body: "No renewal is made by the app — this only records that it was handled.", confirm: "Mark done" }
+      : { title: `Reject ${who}'s request?`, confirm: "Reject", danger: true };
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const ok = await new Promise<boolean>((answer) => setAsk({ ...question, answer }));
+    setAsk(null);
+    opener?.focus();
+    if (!ok) return;
+    setBusy(r.id);
+    try {
+      if (kind === "credit") await adminApi.creditPaymentRequest(r.id);
+      else await adminApi.rejectPaymentRequest(r.id);
+    } catch (e) {
+      setFailed(e instanceof ApiError ? e.message : "The change was not made. Check your internet connection and try again.");
+    } finally {
+      setBusy(null);
+      void load();
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 18 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: C.n900 }}>SMS payments</h1>
+        {!loading && <span style={{ fontSize: 13, color: C.n600, fontVariantNumeric: "tabular-nums" }}>{rows.length} {rows.length === 1 ? "request" : "requests"}</span>}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button type="button" onClick={() => setStatus("pending")} style={status === "pending" ? { ...tab, ...tabActive } : tab}>Pending</button>
+        <button type="button" onClick={() => setStatus("")} style={status === "" ? { ...tab, ...tabActive } : tab}>All</button>
+      </div>
+      {error && <div style={errBox}>{error}</div>}
+      <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ textAlign: "left", color: C.n600, background: C.n50 }}>
+              <th style={th}>Doctor</th><th style={th}>Request</th><th style={th}>Note</th><th style={th}>Date</th><th style={th}>Balance</th><th style={th}>Status</th><th style={th} />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                <td style={td}>
+                  <div>{r.doctor?.displayName || r.doctor?.name || r.doctorId}</div>
+                  <div style={tdSub}>{r.doctor?.email}{r.doctor?.mobile ? ` · ${r.doctor.mobile}` : ""}</div>
+                </td>
+                <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>
+                  {r.kind === "sms" ? `Buy ${r.quantity ?? "—"} SMS` : "Renew"}
+                  {r.amount !== null && <div style={tdSub}>Pays {r.amount} taka</div>}
+                </td>
+                <td style={{ ...td, maxWidth: 240, overflowWrap: "anywhere" }}>{r.note ?? "—"}</td>
+                <td style={td}>{ddmmyyyy(r.createdAt)}</td>
+                <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{r.balance} taka</td>
+                <td style={td}>{r.status === "credited" ? `Done${r.credited !== null ? ` · ${r.credited} SMS added` : ""}` : r.status === "rejected" ? "Rejected" : "Pending"}</td>
+                <td style={td}>
+                  {r.status === "pending" && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button type="button" disabled={busy === r.id} onClick={() => act(r, "credit")} style={actBtn(C.pri, C.white)}>{r.kind === "sms" ? "Add SMS" : "Mark done"}</button>
+                      <button type="button" disabled={busy === r.id} onClick={() => act(r, "reject")} style={actOutline(C.dangerDark)}>Reject</button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={7} style={{ ...td, color: C.n600, textAlign: "center" }}>No requests.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {ask && <Dialog title={ask.title} body={ask.body} confirm={ask.confirm} danger={ask.danger} onAnswer={ask.answer} />}
+      {failed && <Dialog title="Not done" body={failed} onAnswer={() => setFailed("")} />}
+    </div>
+  );
+}
+
 interface Question { title: string; body?: string; confirm: string; danger?: boolean }
 
 function Dialog({ title, body, confirm, danger, onAnswer }: { title: string; body?: string; confirm?: string; danger?: boolean; onAnswer: (ok: boolean) => void }) {

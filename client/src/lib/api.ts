@@ -925,6 +925,109 @@ export const opdApi = {
     apiFetch<OpdVisit>("/opd/rx-status", { method: "POST", body: JSON.stringify(input) }),
 };
 
+// ── SMS to a day's queue, the SMS wallet, payment requests (2026-11-01) ────
+// The message is built on the SERVER, from the physician's samples; the client
+// only shows it. 1 taka per message the provider counts.
+export type SmsLanguage = "en" | "bn";
+
+export interface SmsPlanRow {
+  visitId: string;
+  serial: number;
+  name: string;
+  /** As it will be sent (01XXXXXXXXX), or null when it cannot be. */
+  mobile: string | null;
+  /** The serial's time, minutes since midnight (the Print Queue's), or null. */
+  minutes: number | null;
+  message: string | null;
+  encoding: "GSM-7" | "UCS-2" | null;
+  segments: number;
+  /** Why this patient is not sent one, in words; null when they are. */
+  skip: string | null;
+}
+
+export interface SmsPlan {
+  day: string;
+  language: SmsLanguage;
+  doctorName: string;
+  chambers: { id: string; address: string }[];
+  chamberId: string | null;
+  problems: string[];
+  rows: SmsPlanRow[];
+  recipients: number;
+  segments: number;
+  cost: number;
+  costPerSegment: number;
+  balance: number;
+  gatewayConfigured: boolean;
+  canSend: boolean;
+  signature: string;
+}
+
+export interface SmsSendResultRow {
+  visitId: string;
+  serial: number;
+  name: string;
+  mobile: string | null;
+  message: string | null;
+  segments: number;
+  status: "sent" | "failed" | "skipped";
+  detail: string;
+}
+
+export interface SmsSendAnswer {
+  jobId: string;
+  day: string;
+  language: SmsLanguage;
+  results: SmsSendResultRow[];
+  sent: number;
+  failed: number;
+  skipped: number;
+  charged: number;
+  balance: number;
+}
+
+export interface SmsLedgerRow {
+  id: string;
+  delta: number;
+  reason: "send" | "refund" | "topup" | "adjust" | string;
+  ref: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface PaymentRequest {
+  id: string;
+  kind: "sms" | "renew" | string;
+  quantity: number | null;
+  amount: number | null;
+  note: string | null;
+  status: "pending" | "credited" | "rejected" | string;
+  credited: number | null;
+  adminNote: string | null;
+  handledAt: string | null;
+  createdAt: string;
+}
+
+export interface PaymentRequestInput {
+  kind: "sms" | "renew";
+  quantity?: number;
+  amount?: number;
+  note?: string;
+}
+
+export const smsApi = {
+  // Sends nothing and charges nothing.
+  preview: (input: { date: string; language: SmsLanguage; chamberId?: string }) =>
+    apiFetch<SmsPlan>("/opd/sms/preview", { method: "POST", body: JSON.stringify(input) }),
+  send: (input: { date: string; language: SmsLanguage; chamberId?: string; previewSignature: string; confirmRepeat?: boolean }) =>
+    apiFetch<SmsSendAnswer>("/opd/sms/send", { method: "POST", body: JSON.stringify(input) }),
+  wallet: () => apiFetch<{ balance: number }>("/sms/wallet"),
+  ledger: () => apiFetch<SmsLedgerRow[]>("/sms/ledger"),
+  paymentRequests: () => apiFetch<PaymentRequest[]>("/sms/payment-requests"),
+  createPaymentRequest: (input: PaymentRequestInput) =>
+    apiFetch<PaymentRequest>("/sms/payment-requests", { method: "POST", body: JSON.stringify(input) }),
+};
+
 // ── IPD ward ────────────────────────────────────────────────
 // One "Follow Up" vitals/intake-output snapshot for an IPD admission.
 export interface IpdFollowUp {

@@ -20,6 +20,7 @@ import PatientMobileLookup from "@/components/prescription/PatientMobileLookup";
 import OpdDayPicker from "@/components/opd/OpdDayPicker";
 import OpdScheduleBar from "@/components/opd/OpdScheduleBar";
 import PrintSheetModal from "@/components/prescription/PrintSheetModal";
+import OpdSmsDialog from "@/components/opd/OpdSmsDialog";
 import { buildQueueDoc } from "@/lib/opdQueueDoc";
 import EmptyState from "@/components/common/EmptyState";
 import { Loading, LoadError } from "@/components/common/ListState";
@@ -42,6 +43,8 @@ export default function OpdView() {
   const [picking, setPicking] = useState(false);
   // The open Print Queue sheet: the finished page, built at the press and kept as it was.
   const [sheet, setSheet] = useState<string | null>(null);
+  // The "Send SMS to all patients" box (physician's sheet, 28/10/2026).
+  const [smsOpen, setSmsOpen] = useState(false);
   const rel = dayRelation(day, today);
   const canEdit = rel !== "past";
 
@@ -89,6 +92,12 @@ export default function OpdView() {
         times,
       }),
     );
+
+  // ⚕️ Today or a later day, with a loaded queue that has someone in it. The
+  // server refuses a day that has passed and an empty day as well; the message,
+  // the times and the cost are worked out there, from the saved schedule.
+  const smsBlocked = !canEdit || isLoading || Boolean(error) || queue.length === 0;
+  const smsHint = !canEdit ? "SMS cannot be sent for a day that has passed" : queue.length === 0 && !isLoading ? "No one is in this day's queue" : undefined;
 
   // Whether anyone still WAITING stands above / below a row: a patient already
   // seen keeps their place, so only waiting patients are moved past each other.
@@ -170,6 +179,17 @@ export default function OpdView() {
             Print Queue
           </button>
           <button
+            type="button"
+            aria-haspopup="dialog"
+            disabled={smsBlocked}
+            title={smsHint}
+            onClick={() => setSmsOpen(true)}
+            style={{ ...btnSecondary("md"), display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600, ...(smsBlocked ? btnDisabled : null) }}
+          >
+            <Icon name="mail" size={16} />
+            Send SMS to all patients
+          </button>
+          <button
             onClick={() => setShowAdd((s) => !s)}
             disabled={!canEdit}
             title={canEdit ? undefined : PAST_HINT}
@@ -181,6 +201,14 @@ export default function OpdView() {
       </div>
 
       {picking && <OpdDayPicker value={day} today={today} onPick={choose} onClose={() => setPicking(false)} />}
+      {smsOpen && (
+        <OpdSmsDialog
+          key={day}
+          day={day}
+          onClose={() => setSmsOpen(false)}
+          onBuy={() => { setSmsOpen(false); setActiveTab("settings", "/settings/payment"); }}
+        />
+      )}
       {sheet !== null && <PrintSheetModal html={sheet} label="OPD queue" onClose={() => setSheet(null)} />}
 
       {scheduleQuery.isLoading && <Loading label="Loading schedule…" />}

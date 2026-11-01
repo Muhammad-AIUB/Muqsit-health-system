@@ -14,7 +14,7 @@ export type Role =
   | 'invUnits' | 'invUnitsPlain' | 'loginWait' | 'bulkMed' | 'bulkKeys' | 'bulkOffline' | 'bulkPhone' | 'bulkMany' | 'moveRx'
   | 'monthlyCost' | 'taperOrphan' | 'taperRefused' | 'taperHeld' | 'saveFailed' | 'draftFailed' | 'keepWork'
   | 'answerLost' | 'answerLostAll'
-  | 'ipdSaveFailed' | 'opdQueueDay' | 'opdPresence' | 'opdPrintQueue';
+  | 'ipdSaveFailed' | 'opdQueueDay' | 'opdPresence' | 'opdPrintQueue' | 'opdSms';
 
 interface Seed { password: string; doctors: Record<Role, { email: string; name: string }> }
 let seedCache: Seed | null = null;
