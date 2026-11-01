@@ -11,8 +11,10 @@ import {
   IsString,
   Max,
   MaxLength,
+  Matches,
   Min,
   MinLength,
+  ValidateNested,
   Validate,
   ValidateIf,
   ValidatorConstraint,
@@ -137,6 +139,21 @@ export class SupervisedDraftDto {
 export class AppendDrugHistoryDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(HISTORY_MAX) @IsString({ each: true }) @MaxLength(2000, { each: true })
   entries!: string[];
+}
+
+// ⚕️ On-examination findings of a saved visit (physician's sheets 28/10 item 7,
+// 31/10 item 3: "this patient's every doctor sees it"), appended by the server
+// to the patient's shared history. The author is NOT sent: the server stamps
+// the name of the practice doctor the request acts for.
+export class OnExaminationEntryDto {
+  @IsString() @Matches(/^\d{2}\/\d{2}\/\d{4}$/, { message: 'The visit date must be dd/mm/yyyy.' }) date!: string;
+  @IsString() @MinLength(1) @MaxLength(2000) text!: string;
+}
+
+export class AppendOnExaminationDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(500)
+  @ValidateNested({ each: true }) @Type(() => OnExaminationEntryDto)
+  entries!: OnExaminationEntryDto[];
 }
 
 export class LinkPatientDto {

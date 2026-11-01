@@ -14,6 +14,7 @@ import {
 import { PatientsService } from './patients.service';
 import {
   AppendDrugHistoryDto,
+  AppendOnExaminationDto,
   CreatePatientDto,
   LinkPatientDto,
   SupervisedDraftDto,
@@ -159,6 +160,25 @@ export class PatientsController {
       throw new ForbiddenException('You do not have permission to update prescriptions');
     }
     return this.patients.appendDrugHistory(doctorId, id, dto.entries);
+  }
+
+  // ⚕️ On-examination findings of a saved visit, appended to the patient's
+  // shared history (physician, 28/10 + 31/10/2026: every doctor of the patient
+  // sees them). Unlike PATCH, a SUPERVISING doctor may append here — the
+  // history is the patient's, not one practice's — but only append: nothing a
+  // client sends can rewrite or remove an entry, and the author is stamped by
+  // the server. An assistant needs any prescription key, as for PATCH.
+  @Post(':id/on-examination')
+  appendOnExamination(
+    @WorkstationDoctorId() doctorId: string,
+    @ActiveWorkstation() ws: Workstation,
+    @Param('id') id: string,
+    @Body() dto: AppendOnExaminationDto,
+  ) {
+    if (ws.role === 'assistant' && !ws.permissions.some((p) => p.startsWith('rx.'))) {
+      throw new ForbiddenException('You do not have permission to update prescriptions');
+    }
+    return this.patients.appendOnExamination(doctorId, id, dto.entries);
   }
 
   @Delete(':id')

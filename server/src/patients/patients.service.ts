@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
+import { appendOeEntries } from './on-examination';
 import {
   CreatePatientDto,
   LinkPatientDto,
@@ -207,6 +208,46 @@ export class PatientsService {
       const next = [...stored, ...entries];
       await tx.patient.update({ where: { id }, data: { drugHistory: next as Prisma.InputJsonValue } });
       return { drugHistory: next };
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
+  }
+
+  // ⚕️ On-examination findings appended to the patient's SHARED history
+  // (`Patient.onExaminationSummary`, `{date, text, by?}`), under the row's lock
+  // like the drug-history append. Reach is `accessibleWhere` — the owner's
+  // practice AND a supervising one: the physician's rule is that every doctor
+  // of the patient sees, and adds to, the same history. Append only: an entry
+  // already there (same date, same text, case and spacing aside) is not written
+  // twice, and nothing stored is changed or removed. `by` is the name of the
+  // practice doctor the request acts for (`@WorkstationDoctorId()`), never a
+  // value a client sends; an older entry without it stays without it.
+  async appendOnExamination(
+    doctorId: string,
+    id: string,
+    entries: Array<{ date: string; text: string }>,
+  ): Promise<{ onExaminationSummary: unknown[] }> {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id, ...this.accessibleWhere(doctorId) },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
+    const author = await this.prisma.user.findUnique({
+      where: { id: doctorId },
+      select: { name: true, displayName: true },
+    });
+    const by = (author?.displayName?.trim() || author?.name?.trim() || '').slice(0, 160);
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ onExaminationSummary: unknown }>>`
+        SELECT "onExaminationSummary" FROM "Patient" WHERE "id" = ${id} FOR UPDATE
+      `;
+      const stored = locked[0]?.onExaminationSummary;
+      if (!Array.isArray(stored)) {
+        throw new ConflictException("This patient's examination history could not be read, so nothing was added to it.");
+      }
+      const next = appendOeEntries(stored, entries, by);
+      if (next.length !== stored.length) {
+        await tx.patient.update({ where: { id }, data: { onExaminationSummary: next as Prisma.InputJsonValue } });
+      }
+      return { onExaminationSummary: next };
     }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
   }
 
