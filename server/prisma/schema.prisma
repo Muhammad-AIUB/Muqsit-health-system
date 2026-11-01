@@ -516,6 +516,13 @@ model OpdVisit {
   criticallyIll Boolean   @default(false)
   urgent        Boolean   @default(false)
 
+  // The chamber this visit is queued in (multi-chamber, 01/11/2026). NULL = the
+  // practice's DEFAULT chamber — every row from before chambers, and every new
+  // row of the default chamber (never its id). Unique per chamber:
+  // (doctorId, COALESCE(chamberId, ''), queueDate, token) in
+  // manual-opd-chambers.sql, which Prisma cannot express.
+  chamberId String?
+
   createdAt DateTime @default(now())
 
   @@index([doctorId, createdAt])
@@ -536,10 +543,41 @@ model OpdDaySetting {
   breakStart        String? // HH:mm, with breakEnd or neither
   breakEnd          String?
   minutesPerPatient Int
+  // NULL = the default chamber (see OpdVisit.chamberId). One row per doctor,
+  // chamber and day: a unique index on (doctorId, COALESCE(chamberId, ''), day)
+  // in manual-opd-chambers.sql (it replaced the per-doctor-and-day one).
+  chamberId         String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  @@unique([doctorId, day])
+  @@index([doctorId, day])
+}
+
+// A chamber the doctor sits in for OPD (physician's sheet 28/10/2026, item 8:
+// "Labaid and Ibn Sina have different OPD lists"). NOT the profile's `Chamber`
+// list, whose rows are deleted and recreated on every profile save. One
+// default per doctor (partial unique index, manual-opd-chambers.sql): the
+// chamber of every visit from before chambers. Removal is soft.
+model OpdChamber {
+  id        String    @id @default(cuid())
+  doctorId  String // the PRACTICE doctor (@WorkstationDoctorId())
+  name      String
+  address   String    @default("")
+  isDefault Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  removedAt DateTime?
+
+  @@index([doctorId])
+}
+
+// A chamber's own prescription print settings (OPD only). The same fields as
+// PrescriptionLayout, as JSON. No row = the doctor's own settings are used.
+model OpdChamberLayout {
+  chamberId String   @id
+  doctorId  String
+  layout    Json
+  updatedAt DateTime @updatedAt
 }
 
 // ── IPD ward ─────────────────────────────────────────────────

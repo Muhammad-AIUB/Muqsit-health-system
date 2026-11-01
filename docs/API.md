@@ -415,6 +415,8 @@ touching anything here.
 
 The queue is booked **per Dhaka calendar day**, written `yyyy-mm-dd` (`OpdVisit.queueDate`; 28/10/2026, physician's sheet). A visit can be added for **today or a later day**; a day that has **passed is locked** — the server refuses to add, move or re-time it (400, "A day that has passed cannot be changed."), whatever the client sends. A date that is not a calendar day (`2026-02-30`, `28/10/2026`) is 400 "That is not a day on the calendar.". `manual-opd-queue-date.sql` must be applied **before** the release that reads it.
 
+**Chambers (01/11/2026).** `GET /opd`, `POST /opd`, `GET|PUT /opd/schedule` and `POST /opd/rx-status` act on ONE chamber's queue and schedule: the `X-Chamber` header (an `OpdChamber` id, §5.12b), resolved by the server for the practice (`ChambersService.resolve`) — no header, or the default chamber's id, is the **default chamber** (stored `chamberId: null`, which is every row from before chambers); another practice's chamber, a removed chamber or a made-up id is **404** and nothing is read or written. Tokens, serials and the token-unique index are per chamber (two chambers each have a `T-01` on one day); a day's schedule is per chamber and a day inherits only its OWN chamber's earlier days. `PATCH /opd/:id/status|presence|move` act on the visit wherever it is queued (move reorders within its own chamber and day). Rows carry `chamberId`. `manual-opd-chambers.sql` must be applied **before** the release that reads it.
+
 | Method | Path | Body / Notes |
 |---|---|---|
 | GET | `/opd` | `?date=yyyy-mm-dd` (default **today**): that day's queue in the order shown — `position` ascending, then arrival; a row an older build wrote with no `queueDate` / `position` is read as the Dhaka day it was created, and listed last. A past day is answered (read only). Each row also carries `pictureUrl` (the patient's picture or `null`) and `padStage` (`history` / `pending` / `null` — how far THIS practice's parked visit for that patient has got today; the draft itself is never sent); `PATCH /opd/:id/move` answers the same rows |
@@ -432,6 +434,20 @@ number. A token is not renumbered when the order changes — it is what the pati
 the serial the doctor sees is the place in the day's list. `POST /opd`, `POST /opd/rx-status` and
 `PATCH /opd/:id/move` take one advisory lock per doctor, so two writes to one queue never read it at
 the same moment.
+
+### 5.12b OPD chambers — `/chambers` (JWT + WS)
+
+A practice's OPD chambers (physician's sheet 28/10/2026, item 8: "Labaid and Ibn Sina have different OPD lists"). Scoped to `@WorkstationDoctorId()`. NOT the profile's `chambers` list (`/users/me`), whose rows are recreated on every profile save. Reading is open to the practice's assistants; every write is the practice OWNER's (an assistant gets 403).
+
+| Method | Path | Body / Notes |
+|---|---|---|
+| GET | `/chambers` | the practice's live chambers, the default first, then by when added → `[{ id, doctorId, name, address, isDefault, createdAt, updatedAt, removedAt: null }]`. If the practice has none, the default is made first (under a lock, once): "Main chamber", with the address of the doctor's first profile chamber, copied once and never written over |
+| POST | `/chambers` | `{ name, address? }` (name 1–120, address up to 500) → the chamber. Owner only |
+| PATCH | `/chambers/:id` | `{ name?, address? }` — rename / edit the address (a blank name is 400). `404` for a chamber not this practice's or removed. Owner only |
+| DELETE | `/chambers/:id` | **soft** removal (`removedAt`; the row and its visits stay) → `{ id }`. The default chamber cannot be removed (400: it holds the OPD list from before chambers). Owner only |
+| GET | `/chambers/:id/layout` | the chamber's own prescription print settings (OPD only) → `{ chamberId, layout }`, `layout: null` when it has none — the doctor's own `/prescription-layout` prints then |
+| PUT | `/chambers/:id/layout` | `UpsertPrescriptionLayoutDto` (partial, as `/prescription-layout`) — saved over the chamber's own settings, or the first time over the practice doctor's current ones → `{ chamberId, layout }`. Owner only |
+| DELETE | `/chambers/:id/layout` | back to the doctor's own settings for this chamber (the settings row is removed) → `{ chamberId, layout: null }`. Owner only |
 
 ### 5.13 IPD — `/ipd` (JWT + WS)
 

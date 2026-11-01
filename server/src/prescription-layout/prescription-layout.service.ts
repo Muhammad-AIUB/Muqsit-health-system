@@ -5,7 +5,7 @@ import { UpsertPrescriptionLayoutDto } from './dto/prescription-layout.dto';
 
 // The defaults a doctor sees before they've saved anything. Mirrors the
 // initial values in the client's Prescription settings form.
-const DEFAULTS = {
+export const LAYOUT_DEFAULTS = {
   rxType: 'ipd',
   opdLayout: 'single',
   unit: 'in',
@@ -32,16 +32,16 @@ export class PrescriptionLayoutService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Return the saved layout, or the defaults if the doctor hasn't saved one.
-  async get(userId: string): Promise<PrescriptionLayout | (typeof DEFAULTS & { userId: string })> {
+  async get(userId: string): Promise<PrescriptionLayout | (typeof LAYOUT_DEFAULTS & { userId: string })> {
     const row = await this.prisma.prescriptionLayout.findUnique({ where: { userId } });
-    return row ?? { ...DEFAULTS, userId };
+    return row ?? { ...LAYOUT_DEFAULTS, userId };
   }
 
   // Create on first save, update thereafter — scoped to the signed-in doctor.
   upsert(userId: string, dto: UpsertPrescriptionLayoutDto): Promise<PrescriptionLayout> {
     return this.prisma.prescriptionLayout.upsert({
       where: { userId },
-      create: { ...DEFAULTS, ...dto, userId },
+      create: { ...LAYOUT_DEFAULTS, ...dto, userId },
       update: { ...dto },
     });
   }
