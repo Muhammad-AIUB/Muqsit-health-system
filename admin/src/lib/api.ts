@@ -116,6 +116,24 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
   return res.json() as Promise<T>;
 }
 
+// A doctor's request from Settings → Payment (doctor app). No payment gateway
+// exists: the admin credits the doctor's SMS wallet after the payment has come in.
+export interface PaymentRequestRow {
+  id: string;
+  doctorId: string;
+  kind: "sms" | "renew" | string;
+  quantity: number | null;
+  amount: number | null;
+  note: string | null;
+  status: "pending" | "credited" | "rejected" | string;
+  credited: number | null;
+  adminNote: string | null;
+  handledAt: string | null;
+  createdAt: string;
+  doctor: { id: string; name: string; displayName: string | null; email: string; mobile: string | null } | null;
+  balance: number;
+}
+
 export const adminApi = {
   login: (email: string, password: string) =>
     apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ identifier: email, password }) }),
@@ -143,6 +161,13 @@ export const adminApi = {
   // next silent refresh fails and they fall through to /login.
   revokeSessions: (id: string) =>
     apiFetch<{ revoked: number }>(`/admin/users/${id}/revoke-sessions`, { method: "POST" }),
+  paymentRequests: (status?: string) =>
+    apiFetch<PaymentRequestRow[]>(`/admin/payment-requests${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  // One transaction on the server: wallet + ledger + request. Pressed twice → 409.
+  creditPaymentRequest: (id: string, credit?: number) =>
+    apiFetch<PaymentRequestRow>(`/admin/payment-requests/${id}/credit`, { method: "PATCH", body: JSON.stringify(credit ? { credit } : {}) }),
+  rejectPaymentRequest: (id: string) =>
+    apiFetch<PaymentRequestRow>(`/admin/payment-requests/${id}/reject`, { method: "PATCH", body: JSON.stringify({}) }),
 };
 
 export const PROFESSION_LABELS: Record<string, string> = {

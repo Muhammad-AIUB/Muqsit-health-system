@@ -185,9 +185,9 @@ function useMuqsitStore() {
     typeof window === "undefined" ? "prescription" : tabFromPath(window.location.pathname) ?? "prescription",
   );
 
-  const setActiveTab = useCallback((tab: TabId) => {
+  // `path` opens a page inside the tab (e.g. "/settings/payment"); default: the tab's own.
+  const setActiveTab = useCallback((tab: TabId, path: string = TAB_PATHS[tab]) => {
     setActiveTabState(tab);
-    const path = TAB_PATHS[tab];
     if (typeof window !== "undefined" && window.location.pathname !== path) {
       window.history.pushState(null, "", path);
     }

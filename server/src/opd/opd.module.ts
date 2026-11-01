@@ -8,5 +8,7 @@ import { ChambersModule } from '../chambers/chambers.module';
   imports: [WorkstationsModule, ChambersModule],
   controllers: [OpdController],
   providers: [OpdService],
+  // The SMS to a day's queue (src/sms) reads the queue and its times through it.
+  exports: [OpdService],
 })
 export class OpdModule {}

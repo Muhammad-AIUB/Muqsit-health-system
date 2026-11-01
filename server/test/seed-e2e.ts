@@ -24,7 +24,7 @@ const ROLES = [
   'monthlyCost',
   'taperOrphan', 'taperRefused', 'taperHeld',
   'saveFailed', 'draftFailed', 'keepWork', 'answerLost', 'answerLostAll',
-  'ipdSaveFailed', 'opdQueueDay', 'opdPresence', 'opdPrintQueue',
+  'ipdSaveFailed', 'opdQueueDay', 'opdPresence', 'opdPrintQueue', 'opdSms',
   'chambers', 'recordsOe',
 ] as const;
 

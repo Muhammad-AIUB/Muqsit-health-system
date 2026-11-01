@@ -10,17 +10,20 @@ import PrescriptionSettingsView from "./PrescriptionSettingsView";
 import ChambersSettingsView from "./ChambersSettingsView";
 import PrescriptionTemplatesView from "./PrescriptionTemplatesView";
 import FavouriteSettingsView from "./FavouriteSettingsView";
+import PaymentSettingsView from "./PaymentSettingsView";
 import Icon, { type IconName } from "@/components/common/Icon";
 import TabIcon from "@/components/layout/TabIcon";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { pressable } from "@/lib/a11y";
 
-type Section = "home" | "assistants" | "profile" | "chambers" | "prescription-settings" | "prescription-templates" | "favourite-settings";
+type Section = "home" | "assistants" | "profile" | "payment" | "chambers" | "prescription-settings" | "prescription-templates" | "favourite-settings";
 
 type SettingsItem = { t: string; d: string; i: IconName; section?: Section; disabled?: boolean };
 
 const SETTINGS_ITEMS: SettingsItem[] = [
   { t: "Profile", d: "Doctor name, specialization, clinic info", i: "user", section: "profile" },
+  // Right after Profile (physician's sheet, 28/10/2026): Renew and Buy SMS.
+  { t: "Payment", d: "Renew, Buy SMS — and your SMS balance", i: "fileText", section: "payment" },
   { t: "Your Badges, Ranking, social contributions etc.", d: "Achievements, ranking & community contributions", i: "medal", disabled: true },
   { t: "Add Supervisors and Role models", d: "Link supervisors & role models to your profile", i: "users", disabled: true },
   { t: "Manage your assistants and IPD team", d: "Role based access control & dynamic permission", i: "shield", section: "assistants" },
@@ -35,6 +38,7 @@ const SECTION_PATH: Record<Section, string> = {
   assistants: "/settings/assistants",
   profile: "/settings/profile",
   chambers: "/settings/chambers",
+  payment: "/settings/payment",
   "prescription-settings": "/settings/prescription-settings",
   "prescription-templates": "/settings/prescription-templates",
   "favourite-settings": "/settings/favourite-settings",
@@ -45,6 +49,7 @@ const sectionFromPath = (pathname: string): Section => {
   if (clean === "/settings/assistants") return "assistants";
   if (clean === "/settings/profile") return "profile";
   if (clean === "/settings/chambers") return "chambers";
+  if (clean === "/settings/payment") return "payment";
   if (clean === "/settings/prescription-settings") return "prescription-settings";
   if (clean === "/settings/prescription-templates") return "prescription-templates";
   if (clean === "/settings/favourite-settings") return "favourite-settings";
@@ -83,6 +88,9 @@ export default function SettingsView({ mobile = false }: { mobile?: boolean }) {
   }
   if (section === "chambers") {
     return <ChambersSettingsView onBack={() => go("home")} />;
+  }
+  if (section === "payment") {
+    return <PaymentSettingsView onBack={() => go("home")} />;
   }
   if (section === "prescription-settings") {
     return <PrescriptionSettingsView onBack={() => go("home")} />;

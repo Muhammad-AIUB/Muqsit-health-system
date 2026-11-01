@@ -53,7 +53,10 @@ export function scheduleProblem(s: OpdSchedule): string | null {
 }
 
 /** The time of each of `count` serials, in minutes since midnight. A schedule
- *  that cannot be read gives no times — nothing is guessed. */
+ *  that cannot be read gives no times — nothing is guessed. ⚕️ The SMS to a
+ *  day's patients tells them these times from a COPY on the server
+ *  (`server/src/opd/schedule.ts#slotTimes`, same cases in both specs) — edit one,
+ *  edit both. */
 export function slotTimes(count: number, s: OpdSchedule): number[] {
   if (!(count > 0) || scheduleProblem(s) !== null) return [];
   const start = parseClock(s.startTime) as number;

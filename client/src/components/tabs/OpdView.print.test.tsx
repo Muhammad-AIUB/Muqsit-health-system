@@ -72,6 +72,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+// Opens the calendar on PAST. Two days back is in the month before on the 1st
+// and 2nd of a month, where the calendar opens on this month and does not draw
+// it: turn the page first (the tests failed on 01/11/2026 for that alone).
+const pickPast = () => {
+  fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
+  if (!document.querySelector(`[data-day="${PAST}"]`)) fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  fireEvent.click(document.querySelector(`[data-day="${PAST}"]`) as Element);
+};
 const printButton = () => screen.getByRole("button", { name: "Print Queue" }) as HTMLButtonElement;
 const sheetText = () => (screen.getByTitle("OPD queue") as HTMLIFrameElement).contentDocument?.body.textContent ?? "";
 

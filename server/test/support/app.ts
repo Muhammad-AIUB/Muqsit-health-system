@@ -7,6 +7,7 @@ import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
 import { MailService } from '../../src/mail/mail.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { SmsService } from '../../src/sms/sms.service';
 import { FakeMailService, noThrottleStorage } from './doubles';
 import { assertTestDatabase, assertTestDbUrl } from './test-db';
 
@@ -22,8 +23,10 @@ export interface TestApp {
 // The real AppModule behind the real HTTP pipeline (configureApp), with two
 // substitutions: mail is captured, and — unless `throttle: true` — the rate
 // limiter does not count.
+// `sms` replaces the SMS gateway (no message ever leaves a test): without it the
+// real SmsService runs unconfigured, logging instead of sending.
 export async function createTestApp(
-  opts: { throttle?: boolean } = {},
+  opts: { throttle?: boolean; sms?: Partial<SmsService> } = {},
 ): Promise<TestApp> {
   assertTestDbUrl(process.env.DATABASE_URL);
 
@@ -31,6 +34,9 @@ export async function createTestApp(
   let builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MailService)
     .useValue(mail);
+  if (opts.sms) {
+    builder = builder.overrideProvider(SmsService).useValue(opts.sms);
+  }
   if (!opts.throttle) {
     builder = builder.overrideProvider(ThrottlerStorage).useValue(noThrottleStorage);
   }
