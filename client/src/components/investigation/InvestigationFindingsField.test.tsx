@@ -211,3 +211,39 @@ describe("screen order === printed order", () => {
     expect(screenMinusHidden).toEqual(printed);
   });
 });
+
+// ⚕️ On examination (physician's sheet 28/10/2026, item 7): the WHOLE section
+// can be kept off the printed sheet, like Drug history — one toggle, no ticks,
+// and nothing leaves the screen.
+describe("⊘ Hide — a whole section (On examination)", () => {
+  const OE = ["BP: 120/80 mmHg", "Pulse: 78 b/min"];
+  const oe = (props: Partial<React.ComponentProps<typeof InvestigationFindingsField>> = {}) =>
+    render(<InvestigationFindingsField label="On examination" items={OE} invImages={{}} onOpen={() => {}} {...props} />);
+
+  it("is absent unless the screen opts in", () => {
+    oe();
+    expect(screen.queryByRole("button", { name: HIDE_BTN })).toBeNull();
+  });
+
+  it("toggles the whole section and draws no per-line ticks", () => {
+    const onSectionHidden = vi.fn();
+    oe({ sectionHidden: false, onSectionHidden });
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    fireEvent.click(hideButton());
+    expect(onSectionHidden).toHaveBeenCalledWith(true);
+  });
+
+  it("when hidden says so, and every line is still on the screen", () => {
+    const onSectionHidden = vi.fn();
+    oe({ sectionHidden: true, onSectionHidden });
+    expect(hideButton().getAttribute("aria-pressed")).toBe("true");
+    for (const l of OE) expect(screen.getByText(l, { exact: false })).toBeTruthy();
+    fireEvent.click(hideButton());
+    expect(onSectionHidden).toHaveBeenCalledWith(false);
+  });
+
+  it("is not offered on an empty section", () => {
+    render(<InvestigationFindingsField label="On examination" items={[]} invImages={{}} onOpen={() => {}} sectionHidden={false} onSectionHidden={() => {}} />);
+    expect(screen.queryByRole("button", { name: HIDE_BTN })).toBeNull();
+  });
+});

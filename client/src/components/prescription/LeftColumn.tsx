@@ -17,7 +17,7 @@ import { isInlineEditField } from "@/lib/inlineEditFields";
 import { BANGLA_FIELDS } from "@/lib/banglaInput";
 
 export default function LeftColumn() {
-  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory, savedDrugAdvice } = useMuqsit();
+  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory, hideOnExamination, setHideOnExamination, savedDrugAdvice } = useMuqsit();
   const logActivity = useActivityLog();
   // "P.D" — offered inside the Final diagnosis popup only.
   const previousDiagnoses = usePreviousDiagnoses();
@@ -53,13 +53,16 @@ export default function LeftColumn() {
           const openFn = isInv ? () => setShowInvPopup(true) : () => setShowOePopup(true);
           return (
             <Lock key={f.label} locked={!canEditLabel(f.label)}>
-              {/* ⚕️ ⊘ Hide is opt-in and Investigation-only (physician's
-                  decision, 2026-09-21). On examination renders the same
-                  component and passes nothing, so it prints as it always has. */}
+              {/* ⚕️ ⊘ Hide: per line for Investigation (physician's decision,
+                  2026-09-21); the whole section for On examination (sheet
+                  28/10/2026, item 7 — "like the medication list"), which is
+                  printed until ⊘ is pressed, as it always was. */}
               <InvestigationFindingsField
                 label={f.label} items={f.items} invImages={invImages} onOpen={openFn}
                 hidden={isInv ? hiddenInvestigation : undefined}
                 onHidden={isInv ? setHiddenInvestigation : undefined}
+                sectionHidden={isInv ? undefined : hideOnExamination}
+                onSectionHidden={isInv ? undefined : setHideOnExamination}
               />
             </Lock>
           );

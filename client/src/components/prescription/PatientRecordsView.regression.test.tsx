@@ -48,10 +48,13 @@ const fresh = (over: Record<string, unknown> = {}) => ({
   appendGalleryImages: vi.fn(), imageThumbs: {},
   investigation: [], investigationSummary: [saved], setInvestigationSummary: vi.fn(),
   saveInvestigationSummary: vi.fn(() => Promise.resolve()), openInvForSummary: vi.fn(),
-  onExaminationSummary: [], setOnExaminationSummary: vi.fn(), saveOnExaminationSummary: vi.fn(() => Promise.resolve()),
+  onExaminationSummary: [], setOnExaminationSummary: vi.fn(),
   ...over,
 });
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
+// The history sections below the summary read past prescriptions through React
+// Query; they have their own tests (RecordsHistorySections.test.tsx).
+vi.mock("./RecordsHistorySections", async (orig) => ({ ...(await orig<object>()), default: () => null }));
 
 // The gallery is a stand-in that records what it was handed, so the test can
 // act as "Remove selected" / a drag-reorder would, by item id.

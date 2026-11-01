@@ -20,9 +20,12 @@ const fresh = () => ({
   appendGalleryImages: vi.fn(), imageThumbs: {},
   investigation: [], investigationSummary: [f1, f2], setInvestigationSummary: vi.fn(),
   saveInvestigationSummary: vi.fn(() => Promise.resolve()), openInvForSummary: vi.fn(),
-  onExaminationSummary: [], setOnExaminationSummary: vi.fn(), saveOnExaminationSummary: vi.fn(() => Promise.resolve()),
+  onExaminationSummary: [], setOnExaminationSummary: vi.fn(),
 });
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
+// The history sections below the summary read past prescriptions through React
+// Query; they have their own tests (RecordsHistorySections.test.tsx).
+vi.mock("./RecordsHistorySections", async (orig) => ({ ...(await orig<object>()), default: () => null }));
 
 afterEach(cleanup);
 

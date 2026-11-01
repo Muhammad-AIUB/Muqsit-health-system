@@ -94,7 +94,9 @@ export interface Patient {
   hmSelectedDrugs: string[];
   familyMembers: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
   investigationSummary: Array<{ date: string; category: string; test: string; value: string }>;
-  onExaminationSummary: Array<{ date: string; text: string }>;
+  // `by`: the practice doctor who wrote it, stamped by the server (31/10/2026);
+  // entries from before that have none.
+  onExaminationSummary: Array<{ date: string; text: string; by?: string }>;
   drugHistory: string[];
   incompleteRx: Record<string, unknown> | null;
   doctorId: string | null;
@@ -133,7 +135,7 @@ export interface PatientInput {
   hmSelectedDrugs?: string[];
   familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
   investigationSummary?: Array<{ date: string; category: string; test: string; value: string }>;
-  onExaminationSummary?: Array<{ date: string; text: string }>;
+  onExaminationSummary?: Array<{ date: string; text: string; by?: string }>;
   drugHistory?: string[];
   incompleteRx?: Record<string, unknown> | null;
 }
@@ -733,6 +735,11 @@ export const patientsApi = {
   // never a whole list built here. Answers with the list as stored.
   appendDrugHistory: (id: string, entries: string[]) =>
     apiFetch<{ drugHistory: string[] }>(`/patients/${id}/drug-history`, { method: "POST", body: JSON.stringify({ entries: entries }) }),
+  // ⚕️ On-examination findings of a saved visit, APPENDED by the server to the
+  // patient's shared history with the author stamped there (physician's
+  // sheets 28/10 + 31/10/2026). Answers with the history as stored.
+  appendOnExamination: (id: string, entries: Array<{ date: string; text: string }>) =>
+    apiFetch<{ onExaminationSummary: Array<{ date: string; text: string; by?: string }> }>(`/patients/${id}/on-examination`, { method: "POST", body: JSON.stringify({ entries: entries }) }),
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
 };
 

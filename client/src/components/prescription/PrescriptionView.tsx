@@ -1,5 +1,6 @@
 "use client";
 
+import { printableOnExamination } from "@/lib/onExaminationSummary";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { tell } from "@/lib/dialogs";
@@ -141,7 +142,9 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         // document (physician's decision, 2026-09-21). The entries themselves
         // are untouched — still in the patient's record, still on screen.
         { label: "Drug history", items: m.hideDrugHistory ? [] : printableDrugHistory },
-        { label: "On examination", items: m.onExamination },
+        // ⚕️ ⊘ Hide on the On-examination row takes the whole section off this
+        // document (sheet 28/10/2026); off by default, so it prints as before.
+        { label: "On examination", items: printableOnExamination(m.onExamination, m.hideOnExamination) },
         { label: "Note", items: m.note },
         { label: "Plan", items: m.plan },
         { label: "Provisional diagnosis", items: m.provisionalDiagnosis },

@@ -22,7 +22,7 @@ import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
 import { useAuth } from "@/context/AuthContext";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
-import { oeEntriesForDate, mergeOe, type OeFinding } from "@/lib/onExaminationSummary";
+import { oeEntriesForDate, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn, mergeWithRecord } from "@/lib/rxDrugHistory";
 import { unwritableRows, writableItems } from "@/lib/rxRows";
@@ -235,6 +235,11 @@ function useMuqsitStore() {
   // "Drug history hidden default thakbe"): every new visit starts with it off
   // the sheet, and ⊘ puts it back on for that visit.
   const [hideDrugHistory, setHideDrugHistory] = useState(true);
+  // ⚕️ ⊘ Hide for On examination (physician's sheet 28/10/2026, item 7: "like
+  // the medication list, it can be hidden before printing"). Whole section,
+  // like Drug history — but OFF by default: On examination has always printed,
+  // and a new visit must print it exactly as before until ⊘ is pressed.
+  const [hideOnExamination, setHideOnExamination] = useState(false);
   // ⚕️ A hide mark must not outlive the finding it was put on. Without this, a
   // line deleted and later re-typed — the same words, a different clinical
   // moment — would come back already hidden, with nothing on screen saying why.
@@ -678,14 +683,26 @@ function useMuqsitStore() {
           setInvestigationSummary(merged);
           patientWrites.push({ what: "investigation history", done: patientsApi.update(pid, { investigationSummary: merged }) });
         }
-        // Same for on-examination: keep a dated record of this visit's findings.
+        // On-examination: this visit's findings are APPENDED by the server to the
+        // patient's shared history, with the author stamped there (physician's
+        // sheets 28/10 + 31/10/2026: every doctor of the patient sees it — a
+        // supervising doctor's findings too, which a whole-list PATCH refused).
+        // Nothing is merged here, so it needs no stored list in hand; the
+        // answer is the history as stored, taken only while this patient is
+        // still the one loaded.
         const oeAdds = oeEntriesForDate(onExamination, isoToDdmmyyyy(ptDate));
-        if (oeAdds.length && historyInHand) {
-          const mergedOe = mergeOe(onExaminationSummary, oeAdds);
-          setOnExaminationSummary(mergedOe);
-          patientWrites.push({ what: "examination history", done: patientsApi.update(pid, { onExaminationSummary: mergedOe }) });
+        if (oeAdds.length) {
+          const forPid = pid;
+          patientWrites.push({
+            what: "examination history",
+            done: patientsApi.appendOnExamination(pid, oeAdds).then((r) => {
+              if (patientIdRef.current === forPid && Array.isArray(r?.onExaminationSummary)) {
+                setOnExaminationSummary(r.onExaminationSummary as OeFinding[]);
+              }
+            }),
+          });
         }
-        if ((parsed.length || oeAdds.length) && !historyInHand) {
+        if (parsed.length && !historyInHand) {
           console.warn("[patient] record not loaded — this visit's findings were saved on the prescription, the history summary was left as stored");
         }
         // Persist the (date-stamped) drug history so it carries across visits;
@@ -975,7 +992,7 @@ function useMuqsitStore() {
     setEditorEpoch((n) => n + 1);
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
     setPtDate(todayISO()); setPtPhone(""); setPtHospitalId("");
-    setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(true);
+    setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(true); setHideOnExamination(false);
     setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
     setRxItems([]); setAdvice([]); setAdviceTest([]); setRxAdviceOwned([]); setRxAdviceOff([]); setRxMirrorOwned(null);
@@ -1053,6 +1070,7 @@ function useMuqsitStore() {
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
     if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);
+    if (typeof d.hideOnExamination === "boolean") setHideOnExamination(d.hideOnExamination);
     if (d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
     if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
   }, []);
@@ -1366,17 +1384,9 @@ function useMuqsitStore() {
     return surfaced(patientsApi.update(pid, { investigationSummary: next }).then(() => undefined), "investigation history");
   }, [currentPatientId]);
 
-  // Persist the patient's on-examination history (records-page summary). Same
-  // rule and return as saveInvestigationSummary.
-  const saveOnExaminationSummary = useCallback((next: OeFinding[]): Promise<void> => {
-    const pid = currentPatientId;
-    if (pid && recordHydratedRef.current !== pid) {
-      return surfaced(Promise.reject(new Error("this patient's record has not loaded yet")), "on-examination history");
-    }
-    setOnExaminationSummary(next);
-    if (!pid) return Promise.resolve();
-    return surfaced(patientsApi.update(pid, { onExaminationSummary: next }).then(() => undefined), "on-examination history");
-  }, [currentPatientId]);
+  // (The records page's whole-list write of the on-examination history went
+  // with its Edit, 31/10/2026: that history is appended by the server only —
+  // `patientsApi.appendOnExamination`, in savePrescription.)
 
   // Persist the patient's date-stamped drug history (carries across visits).
   const saveDrugHistory = useCallback((next: string[]) => {
@@ -1723,14 +1733,18 @@ function useMuqsitStore() {
   // them in another order). NOT the drug history (the record's own list lands
   // in it after a print) and not the header (name, age, weight, date: not part
   // of the stored prescription).
+  // `hideOnExamination` (31/10/2026) joins only when it is SET: a visit printed
+  // before it existed keeps the fingerprint it was printed with, and does not
+  // read as changed — and go back to "Incomplete" — after the update.
   const visitSig = useMemo(() => fingerprint([
     chiefComplaints, previousComplaints, history, visitInvestigation, onExamination, note, plan,
     provisionalDiagnosis, associatedIllness, finalDiagnosis, advice, adviceTest, rxItems, rxPadHeld,
     followUpNum, followUpUnit, followUpMandatory, hideDrugHistory, hiddenInvestigation,
+    ...(hideOnExamination ? [{ hideOnExamination: true }] : []),
   ]), [
     chiefComplaints, previousComplaints, history, visitInvestigation, onExamination, note, plan,
     provisionalDiagnosis, associatedIllness, finalDiagnosis, advice, adviceTest, rxItems, rxPadHeld,
-    followUpNum, followUpUnit, followUpMandatory, hideDrugHistory, hiddenInvestigation,
+    followUpNum, followUpUnit, followUpMandatory, hideDrugHistory, hideOnExamination, hiddenInvestigation,
   ]);
   visitSigRef.current = visitSig;
   drugHistoryRef.current = drugHistory;
@@ -1788,7 +1802,7 @@ function useMuqsitStore() {
       onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
       rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
       rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
-      hideDrugHistory,
+      hideDrugHistory, hideOnExamination,
       invImages, oeData, currentPatientId,
       hiddenInvestigation,
       // The practice this draft was written in (checked on reload).
@@ -1841,7 +1855,7 @@ function useMuqsitStore() {
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
-    hideDrugHistory,
+    hideDrugHistory, hideOnExamination,
     invImages, oeData, currentPatientId,
     hiddenInvestigation, rxCompletedPid, rxPrintedSig, visitInvestigation,
   ]);
@@ -1950,7 +1964,7 @@ function useMuqsitStore() {
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
-    hideDrugHistory,
+    hideDrugHistory, hideOnExamination,
     invImages: invBorrowRef.current?.img ?? invImages, oeData,
     hiddenInvestigation,
     // Patient settings: the info form, its Edit/locked state, family tree
@@ -1965,7 +1979,7 @@ function useMuqsitStore() {
     onExamination, note, plan, provisionalDiagnosis, associatedIllness, finalDiagnosis,
     rxItems, rxPadHeld, advice, adviceTest, followUpNum, followUpUnit, followUpMandatory,
     rxAdviceOwned, rxAdviceOff, rxMirrorOwned,
-    hideDrugHistory,
+    hideDrugHistory, hideOnExamination,
     invImages, oeData,
     hiddenInvestigation,
     ptInfo, ptEditing, familyMembers, showFamilyForm, familyRelation, familyForm,
@@ -2074,6 +2088,7 @@ function useMuqsitStore() {
     str("followUpNum", setFollowUpNum); str("followUpUnit", setFollowUpUnit);
     if (typeof d.followUpMandatory === "boolean") setFollowUpMandatory(d.followUpMandatory);
     if (typeof d.hideDrugHistory === "boolean") setHideDrugHistory(d.hideDrugHistory);
+    if (typeof d.hideOnExamination === "boolean") setHideOnExamination(d.hideOnExamination);
     if (!held && d.invImages && typeof d.invImages === "object") setInvImages(d.invImages as Record<string, string>);
     if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
     // Patient settings form + family tree
@@ -2146,6 +2161,7 @@ function useMuqsitStore() {
     history, setHistory, investigation, setInvestigation,
     hiddenInvestigation, setHiddenInvestigation,
     hideDrugHistory, setHideDrugHistory,
+    hideOnExamination, setHideOnExamination,
     rxPadUnwritable, rxPadHeld, setRxPadHeld, editorEpoch,
     drugHistory, setDrugHistory, addDrugHistoryEntries, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
@@ -2162,7 +2178,7 @@ function useMuqsitStore() {
     ignoredAlerts, ignoreAlert, hideAlerts, showAlerts,
     showOePopup, setShowOePopup, ptSettingsTab, setPtSettingsTab, familyMembers, setFamilyMembers, saveFamilyMembers,
     investigationSummary, setInvestigationSummary, saveInvestigationSummary, openInvForSummary,
-    onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,
+    onExaminationSummary, setOnExaminationSummary,
     saveDrugHistory,
     showFamilyForm, setShowFamilyForm, familyRelation, setFamilyRelation, familyForm, setFamilyForm,
     ptInfo, setPtInfo, ptEditing, setPtEditing, currentPatientId, setCurrentPatientId,

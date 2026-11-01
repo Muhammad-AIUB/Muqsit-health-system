@@ -26,6 +26,7 @@ const api = vi.hoisted(() => ({
   supervisedDraft: vi.fn(),
   activityLog: vi.fn(),
   dhAppend: vi.fn(),
+  oeAppend: vi.fn(),
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -33,7 +34,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...actual,
     setActiveWorkstationId: () => {},
-    patientsApi: { get: api.patientGet, update: api.patientUpdate, create: vi.fn(), setSupervisedDraft: api.supervisedDraft, appendDrugHistory: api.dhAppend },
+    patientsApi: { get: api.patientGet, update: api.patientUpdate, create: vi.fn(), setSupervisedDraft: api.supervisedDraft, appendDrugHistory: api.dhAppend, appendOnExamination: api.oeAppend },
     prescriptionDraftApi: { get: api.draftGet, save: api.draftSave },
     opdApi: { setRxStatus: api.setRxStatus },
     prescriptionsApi: { create: api.rxCreate },
@@ -386,6 +387,36 @@ describe("Save & print before the history has loaded (G2)", () => {
     expect(api.rxCreate.mock.calls[0][0].investigation).toEqual(["01/09/2026:Hb:12"]);
     expect(writesOf("investigationSummary")).toHaveLength(0);
     expect(writesOf("onExaminationSummary")).toHaveLength(0);
+    // ⚕️ On examination is APPENDED by the server (31/10/2026) — it needs no
+    // stored list in hand, so nothing can be overwritten and it is sent.
+    expect(api.oeAppend).toHaveBeenCalledWith("X", [{ date: expect.stringMatching(/^\d{2}\/\d{2}\/\d{4}$/), text: "BP 120/80" }]);
+  });
+
+  it("appends this visit's On examination and takes the stored history (with its author) from the answer", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient({ onExaminationSummary: [{ date: "20/10/2026", text: "Old" }] } as never)));
+    await tick(50);
+    const stored = [{ date: "20/10/2026", text: "Old" }, { date: "28/10/2026", text: "BP 120/80", by: "Dr. Owner" }];
+    api.oeAppend.mockResolvedValue({ onExaminationSummary: stored });
+    act(() => result.current.setOnExamination(["BP 120/80", "  "]));
+    await act(async () => { await result.current.savePrescription(); });
+    await tick(50);
+    expect(api.oeAppend).toHaveBeenCalledTimes(1);
+    expect(api.oeAppend.mock.calls[0][1]).toEqual([{ date: expect.any(String), text: "BP 120/80" }]);
+    expect(writesOf("onExaminationSummary")).toHaveLength(0); // never a whole list from here
+    expect(result.current.onExaminationSummary).toEqual(stored);
+  });
+
+  it("says so when the On-examination append fails after the prescription saved", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    api.oeAppend.mockRejectedValue(new Error("500"));
+    act(() => result.current.setOnExamination(["BP 120/80"]));
+    await act(async () => { await result.current.savePrescription(); });
+    await tick(50);
+    expect(tell).toHaveBeenCalled();
+    expect(JSON.stringify(tell.mock.calls)).toMatch(/examination history/);
   });
 
   it("says so when a history write fails after the prescription saved", async () => {
@@ -774,6 +805,32 @@ describe("Drug history is kept off the printed sheet by default", () => {
     expect(result.current.hideDrugHistory).toBe(true);
     expect(result.current.drugHistory).toEqual(STORED);
   });
+});
+
+// ⚕️ Physician's sheet, 28/10/2026, item 7: On examination can be hidden
+// before printing, like Drug history. Unlike Drug history it PRINTS by default:
+// that is what every visit did before the toggle existed.
+describe("On examination ⊘ Hide", () => {
+  it("starts shown, and a new visit starts shown again", async () => {
+    const { result } = await setup();
+    expect(result.current.hideOnExamination).toBe(false);
+    act(() => result.current.setHideOnExamination(true));
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    expect(result.current.hideOnExamination).toBe(false);
+  });
+
+  it("rides the visit: the device mirror and the auto-saved draft carry it", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => { result.current.setOnExamination(["BP 120/80"]); result.current.setHideOnExamination(true); });
+    await tick(3000);
+    expect(result.current.mirrorSnapshot.hideOnExamination).toBe(true);
+    const saved = api.draftSave.mock.calls.map(([d]) => d as Record<string, unknown>);
+    expect(saved.some((d) => JSON.stringify(d).includes('"hideOnExamination":true'))).toBe(true);
+  });
+
 });
 
 // ⚕️ Independent review, 18/10/2026 — two ways the ℞ → Drug-history mirror

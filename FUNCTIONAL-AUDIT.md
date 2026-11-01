@@ -1337,3 +1337,17 @@ Open:
 - [ ] **The visit-type pill "Urgent" (an old `type` value) can appear beside the new Urgent box** on a row: two different things with one word. The physician to say whether the old type should go or be renamed.
 - [ ] **Reception no longer sees a token on screen.** T-01 is still stored (and the per-day unique index still holds), but the token chip is gone from the row and the token is shown nowhere in the doctor app; the serial number is what is shown. The physician to confirm nothing depends on reading the token aloud.
 - [ ] **Not exercised in a browser:** two devices at once (reception ticking, a doctor's open screen picking it up on its ~10 s poll), and a supervised patient's stage. Both are covered by unit and integration tests only.
+
+### On examination shared + Patient Records history sections (31/10/2026) - open for the physician
+
+- [ ] **Who is "by".** The name stamped is the practice doctor's the request acts for: a doctor writing in their own practice is named; an ASSISTANT's Save & print names the practice doctor (whose prescription it is), not the assistant; a supervising doctor is named themself. Taken from the account's display name, else its name, exactly as stored — "Dr." is put in front on screen only when the name does not already begin with it.
+- [ ] **The date is shown dd/mm/yyyy** (`28/10/2026 by Dr. Shahariar`), the app's own format, not `28/10/26` as written on the sheet.
+- [ ] **Entries from before this release show no author.** None is guessed.
+- [ ] **A supervising doctor now ADDS to the shared On-examination history** (append only, own name). Before, their Save & print's examination-history write was refused. Investigation summary and drug history are unchanged (still the owner's practice only).
+- [ ] **The records page's On examination has no delete any more** (the Edit went, as asked). A wrong entry can no longer be taken off from the screen; it stays in the history.
+- [ ] **⊘ Hide for On examination starts OFF** (the section prints, as before). Drug history's starts ON. The physician to say if On examination should also start hidden.
+- [ ] **"Patient's input" is empty.** Nothing in the app is called that; the section says so. What should it hold (a form the patient fills? the patient chat?) is the physician's to say.
+- [ ] **Disease and surgical history** is read from the On-examination popup's History boxes as they reached the shared history on Save & print (`Disease Hx:` / `Surgical Hx:` lines); each entry once, at the visit it was first recorded. What is typed in today's visit shows after Save & print.
+- [ ] **Chief complaints / Diagnosis history** list THIS practice's prescriptions only (a supervising practice never sees the owner's prescriptions, and the other way round — the access rule). The date is the day the prescription was saved (Dhaka).
+- [ ] **Drug history on the records page** is the list the Drug history modal holds, including today's ℞ lines before they are printed.
+- [ ] **Not run in a browser:** the records page and its Downloads (pop-up window) were checked in jsdom only.

@@ -1,10 +1,15 @@
 "use client";
 
 // "Patient's Prescriptions & reports" — a full view entered from the patient
-// header. Three parts:
+// header:
 //   1. All prescriptions — gallery of uploaded prescription images
 //   2. All reports       — gallery of uploaded report images
-//   3. Investigation reports summary — dated text findings
+//   3. On examination    — the patient's SHARED dated findings, each card with
+//                          its author; read-only, with Download (31/10/2026)
+//   4. Investigation reports summary — dated text findings (+ Add, Download)
+//   5. Drug history · Patient's input · Disease and surgical history · Chief
+//      complaints history · Diagnosis history — read-only
+//      (`RecordsHistorySections.tsx`, physician's sheet 31/10/2026, item 3)
 //
 // Images are uploaded to the self-hosted /uploads store and their URLs are
 // persisted on the Patient record (loaded back when the patient is opened).
@@ -19,7 +24,9 @@ import { useMuqsit } from "@/context/MuqsitContext";
 import { uploadImage, ApiError } from "@/lib/api";
 import { THUMB_UPLOAD, thumbFor, type ThumbMap } from "@/lib/imageThumbs";
 import { parseInvestigationEntries, mergeFindings, groupByDate, type InvFinding } from "@/lib/investigationSummary";
-import { groupOeByDate, type OeFinding } from "@/lib/onExaminationSummary";
+import { groupOeForRecords, oeAuthorLabel } from "@/lib/onExaminationSummary";
+import RecordsHistorySections, { SectionHeader, openRecordsDoc, printedToday, useRecordsPatient } from "./RecordsHistorySections";
+import { buildRecordsDoc } from "@/lib/recordsDoc";
 import { cellToDate } from "@/lib/hmDates";
 import { isImplausibleDate, YEAR_POLICY } from "@/lib/dateInput";
 import InvestigationDownload from "./InvestigationDownload";
@@ -32,11 +39,12 @@ import Icon from "@/components/common/Icon";
 // Findings written before the DDMMYY century fix could only land in 2000-2099,
 // so 010198 was stored as 2098. The row still renders exactly as recorded and
 // nothing is rewritten — the marker only tells the doctor where to look.
-function DateHeading({ date }: { date: string }) {
+function DateHeading({ date, author }: { date: string; author?: string | null }) {
   const suspicious = isImplausibleDate(cellToDate(date), YEAR_POLICY.clinical);
   return (
     <div style={{ fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 }}>
       {date}
+      {author && <span style={{ fontWeight: 400, color: C.n[600] }}> {author}</span>}
       {suspicious && (
         <span
           style={{ color: C.warn[600], marginLeft: 6, fontWeight: 400 }}
@@ -68,20 +76,18 @@ export default function PatientRecordsView() {
     currentPatientId, ptName,
     rxImages, saveRxImages, reportImages, saveReportImages, appendGalleryImages, imageThumbs,
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
-    setInvestigationSummary, onExaminationSummary, setOnExaminationSummary, saveOnExaminationSummary,
+    setInvestigationSummary, onExaminationSummary,
   } = useMuqsit();
   const [showDownload, setShowDownload] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [undo, setUndo] = useState<UndoEntry<InvFinding> | null>(null);
-  const [oeEditing, setOeEditing] = useState(false);
-  const [oeUndo, setOeUndo] = useState<UndoEntry<OeFinding> | null>(null);
   const undoSeq = useRef(0);
 
   // ⚕️ This view stays mounted while the header lookup opens another patient,
   // so nothing taken on the previous patient may survive the switch — least of
   // all an Undo holding their whole history.
   useEffect(() => {
-    setUndo(null); setOeUndo(null); setEditingSummary(false); setOeEditing(false);
+    setUndo(null); setEditingSummary(false);
   }, [currentPatientId]);
 
   const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
@@ -237,31 +243,19 @@ export default function PatientRecordsView() {
     );
   };
 
-  // ── On-examination history: dated findings recorded from saved visits. ──
-  const oeGroups = useMemo(() => groupOeByDate(onExaminationSummary ?? []), [onExaminationSummary]);
-  const removeOe = (f: OeFinding) => {
-    const prev = onExaminationSummary ?? [];
-    const next = prev.filter((x) => !(x.date === f.date && x.text === f.text));
-    const token = ++undoSeq.current;
-    setOeUndo({ token, pid: currentPatientId, prev, next, label: f.text, status: "saving" });
-    Promise.resolve(saveOnExaminationSummary(next)).then(
-      () => setOeUndo((u) => (u && u.token === token ? { ...u, status: "saved" } : u)),
-      (e) => {
-        setOnExaminationSummary((cur) => (cur === next ? prev : cur));
-        setOeUndo((u) => (u && u.token === token ? { ...u, status: "error", error: `Not removed — ${errText(e)}. The finding is still in the history.` } : u));
-      },
-    );
-  };
-  const undoOe = () => {
-    if (!oeUndo || oeUndo.status !== "saved") return;
-    if (oeUndo.pid !== currentPatientId) { setOeUndo(null); return; }
-    const { token, prev } = oeUndo;
-    setOeUndo({ ...oeUndo, status: "restoring" });
-    Promise.resolve(saveOnExaminationSummary(prev)).then(
-      () => setOeUndo((u) => (u && u.token === token ? null : u)),
-      (e) => setOeUndo((u) => (u && u.token === token ? { ...u, status: "saved", error: `Undo did not save — ${errText(e)}. Try again.` } : u)),
-    );
-  };
+  // ── On-examination history: the patient's shared, dated findings, one card
+  // per date and author (`groupOeForRecords`). Read-only here. ──
+  const oeGroups = useMemo(() => groupOeForRecords(onExaminationSummary ?? []), [onExaminationSummary]);
+  const recordsPatient = useRecordsPatient();
+  const downloadOe = () => openRecordsDoc(buildRecordsDoc({
+    title: `On examination — ${ptName || "Patient"}`,
+    printed: printedToday(),
+    patient: recordsPatient,
+    groups: oeGroups.map((g) => ({
+      heading: [g.date, oeAuthorLabel(g.by)].filter(Boolean).join(" "),
+      lines: g.items.map((f) => ({ text: f.text })),
+    })),
+  }));
 
   const openViewer = (urls: string[], index: number) => setViewer({ urls, index });
 
@@ -301,30 +295,23 @@ export default function PatientRecordsView() {
         emptyText="No report images yet. Upload photos of the patient's lab/investigation reports."
       />
 
-      {/* On examination — dated history of vitals/findings written per visit */}
+      {/* On examination — the patient's SHARED dated history of findings
+          (physician's sheets 28/10 item 7, 31/10 item 3): every doctor of the
+          patient sees it, each card says who wrote it, and it is read-only here
+          ("Edit option thakbe na") with a Download in the Edit button's place. */}
       <div style={{ marginTop: 8, marginBottom: 22 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900] }}>On examination</div>
-          {oeGroups.length > 0 && (
-            oeEditing
-              ? <button onClick={() => { setOeEditing(false); setOeUndo(null); }} style={ghostBtn}>Done</button>
-              : <button onClick={() => setOeEditing(true)} style={ghostBtn}>✎ Edit</button>
-          )}
-        </div>
+        <SectionHeader title="On examination" canDownload={oeGroups.length > 0} onDownload={downloadOe} />
         {oeGroups.length === 0 ? (
           <div style={{ fontSize: 13, color: C.n[500] }}>No on-examination findings yet. They are recorded here with the visit date each time you fill <b>On examination</b> in a prescription and save.</div>
         ) : (
           <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
             {oeGroups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: gi < oeGroups.length - 1 ? 12 : 0 }}>
-                <DateHeading date={g.date} />
+                <DateHeading date={g.date} author={oeAuthorLabel(g.by)} />
                 <div style={{ paddingLeft: 16 }}>
                   {g.items.map((f, idx) => (
-                    <div key={idx} className={`inv-row${oeEditing ? " editing" : ""}`} style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
-                      <span style={{ flex: 1 }}>{f.text}</span>
-                      {oeEditing && (
-                        <button className="inv-del" onClick={() => removeOe(f)} title="Delete from history" aria-label="Delete finding">×</button>
-                      )}
+                    <div key={idx} className="inv-row" style={{ fontSize: 13, color: C.n[800], lineHeight: 1.6 }}>
+                      <span style={{ flex: 1, overflowWrap: "anywhere" }}>{f.text}</span>
                     </div>
                   ))}
                 </div>
@@ -332,7 +319,6 @@ export default function PatientRecordsView() {
             ))}
           </div>
         )}
-        {oeUndo && <UndoBar entry={oeUndo} onUndo={undoOe} onDismiss={() => setOeUndo(null)} />}
       </div>
 
       {/* Investigation reports summary */}
@@ -389,6 +375,8 @@ export default function PatientRecordsView() {
         )}
         {undo && <UndoBar entry={undo} onUndo={undoRemove} onDismiss={() => setUndo(null)} />}
       </div>
+
+      <RecordsHistorySections />
 
       {showDownload && (
         <InvestigationDownload findings={allFindings} onClose={() => setShowDownload(false)} />

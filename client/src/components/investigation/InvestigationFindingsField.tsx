@@ -38,7 +38,7 @@ const POOL_TEST_RE = /^Report \d+$/;
 type Row = { text: string; test: string; images: string[]; synthetic: boolean; raw: string };
 
 export default function InvestigationFindingsField({
-  label, items, invImages, onOpen, hidden, onHidden,
+  label, items, invImages, onOpen, hidden, onHidden, sectionHidden, onSectionHidden,
 }: {
   label: string;
   items: string[];
@@ -48,6 +48,10 @@ export default function InvestigationFindingsField({
   hidden?: string[];
   /** Opt-in: given, the ⊘ Hide button and the per-row ticks render. */
   onHidden?: (next: string[]) => void;
+  /** Opt-in, On examination (physician's sheet 28/10/2026): the WHOLE field
+   *  off the printed sheet, like Drug history — no per-line ticks. */
+  sectionHidden?: boolean;
+  onSectionHidden?: (next: boolean) => void;
 }) {
   // The open lightbox: every image on one finding, plus which one is showing.
   const [lightbox, setLightbox] = useState<{ urls: string[]; idx: number } | null>(null);
@@ -75,6 +79,9 @@ export default function InvestigationFindingsField({
         )}
         {canHide && printable.length > 0 && (
           <HideToggle hidden={hiddenCount > 0} count={hiddenCount} onToggle={toggleAll} what={label} />
+        )}
+        {!canHide && onSectionHidden && items.length > 0 && (
+          <HideToggle hidden={!!sectionHidden} onToggle={() => onSectionHidden(!sectionHidden)} what={label} />
         )}
       </div>
       {items.length > 0 && (() => {

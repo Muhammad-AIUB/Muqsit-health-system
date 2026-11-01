@@ -6,6 +6,10 @@ import { ddmmyyyyMs } from "@/lib/dateInput";
 export interface OeFinding {
   date: string; // dd/mm/yyyy — the visit it was written on
   text: string; // e.g. "BP: 120/60 mmHg"
+  // The practice doctor who wrote it, stamped by the SERVER when the entry is
+  // appended (`POST /patients/:id/on-examination`, 31/10/2026). Entries from
+  // before that carry none, and none is ever made up for them.
+  by?: string;
 }
 
 const oeKey = (f: OeFinding) => `${f.date}|${f.text.trim().toLowerCase()}`;
@@ -36,4 +40,38 @@ export function groupOeByDate(findings: OeFinding[]): { date: string; items: OeF
   }
   groups.sort((a, b) => ddmmyyyyMs(b.date) - ddmmyyyyMs(a.date));
   return groups;
+}
+
+// "by Dr. Rahim" — the name as stored, with "Dr." put in front only when the
+// name does not already begin with it. Null when there is no author to name.
+export function oeAuthorLabel(by: unknown): string | null {
+  if (typeof by !== "string" || !by.trim()) return null;
+  const name = by.trim();
+  return /^dr\b\.?/i.test(name) ? `by ${name}` : `by Dr. ${name}`;
+}
+
+// The records page: one card per DATE and AUTHOR, newest date first. Inside a
+// date the entries keep their stored order, split by who wrote them (in the
+// order each author first appears) — so a date written by two doctors says
+// which line is whose, and an entry with no author is never put under one.
+export function groupOeForRecords(findings: OeFinding[]): { date: string; by: string | null; items: OeFinding[] }[] {
+  const out: { date: string; by: string | null; items: OeFinding[] }[] = [];
+  for (const g of groupOeByDate(findings)) {
+    const byAuthor: { date: string; by: string | null; items: OeFinding[] }[] = [];
+    for (const f of g.items) {
+      const by = typeof f.by === "string" && f.by.trim() ? f.by.trim() : null;
+      let a = byAuthor.find((x) => x.by === by);
+      if (!a) { a = { date: g.date, by, items: [] }; byAuthor.push(a); }
+      a.items.push(f);
+    }
+    out.push(...byAuthor);
+  }
+  return out;
+}
+
+// What the printed sheet carries under "On examination": this visit's lines,
+// or nothing when the doctor pressed ⊘ Hide (physician's sheet 28/10/2026).
+// The lines themselves are untouched — on screen and in the record.
+export function printableOnExamination(lines: string[], hidden: boolean): string[] {
+  return hidden ? [] : lines;
 }
