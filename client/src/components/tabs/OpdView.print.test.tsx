@@ -58,6 +58,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+// Opens the calendar on PAST. Two days back is in the month before on the 1st
+// and 2nd of a month, where the calendar opens on this month and does not draw
+// it: turn the page first (the tests failed on 01/11/2026 for that alone).
+const pickPast = () => {
+  fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
+  if (!document.querySelector(`[data-day="${PAST}"]`)) fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  fireEvent.click(document.querySelector(`[data-day="${PAST}"]`) as Element);
+};
 const printButton = () => screen.getByRole("button", { name: "Print Queue" }) as HTMLButtonElement;
 const sheetText = () => (screen.getByTitle("OPD queue") as HTMLIFrameElement).contentDocument?.body.textContent ?? "";
 
@@ -108,8 +116,7 @@ describe("OPD queue — Print Queue", () => {
   it("prints a day that has passed", () => {
     mocks.rows[PAST] = [visit("p", "Past Patient", { queueDate: PAST })];
     render(<OpdView />);
-    fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
-    fireEvent.click(document.querySelector(`[data-day="${PAST}"]`) as Element);
+    pickPast();
     fireEvent.click(printButton());
     expect(sheetText()).toContain("Past Patient");
   });
@@ -118,8 +125,7 @@ describe("OPD queue — Print Queue", () => {
     mocks.rows[PAST] = [visit("p", "Past Patient", { queueDate: PAST })];
     mocks.schedule = { ...mocks.schedule, saved: false };
     render(<OpdView />);
-    fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
-    fireEvent.click(document.querySelector(`[data-day="${PAST}"]`) as Element);
+    pickPast();
     fireEvent.click(printButton());
     expect(sheetText()).not.toMatch(/\d:\d\d (AM|PM)/);
   });
