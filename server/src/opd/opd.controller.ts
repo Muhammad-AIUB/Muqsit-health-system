@@ -21,39 +21,52 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkstationGuard } from '../workstations/workstation.guard';
 import { WorkstationDoctorId } from '../workstations/workstation.decorator';
+import { ChamberHeader } from '../chambers/chamber.decorator';
+import { ChambersService } from '../chambers/chambers.service';
 
 // The OPD queue belongs to the active workstation's doctor.
 @Controller('opd')
 @UseGuards(JwtAuthGuard, WorkstationGuard)
 export class OpdController {
-  constructor(private readonly opd: OpdService) {}
+  constructor(
+    private readonly opd: OpdService,
+    private readonly chambers: ChambersService,
+  ) {}
+
+  // ⚕️ Multi-chamber (01/11/2026): the chamber a day-level call acts on is the
+  // `X-Chamber` header RESOLVED for this practice — no header is the default
+  // chamber, another practice's or a removed chamber is 404. Calls on one visit
+  // (status, presence, move) act on that visit, wherever it is queued.
+  private chamber(doctorId: string, raw: string | undefined) {
+    return this.chambers.resolve(doctorId, raw);
+  }
 
   // A day's queue, `?date=yyyy-mm-dd` (default today), in the order shown.
   @Get()
-  list(@WorkstationDoctorId() doctorId: string, @Query('date') date?: string) {
-    return this.opd.list(doctorId, date);
+  async list(@WorkstationDoctorId() doctorId: string, @ChamberHeader() raw?: string, @Query('date') date?: string) {
+    return this.opd.list(doctorId, date, await this.chamber(doctorId, raw));
   }
 
   @Post()
-  create(@WorkstationDoctorId() doctorId: string, @Body() dto: CreateOpdVisitDto) {
-    return this.opd.create(doctorId, dto);
+  async create(@WorkstationDoctorId() doctorId: string, @ChamberHeader() raw: string | undefined, @Body() dto: CreateOpdVisitDto) {
+    return this.opd.create(doctorId, dto, await this.chamber(doctorId, raw));
   }
 
   // A day's chamber schedule (start, break, minutes per patient).
   @Get('schedule')
-  schedule(@WorkstationDoctorId() doctorId: string, @Query('date') date?: string) {
-    return this.opd.getSchedule(doctorId, date);
+  async schedule(@WorkstationDoctorId() doctorId: string, @ChamberHeader() raw?: string, @Query('date') date?: string) {
+    return this.opd.getSchedule(doctorId, date, await this.chamber(doctorId, raw));
   }
 
   @Put('schedule')
-  saveSchedule(@WorkstationDoctorId() doctorId: string, @Body() dto: SaveOpdScheduleDto) {
-    return this.opd.saveSchedule(doctorId, dto);
+  async saveSchedule(@WorkstationDoctorId() doctorId: string, @ChamberHeader() raw: string | undefined, @Body() dto: SaveOpdScheduleDto) {
+    return this.opd.saveSchedule(doctorId, dto, await this.chamber(doctorId, raw));
   }
 
   // Flag a patient's queue entry incomplete / complete (upsert today's visit).
   @Post('rx-status')
-  setRxStatus(@WorkstationDoctorId() doctorId: string, @Body() dto: SetRxStatusDto) {
-    return this.opd.setRxStatusByPatient(doctorId, dto);
+  async setRxStatus(@WorkstationDoctorId() doctorId: string, @ChamberHeader() raw: string | undefined, @Body() dto: SetRxStatusDto) {
+    return this.opd.setRxStatusByPatient(doctorId, dto, await this.chamber(doctorId, raw));
   }
 
   @Patch(':id/status')

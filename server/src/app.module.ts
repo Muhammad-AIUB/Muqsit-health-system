@@ -11,6 +11,7 @@ import { AdminModule } from './admin/admin.module';
 import { PatientsModule } from './patients/patients.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { OpdModule } from './opd/opd.module';
+import { ChambersModule } from './chambers/chambers.module';
 import { IpdModule } from './ipd/ipd.module';
 import { ResearchModule } from './research/research.module';
 import { AssistantsModule } from './assistants/assistants.module';
@@ -45,6 +46,7 @@ import { MirrorModule } from './mirror/mirror.module';
     PatientsModule,
     PrescriptionsModule,
     OpdModule,
+    ChambersModule,
     IpdModule,
     ResearchModule,
     AssistantsModule,

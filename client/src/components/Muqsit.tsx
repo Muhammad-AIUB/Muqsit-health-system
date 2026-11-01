@@ -1,5 +1,6 @@
 "use client";
 
+import { ChamberSync } from "@/components/layout/ChamberPicker";
 import { useEffect, useState } from "react";
 import { C, font } from "@/theme";
 import { MuqsitProvider, useMuqsit } from "@/context/MuqsitContext";
@@ -63,6 +64,9 @@ function MuqsitInner() {
 
       {/* Real-time multi-device mirror driver (primary only) — renders nothing. */}
       <DeviceMirror />
+
+      {/* The chamber the user works in (OPD) — renders nothing. */}
+      <ChamberSync />
     </div>
   );
 }

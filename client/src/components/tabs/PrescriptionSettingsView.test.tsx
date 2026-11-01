@@ -17,11 +17,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 const update = vi.fn();
 const get = vi.fn();
 
+const ch = vi.hoisted(() => ({ layout: vi.fn(), saveLayout: vi.fn(), clearLayout: vi.fn() }));
 vi.mock("@/lib/api", () => ({
   prescriptionLayoutApi: {
     get: (...a: unknown[]) => get(...a),
     update: (...a: unknown[]) => update(...a),
   },
+  chambersApi: ch,
   // The component narrows on `instanceof ApiError` in its catch.
   ApiError: class ApiError extends Error {
     constructor(public status: number, message: string) { super(message); }
@@ -42,6 +44,15 @@ vi.mock("@/hooks/usePrescriptionLayout", () => ({
   }),
 }));
 
+// Chambers (01/11/2026): which chambers the practice has, and the query cache
+// a chamber's saved settings are written into.
+const practice = vi.hoisted(() => ({ chambers: undefined as undefined | { id: string; name: string; isDefault: boolean }[], assistant: false }));
+vi.mock("@/components/layout/ChamberPicker", () => ({ useActiveChamber: () => ({ chambers: practice.chambers }) }));
+vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ({ isAssistantMode: practice.assistant }) }));
+const qcWrites: unknown[][] = [];
+vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ setQueryData: (...a: unknown[]) => qcWrites.push(a) }) }));
+vi.mock("@/lib/dialogs", () => ({ confirmAction: () => Promise.resolve(true), tell: () => Promise.resolve() }));
+
 import PrescriptionSettingsView from "./PrescriptionSettingsView";
 
 const SAVED = {
@@ -58,6 +69,10 @@ beforeEach(() => {
   update.mockReset();
   get.mockReset();
   cacheWrites.length = 0;
+  qcWrites.length = 0;
+  practice.chambers = undefined;
+  practice.assistant = false;
+  for (const f of Object.values(ch)) f.mockReset();
   get.mockResolvedValue({ ...SAVED });
   update.mockResolvedValue({ ...SAVED });
 });
@@ -182,5 +197,54 @@ describe("Prescription settings — the print cache", () => {
     fireEvent.click(saveButton());
     await waitFor(() => expect(cacheWrites).toHaveLength(1));
     expect(cacheWrites[0]).toMatchObject({ totalWidth: "18.5" });
+  });
+});
+
+// ⚕️ "User can set multiple chamber er jonno different prescription settings
+// (OPD only)" (sheet 28/10/2026, item 8).
+describe("Prescription settings — per chamber", () => {
+  const CHAMBERS = [
+    { id: "main", name: "Main chamber", isDefault: true },
+    { id: "ibn", name: "Ibn Sina", isDefault: false },
+  ];
+
+  it("offers no chamber choice to a practice with only its main chamber, or to an assistant", async () => {
+    practice.chambers = [CHAMBERS[0]];
+    render(<PrescriptionSettingsView onBack={() => {}} />);
+    expect(screen.queryByLabelText("Settings for")).toBeNull();
+    cleanup();
+    practice.chambers = CHAMBERS;
+    practice.assistant = true;
+    render(<PrescriptionSettingsView onBack={() => {}} />);
+    expect(screen.queryByLabelText("Settings for")).toBeNull();
+  });
+
+  it("a chamber with none of its own starts from the General settings and saves to the CHAMBER, not to General", async () => {
+    practice.chambers = CHAMBERS;
+    ch.layout.mockResolvedValue({ chamberId: "ibn", layout: null });
+    ch.saveLayout.mockImplementation(async (_id: string, input: object) => ({ chamberId: "ibn", layout: { ...SAVED, ...input } }));
+    render(<PrescriptionSettingsView onBack={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Settings for"), { target: { value: "ibn" } });
+    await waitFor(() => expect(ch.layout).toHaveBeenCalledWith("ibn"));
+    expect(await screen.findByText(/Ibn Sina uses the General settings/)).toBeTruthy();
+    fireEvent.click(screen.getByText("OPD prescription"));
+    await waitFor(() => expect(screen.getByDisplayValue("18.5")).toBeTruthy());
+    ch.saveLayout.mockClear();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(ch.saveLayout).toHaveBeenCalledTimes(1));
+    expect(ch.saveLayout.mock.calls[0][0]).toBe("ibn");
+    expect(ch.saveLayout.mock.calls[0][1]).toMatchObject({ totalWidth: "18.5" });
+    expect(update).not.toHaveBeenCalled();
+    expect(qcWrites.some(([key]) => JSON.stringify(key) === JSON.stringify(["chamber-layout", "ibn"]))).toBe(true);
+  });
+
+  it("a chamber with its own settings shows them, and can go back to General", async () => {
+    practice.chambers = CHAMBERS;
+    ch.layout.mockResolvedValue({ chamberId: "ibn", layout: { ...SAVED, totalWidth: "21" } });
+    ch.clearLayout.mockResolvedValue({ chamberId: "ibn", layout: null });
+    render(<PrescriptionSettingsView onBack={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Settings for"), { target: { value: "ibn" } });
+    fireEvent.click(await screen.findByText("Use General settings"));
+    await waitFor(() => expect(ch.clearLayout).toHaveBeenCalledWith("ibn"));
   });
 });

@@ -7,6 +7,7 @@ import { pageTitle } from "@/theme/styles";
 import ManageAssistantsView from "./ManageAssistantsView";
 import ProfileSettingsView from "./ProfileSettingsView";
 import PrescriptionSettingsView from "./PrescriptionSettingsView";
+import ChambersSettingsView from "./ChambersSettingsView";
 import PrescriptionTemplatesView from "./PrescriptionTemplatesView";
 import FavouriteSettingsView from "./FavouriteSettingsView";
 import Icon, { type IconName } from "@/components/common/Icon";
@@ -14,7 +15,7 @@ import TabIcon from "@/components/layout/TabIcon";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { pressable } from "@/lib/a11y";
 
-type Section = "home" | "assistants" | "profile" | "prescription-settings" | "prescription-templates" | "favourite-settings";
+type Section = "home" | "assistants" | "profile" | "chambers" | "prescription-settings" | "prescription-templates" | "favourite-settings";
 
 type SettingsItem = { t: string; d: string; i: IconName; section?: Section; disabled?: boolean };
 
@@ -23,6 +24,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { t: "Your Badges, Ranking, social contributions etc.", d: "Achievements, ranking & community contributions", i: "medal", disabled: true },
   { t: "Add Supervisors and Role models", d: "Link supervisors & role models to your profile", i: "users", disabled: true },
   { t: "Manage your assistants and IPD team", d: "Role based access control & dynamic permission", i: "shield", section: "assistants" },
+  { t: "Chambers", d: "Add your chambers — each keeps its own OPD list and prescription settings", i: "chamber", section: "chambers" },
   { t: "Prescription settings", d: "Set up your prescription paper size, format etc", i: "sliders", section: "prescription-settings" },
   { t: "Prescription templates", d: "Create, edit, delete medicine templates", i: "fileText", section: "prescription-templates" },
   { t: "Favourite & unit settings", d: "Pick favourite investigations & preferred units", i: "star", section: "favourite-settings" },
@@ -32,6 +34,7 @@ const SECTION_PATH: Record<Section, string> = {
   home: "/settings",
   assistants: "/settings/assistants",
   profile: "/settings/profile",
+  chambers: "/settings/chambers",
   "prescription-settings": "/settings/prescription-settings",
   "prescription-templates": "/settings/prescription-templates",
   "favourite-settings": "/settings/favourite-settings",
@@ -41,6 +44,7 @@ const sectionFromPath = (pathname: string): Section => {
   const clean = pathname.replace(/\/+$/, "");
   if (clean === "/settings/assistants") return "assistants";
   if (clean === "/settings/profile") return "profile";
+  if (clean === "/settings/chambers") return "chambers";
   if (clean === "/settings/prescription-settings") return "prescription-settings";
   if (clean === "/settings/prescription-templates") return "prescription-templates";
   if (clean === "/settings/favourite-settings") return "favourite-settings";
@@ -76,6 +80,9 @@ export default function SettingsView({ mobile = false }: { mobile?: boolean }) {
   }
   if (section === "profile") {
     return <ProfileSettingsView onBack={() => go("home")} />;
+  }
+  if (section === "chambers") {
+    return <ChambersSettingsView onBack={() => go("home")} />;
   }
   if (section === "prescription-settings") {
     return <PrescriptionSettingsView onBack={() => go("home")} />;

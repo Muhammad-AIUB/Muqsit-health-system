@@ -1,5 +1,6 @@
 "use client";
 
+import ChamberPicker from "@/components/layout/ChamberPicker";
 import { useRef, useState } from "react";
 import { C, colorOf, font } from "@/theme";
 import { btnDisabled, btnPrimary, btnSecondary, inputMd, pageTitle } from "@/theme/styles";
@@ -147,6 +148,8 @@ export default function OpdView() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={pageTitle}>OPD queue management</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* Whose list this is: each chamber keeps its own (01/11/2026). */}
+          <ChamberPicker />
           {/* The date IS the calendar's button (physician's sheet, 28/10/2026). */}
           <button
             type="button"

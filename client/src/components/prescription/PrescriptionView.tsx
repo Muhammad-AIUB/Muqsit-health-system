@@ -1,5 +1,6 @@
 "use client";
 
+import { printableOnExamination } from "@/lib/onExaminationSummary";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { confirmAction, tell } from "@/lib/dialogs";
@@ -10,6 +11,9 @@ import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
 import { sanitizeHtml } from "@/lib/safeHtml";
 import { uploadImage } from "@/lib/api";
 import { usePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
+import { useChamberLayout } from "@/hooks/useChambers";
+import { useChamberId } from "@/lib/chamber";
+import { effectiveLayout } from "@/lib/chamberLayout";
 import { useActivityFeed, useActivityLog } from "@/hooks/useActivity";
 import { usePatientChat } from "@/hooks/useChat";
 import { useRxAlertInput } from "@/hooks/useRxAlertInput";
@@ -69,7 +73,12 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   const m = useMuqsit();
   const { savePrescription, savedMsg } = m;
   const { user } = useAuth();
-  const { data: layout } = usePrescriptionLayout();
+  const { data: doctorLayout } = usePrescriptionLayout();
+  // The active chamber's own print settings, else the doctor's (OPD only —
+  // this is the OPD editor; the IPD sheet is untouched).
+  const chamberId = useChamberId();
+  const { data: chamberLayout } = useChamberLayout(chamberId);
+  const layout = effectiveLayout(doctorLayout, chamberId, chamberLayout);
   const logActivity = useActivityLog();
   // 3.docx: a patient must be chosen (via the mobile lookup) before anything can
   // be written or saved.
@@ -166,7 +175,9 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         // document (physician's decision, 2026-09-21). The entries themselves
         // are untouched — still in the patient's record, still on screen.
         { label: "Drug history", items: m.hideDrugHistory ? [] : printableDrugHistory },
-        { label: "On examination", items: m.onExamination },
+        // ⚕️ ⊘ Hide on the On-examination row takes the whole section off this
+        // document (sheet 28/10/2026); off by default, so it prints as before.
+        { label: "On examination", items: printableOnExamination(m.onExamination, m.hideOnExamination) },
         { label: "Note", items: m.note },
         { label: "Plan", items: m.plan },
         { label: "Provisional diagnosis", items: m.provisionalDiagnosis },

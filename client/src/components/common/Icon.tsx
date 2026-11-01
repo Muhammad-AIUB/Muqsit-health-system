@@ -30,6 +30,10 @@ const PATHS = {
   mail: ["M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M22 6l-10 7L2 6"],
   camera: ["M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z", "M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"],
   search: ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"],
+  // A chamber (physician's sheet 28/10/2026, item 8: "Chamber logo" — a
+  // doctor at a desk): a head, the shoulders above a desk top, two desk legs.
+  // Drawn for this app on the same grid, not copied from the sheet's picture.
+  chamber: ["M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M6 14v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1", "M2 14h20", "M4 14v7", "M20 14v7", "M9 18h6"],
   sliders: ["M4 6h9", "M17 6h3", "M4 12h3", "M11 12h9", "M4 18h11", "M19 18h1", "M15 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z", "M9 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z", "M17 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"],
   activity: ["M22 12h-4l-3 9L9 3l-3 9H2"],
   folder: ["M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"],

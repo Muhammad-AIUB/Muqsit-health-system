@@ -54,11 +54,15 @@ export class OpdService {
     return v.queueDate ?? dhakaDayKey(v.createdAt);
   }
 
-  private dayWhere(doctorId: string, day: string): Prisma.OpdVisitWhereInput {
+  // ⚕️ Multi-chamber (01/11/2026): a day's queue is one CHAMBER's. `chamberId`
+  // comes from `ChambersService.resolve` (never from a client as-is); NULL is the
+  // default chamber, which holds every row written before chambers.
+  private dayWhere(doctorId: string, day: string, chamberId: string | null): Prisma.OpdVisitWhereInput {
     const start = dhakaDayStart(day);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
     return {
       doctorId,
+      chamberId,
       OR: [{ queueDate: day }, { queueDate: null, createdAt: { gte: start, lt: end } }],
     };
   }
@@ -68,9 +72,9 @@ export class OpdService {
   }
 
   // A day's queue for this doctor, in the order shown (default: today).
-  async list(doctorId: string, day: string = dhakaDayKey()): Promise<OpdVisitRow[]> {
+  async list(doctorId: string, day: string = dhakaDayKey(), chamberId: string | null = null): Promise<OpdVisitRow[]> {
     this.requireDay(day);
-    const rows = await this.prisma.opdVisit.findMany({ where: this.dayWhere(doctorId, day), orderBy: DISPLAY_ORDER });
+    const rows = await this.prisma.opdVisit.findMany({ where: this.dayWhere(doctorId, day, chamberId), orderBy: DISPLAY_ORDER });
     return this.decorate(doctorId, rows);
   }
 
@@ -114,8 +118,13 @@ export class OpdService {
     });
   }
 
-  private dayRows(tx: Prisma.TransactionClient, doctorId: string, day: string): Promise<OpdVisit[]> {
-    return tx.opdVisit.findMany({ where: this.dayWhere(doctorId, day), orderBy: DISPLAY_ORDER });
+  private dayRows(tx: Prisma.TransactionClient, doctorId: string, day: string, chamberId: string | null): Promise<OpdVisit[]> {
+    return tx.opdVisit.findMany({ where: this.dayWhere(doctorId, day, chamberId), orderBy: DISPLAY_ORDER });
+  }
+
+  // A chamber's own schedule for a day (NULL = the default chamber's).
+  private ownSchedule(db: Pick<Prisma.TransactionClient, 'opdDaySetting'>, doctorId: string, day: string, chamberId: string | null) {
+    return db.opdDaySetting.findFirst({ where: { doctorId, chamberId, day } });
   }
 
   // ⚕️ One write to a doctor's queue at a time (19/10/2026). Each of them reads
@@ -151,9 +160,11 @@ export class OpdService {
     db: Pick<Prisma.TransactionClient, 'opdDaySetting'>,
     doctorId: string,
     day: string,
+    chamberId: string | null,
   ): Promise<OpdDaySetting | null> {
+    // Only the SAME chamber's earlier days: another chamber keeps other hours.
     return db.opdDaySetting.findFirst({
-      where: { doctorId, day: { lt: day } },
+      where: { doctorId, chamberId, day: { lt: day } },
       orderBy: { day: 'desc' },
     });
   }
@@ -161,14 +172,15 @@ export class OpdService {
   // ⚕️ The times a patient is told come from the day's schedule. The first visit
   // added to a day saves the schedule that day took from an earlier one, so
   // changing the earlier day afterwards does not move times already given out.
-  private async freezeSchedule(tx: Prisma.TransactionClient, doctorId: string, day: string): Promise<void> {
-    const own = await tx.opdDaySetting.findUnique({ where: { doctorId_day: { doctorId, day } } });
+  private async freezeSchedule(tx: Prisma.TransactionClient, doctorId: string, day: string, chamberId: string | null): Promise<void> {
+    const own = await this.ownSchedule(tx, doctorId, day, chamberId);
     if (own) return;
-    const inherited = await this.inheritedSchedule(tx, doctorId, day);
+    const inherited = await this.inheritedSchedule(tx, doctorId, day, chamberId);
     if (!inherited) return;
     await tx.opdDaySetting.create({
       data: {
         doctorId,
+        chamberId,
         day,
         startTime: inherited.startTime,
         breakStart: inherited.breakStart,
@@ -183,21 +195,22 @@ export class OpdService {
     tx: Prisma.TransactionClient,
     doctorId: string,
     day: string,
-    data: Omit<Prisma.OpdVisitUncheckedCreateInput, 'doctorId' | 'token' | 'queueDate' | 'position'>,
+    chamberId: string | null,
+    data: Omit<Prisma.OpdVisitUncheckedCreateInput, 'doctorId' | 'token' | 'queueDate' | 'position' | 'chamberId'>,
   ): Promise<OpdVisit> {
-    const rows = await this.dayRows(tx, doctorId, day);
+    const rows = await this.dayRows(tx, doctorId, day, chamberId);
     // Rows an older build wrote have no place: number them in the order shown
     // first, or the new one (which has a place) would be listed before them.
     for (const u of renumber(rows)) {
       await tx.opdVisit.update({ where: { id: u.id }, data: { position: u.position } });
     }
-    await this.freezeSchedule(tx, doctorId, day);
+    await this.freezeSchedule(tx, doctorId, day, chamberId);
     return tx.opdVisit.create({
-      data: { ...data, doctorId, token: this.nextToken(rows), queueDate: day, position: rows.length + 1 },
+      data: { ...data, doctorId, chamberId, token: this.nextToken(rows), queueDate: day, position: rows.length + 1 },
     });
   }
 
-  async create(doctorId: string, dto: CreateOpdVisitDto): Promise<OpdVisit> {
+  async create(doctorId: string, dto: CreateOpdVisitDto, chamberId: string | null = null): Promise<OpdVisit> {
     const today = dhakaDayKey();
     const day = dto.date ?? today;
     this.requireDay(day);
@@ -218,7 +231,7 @@ export class OpdService {
         const waiting = await tx.opdVisit.findFirst({
           where: {
             AND: [
-              this.dayWhere(doctorId, day),
+              this.dayWhere(doctorId, day, chamberId),
               { patientId: dto.patientId, status: 'waiting' },
               { OR: [{ rxStatus: null }, { rxStatus: 'incomplete' }] },
             ],
@@ -227,7 +240,7 @@ export class OpdService {
         });
         if (waiting) return waiting;
       }
-      return this.append(tx, doctorId, day, { ...fields, type: dto.type ?? 'New' });
+      return this.append(tx, doctorId, day, chamberId, { ...fields, type: dto.type ?? 'New' });
     }, ROW_LOCK_TX);
   }
 
@@ -251,7 +264,8 @@ export class OpdService {
 
     const moved = await this.prisma.$transaction(async (tx) => {
       await this.lockQueue(tx, doctorId);
-      const rows = await this.dayRows(tx, doctorId, day);
+      // Within the visit's OWN chamber and day.
+      const rows = await this.dayRows(tx, doctorId, day, visit.chamberId);
       const plan = planMove(rows, id, dto.direction);
       if (plan.ok === false) {
         if (plan.reason === 'not-found') throw new NotFoundException('Visit not found');
@@ -261,7 +275,7 @@ export class OpdService {
       for (const u of plan.updates) {
         await tx.opdVisit.update({ where: { id: u.id }, data: { position: u.position } });
       }
-      return this.dayRows(tx, doctorId, day);
+      return this.dayRows(tx, doctorId, day, visit.chamberId);
     }, ROW_LOCK_TX);
     return this.decorate(doctorId, moved);
   }
@@ -284,10 +298,10 @@ export class OpdService {
 
   // A day's schedule: its own if it has one, else the latest earlier day's, else
   // the pre-set values — with `saved` saying which.
-  async getSchedule(doctorId: string, day: string = dhakaDayKey()): Promise<OpdScheduleAnswer> {
+  async getSchedule(doctorId: string, day: string = dhakaDayKey(), chamberId: string | null = null): Promise<OpdScheduleAnswer> {
     this.requireDay(day);
-    const own = await this.prisma.opdDaySetting.findUnique({ where: { doctorId_day: { doctorId, day } } });
-    const row = own ?? (await this.inheritedSchedule(this.prisma, doctorId, day));
+    const own = await this.ownSchedule(this.prisma, doctorId, day, chamberId);
+    const row = own ?? (await this.inheritedSchedule(this.prisma, doctorId, day, chamberId));
     const s: OpdSchedule = row
       ? { startTime: row.startTime, breakStart: row.breakStart, breakEnd: row.breakEnd, minutesPerPatient: row.minutesPerPatient }
       : DEFAULT_OPD_SCHEDULE;
@@ -296,7 +310,7 @@ export class OpdService {
 
   // ⚕️ Today and later days only: the times of a day that has passed are what
   // was told to its patients.
-  async saveSchedule(doctorId: string, dto: SaveOpdScheduleDto): Promise<OpdScheduleAnswer> {
+  async saveSchedule(doctorId: string, dto: SaveOpdScheduleDto, chamberId: string | null = null): Promise<OpdScheduleAnswer> {
     this.requireDay(dto.date);
     if (dto.date < dhakaDayKey()) throw new BadRequestException(PAST_DAY);
     const schedule: OpdSchedule = {
@@ -308,25 +322,28 @@ export class OpdService {
     const problem = scheduleProblem(schedule);
     if (problem) throw new BadRequestException(problem);
 
-    await this.prisma.opdDaySetting.upsert({
-      where: { doctorId_day: { doctorId, day: dto.date } },
-      create: { doctorId, day: dto.date, ...schedule },
-      update: schedule,
-    });
+    // One row per doctor, chamber and day: found and written under the queue's
+    // lock (the unique key is an expression index Prisma cannot upsert on).
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockQueue(tx, doctorId);
+      const own = await this.ownSchedule(tx, doctorId, dto.date, chamberId);
+      if (own) await tx.opdDaySetting.update({ where: { id: own.id }, data: schedule });
+      else await tx.opdDaySetting.create({ data: { doctorId, chamberId, day: dto.date, ...schedule } });
+    }, ROW_LOCK_TX);
     return { day: dto.date, ...schedule, saved: true };
   }
 
   // Upsert today's queue entry for a patient and set its prescription status
   // (incomplete | complete). Reuses an existing same-day visit for the patient
   // so a queued or already-flagged patient isn't duplicated.
-  async setRxStatusByPatient(doctorId: string, dto: SetRxStatusDto): Promise<OpdVisit> {
+  async setRxStatusByPatient(doctorId: string, dto: SetRxStatusDto, chamberId: string | null = null): Promise<OpdVisit> {
     // ⚕️ TODAY's queue — a patient booked for a later day is not the one being
     // prescribed for now, and must not be marked printed.
     const today = dhakaDayKey();
     return this.prisma.$transaction(async (tx) => {
       await this.lockQueue(tx, doctorId);
       const existing = await tx.opdVisit.findFirst({
-        where: { AND: [this.dayWhere(doctorId, today), { patientId: dto.patientId }] },
+        where: { AND: [this.dayWhere(doctorId, today, chamberId), { patientId: dto.patientId }] },
         orderBy: { createdAt: 'desc' },
       });
       if (existing) {
@@ -335,7 +352,7 @@ export class OpdService {
           data: { rxStatus: dto.rxStatus },
         });
       }
-      return this.append(tx, doctorId, today, {
+      return this.append(tx, doctorId, today, chamberId, {
         patientId: dto.patientId,
         name: dto.name ?? 'Patient',
         phone: dto.phone ?? null,

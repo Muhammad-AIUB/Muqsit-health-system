@@ -18,6 +18,7 @@ vi.mock("./AccountMenu", () => ({ default: () => null }));
 vi.mock("./MirrorToggle", () => ({ default: () => null }));
 vi.mock("./PatientSearch", () => ({ default: () => null }));
 vi.mock("./WorkstationSwitcher", () => ({ WorkstationIndicator: () => null }));
+vi.mock("./ChamberPicker", () => ({ default: () => null }));
 vi.mock("@/components/ipd/CriticalAlert", () => ({ default: () => null }));
 vi.mock("@/components/prescription/PatientHeader", () => ({ default: () => null }));
 vi.mock("@/components/prescription/PrescriptionView", () => ({ default: () => null }));

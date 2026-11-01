@@ -177,6 +177,7 @@ Server-side enforcement today (the UI gate is never the boundary):
 | `PUT /patients/:id/supervised-draft` | a supervising practice only (the owner's practice gets 400); an assistant of it needs any `rx.*` grant |
 | `POST /patients/:id/drug-history` | the owner's practice only (a supervising doctor gets 403, as for `PATCH`); an assistant needs any `rx.*` grant |
 | every write on `/patients/:id/drug-safety` (add, change, remove, restore) | anyone who reaches the patient may add, a supervising doctor included; editing / removing / restoring an entry: the owner's practice for any entry, another (supervising) practice only for the entries it added (403 otherwise); an assistant needs `rx.drugHistory` for every write. Reading (`GET`) needs no key |
+| `POST /patients/:id/on-examination` | the owner's practice **and a supervising practice** (the shared history is the patient's, 31/10/2026); append only; an assistant needs any `rx.*` grant |
 | `DELETE /patients/:id` | **owner only, always**; 409 while another doctor (a supervisor) holds prescriptions for the patient — those would cascade away unseen |
 | `/ipd/:id/analogue*` | the doctor and their assistants pass without a key; any other actor needs `ipd.analogue` |
 
@@ -291,6 +292,7 @@ the ward; that door must be built inside `ipd.service`, never by extending
 | PATCH | `/patients/:id/drug-safety/:entryId` | `UpdateDrugSafetyDto { hypersensitive?, highAlert?, text? }` — a drug entry's ticks (never to none ticked) or a text entry's words (never blank); `400` for the wrong field for the kind, `403` for another practice's entry (a supervising practice), `404` for an entry that is removed or not this patient's |
 | DELETE | `/patients/:id/drug-safety/:entryId` | **soft** removal: sets `removedAt` / `removedById`, the row is kept; `200 { id }` |
 | POST | `/patients/:id/drug-safety/:entryId/restore` | puts a removed entry back (the client's Undo); `409` when the same entry is on the list again already; `201` with the entry |
+| POST | `/patients/:id/on-examination` | `{ entries: { date: "dd/mm/yyyy", text: string }[] }` (1–500 entries, text 1–2000 characters) — a saved visit's On-examination findings, APPENDED by the server under the row's lock to the patient's shared history (`Patient.onExaminationSummary`, physician's sheets 28/10 + 31/10/2026: every doctor of the patient sees it). Each new entry is stored `{ date, text, by }`, `by` being the name of the practice doctor the request acts for (`@WorkstationDoctorId()`: `displayName`, else `name`) — never a value the client sends (`by` in the body is dropped by the whitelist). An entry with the same date and text (case and outer spacing aside) is not written twice; nothing stored is changed or removed, and an older entry keeps no author. `201 { onExaminationSummary }`, the list as stored. Reach is `accessibleWhere` (owner OR supervisor); `404` if not accessible, `409` when the stored value is not a list (nothing is written), `403` for an assistant with no `rx.*` grant |
 | PUT | `/patients/:id/supervised-draft` | `{ data: object \| null }` — a SUPERVISING practice parks its unprinted visit for the patient (what `incompleteRx` is for the owner's practice, which a supervising doctor may never write), or takes it away with `null`. `200 { ok: true }`; `400` for the owner's practice (its visit is the patient's `incompleteRx`) or a `data` that is not an object or null; `404` if not accessible. Keyed by the practice, so its assistants share it, as the owner's practice shares `incompleteRx` (19/10/2026) |
 | DELETE | `/patients/:id` | **owner only** |
 
@@ -420,6 +422,8 @@ touching anything here.
 
 The queue is booked **per Dhaka calendar day**, written `yyyy-mm-dd` (`OpdVisit.queueDate`; 28/10/2026, physician's sheet). A visit can be added for **today or a later day**; a day that has **passed is locked** — the server refuses to add, move or re-time it (400, "A day that has passed cannot be changed."), whatever the client sends. A date that is not a calendar day (`2026-02-30`, `28/10/2026`) is 400 "That is not a day on the calendar.". `manual-opd-queue-date.sql` must be applied **before** the release that reads it.
 
+**Chambers (01/11/2026).** `GET /opd`, `POST /opd`, `GET|PUT /opd/schedule` and `POST /opd/rx-status` act on ONE chamber's queue and schedule: the `X-Chamber` header (an `OpdChamber` id, §5.12b), resolved by the server for the practice (`ChambersService.resolve`) — no header, or the default chamber's id, is the **default chamber** (stored `chamberId: null`, which is every row from before chambers); another practice's chamber, a removed chamber or a made-up id is **404** and nothing is read or written. Tokens, serials and the token-unique index are per chamber (two chambers each have a `T-01` on one day); a day's schedule is per chamber and a day inherits only its OWN chamber's earlier days. `PATCH /opd/:id/status|presence|move` act on the visit wherever it is queued (move reorders within its own chamber and day). Rows carry `chamberId`. `manual-opd-chambers.sql` must be applied **before** the release that reads it.
+
 | Method | Path | Body / Notes |
 |---|---|---|
 | GET | `/opd` | `?date=yyyy-mm-dd` (default **today**): that day's queue in the order shown — `position` ascending, then arrival; a row an older build wrote with no `queueDate` / `position` is read as the Dhaka day it was created, and listed last. A past day is answered (read only). Each row also carries `pictureUrl` (the patient's picture or `null`) and `padStage` (`history` / `pending` / `null` — how far THIS practice's parked visit for that patient has got today; the draft itself is never sent); `PATCH /opd/:id/move` answers the same rows |
@@ -437,6 +441,20 @@ number. A token is not renumbered when the order changes — it is what the pati
 the serial the doctor sees is the place in the day's list. `POST /opd`, `POST /opd/rx-status` and
 `PATCH /opd/:id/move` take one advisory lock per doctor, so two writes to one queue never read it at
 the same moment.
+
+### 5.12b OPD chambers — `/chambers` (JWT + WS)
+
+A practice's OPD chambers (physician's sheet 28/10/2026, item 8: "Labaid and Ibn Sina have different OPD lists"). Scoped to `@WorkstationDoctorId()`. NOT the profile's `chambers` list (`/users/me`), whose rows are recreated on every profile save. Reading is open to the practice's assistants; every write is the practice OWNER's (an assistant gets 403).
+
+| Method | Path | Body / Notes |
+|---|---|---|
+| GET | `/chambers` | the practice's live chambers, the default first, then by when added → `[{ id, doctorId, name, address, isDefault, createdAt, updatedAt, removedAt: null }]`. If the practice has none, the default is made first (under a lock, once): "Main chamber", with the address of the doctor's first profile chamber, copied once and never written over |
+| POST | `/chambers` | `{ name, address? }` (name 1–120, address up to 500) → the chamber. Owner only |
+| PATCH | `/chambers/:id` | `{ name?, address? }` — rename / edit the address (a blank name is 400). `404` for a chamber not this practice's or removed. Owner only |
+| DELETE | `/chambers/:id` | **soft** removal (`removedAt`; the row and its visits stay) → `{ id }`. The default chamber cannot be removed (400: it holds the OPD list from before chambers). Owner only |
+| GET | `/chambers/:id/layout` | the chamber's own prescription print settings (OPD only) → `{ chamberId, layout }`, `layout: null` when it has none — the doctor's own `/prescription-layout` prints then |
+| PUT | `/chambers/:id/layout` | `UpsertPrescriptionLayoutDto` (partial, as `/prescription-layout`) — saved over the chamber's own settings, or the first time over the practice doctor's current ones → `{ chamberId, layout }`. Owner only |
+| DELETE | `/chambers/:id/layout` | back to the doctor's own settings for this chamber (the settings row is removed) → `{ chamberId, layout: null }`. Owner only |
 
 ### 5.13 IPD — `/ipd` (JWT + WS)
 

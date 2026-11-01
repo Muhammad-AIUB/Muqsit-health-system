@@ -52,8 +52,8 @@ const ALLOWED: { file: string; text: string; why: string }[] = [
 ];
 
 const SRC = join(__dirname, "..");
-// prescriptionDoc.ts and opdQueueDoc.ts are printed pages in a frame of their own that import no theme; they are the same in both modes.
-const SKIP = /\.test\.|prescriptionDoc\.ts$|opdQueueDoc\.ts$|galleryPdf\.ts$|compressImage\.ts$|decodeImage\.ts$/;
+// prescriptionDoc.ts, opdQueueDoc.ts and recordsDoc.ts are printed pages in a frame of their own that import no theme; they are the same in both modes.
+const SKIP = /\.test\.|prescriptionDoc\.ts$|opdQueueDoc\.ts$|recordsDoc\.ts$|galleryPdf\.ts$|compressImage\.ts$|decodeImage\.ts$/;
 const RAW = /#[0-9a-fA-F]{3,8}\b|rgba?\(|["']white["']/;
 
 function walk(dir: string): string[] {

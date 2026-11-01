@@ -42,13 +42,19 @@ vi.setConfig({ testTimeout: 30_000 });
 const TODAY = dhakaToday();
 const PAST = shiftDay(TODAY, -2);
 
-// The calendar opens on today's month. Two days back is in the PREVIOUS month on
-// the 1st and 2nd, so turn the page first (the test failed on those two days).
-function chooseDay(day: string) {
-  if (!document.querySelector(`[data-day="${day}"]`)) fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
-  fireEvent.click(document.querySelector(`[data-day="${day}"]`) as Element);
+// Opens the calendar and chooses `key`. The calendar opens on the current
+// month, and PAST (two days back) is in the previous one on the 1st and 2nd of
+// a month: turn back until its day is drawn, as e2e `chooseDay` does. Without
+// this the two tests below failed on those days on every branch (01/11/2026).
+function chooseDay(key: string) {
+  fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
+  for (let i = 0; i < 3 && !document.querySelector(`[data-day="${key}"]`); i++) {
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  }
+  const day = document.querySelector(`[data-day="${key}"]`);
+  if (!day) throw new Error(`the calendar never showed ${key}`);
+  fireEvent.click(day);
 }
-
 
 const visit = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id, name, token: "T-01", status: "waiting", type: "New", phone: "01810101515", age: 34, gender: "Male", patientId: id,
@@ -116,7 +122,6 @@ describe("OPD queue — Print Queue", () => {
   it("prints a day that has passed", () => {
     mocks.rows[PAST] = [visit("p", "Past Patient", { queueDate: PAST })];
     render(<OpdView />);
-    fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
     chooseDay(PAST);
     fireEvent.click(printButton());
     expect(sheetText()).toContain("Past Patient");
@@ -126,7 +131,6 @@ describe("OPD queue — Print Queue", () => {
     mocks.rows[PAST] = [visit("p", "Past Patient", { queueDate: PAST })];
     mocks.schedule = { ...mocks.schedule, saved: false };
     render(<OpdView />);
-    fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
     chooseDay(PAST);
     fireEvent.click(printButton());
     expect(sheetText()).not.toMatch(/\d:\d\d (AM|PM)/);
