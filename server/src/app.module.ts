@@ -24,6 +24,7 @@ import { RxHabitsModule } from './rx-habits/rx-habits.module';
 import { DoctorPhrasesModule } from './doctor-phrases/doctor-phrases.module';
 import { DrugAdviceModule } from './drug-advice/drug-advice.module';
 import { PatientNotesModule } from './patient-notes/patient-notes.module';
+import { PatientDrugSafetyModule } from './patient-drug-safety/patient-drug-safety.module';
 import { RevisionNotesModule } from './revision-notes/revision-notes.module';
 import { WorkstationsModule } from './workstations/workstations.module';
 import { PatientChatModule } from './patient-chat/patient-chat.module';
@@ -57,6 +58,7 @@ import { MirrorModule } from './mirror/mirror.module';
     DoctorPhrasesModule,
     DrugAdviceModule,
     PatientNotesModule,
+    PatientDrugSafetyModule,
     RevisionNotesModule,
     WorkstationsModule,
     PatientChatModule,

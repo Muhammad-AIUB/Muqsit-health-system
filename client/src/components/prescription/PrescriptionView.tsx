@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { tell } from "@/lib/dialogs";
+import { confirmAction, tell } from "@/lib/dialogs";
 import { btnDisabled, btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
 import { useMuqsit, UNWRITABLE_PAD } from "@/context/MuqsitContext";
 import { useAuth } from "@/context/AuthContext";
@@ -21,6 +21,8 @@ import { printableInvestigation } from "@/lib/investigationHidden";
 import { sortFindingsByDate } from "@/lib/investigationOrder";
 import { rxSnapshotKey } from "@/lib/rxSnapshot";
 import { THUMB_UPLOAD } from "@/lib/imageThumbs";
+import { linesForPrint } from "@/lib/drugSafety";
+import { usePatientDrugSafety } from "@/hooks/usePatientDrugSafety";
 import LeftColumn from "./LeftColumn";
 import RightColumn from "./RightColumn";
 import PatientGate from "./PatientGate";
@@ -103,8 +105,31 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       ? "Add a medicine or some clinical detail before saving."
       : "Save this unfinished prescription and start the next patient";
 
+  // ⚕️ H/O drug hypersensitivity and High-Alert Medication (31/10/2026): the
+  // same query the section on screen reads, so the sheet prints what is shown.
+  const drugSafety = usePatientDrugSafety();
+
+  // ⚕️ The list's lines for the sheet about to be built — asked for again, so
+  // an entry another device added is on the paper. A list that could not be
+  // loaded at all is never printed as "none recorded": the doctor is asked,
+  // and saying no stops here (nothing saved, nothing printed). An older copy,
+  // when the new ask fails, is what the screen shows and is printed.
+  const drugSafetyForPrint = async (): Promise<string[] | null> => {
+    if (!m.currentPatientId) return [];
+    return linesForPrint(
+      () => drugSafety.refetch(),
+      () => confirmAction({
+        title: "This patient's drug hypersensitivity / high-alert list could not be loaded.",
+        body: "The printed prescription will not show it. Check the connection and try again, or print without it.",
+        confirmLabel: "Print without it",
+        cancelLabel: "Go back",
+        danger: true,
+      }),
+    );
+  };
+
   // Build the printable prescription HTML from the current editor state.
-  const buildHtml = () => {
+  const buildHtml = (safetyLines: string[]) => {
     const rxMirrored = new Set(rxDrugHistoryEntries(m.rxItems, isoToDdmmyyyy(m.ptDate)));
     const printableDrugHistory = m.drugHistory.filter((e) => !rxMirrored.has(e));
     const followUp =
@@ -148,6 +173,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
         { label: "Associated illness", items: m.associatedIllness },
         { label: "Final diagnosis", items: m.finalDiagnosis },
       ],
+      drugSafety: safetyLines,
       // ⚕️ The ℞ lines exactly as the doctor entered them. Prescribing warnings
       // are deliberately NOT carried onto the sheet: they are a live aid while
       // writing, and the physician's decision (2026-08-17) is that the printed
@@ -226,6 +252,13 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     // check), which refuses to save anyway, so the modal can't flash open and
     // shut for nothing.
     const showing = m.hasRxContent;
+    // Asked BEFORE the save: a doctor who goes back has filed nothing.
+    let safetyLines: string[] = [];
+    if (showing) {
+      const lines = await drugSafetyForPrint();
+      if (lines === null) return;
+      safetyLines = lines;
+    }
     if (showing) setSheet({ open: true, html: null, afterSave: true });
 
     // The save runs before anything that could throw. Nothing about rendering
@@ -246,7 +279,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     // untouched by the save, so this is still exactly what the doctor saw.
     let html: string;
     try {
-      html = buildHtml();
+      html = buildHtml(safetyLines);
     } catch {
       closeSheet();
       tell({ title: "Prescription saved, but the printable sheet could not be built.", body: "Open Preview PDF to print it." });
@@ -302,15 +335,17 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     void m.saveDraftNow();
   };
 
-  const previewPdf = () => {
+  const previewPdf = async () => {
     // ⚕️ Its Print prints too: a sheet that silently leaves out a line the pad
     // cannot write is refused like Save & print (review, 18/10/2026).
     if (m.rxPadUnwritable > 0) {
       tell({ title: "The prescription cannot be previewed yet.", body: UNWRITABLE_PAD.replace(/^Not saved: a/, "A") });
       return;
     }
+    const safetyLines = await drugSafetyForPrint();
+    if (safetyLines === null) return;
     try {
-      setSheet({ open: true, html: buildHtml(), afterSave: false });
+      setSheet({ open: true, html: buildHtml(safetyLines), afterSave: false });
     } catch {
       tell({ title: "The printable sheet could not be built.", body: "Nothing you have written is affected." });
     }
@@ -356,7 +391,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 18, paddingTop: 14, borderTop: `0.5px solid ${C.n[200]}` }}>
         <button onClick={saveForLater} disabled={!canSaveDraft || saving} title={draftTitle} style={{ ...btnTonal("lg"), ...(canSaveDraft ? null : btnDisabled) }}>Save to complete later</button>
         <button onClick={handleSave} disabled={!canSave || saving} title={canSave ? undefined : gateOpen ? "You don't have permission to save & print" : "Select a patient (enter a mobile number) first"} style={{ ...btnPrimary("lg"), ...(canSave ? null : btnDisabled), flex: 1 }}>{saving ? "Saving…" : "Save & print prescription"}</button>
-        <button onClick={previewPdf} style={btnSecondary("lg")}>Preview PDF</button>
+        <button onClick={() => void previewPdf()} style={btnSecondary("lg")}>Preview PDF</button>
       </div>
       <SaveNoticeLine notice={savedMsg} />
       {gateOpen && <><ReportsSection /><PatientChat /></>}

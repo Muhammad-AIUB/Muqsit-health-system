@@ -176,6 +176,7 @@ Server-side enforcement today (the UI gate is never the boundary):
 | `PATCH /patients/:id` with `hmDrugDates` / `hmSymptomDates` | **owner only** — an assistant is refused by the controller, a supervising doctor by the `patient.doctorId` check in the service |
 | `PUT /patients/:id/supervised-draft` | a supervising practice only (the owner's practice gets 400); an assistant of it needs any `rx.*` grant |
 | `POST /patients/:id/drug-history` | the owner's practice only (a supervising doctor gets 403, as for `PATCH`); an assistant needs any `rx.*` grant |
+| every write on `/patients/:id/drug-safety` (add, change, remove, restore) | anyone who reaches the patient may add, a supervising doctor included; editing / removing / restoring an entry: the owner's practice for any entry, another (supervising) practice only for the entries it added (403 otherwise); an assistant needs `rx.drugHistory` for every write. Reading (`GET`) needs no key |
 | `DELETE /patients/:id` | **owner only, always**; 409 while another doctor (a supervisor) holds prescriptions for the patient — those would cascade away unseen |
 | `/ipd/:id/analogue*` | the doctor and their assistants pass without a key; any other actor needs `ipd.analogue` |
 
@@ -189,6 +190,7 @@ Server-side enforcement today (the UI gate is never the boundary):
 | create a prescription | ✅ | ✅ | ✅ — stored under the **supervisor's own** `doctorId` |
 | list prescriptions | own `doctorId` only — a supervisor never sees the owner's ℞, and vice versa | | |
 | `DELETE` the patient | ✅ | ❌ | ❌ |
+| drug hypersensitivity / high-alert list (`/patients/:id/drug-safety`) | read, add, change any entry | read; write with `rx.drugHistory` (as the owner) | read, add; change only the entries its own practice added |
 
 A **supervised doctor** is a per-patient link, not a workstation: they log into
 their own account, find the patient by mobile, see patient info and records, and
@@ -284,6 +286,11 @@ the ward; that door must be built inside `ipd.service`, never by extending
 | POST | `/patients/link` | `LinkPatientDto` — creates a NEW patient related to an existing one and writes reciprocal family links to both. Owner only: a supervising doctor gets 403, since it rewrites the owner's family tree |
 | PATCH | `/patients/:id` | `UpdatePatientDto` — the **only** route that accepts it |
 | POST | `/patients/:id/drug-history` | `{ entries: string[] }` (1 or more, each at most 2000 characters) — lines ADDED to the patient's drug history ("+ Add medicine" after Save & print, 19/10/2026), appended by the server under the row's lock to whatever the record holds; `201 { drugHistory }`, the list as stored. Never a whole list from the client: one device's copy, behind the record, erased what another device had just printed. `403` for a supervising doctor, `404` if not accessible, `409` when the stored value is not a list (nothing is written) |
+| GET | `/patients/:id/drug-safety` | "H/O drug hypersensitivity and High-Alert Medication" (physician's sheet, 31/10/2026): the patient's list, entries not removed, oldest first → `{ id, kind: 'drug'\|'text', brand, generic, hypersensitive, highAlert, text, createdByName, createdAt, updatedAt, editable }[]`; `editable` = the caller's practice may change it. Any practice that reaches the patient; `404` otherwise |
+| POST | `/patients/:id/drug-safety` | `AddDrugSafetyDto { kind: 'drug'\|'text', brand? (≤200), generic? (≤300, the catalogue's — never guessed), hypersensitive?, highAlert?, text? (≤500) }` — ONE entry. A drug needs a name and at least one tick, a text entry its words (`400` otherwise); the same medicine (brand + generic) or the same line, capitals and spaces set aside, already on the list is `409`. `201` with the entry. Logged to the acting practice's activity feed |
+| PATCH | `/patients/:id/drug-safety/:entryId` | `UpdateDrugSafetyDto { hypersensitive?, highAlert?, text? }` — a drug entry's ticks (never to none ticked) or a text entry's words (never blank); `400` for the wrong field for the kind, `403` for another practice's entry (a supervising practice), `404` for an entry that is removed or not this patient's |
+| DELETE | `/patients/:id/drug-safety/:entryId` | **soft** removal: sets `removedAt` / `removedById`, the row is kept; `200 { id }` |
+| POST | `/patients/:id/drug-safety/:entryId/restore` | puts a removed entry back (the client's Undo); `409` when the same entry is on the list again already; `201` with the entry |
 | PUT | `/patients/:id/supervised-draft` | `{ data: object \| null }` — a SUPERVISING practice parks its unprinted visit for the patient (what `incompleteRx` is for the owner's practice, which a supervising doctor may never write), or takes it away with `null`. `200 { ok: true }`; `400` for the owner's practice (its visit is the patient's `incompleteRx`) or a `data` that is not an object or null; `404` if not accessible. Keyed by the practice, so its assistants share it, as the owner's practice shares `incompleteRx` (19/10/2026) |
 | DELETE | `/patients/:id` | **owner only** |
 

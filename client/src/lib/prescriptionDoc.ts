@@ -33,6 +33,16 @@ export interface PrescriptionDoc {
     phone: string;
   };
   clinical: { label: string; items: string[] }[];
+  /**
+   * ⚕️ "H/O drug hypersensitivity and High-Alert Medication" (physician's
+   * sheet, 31/10/2026), one printed line each, already worded
+   * (`lib/drugSafety.ts#printLines`). Printed in the clinical column directly
+   * after Drug history, marked in red, whenever there is a line — it has no
+   * ⊘ Hide. Absent or empty ⇒ the sheet is exactly as before (pinned by the
+   * whole-document snapshots). Not on the privacy copy, which carries no
+   * clinical column at all.
+   */
+  drugSafety?: string[];
   rx: RxLine[];
   advice: string[];
   adviceTest: string[];
@@ -668,6 +678,16 @@ const PROSE_PX = 12;              // li — the lines under a block title
 // .block-title is uppercase with letter-spacing: .04em — measured on the
 // uppercased text, then widened by the tracking the canvas does not apply.
 const TITLE_TRACKING = 1.04;
+// The drug-safety block's horizontal insets, in px and NOT through --k (like
+// a td's horizontal padding): a 3px left rule + 6px padding each side + a 1px
+// right rule. Written into its inline style from here, so the width bound
+// and the printed box cannot drift apart.
+const SAFETY_RULE_L_PX = 3;
+const SAFETY_RULE_R_PX = 1;
+const SAFETY_PAD_PX = 6;
+const SAFETY_INSET_PX = SAFETY_RULE_L_PX + SAFETY_RULE_R_PX + 2 * SAFETY_PAD_PX;
+// Red, written out like every colour on the sheet (this file imports no theme).
+const SAFETY_INK = "#b42318";
 
 /**
  * How far the sheet may be scaled up before a WORD has to be broken.
@@ -717,15 +737,35 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
               ? [...new Set(c.items.map(drugNameOnly).filter(Boolean))]
               : c.items.map(cleanItem),
         }));
-  const clinicalBlocks = clinicalText
-    .map(
-      (c) => `
+  const clinicalHtml = clinicalText.map(
+    (c) => `
         <div class="block">
           <div class="block-title">${esc(c.label)}</div>
           <ul>${c.items.map((it) => `<li>${esc(it)}</li>`).join("")}</ul>
         </div>`,
-    )
-    .join("");
+  );
+  // ⚕️ H/O drug hypersensitivity and High-Alert Medication — directly after
+  // Drug history's place in the column (whether or not Drug history itself
+  // prints: it is ⊘ hidden by default, this never is). Every style is inline,
+  // so a sheet without the block is byte-for-byte the sheet as it was. Nothing
+  // in it is cut: lines wrap inside the box (`overflow-wrap: anywhere`), and
+  // the fill bound below measures every word of it against the box.
+  const safetyLines = privacyCopy ? [] : (d.drugSafety ?? []).filter((l) => l.trim());
+  const safetyTitle = "H/O drug hypersensitivity and High-Alert Medication";
+  if (safetyLines.length) {
+    const dh = d.clinical.findIndex((c) => c.label === "Drug history");
+    const at = dh < 0 ? 0 : d.clinical.slice(0, dh + 1).filter((c) => c.items.length > 0).length;
+    clinicalHtml.splice(
+      at,
+      0,
+      `
+        <div class="block" data-block="drug-safety" style="border:1px solid ${SAFETY_INK};border-left-width:${SAFETY_RULE_L_PX}px;border-right-width:${SAFETY_RULE_R_PX}px;border-radius:4px;padding:${SCALE_PX(4)} ${SAFETY_PAD_PX}px;break-inside:avoid">
+          <div class="block-title" style="color:${SAFETY_INK}">${esc(safetyTitle)}</div>
+          <ul>${safetyLines.map((it) => `<li style="color:${SAFETY_INK};font-weight:700;overflow-wrap:anywhere">${esc(it)}</li>`).join("")}</ul>
+        </div>`,
+    );
+  }
+  const clinicalBlocks = clinicalHtml.join("");
 
   let rxNo = 0;
   const rxLines = d.rx.filter((r) => r.drug.trim() || r.dose.trim() || r.duration.trim() || r.instruction.trim());
@@ -847,6 +887,14 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   const proseScale = wordHeadroom(
     [
       { texts: clinicalText.flatMap((c) => c.items), px: PROSE_PX, avail: leftAvail },
+      // The drug-safety box: bold lines and its title, inside its insets.
+      { texts: safetyLines, px: PROSE_PX, bold: true, avail: leftAvail - SAFETY_INSET_PX },
+      {
+        texts: safetyLines.length ? [safetyTitle.toUpperCase()] : [],
+        px: BLOCK_TITLE_PX,
+        bold: true,
+        avail: (leftAvail - SAFETY_INSET_PX) / TITLE_TRACKING,
+      },
       {
         texts: clinicalText.map((c) => c.label.toUpperCase()),
         px: BLOCK_TITLE_PX,
