@@ -10,8 +10,10 @@ import type { CSSProperties } from "react";
 //
 // NOT everything is an icon. These stay as text on purpose, because a doctor
 // reads them as part of a label and tests pin several of them: ✎ Edit, ⊘ Hide,
-// 💊 on the drug-history badge, ★ / ↺ on learned and recent phrases, ↳ on a
-// tapering line, ▲ ▼, ✓, ×, ℞. Do not "tidy" those into icons.
+// 💊 on the drug-history badge, ★ on a learned phrase, ↳ on a tapering line,
+// ▲ ▼, ✓, ×, ℞. Do not "tidy" those into icons. (A RECENT phrase was marked ↺
+// until the physician's sheet of 31/10/2026 asked for a plus sign instead; it
+// is the `plus` icon below, drawn in the chip's own colour.)
 const PATHS = {
   user: ["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"],
   // A patient with no photo yet (physician's request, 2026-10-15): a collar and
@@ -50,6 +52,7 @@ const PATHS = {
   sun: ["M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z", "M12 1v2", "M12 21v2", "M4.22 4.22l1.42 1.42", "M18.36 18.36l1.42 1.42", "M1 12h2", "M21 12h2", "M4.22 19.78l1.42-1.42", "M18.36 5.64l1.42-1.42"],
   moon: ["M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"],
   calendar: ["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"],
+  plus: ["M12 5v14", "M5 12h14"],
   flask: ["M9 3h6", "M10 3v6l-5.2 9a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9V3", "M7.5 15h9"],
 } as const;
 

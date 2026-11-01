@@ -18,6 +18,10 @@
 // sidebar) and by `RightColumn` for Advised tests only, and `IpdDetailView`
 // never passes `inlineEdit`.
 //
+// Since 31/10/2026 this is every ExpandableField list of the OPD prescription
+// (LeftColumn + RightColumn). The IPD sheet still uses the popup: the physician
+// named the prescription's lists, and the IPD labels are not on this list.
+//
 // Widening this further is a product decision, not a tidy-up. The two safety
 // rules of the in-place edit hold for every field on the list: a blanked box is
 // a mis-key and keeps what the line had (removal stays a deliberate act: the
@@ -37,6 +41,13 @@ export const INLINE_EDIT_FIELDS = [
   // ℞ side's own list — read by RightColumn for this one label. The IPD sheet
   // names its list "Advice tests" and never passes inlineEdit.
   "Advised tests / investigation",
+  // 31/10/2026, physician's sheet: "Sob jaigai edit add nicher moto korbi, final
+  // diagnosis a jevabe ase" — every list of the OPD prescription edits in place.
+  // These three were the last on the popup flow. "Advice" is the ℞ side's list
+  // (RightColumn); the IPD sheet has no list of that name.
+  "History",
+  "Associated illness",
+  "Advice",
 ] as const;
 
 export function isInlineEditField(label: string): boolean {

@@ -21,6 +21,14 @@
 // Opened from the ••• beside a FINAL DIAGNOSIS (physician's sheet, 15/10/2026,
 // item 4) it is the same box with one scope: Instruction names the diagnosis,
 // and the advice is saved for that diagnosis as written (scope "diagnosis").
+//
+// Physician's sheet, 31/10/2026: "osudh ba disease a advice a amr onno disease
+// ba osudh er lekha advice add kora edit korte parbo". Under the lines, "From
+// your other advice" offers every line this doctor has saved for ANY other
+// medicine, group or diagnosis (from the list the app already loads — no new
+// request); a press copies the line into THIS box's list, in Edit, to be
+// reworded if need be and stored with Save. The other entry is not touched.
+// And a line's text opens Edit when pressed, so a line is corrected in place.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
@@ -35,6 +43,9 @@ import { useDialog } from "@/lib/useDialog";
 interface Line { text: string; checked: boolean }
 
 const MAX_LINES = 30;
+
+// One line of advice and another read the same (spacing and capitals set aside).
+const sameText = (a: string, b: string) => a.replace(/\s+/g, " ").trim().toLowerCase() === b.replace(/\s+/g, " ").trim().toLowerCase();
 
 type Props =
   | { drug: string; generic?: string; diagnosis?: undefined; onClose: () => void }
@@ -91,6 +102,15 @@ export default function DrugAdviceBox({ drug, generic, diagnosis, onClose }: Pro
   });
 
   const lines = drafts[scope];
+  // Every line this doctor saved elsewhere, once each (spacing and capitals set
+  // aside), minus what this list already holds.
+  const otherLines = useMemo(() => {
+    const out: string[] = [];
+    for (const a of savedDrugAdvice) for (const t of adviceLines(a)) if (!out.some((o) => sameText(o, t))) out.push(t);
+    return out;
+  }, [savedDrugAdvice]);
+  const offered = otherLines.filter((t) => !lines.some((l) => sameText(l.text, t)));
+  const scopeClosed = scope === "generic" && !genericName;
   const setLines = (next: Line[]) => {
     setDrafts((d) => ({ ...d, [scope]: next }));
     setDirty((d) => ({ ...d, [scope]: true }));
@@ -108,6 +128,13 @@ export default function DrugAdviceBox({ drug, generic, diagnosis, onClose }: Pro
     setEditing(true);
     focusLast.current = true;
     setLines([...lines, { text: "", checked: true }]);
+  };
+
+  // Copy a line written for another medicine / diagnosis into this list.
+  const takeLine = (text: string) => {
+    if (lines.length >= MAX_LINES || scopeClosed) return;
+    setEditing(true);
+    setLines([...lines, { text, checked: true }]);
   };
 
   const requestClose = () => {
@@ -236,7 +263,17 @@ export default function DrugAdviceBox({ drug, generic, diagnosis, onClose }: Pro
                     </button>
                   </>
                 ) : (
-                  <span style={{ flex: 1, fontSize: 13, color: l.checked ? C.n[900] : C.n[500], textDecoration: l.checked ? undefined : "line-through" }}>{l.text}</span>
+                  mayEdit ? (
+                    // Pressing the words corrects them in place (Edit).
+                    <button
+                      type="button"
+                      title="Edit this advice"
+                      onClick={() => setEditing(true)}
+                      style={{ flex: 1, textAlign: "left", border: "none", background: "none", padding: 0, cursor: "text", fontFamily: font, fontSize: 13, color: l.checked ? C.n[900] : C.n[500], textDecoration: l.checked ? undefined : "line-through" }}
+                    >{l.text}</button>
+                  ) : (
+                    <span style={{ flex: 1, fontSize: 13, color: l.checked ? C.n[900] : C.n[500], textDecoration: l.checked ? undefined : "line-through" }}>{l.text}</span>
+                  )
                 )}
               </div>
             ))}
@@ -251,6 +288,23 @@ export default function DrugAdviceBox({ drug, generic, diagnosis, onClose }: Pro
             >
               + Add Advice
             </button>
+          )}
+          {mayEdit && offered.length > 0 && !scopeClosed && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.n[500], textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>From your other advice</div>
+              <div data-testid="other-advice" style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 160, overflowY: "auto" }}>
+                {offered.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    title="Add this line to this advice"
+                    disabled={lines.length >= MAX_LINES}
+                    onClick={() => takeLine(t)}
+                    style={{ padding: "5px 12px", borderRadius: 6, fontSize: 12, border: `0.5px solid ${C.n[200]}`, background: C.n[50], color: C.n[800], cursor: "pointer", fontFamily: font, lineHeight: 1.3, textAlign: "left" }}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
           )}
           {!mayEdit && (
             <div style={{ fontSize: 11.5, color: C.n[500] }}>You do not have permission to edit advice in this practice.</div>

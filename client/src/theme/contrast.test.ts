@@ -49,6 +49,19 @@ const PAIRS: [Ref, Ref, string][] = [
   [["warn", 800], ["n", 0], "attention text on a card"],
   [["danger", 800], ["n", 0], "danger text on a card"],
   [["info", 800], ["n", 0], "info text on a card"],
+  // The OPD queue's toned rows (physician's sheet, 31/10/2026: deeper colours).
+  [["n", 900], ["ok", 100], "OPD row marked Present: name"],
+  [["n", 800], ["ok", 100], "OPD row marked Present: time / status"],
+  [["n", 700], ["ok", 100], "OPD row marked Present: mobile and marks"],
+  [["ok", 800], ["ok", 100], "OPD row marked Present: Present time / Completed"],
+  [["n", 900], ["warn", 100], "OPD row marked Critically ill: name"],
+  [["n", 800], ["warn", 100], "OPD row marked Critically ill: time / status"],
+  [["n", 700], ["warn", 100], "OPD row marked Critically ill: mobile and marks"],
+  [["ok", 800], ["warn", 100], "OPD row marked Critically ill: Present time / Completed"],
+  [["n", 900], ["danger", 100], "OPD row marked urgent: name"],
+  [["n", 800], ["danger", 100], "OPD row marked urgent: time / status"],
+  [["n", 700], ["danger", 100], "OPD row marked urgent: mobile and marks"],
+  [["ok", 800], ["danger", 100], "OPD row marked urgent: Present time / Completed"],
 ];
 
 const MODES: [string, Palette][] = [["light", LIGHT], ["night", DARK]];

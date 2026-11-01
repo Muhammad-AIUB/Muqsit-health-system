@@ -84,6 +84,21 @@ describe("OPD queue — the row", () => {
     expect(tones).toEqual(["ok", "warn", "danger", null]);
   });
 
+  // Physician's sheet, 31/10/2026: "aro deep color add koro chokhe pore na —
+  // Yellow, Red". The 100 shade with a 400 bar down the left edge (was the
+  // pale 50 shade alone); the pairs it draws are in theme/contrast.test.ts.
+  it("draws a marked row in the deeper shade, with a bar of the full colour", () => {
+    h.rows = [row({ id: "1", presentAt: AT }), row({ id: "2", criticallyIll: true }), row({ id: "3", urgent: true }), row({ id: "4" })];
+    const { container } = render(<OpdView />);
+    const styles = Array.from(container.querySelectorAll<HTMLElement>(".queue-row")).map((r) => r.getAttribute("style") ?? "");
+    for (const [i, tone] of [[0, "ok"], [1, "warn"], [2, "danger"]] as const) {
+      expect(styles[i]).toContain(`--c-${tone}-100`);
+      expect(styles[i]).toContain(`--c-${tone}-400`);
+      expect(styles[i]).not.toContain(`--c-${tone}-50,`);
+    }
+    expect(styles[3]).not.toMatch(/--c-(ok|warn|danger)-/);
+  });
+
   it("shows the status the visit has reached", () => {
     h.rows = [row({ id: "1" }), row({ id: "2", presentAt: AT }), row({ id: "3", presentAt: AT, padStage: "history" }),
       row({ id: "4", presentAt: AT, padStage: "pending" }), row({ id: "5", presentAt: AT, rxStatus: "complete" })];

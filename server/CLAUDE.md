@@ -208,6 +208,10 @@ seam — `PrescriptionsService.create` calls `phrases.recordFrom(...)` beside
   parenthesised qualifier — `Insulin as before` and `Inj. Insulin as before` are
   two instructions. Pinned in `normalise.spec.ts`, including everything it must
   NOT fold.
+- **How many a lookup returns depends on the surface (31/10/2026):** `rxNote`
+  at most 8 (a dropdown under the caret); `advice` at most 1000, because the
+  physician asked for every Advice line he ever wrote to stay offered (the
+  client's Advice popup scrolls). `LIST_LIMIT` in the service; spec pins both.
 - **`hidden` is never un-set by a later save.** A suppressed line stays
   suppressed even when the doctor writes it again by hand; un-hiding is the
   PATCH route.

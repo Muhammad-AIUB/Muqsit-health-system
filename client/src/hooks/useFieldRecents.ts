@@ -7,7 +7,15 @@ import { usersApi, type ProfileMe } from "@/lib/api";
 // the profile ({ [fieldLabel]: string[] }). Replaces the old per-device
 // localStorage cache so recents follow the doctor across devices.
 const KEY = ["field-recents"];
-const RECENT_LIMIT = 12;
+// ⚕️ Was 12, which made a field "reset": the 13th new line pushed the oldest out
+// of Note, Plan, Provisional diagnosis and Associated illness — fields with no
+// other memory of what the doctor wrote (physician's sheet, 31/10/2026: "Reset
+// hobe na … amr age joto … likhsi sob thakbe"). Recents are the ONLY source of
+// those fields' suggestions, so the bound is now large enough never to be met
+// in practice; it stays a bound only so one profile row cannot grow without end
+// (the whole map rides every save; the API takes 8 MB). Lines that left the old
+// 12-slot list before this change are not recoverable from here.
+export const RECENT_LIMIT = 1000;
 
 export function useFieldRecents() {
   const qc = useQueryClient();

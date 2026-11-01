@@ -4,6 +4,8 @@
 // removing one silently sends the doctor back through a modal to fix a typo.
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { INLINE_EDIT_FIELDS, isInlineEditField } from "./inlineEditFields";
 
 describe("inlineEditFields", () => {
@@ -17,6 +19,10 @@ describe("inlineEditFields", () => {
       "Plan",
       // Added 2026-09-25: "edit like Chief complaints" (OPD ℞ side only).
       "Advised tests / investigation",
+      // Added 31/10/2026: "Sob jaigai edit … final diagnosis a jevabe ase".
+      "History",
+      "Associated illness",
+      "Advice",
     ]);
   });
 
@@ -27,13 +33,16 @@ describe("inlineEditFields", () => {
   it("leaves every other clinical field on the popup flow", () => {
     for (const label of [
       "Previous complaints",
-      "History",
       "Investigation report findings",
       "Drug history",
       "On examination",
       // The label the split replaced — it must not still open the boxes.
       "Note / plan",
-      "Associated illness",
+      // The IPD sheet's own lists keep their popup.
+      "Diagnosis",
+      "Sign",
+      "Symptoms",
+      "Procedure",
     ]) {
       expect(isInlineEditField(label)).toBe(false);
     }
@@ -43,5 +52,22 @@ describe("inlineEditFields", () => {
     expect(isInlineEditField("Final diagnosis")).toBe(true);
     expect(isInlineEditField("final diagnosis")).toBe(false);
     expect(isInlineEditField("Diagnosis")).toBe(false);
+  });
+
+  // Physician's sheet, 31/10/2026: "Sob jaigai edit … final diagnosis a jevabe
+  // ase". Every list the OPD sidebar draws with ExpandableField is on the list.
+  it("covers every ExpandableField list of the OPD sidebar", () => {
+    for (const label of ["Chief complaints", "History", "Note", "Plan", "Provisional diagnosis", "Associated illness", "Final diagnosis"]) {
+      expect(isInlineEditField(label), label).toBe(true);
+    }
+  });
+
+  it("the ℞ side's Advice opts in, with ✕ in Edit, and offers no built-in list", () => {
+    const src = readFileSync(join(__dirname, "../components/prescription/RightColumn.tsx"), "utf8");
+    const tag = src.slice(src.indexOf('<ExpandableField label="Advice"'));
+    const advice = tag.slice(0, tag.indexOf("/>"));
+    expect(advice).toContain('inlineEdit={isInlineEditField("Advice")}');
+    expect(advice).toContain("removable");
+    expect(advice).not.toContain("suggestions=");
   });
 });

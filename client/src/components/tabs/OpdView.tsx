@@ -241,7 +241,15 @@ export default function OpdView() {
           const time = times[i];
           const tone = rowTone(p);
           const status = visitStatus({ ...p, padStage: p.padStage ?? null });
-          const toneBg = tone ? C[tone][50] : undefined;
+          // ⚕️ Deep enough to see across the room (physician's sheet,
+          // 31/10/2026: "aro deep color … chokhe pore na"): the 100 shade with a
+          // 400 bar down the left edge, in both modes. Text that was drawn in
+          // the lighter greys moves one step darker on a toned row, so every
+          // pair keeps WCAG AA (pinned in theme/contrast.test.ts).
+          const toneBg = tone ? C[tone][100] : undefined;
+          const toneBar = tone ? `4px solid ${C[tone][400]}` : undefined;
+          const subInk = tone ? C.n[700] : C.n[600];
+          const okInk = tone ? C.ok[800] : C.ok[600];
           // Marks can be changed on today's queue only; the server refuses any other day.
           const canMark = rel === "today";
           const marks: { aria: string; text: string; checked: boolean; patch: (on: boolean) => { present: boolean } | { criticallyIll: boolean } | { urgent: boolean } }[] = [
@@ -253,7 +261,7 @@ export default function OpdView() {
             // On a phone the row wraps, and `.row-after` (globals.css) sends the
             // visit pill, the marks, the status and the actions to the second
             // line, so the first holds the serial, picture, name and time.
-            <div key={p.id} className="queue-row" data-tone={tone ?? undefined} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", background: toneBg, borderRadius: toneBg ? 8 : 0, paddingLeft: toneBg ? 8 : 0, paddingRight: toneBg ? 8 : 0, borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
+            <div key={p.id} className="queue-row" data-tone={tone ?? undefined} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, rowGap: 8, padding: "10px 0", background: toneBg, borderLeft: toneBar, borderRadius: toneBg ? 8 : 0, paddingLeft: toneBg ? 8 : 0, paddingRight: toneBg ? 8 : 0, borderBottom: i < queue.length - 1 ? `0.5px solid ${C.n[200]}` : "none", opacity: p.status === "done" ? 0.55 : 1 }}>
               {/* Serial 1, 2, 3 … in the order shown (physician's request,
                   18/10/2026). Not the token: T-01 is what the patient is called
                   by, and it is not renumbered when the queue changes. */}
@@ -263,7 +271,7 @@ export default function OpdView() {
               <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{p.name}</div>
                 {/* Normalised for display: the column holds both "Female" and "F". */}
-                <div style={{ fontSize: 11, color: C.n[600] }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{sexLabel(p.gender)}</div>
+                <div style={{ fontSize: 11, color: subInk }}>{p.phone ?? "—"} · {p.age ?? "—"}y/{sexLabel(p.gender)}</div>
               </div>
               {time !== undefined && (
                 <span data-time aria-label={`Time ${clockText(time)}`} style={{ fontSize: 12, fontWeight: 600, color: C.n[800], fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{clockText(time)}</span>
@@ -283,13 +291,13 @@ export default function OpdView() {
                       {m.text}
                     </span>
                     {m.aria === "Present" && p.presentAt && (
-                      <span style={{ fontSize: 11, fontWeight: 600, color: C.ok[600], fontVariantNumeric: "tabular-nums" }}>{presentClock(p.presentAt)}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: okInk, fontVariantNumeric: "tabular-nums" }}>{presentClock(p.presentAt)}</span>
                     )}
                   </label>
                 ))}
               </span>
               {status && (
-                <span data-status className="row-after" style={{ fontSize: 12, fontWeight: 600, color: status === "Completed" ? C.ok[600] : C.n[800], whiteSpace: "nowrap" }}>{status}</span>
+                <span data-status className="row-after" style={{ fontSize: 12, fontWeight: 600, color: status === "Completed" ? okInk : C.n[800], whiteSpace: "nowrap" }}>{status}</span>
               )}
               {/* ▲ ▼ put a patient before or after the next one still waiting. A
                   day that has passed, and a patient already seen, have none. */}

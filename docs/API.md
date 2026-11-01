@@ -550,7 +550,7 @@ note lines this doctor has written before, offered back as they type.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/doctor-phrases?source=&q=` | `source` is `advice` or `rxNote`; an unknown source returns `[]`, not 400 — this feeds a dropdown while the doctor types. Blank `q` returns their most-used lines. Max 8, ordered by `patientCount` desc. |
+| GET | `/doctor-phrases?source=&q=` | `source` is `advice` or `rxNote`; an unknown source returns `[]`, not 400 — this feeds a dropdown while the doctor types. Blank `q` returns their most-used lines. Ordered by `patientCount` desc. At most 8 for `rxNote` (the ℞ note dropdown); for `advice` at most 1000 — the Advice popup offers every line the doctor wrote (physician, 31/10/2026). |
 | PATCH | `/doctor-phrases/:id` | `{ hidden }` |
 
 Scoped by `@WorkstationDoctorId()` — an assistant sees the doctor they are

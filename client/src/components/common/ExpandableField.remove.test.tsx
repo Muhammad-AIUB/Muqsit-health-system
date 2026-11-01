@@ -12,7 +12,7 @@
 
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, within, fireEvent, render, screen } from "@testing-library/react";
 import ExpandableField from "./ExpandableField";
 
 vi.mock("@/hooks/useFieldRecents", () => ({ useFieldRecents: () => ({ getRecents: () => [], addRecents: vi.fn() }) }));
@@ -44,10 +44,14 @@ describe("ExpandableField — no × beside a line that is being read", () => {
     expect(screen.queryAllByLabelText(/^Remove "/)).toHaveLength(0);
   });
 
+  // Physician's sheet, 31/10/2026: the popup's ADDED chips carry their × only
+  // after the "✎ Edit" at the end of the ADDED heading is pressed. (Before it,
+  // the × was always on show.) Pinned as well in ExpandableField.test.tsx.
   it("a popup field's line is still taken off inside ✎ Edit, from its chip", () => {
     render(<Field label="History" initial={["DM for 5 years", "HTN"]} inlineEdit={false} />);
     edit();
     const dialog = screen.getByRole("dialog", { name: "History" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "✎ Edit" }));
     const chip = Array.from(dialog.querySelectorAll("span")).find((s) => s.textContent?.startsWith("DM for 5 years"))!;
     fireEvent.click(chip.querySelector("button, [role=button]") ?? chip.lastElementChild!);
     fireEvent.click(screen.getByRole("button", { name: "Done" }));

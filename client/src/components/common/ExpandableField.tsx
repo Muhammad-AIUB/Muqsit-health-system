@@ -9,6 +9,7 @@ import type { PhraseSource } from "@/lib/api";
 import { BANGLA_ATTR } from "@/lib/banglaInput";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { useDialog } from "@/lib/useDialog";
+import Icon from "@/components/common/Icon";
 
 interface ExpandableFieldProps {
   label: string;
@@ -71,6 +72,10 @@ interface ExpandableFieldProps {
   lineAdvice?: { has: (item: string) => boolean; open: (item: string) => void };
 }
 
+// How many places the app's STATIC suggestions may take. The doctor's own lines
+// (learned phrases and recents) are not counted against it and never cut.
+export const STATIC_SHOWN = 10;
+
 export default function ExpandableField({ label, items, setItems, suggestions, allFields, checkboxOptions, onAdd, itemNotes, onItemNote, notePlaceholder, inlineEdit, previousItems, permKey, learnedSource, bangla, investigationTabs, renderDirectory, renderGroups, removable, lineAdvice }: ExpandableFieldProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"items" | "groups">("items");
@@ -82,6 +87,10 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   const [editFocus, setEditFocus] = useState(0);
   // Staged items: edits live here until the user presses Done.
   const [draft, setDraft] = useState<string[]>([]);
+  // The popup's ADDED chips carry their × only while this is on (physician's
+  // sheet, 31/10/2026: a cross always on show is an accidental delete). Off at
+  // every opening.
+  const [chipEdit, setChipEdit] = useState(false);
   // Per-doctor "recently typed" entries for this field (server-backed).
   const { getRecents, addRecents } = useFieldRecents();
   const recents = getRecents(label);
@@ -130,11 +139,16 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     });
     if (inputVal) scored = scored.filter((s) => s.score > 0);
     scored.sort((a, b) => b.score - a.score);
+    // ⚕️ What THIS doctor wrote (learned + recents) is never cut off the list
+    // (physician's sheet, 31/10/2026: "amr age joto advice likhsi sob thakbe").
+    // Only the app's static list is held to the first ten places, so a field
+    // with a long built-in list does not bury the doctor's own lines.
+    const own = new Set([...learned, ...recents].map((t) => t.trim().toLowerCase()));
     return scored
       // Anything already offered as its own tick — a checkbox quick-pick or a
       // P.D line — is not repeated down here.
       .filter((s) => !draft.includes(s.text) && !(checkboxOptions || []).includes(s.text) && !pd.includes(s.text))
-      .slice(0, 10);
+      .filter((s, i) => own.has(s.text.trim().toLowerCase()) || i < STATIC_SHOWN);
   };
 
   // --- P.D panel (Final diagnosis only) -----------------------------------
@@ -193,6 +207,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
     if (!editable) return; // locked for this assistant — view only
     setDraft([...items]); // stage a copy — the real field is untouched until Done
     setTab("items");
+    setChipEdit(false);
     setOpen(true);
     setTimeout(() => inputRef.current && inputRef.current.focus(), 100);
   };
@@ -448,7 +463,20 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                   2026-09-24) — the picks are kept and shown on Investigations. */}
               {draft.length > 0 && !(investigationTabs && tab === "groups") && (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Added ({draft.length})</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em" }}>Added ({draft.length})</div>
+                    {/* The chips' × shows only while this is on (physician's
+                        sheet, 31/10/2026). A ticked quick-pick is unticked as
+                        it always was. */}
+                    {draft.some((d) => !(checkboxOptions || []).includes(d)) && (
+                      <button
+                        type="button"
+                        aria-pressed={chipEdit}
+                        onClick={() => setChipEdit((v) => !v)}
+                        style={{ marginLeft: "auto", fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${chipEdit ? C.pri[400] : C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}
+                      >{chipEdit ? "✓ Done editing" : "✎ Edit"}</button>
+                    )}
+                  </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center" }}>
                     {draft.map((item, idx) =>
                       (checkboxOptions || []).includes(item) ? (
@@ -464,7 +492,9 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                       ) : (
                         <span key={idx} style={greenTag}>
                           {item}
-                          <button aria-label={`Remove from selection: ${item}`} onClick={() => removeFromDraft(idx)} style={{ background: "none", border: "none", color: C.pri[400], cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                          {chipEdit && (
+                            <button aria-label={`Remove from selection: ${item}`} onClick={() => removeFromDraft(idx)} style={{ background: "none", border: "none", color: C.danger[800], cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                          )}
                         </span>
                       ),
                     )}
@@ -512,18 +542,17 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                 </div>
               )}
 
-              {/* Suggestions: ★ this doctor's own learned phrases (with the
-                  number of patients they wrote it for), then ↺ recently typed,
-                  then the standard list. */}
+              {/* Suggestions: ★ this doctor's own learned phrases, then + what
+                  they typed recently, then the standard list. No count is
+                  shown (physician's sheet, 31/10/2026), and the list scrolls
+                  rather than dropping any of the doctor's own lines. */}
               {filteredSugs.length > 0 && (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.n[600], textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>Suggestions</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  <div data-testid="suggestion-list" style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 240, overflowY: "auto" }}>
                     {filteredSugs.map((s) => {
-                      // ⚕️ A learned phrase carries a patient count: how many
-                      // DIFFERENT patients this doctor wrote it for. It is the
-                      // only thing separating routine practice from one
-                      // memorable visit, so it is shown, not hidden.
+                      // The patient count still ORDERS the learned phrases (the
+                      // server sorts by it); it is no longer written on the chip.
                       const lp = phrases.find((p) => p.text === s.text);
                       const isRecent = !!lp || recents.includes(s.text);
                       return (
@@ -536,7 +565,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                         }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; e.currentTarget.style.color = C.pri[600]; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = isRecent ? C.pri[50] : C.n[50]; e.currentTarget.style.borderColor = isRecent ? C.pri[100] : C.n[200]; e.currentTarget.style.color = isRecent ? C.pri[600] : C.n[800]; }}
-                        >{lp ? "★ " : isRecent ? "↺ " : ""}{s.text}{lp && lp.patientCount > 1 ? ` · ${lp.patientCount}` : ""}</button>
+                        >{lp ? "★ " : isRecent ? <Icon name="plus" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} /> : ""}{s.text}</button>
                       );
                     })}
                   </div>

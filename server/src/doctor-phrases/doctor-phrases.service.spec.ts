@@ -164,6 +164,18 @@ describe('list — scoped, ordered, and silent on failure', () => {
     expect(findMany.mock.calls[0][0].orderBy[0]).toEqual({ patientCount: 'desc' });
   });
 
+  // ⚕️ Physician's sheet, 31/10/2026: every Advice line he ever wrote stays
+  // offered. The ℞ note-line dropdown keeps its short list.
+  it('does not cut the Advice list to a handful, and keeps the note dropdown short', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = { doctorPhraseHabit: { findMany } } as unknown as PrismaService;
+    const svc = new DoctorPhrasesService(prisma);
+    await svc.list('doc_1', 'advice', '');
+    await svc.list('doc_1', 'rxNote', '');
+    expect(findMany.mock.calls[0][0].take).toBeGreaterThanOrEqual(1000);
+    expect(findMany.mock.calls[1][0].take).toBe(8);
+  });
+
   // On a clinical screen "no suggestions" and "the lookup failed" must not look
   // alike, and the safe rendering of both is silence plus a working field.
   it('returns nothing and logs when the query fails', async () => {

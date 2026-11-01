@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { adviceSuggestions } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
 import InvestigationDirectory from "@/components/investigation/InvestigationDirectory";
 import InvestigationGroups from "@/components/investigation/InvestigationGroups";
@@ -199,9 +198,12 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
       {adviceBox && <DrugAdviceBox drug={adviceBox.drug} generic={adviceBox.generic} onClose={() => setAdviceBox(null)} />}
 
       {/* ⚕️ `learnedSource` offers back the Advice lines THIS doctor has
-          written before, ranked above the recents and the static list
-          (physician’s request, 2026-09-21). Doctor-scoped server-side. */}
-      <ExpandableField label="Advice" items={advice} setItems={setAdvice} suggestions={adviceSuggestions} allFields={allFieldValues} learnedSource="advice" bangla />
+          written before, ranked above the recents (physician’s request,
+          2026-09-21). Doctor-scoped server-side. No built-in list since the
+          physician's sheet of 31/10/2026: only his own advice is offered.
+          Corrected in place like Final diagnosis, ✕ only inside ✎ Edit. */}
+      <ExpandableField label="Advice" items={advice} setItems={setAdvice} allFields={allFieldValues} learnedSource="advice" bangla
+        inlineEdit={isInlineEditField("Advice")} removable />
       <Lock locked={!can("rx.adviceTest")}>
         {/* No built-in suggestion list (physician's decision, 2026-09-24): the
             chips are only tests THIS doctor has added before — the recents

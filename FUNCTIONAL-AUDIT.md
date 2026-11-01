@@ -40,6 +40,26 @@ Audit of what works, what doesn't persist, and what's a stub. Updated as items a
 
 ## Open threads — decisions owed, not bugs (2026-07-27)
 
+- [ ] **Physician's sheet of 31/10/2026 (UI items) — readings to confirm.**
+  (1) "Sob jaigai edit" was read as every list of the OPD PRESCRIPTION (History,
+  Associated illness and Advice joined the in-place edit); the IPD sheet's lists
+  keep their popup. In the popups, the chips' × waits for "✎ Edit" on the ADDED
+  heading; a ticked quick-pick box (Associated illness BA/COPD/…) is still
+  unticked directly. (2) Deeper OPD colours = the palette's 100 shade + a 400 bar
+  on the left. (3) Only Advice's built-in list was removed; Chief complaints,
+  History, Provisional diagnosis, Associated illness and Final diagnosis keep
+  theirs (held to 10 places; the doctor's own lines are never cut). Bounds kept
+  only as runaway guards: 1000 learned advice lines per lookup, 1000 recents per
+  field (was 12). Lines that had already dropped out of the old 12-slot recents
+  list cannot be brought back; Note, Plan, Provisional diagnosis and Associated
+  illness have no learned-from-prescriptions source (only Advice and ℞ notes do)
+  — adding one is a server change, not done. (4) Only the "recently typed" ↺ was
+  replaced by a plus icon; ↺ Undo, ↺/↻ rotate and the pad's ↺ "restore this
+  suggestion" were left (they are not "reuse"). ★ stays. (5) The ••• box offers
+  lines saved for other medicines/diagnoses and opens a line for editing when
+  its words are pressed — read as "copy into this one", never "move" or "edit
+  the other entry".
+
 These came out of the health-trend-chart work and its review. Each one is a
 **product decision**, deliberately not taken unilaterally. Read the linked
 CLAUDE.md section before picking one up.

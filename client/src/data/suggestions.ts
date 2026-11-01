@@ -10,6 +10,7 @@ export const suggestionDB: Record<string, string[]> = {
   "Final diagnosis": ["Acute viral upper respiratory infection","Acute febrile illness","AGE — viral","Community-acquired pneumonia","Dengue fever — NS1 positive","Enteric fever","Peptic ulcer disease","GERD with esophagitis","Uncontrolled T2DM","Hypertensive urgency","Acute exacerbation of asthma","UTI — uncomplicated"],
 };
 
-export const adviceSuggestions: string[] = ["Rest for 3 days","Drink plenty of fluids","Avoid cold water","Avoid oily/spicy food","Light diet","Regular exercise","Monitor blood sugar","Follow medication schedule","Avoid self-medication","Emergency visit if worsens","Elevate affected limb","Apply warm compress"];
+// The Advice list has no built-in suggestions (physician's sheet, 31/10/2026:
+// only the advice HE has written is offered). Do not bring one back here.
 
 export const advisedTestSuggestions: string[] = ["CBC","CRP","ESR","RBS","FBS","HbA1c","Lipid profile","LFT","RFT","Urine R/E","Chest X-ray PA","ECG","USG abdomen","Blood culture","Thyroid profile","Serum electrolytes","Dengue NS1","Widal test","D-dimer","Troponin I","PT/INR"];

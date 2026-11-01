@@ -380,12 +380,15 @@ describe("ExpandableField — the doctor's own learned phrases", () => {
     expect(chips().filter((t) => t.startsWith("Insulin as before"))).toHaveLength(1);
   });
 
-  // DISTINCT PATIENTS, not prescriptions — the only thing separating routine
-  // practice from one memorable visit, so the doctor gets to see it.
-  it("shows how many patients the phrase was written for", () => {
+  // CHANGED 31/10/2026 by the physician's sheet ("Koibar use korsi tao lagbe
+  // na"): the count of patients still orders the list (the server sorts by
+  // it) but is no longer written on the chip. Until then this test pinned
+  // "Insulin as before · 4".
+  it("does not write how many patients the phrase was written for", () => {
     learned = [{ id: "p1", text: "Insulin as before", patientCount: 4 }];
     open({ learnedSource: "advice" });
-    expect(screen.getByText(/Insulin as before · 4/)).toBeTruthy();
+    expect(screen.getByText(/Insulin as before/)).toBeTruthy();
+    expect(screen.queryByText(/·\s*4/)).toBeNull();
   });
 
   it("does not count a phrase written for a single patient", () => {
