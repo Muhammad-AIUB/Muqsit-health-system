@@ -15,6 +15,14 @@ async function seed(page: Page) {
     data: { displayName: 'Dr. Smstest', chambers: [{ address: 'Test Clinic, Road 1', mapLink: '' }] },
   });
   expect(profile.status(), 'PATCH /users/me').toBeLessThan(300);
+  // The SMS names the chamber whose queue it is. The main chamber copied the
+  // profile's address when it was made — at sign-in, before the line above —
+  // so it is given its address here.
+  const chambers = (await (await page.request.get(`${API_URL}/chambers`)).json()) as { id: string; isDefault: boolean }[];
+  const main = chambers.find((c) => c.isDefault);
+  expect(main, 'the main chamber').toBeTruthy();
+  const set = await page.request.patch(`${API_URL}/chambers/${main!.id}`, { data: { address: 'Test Clinic, Road 1' } });
+  expect(set.status(), 'PATCH /chambers/:id').toBeLessThan(300);
   const have = await page.request.get(`${API_URL}/opd?date=${TODAY}`);
   if (((await have.json()) as unknown[]).length > 0) return;
   const sched = await page.request.put(`${API_URL}/opd/schedule`, {

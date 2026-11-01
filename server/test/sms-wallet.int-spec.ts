@@ -299,6 +299,89 @@ describe("SMS to a day's queue, and the SMS wallet", () => {
     expect(res.body.cost).toBeGreaterThanOrEqual(2);
   });
 
+  it("⚕️ follows the chamber on screen: that chamber's queue, schedule and name; another practice's chamber is 404", async () => {
+    const { browser } = await setup(10);
+    await queue(browser, 'Default Patient', '01711000071');
+    const made = await browser
+      .post('/api/chambers')
+      .send({ name: 'Ibn Sina', address: 'Kalabagan' });
+    expect(made.status).toBe(201);
+    const ch = { 'X-Chamber': made.body.id as string };
+    await browser.put('/api/opd/schedule').set(ch).send({
+      date: TODAY,
+      startTime: '09:00',
+      breakStart: null,
+      breakEnd: null,
+      minutesPerPatient: 15,
+    });
+    for (const [name, phone] of [
+      ['Chamber One', '01711000072'],
+      ['Chamber Two', '01711000073'],
+    ]) {
+      expect(
+        (
+          await browser
+            .post('/api/opd')
+            .set(ch)
+            .send({ name, phone, date: TODAY })
+        ).status,
+      ).toBe(201);
+    }
+    const p = await preview(browser, TODAY, 'en', ch);
+    expect(p.status).toBe(201);
+    expect(
+      p.body.rows.map((r: { name: string; minutes: number }) => [
+        r.name,
+        r.minutes,
+      ]),
+    ).toEqual([
+      ['Chamber One', 9 * 60],
+      ['Chamber Two', 9 * 60 + 15],
+    ]);
+    expect(p.body.rows[1].message).toContain(
+      'at Ibn Sina, Kalabagan at 9.15AM',
+    );
+    // No header: the default chamber's own queue, at its profile address.
+    const d = await preview(browser);
+    expect(d.body.rows.map((r: { name: string }) => r.name)).toEqual([
+      'Default Patient',
+    ]);
+    expect(d.body.rows[0].message).toContain('at Test Clinic Road 1 at');
+    // Sent there, it is that chamber's job and that chamber's patients.
+    const res = await send(browser, TODAY, 'en', {}, ch);
+    expect(res.status).toBe(201);
+    expect(sent.map((x) => x.to)).toEqual(['01711000072', '01711000073']);
+
+    const other = await loginAs(t, await makeDoctor(t.prisma));
+    expect((await preview(other, TODAY, 'en', ch)).status).toBe(404);
+  });
+
+  it('the title follows the sex recorded on the queue row, none when not recorded', async () => {
+    const { browser } = await setup(10);
+    for (const [name, phone, gender] of [
+      ['Male Test', '01711000081', 'Male'],
+      ['Female Test', '01711000082', 'F'],
+      ['Unknown Test', '01711000083', undefined],
+    ] as const) {
+      expect(
+        (
+          await browser
+            .post('/api/opd')
+            .send({ name, phone, date: TODAY, ...(gender ? { gender } : {}) })
+        ).status,
+      ).toBe(201);
+    }
+    const bn = await preview(browser, TODAY, 'bn');
+    expect(
+      bn.body.rows.map((r: { message: string }) => r.message.split(',')[0]),
+    ).toEqual(['জনাব Male Test', 'জনাবা Female Test', 'Unknown Test']);
+    // The time is wholly Bangla (the address is the doctor's own typing, digits and all).
+    expect(bn.body.rows[0].message).toContain(
+      'আপনার সাক্ষাতের সময় সন্ধ্যা ৬:০০।',
+    );
+    expect(bn.body.rows[0].message).not.toMatch(/AM|PM/);
+  });
+
   describe('payment requests', () => {
     it('a doctor asks, the admin credits once — the wallet, the ledger and the request together', async () => {
       const { doctor, browser } = await setup();

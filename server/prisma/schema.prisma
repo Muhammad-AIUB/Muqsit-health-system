@@ -981,6 +981,8 @@ model SmsLedger {
 model SmsSendJob {
   id          String    @id @default(cuid())
   doctorId    String
+  // The chamber whose queue it sent to (ChambersService.resolve; NULL = the default).
+  chamberId   String?
   day         String // yyyy-mm-dd, Dhaka
   language    String // en | bn
   status      String    @default("sending") // sending | done
@@ -992,7 +994,7 @@ model SmsSendJob {
   createdAt   DateTime  @default(now())
   finishedAt  DateTime?
 
-  @@index([doctorId, day, language, createdAt])
+  @@index([doctorId, chamberId, day, language, createdAt])
 }
 
 // A doctor's request from Settings → Payment: SMS to buy, or a renewal. No

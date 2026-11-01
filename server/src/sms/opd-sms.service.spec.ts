@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { OpdSmsService, SMS_NOT_CONFIGURED } from './opd-sms.service';
 import { SmsWalletService } from './sms-wallet.service';
 
@@ -87,7 +83,6 @@ function build(
       findUnique: jest.fn().mockResolvedValue({
         name: 'Shahariar',
         displayName: null,
-        chambers: opts.chambers ?? [{ id: 'c1', address: 'labaid' }],
       }),
     },
     smsWallet: {
@@ -121,12 +116,19 @@ function build(
         : { ok: false, detail: 'Gateway rejected the message: error', ms: 1 },
     ),
   };
+  // The practice's OpdChambers (ChambersService.list): the default one, whose
+  // app-given name is not said, and whatever the test adds.
+  const chambersList = opts.chambers ?? [
+    { id: 'def', name: 'Main chamber', address: 'labaid', isDefault: true },
+  ];
+  const chambers = { list: jest.fn().mockResolvedValue(chambersList) };
   const wallet = new SmsWalletService(prisma as never);
   const service = new OpdSmsService(
     prisma as never,
     opd as never,
     sms as never,
     wallet,
+    chambers as never,
   );
   return { service, prisma, opd, sms, ledger, jobs, balance: () => balance };
 }
@@ -154,7 +156,10 @@ describe('OpdSmsService', () => {
   describe('preview', () => {
     it("one message per patient, at the Print Queue's time, with its count and cost; nothing sent or charged", async () => {
       const { service, sms, ledger } = build();
-      const p = await service.preview('doc', { date: TODAY, language: 'en' });
+      const p = await service.preview('doc', null, {
+        date: TODAY,
+        language: 'en',
+      });
       expect(p.rows.map((r) => [r.serial, r.mobile, r.minutes])).toEqual([
         [1, '01711000000', 18 * 60],
         [2, '01811000000', 18 * 60 + 10],
@@ -176,7 +181,10 @@ describe('OpdSmsService', () => {
 
     it('Bangla counts as more messages', async () => {
       const { service } = build();
-      const p = await service.preview('doc', { date: TODAY, language: 'bn' });
+      const p = await service.preview('doc', null, {
+        date: TODAY,
+        language: 'bn',
+      });
       expect(p.rows[0].encoding).toBe('UCS-2');
       expect(p.rows[0].segments).toBe(2);
       expect(p.cost).toBe(4);
@@ -185,15 +193,18 @@ describe('OpdSmsService', () => {
     it('refuses a day that has passed, and a day with nobody in it', async () => {
       const { service, opd } = build();
       await expect(
-        service.preview('doc', { date: '2026-10-27', language: 'en' }),
+        service.preview('doc', null, { date: '2026-10-27', language: 'en' }),
       ).rejects.toThrow(/passed/);
       expect(opd.list).not.toHaveBeenCalled();
       const empty = build({ visits: [] });
       await expect(
-        empty.service.preview('doc', { date: TODAY, language: 'en' }),
+        empty.service.preview('doc', null, { date: TODAY, language: 'en' }),
       ).rejects.toThrow(/No one/);
       await expect(
-        empty.service.preview('doc', { date: '2026-02-30', language: 'en' }),
+        empty.service.preview('doc', null, {
+          date: '2026-02-30',
+          language: 'en',
+        }),
       ).rejects.toThrow(/not a day/);
     });
 
@@ -205,7 +216,10 @@ describe('OpdSmsService', () => {
           visit({ name: 'C', phone: '+8801911000000' }),
         ],
       });
-      const p = await service.preview('doc', { date: TODAY, language: 'en' });
+      const p = await service.preview('doc', null, {
+        date: TODAY,
+        language: 'en',
+      });
       expect(p.rows.map((r) => [r.name, r.mobile, r.skip])).toEqual([
         ['A', null, 'No mobile number.'],
         ['B', null, 'Not a valid Bangladeshi mobile number: 0171100000'],
@@ -224,7 +238,10 @@ describe('OpdSmsService', () => {
           visit({ name: 'C' }),
         ],
       });
-      const p = await service.preview('doc', { date: TODAY, language: 'en' });
+      const p = await service.preview('doc', null, {
+        date: TODAY,
+        language: 'en',
+      });
       expect(p.rows.map((r) => r.skip)).toEqual([
         'Already seen.',
         'Already seen.',
@@ -232,43 +249,88 @@ describe('OpdSmsService', () => {
       ]);
     });
 
-    it('says what is missing from the profile, and builds nothing', async () => {
-      const none = await build({ chambers: [] }).service.preview('doc', {
+    it('⚕️ reads the queue and schedule of the chamber on screen, and names THAT chamber', async () => {
+      const b = build({
+        chambers: [
+          {
+            id: 'def',
+            name: 'Main chamber',
+            address: 'labaid',
+            isDefault: true,
+          },
+          {
+            id: 'c2',
+            name: 'Popular',
+            address: 'Dhanmondi 2',
+            isDefault: false,
+          },
+        ],
+      });
+      const p = await b.service.preview('doc', 'c2', {
         date: TODAY,
         language: 'en',
       });
+      expect(b.opd.list).toHaveBeenCalledWith('doc', TODAY, 'c2');
+      expect(b.opd.getSchedule).toHaveBeenCalledWith('doc', TODAY, 'c2');
+      expect(p.chamber).toEqual({
+        id: 'c2',
+        name: 'Popular',
+        address: 'Dhanmondi 2',
+        text: 'Popular, Dhanmondi 2',
+      });
+      expect(p.rows[0].message).toContain('at Popular, Dhanmondi 2 at 6.00PM');
+      // The default chamber: its app-given name "Main chamber" is not said.
+      const d = await b.service.preview('doc', null, {
+        date: TODAY,
+        language: 'en',
+      });
+      expect(b.opd.list).toHaveBeenLastCalledWith('doc', TODAY, null);
+      expect(d.chamber.text).toBe('labaid');
+    });
+
+    it('says what is missing, and builds nothing', async () => {
+      const none = await build({
+        chambers: [
+          { id: 'def', name: 'Main chamber', address: '', isDefault: true },
+        ],
+      }).service.preview('doc', null, { date: TODAY, language: 'en' });
       expect(none.problems).toEqual([
-        'Add your chamber address in Settings → Profile before sending SMS.',
+        "Add this chamber's name or address in Settings → Chambers before sending SMS.",
       ]);
       expect(none.recipients).toBe(0);
       expect(none.canSend).toBe(false);
-      const two = build({
-        chambers: [
-          { id: 'c1', address: 'Labaid' },
-          { id: 'c2', address: 'Popular' },
+    });
+
+    it('the title follows the recorded sex: জনাব / জনাবা, Mr. / Ms., none when not recorded', async () => {
+      const b = build({
+        visits: [
+          visit({ name: 'A', gender: 'Male' }),
+          visit({ name: 'B', gender: 'F', phone: '01811000000' }),
+          visit({ name: 'C', gender: null, phone: '01911000000' }),
         ],
       });
-      expect(
-        (await two.service.preview('doc', { date: TODAY, language: 'en' }))
-          .problems,
-      ).toEqual(['Choose the chamber the patients are coming to.']);
-      const chosen = await two.service.preview('doc', {
+      const bn = await b.service.preview('doc', null, {
+        date: TODAY,
+        language: 'bn',
+      });
+      expect(bn.rows.map((r) => (r.message as string).split(',')[0])).toEqual([
+        'জনাব A',
+        'জনাবা B',
+        'C',
+      ]);
+      const en = await b.service.preview('doc', null, {
         date: TODAY,
         language: 'en',
-        chamberId: 'c2',
       });
-      expect(chosen.rows[0].message).toContain('at Popular at');
-      await expect(
-        two.service.preview('doc', {
-          date: TODAY,
-          language: 'en',
-          chamberId: 'other',
-        }),
-      ).rejects.toThrow(BadRequestException);
+      expect(en.rows.map((r) => (r.message as string).split(',')[0])).toEqual([
+        'Mr. A',
+        'Ms. B',
+        'C',
+      ]);
     });
 
     it('balance short: cannot send', async () => {
-      const p = await build({ balance: 1 }).service.preview('doc', {
+      const p = await build({ balance: 1 }).service.preview('doc', null, {
         date: TODAY,
         language: 'en',
       });
@@ -283,8 +345,8 @@ describe('OpdSmsService', () => {
       language: 'en' | 'bn' = 'en',
       extra = {},
     ) => {
-      const p = await b.service.preview('doc', { date: TODAY, language });
-      return b.service.send('doc', 'user', {
+      const p = await b.service.preview('doc', null, { date: TODAY, language });
+      return b.service.send('doc', 'user', null, {
         date: TODAY,
         language,
         previewSignature: p.signature,
@@ -339,7 +401,7 @@ describe('OpdSmsService', () => {
     it('a past day is refused', async () => {
       const b = build();
       await expect(
-        b.service.send('doc', 'user', {
+        b.service.send('doc', 'user', null, {
           date: '2026-10-27',
           language: 'en',
           previewSignature: 'x',
@@ -351,7 +413,7 @@ describe('OpdSmsService', () => {
     it('what changed since the preview is not sent', async () => {
       const b = build();
       await expect(
-        b.service.send('doc', 'user', {
+        b.service.send('doc', 'user', null, {
           date: TODAY,
           language: 'en',
           previewSignature: 'stale',

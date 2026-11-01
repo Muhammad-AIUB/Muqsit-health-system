@@ -531,7 +531,7 @@ function PaymentsPage() {
     const question: Question = kind === "credit"
       ? r.kind === "sms"
         ? { title: `Add ${r.quantity ?? 0} SMS to ${who}'s balance?`, body: "Do this only after the payment has been received. 1 SMS = 1 taka.", confirm: "Add SMS" }
-        : { title: `Mark ${who}'s renewal as done?`, body: "No renewal is made by the app — this only records that it was handled.", confirm: "Mark done" }
+        : { title: `Mark ${who}'s subscription renewal as done?`, body: "Renew is the doctor's monthly subscription. The app changes no subscription — this only records that the renewal was handled.", confirm: "Mark done" }
       : { title: `Reject ${who}'s request?`, confirm: "Reject", danger: true };
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const ok = await new Promise<boolean>((answer) => setAsk({ ...question, answer }));
@@ -576,7 +576,7 @@ function PaymentsPage() {
                   <div style={tdSub}>{r.doctor?.email}{r.doctor?.mobile ? ` · ${r.doctor.mobile}` : ""}</div>
                 </td>
                 <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>
-                  {r.kind === "sms" ? `Buy ${r.quantity ?? "—"} SMS` : "Renew"}
+                  {r.kind === "sms" ? `Buy ${r.quantity ?? "—"} SMS` : `Renew monthly subscription${r.quantity ? ` · ${r.quantity} month${r.quantity === 1 ? "" : "s"}` : ""}`}
                   {r.amount !== null && <div style={tdSub}>Pays {r.amount} taka</div>}
                 </td>
                 <td style={{ ...td, maxWidth: 240, overflowWrap: "anywhere" }}>{r.note ?? "—"}</td>

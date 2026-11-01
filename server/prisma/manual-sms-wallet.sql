@@ -35,6 +35,7 @@ CREATE INDEX IF NOT EXISTS "SmsLedger_doctorId_createdAt_idx" ON "SmsLedger"("do
 CREATE TABLE IF NOT EXISTS "SmsSendJob" (
   "id"          TEXT         NOT NULL,
   "doctorId"    TEXT         NOT NULL,
+  "chamberId"   TEXT,
   "day"         TEXT         NOT NULL,
   "language"    TEXT         NOT NULL,
   "status"      TEXT         NOT NULL DEFAULT 'sending',
@@ -46,7 +47,10 @@ CREATE TABLE IF NOT EXISTS "SmsSendJob" (
   "finishedAt"  TIMESTAMP(3),
   CONSTRAINT "SmsSendJob_pkey" PRIMARY KEY ("id")
 );
-CREATE INDEX IF NOT EXISTS "SmsSendJob_doctorId_day_language_createdAt_idx" ON "SmsSendJob"("doctorId", "day", "language", "createdAt");
+-- A chamber's own job (multi-chamber, 01/11/2026). Added again for a table made
+-- by an earlier copy of this script, which had no such column.
+ALTER TABLE "SmsSendJob" ADD COLUMN IF NOT EXISTS "chamberId" TEXT;
+CREATE INDEX IF NOT EXISTS "SmsSendJob_doctorId_chamberId_day_language_createdAt_idx" ON "SmsSendJob"("doctorId", "chamberId", "day", "language", "createdAt");
 
 CREATE TABLE IF NOT EXISTS "PaymentRequest" (
   "id"          TEXT         NOT NULL,
