@@ -42,6 +42,14 @@ vi.setConfig({ testTimeout: 30_000 });
 const TODAY = dhakaToday();
 const PAST = shiftDay(TODAY, -2);
 
+// The calendar opens on today's month. Two days back is in the PREVIOUS month on
+// the 1st and 2nd, so turn the page first (the test failed on those two days).
+function chooseDay(day: string) {
+  if (!document.querySelector(`[data-day="${day}"]`)) fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+  fireEvent.click(document.querySelector(`[data-day="${day}"]`) as Element);
+}
+
+
 const visit = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id, name, token: "T-01", status: "waiting", type: "New", phone: "01810101515", age: 34, gender: "Male", patientId: id,
   rxStatus: null, queueDate: TODAY, position: null, presentAt: null, criticallyIll: false, urgent: false, ...over,
@@ -109,7 +117,7 @@ describe("OPD queue — Print Queue", () => {
     mocks.rows[PAST] = [visit("p", "Past Patient", { queueDate: PAST })];
     render(<OpdView />);
     fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
-    fireEvent.click(document.querySelector(`[data-day="${PAST}"]`) as Element);
+    chooseDay(PAST);
     fireEvent.click(printButton());
     expect(sheetText()).toContain("Past Patient");
   });
@@ -119,7 +127,7 @@ describe("OPD queue — Print Queue", () => {
     mocks.schedule = { ...mocks.schedule, saved: false };
     render(<OpdView />);
     fireEvent.click(screen.getByRole("button", { name: /^Date: / }));
-    fireEvent.click(document.querySelector(`[data-day="${PAST}"]`) as Element);
+    chooseDay(PAST);
     fireEvent.click(printButton());
     expect(sheetText()).not.toMatch(/\d:\d\d (AM|PM)/);
   });
