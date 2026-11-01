@@ -1351,3 +1351,16 @@ Open:
 - [ ] **Chief complaints / Diagnosis history** list THIS practice's prescriptions only (a supervising practice never sees the owner's prescriptions, and the other way round — the access rule). The date is the day the prescription was saved (Dhaka).
 - [ ] **Drug history on the records page** is the list the Drug history modal holds, including today's ℞ lines before they are printed.
 - [ ] **Not run in a browser:** the records page and its Downloads (pop-up window) were checked in jsdom only.
+
+### Multiple chambers (01/11/2026) - open for the physician
+
+- [ ] **`manual-opd-chambers.sql` is NOT applied to the shared database** and must be applied (after `manual-opd-queue-date.sql`) BEFORE the release: every queue read selects `chamberId`. It replaces two unique indexes; if a duplicate already exists it says so (NOTICE) and keeps the old index — then a second chamber cannot use `T-01` on that day until the duplicate is cleared.
+- [ ] **The first chamber is called "Main chamber"** and takes the address of the profile's first chamber, once. The physician may rename it (e.g. "Labaid").
+- [ ] **The profile's own "Chambers" list (address + map link) is separate** and unchanged: it is deleted and recreated on every profile save, so OPD could not point at it. Two lists of chambers now exist; merging them is a later decision.
+- [ ] **The choice of chamber is per user, per practice, per device** (not mirrored to the doctor's other devices, not stored on the server). A reception PC and the doctor's laptop can be in different chambers.
+- [ ] **The Print Queue sheet does not name the chamber** (it names the doctor). Adding the chamber's name or address to the printed queue is the physician's call.
+- [ ] **Save & print marks the visit in the chamber chosen at the time.** A patient queued in Labaid and printed while "My Chamber" says Ibn Sina gets a new row in Ibn Sina's list.
+- [ ] **While a chamber's own print settings are loading (or failed to load), the general settings print.**
+- [ ] **A visit cannot be moved from one chamber to another.**
+- [ ] **SMS per chamber** is not built (the address is stored for it).
+- [ ] **Not run:** Safari / Firefox, a phone in a real browser, and an assistant choosing a chamber in a browser (covered by integration tests).

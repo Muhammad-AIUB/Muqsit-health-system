@@ -128,6 +128,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/** The auth state, or null outside an AuthProvider — for a small piece of
+ *  chrome (the chamber picker) that must render nothing rather than throw where
+ *  a screen is drawn on its own (a test, a preview). */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
+}
+
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within an AuthProvider");

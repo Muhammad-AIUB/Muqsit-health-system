@@ -22,6 +22,7 @@ import { patientToPtInfo } from "@/lib/patientForm";
 import { displayAge } from "@/lib/age";
 import { useAuth } from "@/context/AuthContext";
 import { parseInvestigationEntries, mergeFindings, type InvFinding } from "@/lib/investigationSummary";
+import { savedChamber, setChamber } from "@/lib/chamber";
 import { oeEntriesForDate, type OeFinding } from "@/lib/onExaminationSummary";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { rxDrugHistoryEntries, syncRxDrugHistory, sameEntries, mirrorClaims, withoutBlocksIn, mergeWithRecord } from "@/lib/rxDrugHistory";
@@ -1295,6 +1296,9 @@ function useMuqsitStore() {
     if (!isFirstSelect) flushEditorDraft();
     activeWsRef.current = ws.doctorId;
     setActiveWorkstationId(ws.doctorId);     // module-level → goes out as a header
+    // The chamber goes with the practice, in the same step: the last practice's
+    // chamber sent with this one is a 404 (multi-chamber, 01/11/2026).
+    setChamber(savedChamber(authIdRef.current ?? undefined, ws.doctorId));
     setActiveWorkstationState(ws);
     setShowWorkstations(false);
     // Only wipe the editor when CHANGING practice — not on the first auto-select,

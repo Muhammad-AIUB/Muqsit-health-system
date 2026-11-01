@@ -195,6 +195,15 @@ export const setActiveWorkstationId = (id: string | null): void => {
   activeWorkstationId = id;
 };
 
+// ── Active chamber (multi-chamber OPD, 01/11/2026) ──────────
+// The chamber the user works in (`lib/chamber.ts` keeps the choice). Sent as
+// `X-Chamber`; the server resolves it for the practice and answers 404 for one
+// that is not the practice's. Null = no header = the default chamber.
+let activeChamberId: string | null = null;
+export const setActiveChamberId = (id: string | null): void => {
+  activeChamberId = id;
+};
+
 // Endpoints where a 401 is meaningful in itself (bad credentials, or the
 // refresh call itself) and must NOT trigger a silent-refresh retry. Note
 // /auth/me is deliberately NOT here: an expired access cookie on /auth/me
@@ -246,6 +255,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}, retried = fa
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(activeWorkstationId ? { "X-Workstation": activeWorkstationId } : {}),
+    ...(activeChamberId ? { "X-Chamber": activeChamberId } : {}),
     ...(options.headers as Record<string, string> | undefined),
   };
 
@@ -577,6 +587,33 @@ export const prescriptionLayoutApi = {
     apiFetch<PrescriptionLayout>("/prescription-layout", { method: "PUT", body: JSON.stringify(input) }),
 };
 
+// ── OPD chambers (multi-chamber, 01/11/2026) ──
+export interface OpdChamber {
+  id: string;
+  doctorId: string;
+  name: string;
+  address: string;
+  isDefault: boolean;
+}
+export interface ChamberLayoutAnswer {
+  chamberId: string;
+  // The chamber's own print settings; null = the doctor's own print.
+  layout: PrescriptionLayout | null;
+}
+export const chambersApi = {
+  list: () => apiFetch<OpdChamber[]>("/chambers"),
+  create: (input: { name: string; address?: string }) =>
+    apiFetch<OpdChamber>("/chambers", { method: "POST", body: JSON.stringify(input) }),
+  update: (id: string, input: { name?: string; address?: string }) =>
+    apiFetch<OpdChamber>(`/chambers/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  remove: (id: string) => apiFetch<{ id: string }>(`/chambers/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  layout: (id: string) => apiFetch<ChamberLayoutAnswer>(`/chambers/${encodeURIComponent(id)}/layout`),
+  saveLayout: (id: string, input: PrescriptionLayoutInput) =>
+    apiFetch<ChamberLayoutAnswer>(`/chambers/${encodeURIComponent(id)}/layout`, { method: "PUT", body: JSON.stringify(input) }),
+  clearLayout: (id: string) =>
+    apiFetch<ChamberLayoutAnswer>(`/chambers/${encodeURIComponent(id)}/layout`, { method: "DELETE" }),
+};
+
 // ── Prescription templates (OPD / IPD / custom), per doctor ──
 export type TemplateCategory = "opd" | "ipd" | "custom";
 
@@ -846,6 +883,8 @@ export const prescriptionsApi = {
 // ── OPD queue ───────────────────────────────────────────────
 export interface OpdVisit {
   id: string;
+  // The chamber it is queued in; null = the default chamber (01/11/2026).
+  chamberId?: string | null;
   patientId: string | null;
   name: string;
   phone: string | null;

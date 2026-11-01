@@ -9,6 +9,7 @@ import TabIcon from "./TabIcon";
 import AccountMenu from "./AccountMenu";
 import ThemeToggle from "./ThemeToggle";
 import { WorkstationIndicator } from "./WorkstationSwitcher";
+import ChamberPicker from "./ChamberPicker";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
 import TabRouter from "@/components/TabRouter";
@@ -50,6 +51,7 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
             {/* The phone mock shows this in its fake status bar; a real phone has
                 no strip above the shell, so it lives here. */}
             {!preview && <span role="status" style={{ fontSize: 11, color: C.n[600], display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.ok[400] }} />Synced</span>}
+            <ChamberPicker compact />
             <WorkstationIndicator />
             <ThemeToggle />
             <AccountMenu size={30} />

@@ -11,6 +11,9 @@ import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
 import { sanitizeHtml } from "@/lib/safeHtml";
 import { uploadImage } from "@/lib/api";
 import { usePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
+import { useChamberLayout } from "@/hooks/useChambers";
+import { useChamberId } from "@/lib/chamber";
+import { effectiveLayout } from "@/lib/chamberLayout";
 import { useActivityFeed, useActivityLog } from "@/hooks/useActivity";
 import { usePatientChat } from "@/hooks/useChat";
 import { useRxAlertInput } from "@/hooks/useRxAlertInput";
@@ -68,7 +71,12 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
   const m = useMuqsit();
   const { savePrescription, savedMsg } = m;
   const { user } = useAuth();
-  const { data: layout } = usePrescriptionLayout();
+  const { data: doctorLayout } = usePrescriptionLayout();
+  // The active chamber's own print settings, else the doctor's (OPD only —
+  // this is the OPD editor; the IPD sheet is untouched).
+  const chamberId = useChamberId();
+  const { data: chamberLayout } = useChamberLayout(chamberId);
+  const layout = effectiveLayout(doctorLayout, chamberId, chamberLayout);
   const logActivity = useActivityLog();
   // 3.docx: a patient must be chosen (via the mobile lookup) before anything can
   // be written or saved.

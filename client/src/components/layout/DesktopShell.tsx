@@ -12,6 +12,7 @@ import { BanglaTyping, LanguageToggle } from "./BanglaTyping";
 import ThemeToggle from "./ThemeToggle";
 import PatientSearch from "./PatientSearch";
 import { WorkstationIndicator } from "./WorkstationSwitcher";
+import ChamberPicker from "./ChamberPicker";
 import CriticalAlert from "@/components/ipd/CriticalAlert";
 import PatientHeader from "@/components/prescription/PatientHeader";
 import PrescriptionView from "@/components/prescription/PrescriptionView";
@@ -49,6 +50,8 @@ export default function DesktopShell() {
                 <Fragment key={t.id}>
                   <button onClick={t.disabled ? undefined : () => setActiveTab(t.id)} disabled={t.disabled} title={t.disabled ? "Coming soon" : undefined} aria-current={active ? "page" : undefined} style={{ minHeight: 34, padding: "0 12px", borderRadius: 8, border: "none", cursor: t.disabled ? "not-allowed" : "pointer", fontSize: 13, background: active ? tabOn.background : "transparent", color: t.disabled ? C.n[400] : tabInk, fontWeight: active ? 600 : 500, display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontFamily: font }}><span className="nav-ico"><TabIcon id={t.id} /></span>{t.label}</button>
                   {/* Flashing emergency beacon right after OPD when any IPD patient is Critical. */}
+                  {/* "My Chamber" beside Prescription (sheet 28/10/2026, item 8). */}
+                  {t.id === "prescription" && <span style={{ margin: "0 6px" }}><ChamberPicker /></span>}
                   {t.id === "opd" && <CriticalAlert onClick={() => setActiveTab("ipd")} />}
                 </Fragment>
               );

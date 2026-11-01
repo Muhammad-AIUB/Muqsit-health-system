@@ -5,7 +5,12 @@ import { C, font } from "@/theme";
 import { effectVar } from "@/theme/palette";
 import { btnPrimary, btnSecondary, pageTitle, btnDisabled, tabInk, tabOn } from "@/theme/styles";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/common/RichTextEditor";
-import { ApiError, prescriptionLayoutApi } from "@/lib/api";
+import { ApiError, chambersApi, prescriptionLayoutApi, type PrescriptionLayout, type PrescriptionLayoutInput } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { chamberLayoutKey } from "@/hooks/useChambers";
+import { useActiveChamber } from "@/components/layout/ChamberPicker";
+import { useMuqsit } from "@/context/MuqsitContext";
+import { confirmAction } from "@/lib/dialogs";
 import { DEFAULT_LEFT_SHARE } from "@/lib/prescriptionDoc";
 import { type RxType, type OpdLayout } from "@/lib/rxPrivacy";
 import { useUpdatePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
@@ -76,16 +81,45 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
   const [loadFailed, setLoadFailed] = useState(false);
   const headerEditorRef = useRef<RichTextEditorHandle>(null);
 
+  // ⚕️ Whose settings these are (multi-chamber, 01/11/2026 — "different
+  // prescription settings per chamber, OPD only"): the doctor's own ("General",
+  // null), or one chamber's. A chamber with none of its own prints with the
+  // General settings and starts from them here; the first Save gives it its own.
+  // Only the practice doctor sets a chamber's (an assistant edits their own).
+  const qc = useQueryClient();
+  const { isAssistantMode } = useMuqsit();
+  const { chambers } = useActiveChamber();
+  const [target, setTarget] = useState<string | null>(null);
+  const [chamberOwn, setChamberOwn] = useState(false);
+  const targetRef = useRef<string | null>(null);
+  const targetName = target ? chambers?.find((c) => c.id === target)?.name ?? "this chamber" : null;
+  // Writes go where the form was loaded from.
+  const writeLayout = async (input: PrescriptionLayoutInput) => {
+    const t = targetRef.current;
+    if (!t) return saveMut.mutateAsync(input);
+    const ans = await chambersApi.saveLayout(t, input);
+    qc.setQueryData(chamberLayoutKey(t), ans);
+    if (targetRef.current === t) setChamberOwn(true);
+    return ans.layout;
+  };
+
   // Load the saved layout (or server defaults) for this doctor.
   // ⚕️ A failed load leaves the form on built-in defaults with EMPTY header and
   // footer — pressing Save then would overwrite the doctor's real print layout
   // with blanks. So a failed load locks Save and offers Retry instead.
-  const load = () => {
+  const load = (forTarget: string | null = targetRef.current) => {
     setLoading(true);
     setLoadFailed(false);
-    prescriptionLayoutApi
-      .get()
+    const general = prescriptionLayoutApi.get();
+    const source: Promise<PrescriptionLayout> = forTarget
+      ? Promise.all([general, chambersApi.layout(forTarget)]).then(([g, c]) => {
+          if (targetRef.current === forTarget) setChamberOwn(!!c.layout);
+          return c.layout ?? g;
+        })
+      : general;
+    source
       .then((l) => {
+        if (targetRef.current !== forTarget) return; // another target was chosen meanwhile
         setActiveType(l.rxType);
         setOpdLayoutState(l.opdLayout);
         setUnit(l.unit);
@@ -154,7 +188,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
     setSaving(true);
     setSaved("");
     try {
-      await saveMut.mutateAsync({
+      await writeLayout({
         unit,
         ...form,
         headerSplit,
@@ -180,18 +214,75 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
   // Choosing a type also makes it the active prescription type for printing.
   const choose = (t: RxType) => {
     setActiveType(t);
-    layoutMut.mutate({ rxType: t });
+    if (targetRef.current) void writeLayout({ rxType: t }).catch(() => {});
+    else layoutMut.mutate({ rxType: t });
     setMode(t);
   };
 
   const pickOpdLayout = (l: OpdLayout) => {
     setOpdLayoutState(l);
-    layoutMut.mutate({ opdLayout: l });
+    if (targetRef.current) void writeLayout({ opdLayout: l }).catch(() => {});
+    else layoutMut.mutate({ opdLayout: l });
   };
+
+  const switchTarget = async (next: string | null) => {
+    if (next === targetRef.current) return;
+    if (mode !== null && !(await confirmAction({
+      title: `Open the settings of ${next ? chambers?.find((c) => c.id === next)?.name ?? "that chamber" : "General"}?`,
+      body: "Changes on this page that are not saved are left behind.",
+      confirmLabel: "Open",
+    }))) return;
+    targetRef.current = next;
+    setTarget(next);
+    setChamberOwn(false);
+    setSaved("");
+    load(next);
+  };
+
+  const toGeneral = async () => {
+    const t = targetRef.current;
+    if (!t) return;
+    if (!(await confirmAction({
+      title: `Print ${targetName} with the General settings?`,
+      body: "This chamber's own prescription settings are removed.",
+      confirmLabel: "Use General settings",
+      danger: true,
+    }))) return;
+    try {
+      const ans = await chambersApi.clearLayout(t);
+      qc.setQueryData(chamberLayoutKey(t), ans);
+      if (targetRef.current === t) { setChamberOwn(false); load(t); }
+    } catch (e) {
+      setSaved(e instanceof ApiError ? e.message : "Not changed. Check your internet connection and try again.");
+    }
+  };
+
+  // "Settings for": General or one chamber (practice doctor only; shown when
+  // the practice has more than its main chamber).
+  const targetBar = !isAssistantMode && chambers && chambers.length > 1 ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14, fontSize: 12.5, color: C.n[700] }}>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <Icon name="chamber" size={16} />
+        <span data-caption style={{ fontWeight: 600 }}>Settings for</span>
+        <select
+          aria-label="Settings for"
+          value={target ?? ""}
+          onChange={(e) => void switchTarget(e.target.value || null)}
+          style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${C.n[300]}`, background: C.n[0], color: C.n[900], fontFamily: "inherit", fontSize: 12.5 }}
+        >
+          <option value="">General (every chamber without its own)</option>
+          {chambers.filter((c) => !c.isDefault).map((c) => <option key={c.id} value={c.id}>{c.name} (OPD)</option>)}
+        </select>
+      </label>
+      {target && (chamberOwn
+        ? <button onClick={() => void toGeneral()} style={btnSecondary("sm")}>Use General settings</button>
+        : <span style={{ color: C.n[600] }}>{targetName} uses the General settings until you save its own here.</span>)}
+    </div>
+  ) : null;
 
   // ── Landing chooser: OPD / IPD / Customize ──
   if (mode === null) {
-    return <TypeChooser onBack={onBack} active={activeType} onChoose={choose} />;
+    return <>{targetBar}<TypeChooser onBack={onBack} active={activeType} onChoose={choose} /></>;
   }
 
   const isOpd = mode === "opd";
@@ -212,6 +303,8 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
           Prescription pad <span style={{ color: C.n[500] }}>▾</span>
         </span>
       </div>
+
+      {targetBar}
 
       {/* ── OPD print options (single page vs extra privacy page) ── */}
       {isOpd && (
@@ -410,7 +503,7 @@ export default function PrescriptionSettingsView({ onBack }: { onBack: () => voi
             fontSize: 12, color: C.danger[800], display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 8,
           }}>
             Could not load your saved settings — Save is locked so they are not overwritten.
-            <button onClick={load} style={{ ...btnBack, padding: "3px 10px" }}>Retry</button>
+            <button onClick={() => load()} style={{ ...btnBack, padding: "3px 10px" }}>Retry</button>
           </span>
         )}
         {saved && !loadFailed && (

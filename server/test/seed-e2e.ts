@@ -25,6 +25,7 @@ const ROLES = [
   'taperOrphan', 'taperRefused', 'taperHeld',
   'saveFailed', 'draftFailed', 'keepWork', 'answerLost', 'answerLostAll',
   'ipdSaveFailed', 'opdQueueDay', 'opdPresence', 'opdPrintQueue',
+  'chambers', 'recordsOe',
 ] as const;
 
 // The "Total monthly approximate cost" journey prices from the medicine chart:
