@@ -30,6 +30,8 @@ import {
   RejectPaymentRequestDto,
 } from './dto/sms.dto';
 import { OpdSmsService } from './opd-sms.service';
+import { ChamberHeader } from '../chambers/chamber.decorator';
+import { ChambersService } from '../chambers/chambers.service';
 import { PaymentRequestsService } from './payment-requests.service';
 import { SmsWalletService } from './sms-wallet.service';
 
@@ -47,24 +49,45 @@ function requireOwner(ws: Workstation): void {
 @Controller('opd/sms')
 @UseGuards(JwtAuthGuard, WorkstationGuard)
 export class OpdSmsController {
-  constructor(private readonly opdSms: OpdSmsService) {}
+  constructor(
+    private readonly opdSms: OpdSmsService,
+    private readonly chambers: ChambersService,
+  ) {}
+
+  // ⚕️ The chamber is the queue's, decided where the OPD queue decides it: the
+  // `X-Chamber` header resolved for THIS practice (no header = the default
+  // chamber; another practice's or a removed one = 404).
+  private chamber(doctorId: string, raw: string | undefined) {
+    return this.chambers.resolve(doctorId, raw);
+  }
 
   // Sends nothing and charges nothing.
   @Post('preview')
-  preview(
+  async preview(
     @WorkstationDoctorId() doctorId: string,
+    @ChamberHeader() raw: string | undefined,
     @Body() dto: OpdSmsPreviewDto,
   ) {
-    return this.opdSms.preview(doctorId, dto);
+    return this.opdSms.preview(
+      doctorId,
+      await this.chamber(doctorId, raw),
+      dto,
+    );
   }
 
   @Post('send')
-  send(
+  async send(
     @WorkstationDoctorId() doctorId: string,
+    @ChamberHeader() raw: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: OpdSmsSendDto,
   ) {
-    return this.opdSms.send(doctorId, user?.id ?? null, dto);
+    return this.opdSms.send(
+      doctorId,
+      user?.id ?? null,
+      await this.chamber(doctorId, raw),
+      dto,
+    );
   }
 }
 

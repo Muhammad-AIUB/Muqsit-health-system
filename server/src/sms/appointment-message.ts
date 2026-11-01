@@ -7,24 +7,35 @@
 //   BN sample: "জনাব জুবায়ের, ল্যাবএইড-এ ডাক্তার শাহরিয়ারের সাথে আপনার সাক্ষাতের সময়
 //               সন্ধ্যা ৬:১০। নির্ধারিত সময়ের ৩০ মিনিট আগে উপস্থিত থাকবেন।"
 //
-// What differs from the samples, and why (each is a question for the physician,
+// The physician's answers (01/11/2026, relayed by the lead session):
+// - Title: "jonab male hole, female hole jonaba" — জনাব for a male patient,
+//   জনাবা for a female one, read from the RECORDED sex (`normaliseSex`, a copy of
+//   client/src/lib/sex.ts). English: Mr. / Ms. by the same rule (an assumption,
+//   flagged in FUNCTIONAL-AUDIT.md). A sex not recorded, or Other, gets NO title —
+//   just the name: never a guess.
+// - "banglate time banglatei likha thakbe": in the Bangla message the time is
+//   wholly Bangla — Bangla digits and a Bangla part-of-day word, no AM/PM.
+//
+// What still differs from the samples, and why (questions for the physician,
 // listed in FUNCTIONAL-AUDIT.md):
-// - No "Mr." / "জনাব". Both are words for a man; the sample was about one
-//   patient, and the app does not guess a title from the record's sex. The name
-//   is followed by a comma in both languages (the Bangla sample has one).
-// - " ." at the end of the English is "."; "dr." is kept as the physician wrote it.
+// - "Mr.jubayer" is written "Mr. jubayer," (a space after the title, and a comma
+//   after the name as the Bangla sample has); " ." at the end is "."; "dr." is
+//   kept as the physician wrote it.
 // - The Bangla joins an English name with a hyphen: "{chamber}-এ" as in the
 //   sample's "ল্যাবএইড-এ", and "ডাক্তার {name}-এর" where the sample has
 //   "শাহরিয়ারের" — a name from the profile is not respelled in Bangla.
 // - A leading "Dr." in the profile's name is left off, or the message would read
 //   "dr. Dr. …" / "ডাক্তার Dr. …".
 // - The Bangla word for the part of the day: the physician gave only সন্ধ্যা for
-//   6:10 PM; the others are the usual ranges (`BANGLA_DAY_PERIODS`, below).
+//   6:10 PM; the others are the usual ranges (`BANGLA_DAY_PERIODS`, below), still
+//   the physician's to confirm.
 
 export type SmsLanguage = 'en' | 'bn';
 
 export interface AppointmentInput {
   patientName: string;
+  /** The patient's sex as recorded (`Male` / `M` / `Female` / `F` / …); decides the title. */
+  sex?: string | null;
   doctorName: string;
   chamber: string;
   /** The serial's time, minutes since midnight, from the day's schedule. */
@@ -33,6 +44,31 @@ export interface AppointmentInput {
 
 const DAY = 24 * 60;
 const BN_DIGITS = '০১২৩৪৫৬৭৮৯';
+
+export type Sex = 'Male' | 'Female' | 'Other';
+
+/** A COPY of `client/src/lib/sex.ts#normaliseSex`: both spellings the queue
+ *  row holds ("Male" / "M"); anything unrecognised is "" — never a sex. */
+export function normaliseSex(raw: string | null | undefined): Sex | '' {
+  const s = (raw ?? '').trim().toLowerCase();
+  if (!s) return '';
+  if (s === 'm' || s === 'male') return 'Male';
+  if (s === 'f' || s === 'female') return 'Female';
+  if (s === 'o' || s === 'other') return 'Other';
+  return '';
+}
+
+/** The title before the name: জনাব / জনাবা, Mr. / Ms. — none for a sex not
+ *  recorded or Other. */
+export function salutation(
+  lang: SmsLanguage,
+  sex: string | null | undefined,
+): string {
+  const s = normaliseSex(sex);
+  if (s === 'Male') return lang === 'bn' ? 'জনাব' : 'Mr.';
+  if (s === 'Female') return lang === 'bn' ? 'জনাবা' : 'Ms.';
+  return '';
+}
 
 /** Collapse whitespace (an address is typed on several lines) and trim. */
 export function oneLine(text: string | null | undefined): string {
@@ -107,7 +143,8 @@ export function appointmentMessage(
   input: AppointmentInput,
 ): string | null {
   if (!isSayableTime(input.minutes)) return null;
-  const name = oneLine(input.patientName);
+  const title = salutation(lang, input.sex);
+  const name = (title ? `${title} ` : '') + oneLine(input.patientName);
   const doctor = bareDoctorName(input.doctorName);
   const chamber = oneLine(input.chamber);
   if (lang === 'en') {

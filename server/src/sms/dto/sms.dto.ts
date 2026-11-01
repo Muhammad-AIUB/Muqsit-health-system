@@ -18,11 +18,8 @@ export class OpdSmsPreviewDto {
   @IsIn(['en', 'bn'], { message: 'Choose Bangla or English.' })
   language!: 'en' | 'bn';
 
-  // One of the doctor's own chambers (Settings → Profile). Needed only when the
-  // profile has more than one.
-  @IsOptional()
-  @IsString()
-  chamberId?: string;
+  // The chamber is not a body field: it is the queue's, from the X-Chamber
+  // header (ChambersService.resolve), like every OPD call.
 }
 
 export class OpdSmsSendDto extends OpdSmsPreviewDto {
@@ -43,11 +40,13 @@ export class CreatePaymentRequestDto {
   @IsIn(['sms', 'renew'], { message: 'Choose Buy SMS or Renew.' })
   kind!: 'sms' | 'renew';
 
-  // Buy SMS: how many SMS (1 SMS = 1 taka). Required for `sms`, checked in the service.
+  // Buy SMS: how many SMS (1 SMS = 1 taka) — required, checked in the service.
+  // Renew: how many MONTHS of the monthly subscription (physician, 01/11/2026:
+  // "Renew means monthly subscription fees") — optional.
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'Number of SMS must be a whole number.' })
-  @Min(1, { message: 'Number of SMS must be at least 1.' })
+  @IsInt({ message: 'Enter a whole number.' })
+  @Min(1, { message: 'Enter at least 1.' })
   @Max(MAX_SMS_PER_REQUEST)
   quantity?: number;
 

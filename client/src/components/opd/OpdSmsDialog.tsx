@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { C, font } from "@/theme";
-import { btnClose, btnDisabled, btnPrimary, btnSecondary, dialogTitle, fieldLabel, inputMd, scrim, shadowDialog } from "@/theme/styles";
+import { btnClose, btnDisabled, btnPrimary, btnSecondary, dialogTitle, scrim, shadowDialog } from "@/theme/styles";
 import { useDialog } from "@/lib/useDialog";
 import { confirmAction, tell } from "@/lib/dialogs";
 import { ApiError, smsApi, type SmsLanguage, type SmsPlan, type SmsSendAnswer } from "@/lib/api";
@@ -46,16 +46,15 @@ export default function OpdSmsDialog({ day, onClose, onBuy }: Props) {
   // A send moves the balance and the ledger (Settings → Payment).
   const invalidateSms = useInvalidateSms();
   const [step, setStep] = useState<Step>({ kind: "language" });
-  const [chamberId, setChamberId] = useState<string | undefined>(undefined);
   const sending = useRef(false);
   // While the messages are going the box stays: closed, the results would be lost.
   const close = () => { if (!sending.current) onClose(); };
   const dialog = useDialog(true, close);
 
-  const load = async (language: SmsLanguage, chamber = chamberId) => {
+  const load = async (language: SmsLanguage) => {
     setStep({ kind: "loading", language });
     try {
-      const plan = await smsApi.preview({ date: day, language, ...(chamber ? { chamberId: chamber } : {}) });
+      const plan = await smsApi.preview({ date: day, language });
       setStep({ kind: "preview", plan });
     } catch (e) {
       setStep({ kind: "failed", language, message: serverWords(e) ?? "Could not check the SMS. Try again." });
@@ -72,7 +71,6 @@ export default function OpdSmsDialog({ day, onClose, onBuy }: Props) {
       answer = await smsApi.send({
         date: plan.day,
         language: plan.language,
-        ...(plan.chamberId ? { chamberId: plan.chamberId } : {}),
         previewSignature: plan.signature,
         ...(confirmRepeat ? { confirmRepeat: true } : {}),
       });
@@ -102,7 +100,7 @@ export default function OpdSmsDialog({ day, onClose, onBuy }: Props) {
     if (words) {
       // Refused before anything went: say why, and check again.
       await tell({ title: "SMS not sent", body: words, tone: "danger" });
-      return load(plan.language, plan.chamberId ?? undefined);
+      return load(plan.language);
     }
     // ⚕️ No answer: the messages may have gone. Never sent again by itself.
     setStep({ kind: "unknown" });
@@ -152,8 +150,6 @@ export default function OpdSmsDialog({ day, onClose, onBuy }: Props) {
           <PlanView
             plan={step.plan}
             sending={step.kind === "sending"}
-            chamberId={chamberId}
-            onChamber={(id) => { setChamberId(id); void load(step.plan.language, id); }}
             onBack={() => setStep({ kind: "language" })}
             onSend={() => send(step.plan)}
             onBuy={onBuy}
@@ -179,11 +175,9 @@ export default function OpdSmsDialog({ day, onClose, onBuy }: Props) {
   );
 }
 
-function PlanView({ plan, sending, chamberId, onChamber, onBack, onSend, onBuy }: {
+function PlanView({ plan, sending, onBack, onSend, onBuy }: {
   plan: SmsPlan;
   sending: boolean;
-  chamberId: string | undefined;
-  onChamber: (id: string) => void;
   onBack: () => void;
   onSend: () => void;
   onBuy: () => void;
@@ -195,23 +189,8 @@ function PlanView({ plan, sending, chamberId, onChamber, onBack, onSend, onBuy }
       <div style={{ fontSize: 12.5, color: C.n[700], marginBottom: 10 }}>
         Language: <b>{LANGUAGE_WORD[plan.language]}</b>
         {plan.doctorName && <> · Doctor: <b>{plan.doctorName}</b></>}
+        {plan.chamber.text && <> · Chamber: <b>{plan.chamber.text}</b></>}
       </div>
-
-      {plan.chambers.length > 1 && (
-        <div style={{ marginBottom: 12 }}>
-          <label data-caption htmlFor="sms-chamber" style={fieldLabel}>Chamber the patients are coming to</label>
-          <select
-            id="sms-chamber"
-            value={chamberId ?? plan.chamberId ?? ""}
-            disabled={sending}
-            onChange={(e) => onChamber(e.target.value)}
-            style={{ ...inputMd, width: "100%" }}
-          >
-            <option value="" disabled>Choose a chamber</option>
-            {plan.chambers.map((c) => <option key={c.id} value={c.id}>{c.address}</option>)}
-          </select>
-        </div>
-      )}
 
       {plan.problems.length > 0 && (
         <div role="alert" style={{ background: C.warn[50], border: `0.5px solid ${C.warn[100]}`, borderRadius: 8, padding: "8px 10px", fontSize: 12.5, color: C.warn[800], marginBottom: 12 }}>

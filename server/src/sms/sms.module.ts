@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { OpdModule } from '../opd/opd.module';
+import { ChambersModule } from '../chambers/chambers.module';
 import { WorkstationsModule } from '../workstations/workstations.module';
 import { OpdSmsService } from './opd-sms.service';
 import { PaymentRequestsService } from './payment-requests.service';
@@ -13,9 +14,10 @@ import { SmsWalletService } from './sms-wallet.service';
 
 // WorkstationsModule: WorkstationGuard needs WorkstationsService in THIS
 // module's injector (a controller here uses the guard). OpdModule exports
-// OpdService so the SMS reads the queue and its times exactly as the queue does.
+// OpdService so the SMS reads the queue and its times exactly as the queue does;
+// ChambersModule resolves X-Chamber the way the OPD queue does.
 @Module({
-  imports: [WorkstationsModule, OpdModule],
+  imports: [WorkstationsModule, OpdModule, ChambersModule],
   controllers: [
     OpdSmsController,
     SmsWalletController,

@@ -11,6 +11,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
 import { dhakaDayKey, isDayKey } from '../opd/dhaka-day';
 import { OpdService } from '../opd/opd.service';
+import {
+  ChambersService,
+  DEFAULT_CHAMBER_NAME,
+} from '../chambers/chambers.service';
 import { slotTimes } from '../opd/schedule';
 import {
   appointmentMessage,
@@ -38,12 +42,9 @@ export const SMS_CHANGED =
 export const SMS_SENDING =
   'These SMS are being sent already. Wait for that to finish.';
 export const SMS_NO_CHAMBER =
-  'Add your chamber address in Settings → Profile before sending SMS.';
-export const SMS_CHOOSE_CHAMBER =
-  'Choose the chamber the patients are coming to.';
+  "Add this chamber's name or address in Settings → Chambers before sending SMS.";
 export const SMS_NO_DOCTOR_NAME =
   'Add your name in Settings → Profile before sending SMS.';
-export const SMS_UNKNOWN_CHAMBER = 'That chamber is not in your profile.';
 
 /** A second send of a message a patient was already sent within this time needs a confirm. */
 export const SMS_REPEAT_WINDOW_MS = 30 * 60 * 1000;
@@ -69,8 +70,9 @@ export interface SmsPlan {
   day: string;
   language: SmsLanguage;
   doctorName: string;
-  chambers: { id: string; address: string }[];
-  chamberId: string | null;
+  /** The chamber whose queue this is (the `X-Chamber` the screen sent, resolved):
+   *  `id` null is the default chamber; `text` is what the message says. */
+  chamber: { id: string | null; name: string; address: string; text: string };
   /** What stops ANY message being built, in the doctor's words. */
   problems: string[];
   rows: SmsPlanRow[];
@@ -127,7 +129,7 @@ export interface SmsSendAnswer {
 //   when it starts and what did not go is refunded when it ends. An
 //   unconfigured gateway logs instead of sending and answers "ok" — so `send`
 //   refuses before anything is reserved, and never says "sent" for it.
-// - One job per (doctor, day, language) at a time, decided under an advisory
+// - One job per (doctor, chamber, day, language) at a time, decided under an advisory
 //   lock; a message a patient was sent within 30 minutes is sent again only
 //   with `confirmRepeat`.
 @Injectable()
@@ -139,6 +141,7 @@ export class OpdSmsService {
     private readonly opd: OpdService,
     private readonly sms: SmsService,
     private readonly wallet: SmsWalletService,
+    private readonly chambers: ChambersService,
   ) {}
 
   private requireSendableDay(day: string): void {
@@ -148,56 +151,54 @@ export class OpdSmsService {
 
   async preview(
     doctorId: string,
-    input: { date: string; language: SmsLanguage; chamberId?: string },
+    chamberId: string | null,
+    input: { date: string; language: SmsLanguage },
   ): Promise<SmsPlan> {
-    return this.plan(doctorId, input);
+    return this.plan(doctorId, chamberId, input);
+  }
+
+  // ⚕️ The chamber the message names is the one whose queue this is — the
+  // `OpdChamber` `ChambersService.resolve` answered for the screen's X-Chamber
+  // (null = the default chamber) — never a chamber picked separately, or a
+  // patient of one chamber could be told the other's address.
+  private async chamberOf(doctorId: string, chamberId: string | null) {
+    const all = await this.chambers.list(doctorId);
+    const c =
+      chamberId === null
+        ? all.find((x) => x.isDefault)
+        : all.find((x) => x.id === chamberId);
+    const name = oneLine(c?.name);
+    const address = oneLine(c?.address);
+    // The default chamber's own name is the app's ("Main chamber"), not the
+    // doctor's: it says nothing to a patient, so only its address is used.
+    const ownName = c?.isDefault && name === DEFAULT_CHAMBER_NAME ? '' : name;
+    const text = [ownName, address].filter(Boolean).join(', ');
+    return { id: chamberId, name, address, text };
   }
 
   private async plan(
     doctorId: string,
-    {
-      date: day,
-      language,
-      chamberId,
-    }: { date: string; language: SmsLanguage; chamberId?: string },
+    chamberId: string | null,
+    { date: day, language }: { date: string; language: SmsLanguage },
   ): Promise<SmsPlan> {
     this.requireSendableDay(day);
-    const rows = await this.opd.list(doctorId, day);
+    const rows = await this.opd.list(doctorId, day, chamberId);
     if (rows.length === 0) throw new BadRequestException(SMS_EMPTY_DAY);
-    const schedule = await this.opd.getSchedule(doctorId, day);
+    const schedule = await this.opd.getSchedule(doctorId, day, chamberId);
     const times = slotTimes(rows.length, schedule);
 
     const doctor = await this.prisma.user.findUnique({
       where: { id: doctorId },
-      select: {
-        name: true,
-        displayName: true,
-        chambers: {
-          orderBy: { order: 'asc' },
-          select: { id: true, address: true },
-        },
-      },
+      select: { name: true, displayName: true },
     });
     const doctorName = bareDoctorName(
       doctor?.displayName || doctor?.name || '',
     );
-    const chambers = (doctor?.chambers ?? [])
-      .map((c) => ({ id: c.id, address: oneLine(c.address) }))
-      .filter((c) => c.address !== '');
+    const chamber = await this.chamberOf(doctorId, chamberId);
 
     const problems: string[] = [];
     if (!doctorName) problems.push(SMS_NO_DOCTOR_NAME);
-    let chamber: { id: string; address: string } | null = null;
-    if (chamberId) {
-      chamber = chambers.find((c) => c.id === chamberId) ?? null;
-      if (!chamber) throw new BadRequestException(SMS_UNKNOWN_CHAMBER);
-    } else if (chambers.length === 1) {
-      chamber = chambers[0];
-    } else if (chambers.length === 0) {
-      problems.push(SMS_NO_CHAMBER);
-    } else {
-      problems.push(SMS_CHOOSE_CHAMBER);
-    }
+    if (!chamber.text) problems.push(SMS_NO_CHAMBER);
 
     const planRows: SmsPlanRow[] = rows.map((v, i) => {
       const base = {
@@ -238,12 +239,14 @@ export class OpdSmsService {
           minutes,
           skip: 'The serial time falls after midnight.',
         };
-      if (problems.length > 0 || !chamber)
-        return { ...base, mobile, minutes, skip: null };
+      if (problems.length > 0) return { ...base, mobile, minutes, skip: null };
       const message = appointmentMessage(language, {
         patientName: v.name,
+        // The sex recorded on the queue row (what Print Queue prints): জনাব /
+        // জনাবা, Mr. / Ms. — none when it is not recorded.
+        sex: v.gender,
         doctorName,
-        chamber: chamber.address,
+        chamber: chamber.text,
         minutes: t,
       }) as string;
       const count = smsSegments(message);
@@ -268,7 +271,8 @@ export class OpdSmsService {
         JSON.stringify([
           day,
           language,
-          chamber?.id ?? null,
+          chamber.id,
+          chamber.text,
           sendable.map((r) => [r.visitId, r.mobile, r.message]),
         ]),
       )
@@ -277,8 +281,7 @@ export class OpdSmsService {
       day,
       language,
       doctorName,
-      chambers,
-      chamberId: chamber?.id ?? null,
+      chamber,
       problems,
       rows: planRows,
       recipients: sendable.length,
@@ -301,22 +304,23 @@ export class OpdSmsService {
     doctorId: string,
     day: string,
     language: string,
+    chamberId: string | null,
   ) {
-    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sms:${doctorId}:${day}:${language}`}))`;
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sms:${doctorId}:${chamberId ?? 'default'}:${day}:${language}`}))`;
   }
 
   async send(
     doctorId: string,
     userId: string | null,
+    chamberId: string | null,
     input: {
       date: string;
       language: SmsLanguage;
-      chamberId?: string;
       previewSignature: string;
       confirmRepeat?: boolean;
     },
   ): Promise<SmsSendAnswer> {
-    const plan = await this.plan(doctorId, input);
+    const plan = await this.plan(doctorId, chamberId, input);
     if (plan.problems.length > 0)
       throw new BadRequestException(plan.problems.join(' '));
     // ⚕️ Before anything is reserved: an unconfigured gateway would log the
@@ -341,13 +345,14 @@ export class OpdSmsService {
     const sendable = plan.rows.filter((r) => r.message !== null);
 
     const job = await this.prisma.$transaction(async (tx) => {
-      await this.lockJob(tx, doctorId, plan.day, plan.language);
+      await this.lockJob(tx, doctorId, plan.day, plan.language, chamberId);
       const since = new Date(
         Date.now() - Math.max(SMS_REPEAT_WINDOW_MS, SENDING_STALE_MS),
       );
       const recent = await tx.smsSendJob.findMany({
         where: {
           doctorId,
+          chamberId,
           day: plan.day,
           language: plan.language,
           createdAt: { gte: since },
@@ -398,6 +403,7 @@ export class OpdSmsService {
       const created = await tx.smsSendJob.create({
         data: {
           doctorId,
+          chamberId,
           day: plan.day,
           language: plan.language,
           reserved: plan.cost,

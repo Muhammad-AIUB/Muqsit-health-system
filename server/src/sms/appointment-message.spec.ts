@@ -16,49 +16,103 @@ const BN_SAMPLE =
 const at = (h: number, m: number) => h * 60 + m;
 
 describe("appointmentMessage — the physician's samples", () => {
-  it('English: the sample, without "Mr." and with its stray space and comma put right', () => {
+  it('English, a male patient: the sample with "Mr." and its stray spacing put right', () => {
     const msg = appointmentMessage('en', {
       patientName: 'jubayer',
+      sex: 'Male',
       doctorName: 'Shahariar',
       chamber: 'labaid',
       minutes: at(18, 10),
     });
     expect(msg).toBe(
-      'jubayer, your appointment time to dr. Shahariar at labaid at 6.10PM. Be present 30min prior to your appointment time.',
+      'Mr. jubayer, your appointment time to dr. Shahariar at labaid at 6.10PM. Be present 30min prior to your appointment time.',
     );
-    // Every word of the sample after the title is there, in order.
-    const fixed = EN_SAMPLE.replace(/^Mr\./, '')
+    // Every word of the sample, in order: only a space after "Mr.", a comma
+    // after the name, and the space before the last full stop changed.
+    const fixed = EN_SAMPLE.replace(/^Mr\./, 'Mr. ')
       .replace('jubayer your', 'jubayer, your')
       .replace(' .', '.');
     expect(msg).toBe(fixed);
   });
 
-  it('Bangla: the sample, without "জনাব", an English name joined by a hyphen', () => {
+  it('Bangla, a male patient: the sample with জনাব, word for word but the possessive', () => {
     const msg = appointmentMessage('bn', {
       patientName: 'জুবায়ের',
+      sex: 'M',
       doctorName: 'শাহরিয়ার',
       chamber: 'ল্যাবএইড',
       minutes: at(18, 10),
     });
     expect(msg).toBe(
-      'জুবায়ের, ল্যাবএইড-এ ডাক্তার শাহরিয়ার-এর সাথে আপনার সাক্ষাতের সময় সন্ধ্যা ৬:১০। নির্ধারিত সময়ের ৩০ মিনিট আগে উপস্থিত থাকবেন।',
+      'জনাব জুবায়ের, ল্যাবএইড-এ ডাক্তার শাহরিয়ার-এর সাথে আপনার সাক্ষাতের সময় সন্ধ্যা ৬:১০। নির্ধারিত সময়ের ৩০ মিনিট আগে উপস্থিত থাকবেন।',
     );
-    // The sample's words, but for the title and the possessive's spelling.
-    expect(msg).toBe(
-      BN_SAMPLE.replace(/^জনাব /, '').replace('শাহরিয়ারের', 'শাহরিয়ার-এর'),
+    expect(msg).toBe(BN_SAMPLE.replace('শাহরিয়ারের', 'শাহরিয়ার-এর'));
+  });
+
+  it('a female patient: জনাবা / Ms.', () => {
+    const base = {
+      patientName: 'Rahima',
+      doctorName: 'Shahariar',
+      chamber: 'Labaid',
+      minutes: at(18, 10),
+    };
+    expect(appointmentMessage('bn', { ...base, sex: 'Female' })).toMatch(
+      /^জনাবা Rahima, /,
     );
+    expect(appointmentMessage('en', { ...base, sex: 'F' })).toMatch(
+      /^Ms\. Rahima, your /,
+    );
+  });
+
+  it('⚕️ a sex not recorded, or Other: no title — never a guess', () => {
+    const base = {
+      patientName: 'Karim',
+      doctorName: 'Shahariar',
+      chamber: 'Labaid',
+      minutes: at(18, 10),
+    };
+    for (const sex of [null, undefined, '', 'Other', 'O', 'unknown']) {
+      expect(appointmentMessage('bn', { ...base, sex })).toMatch(
+        /^Karim, Labaid-এ /,
+      );
+      expect(appointmentMessage('en', { ...base, sex })).toMatch(
+        /^Karim, your /,
+      );
+    }
+  });
+
+  it('⚕️ the Bangla message says the time wholly in Bangla — no Latin digit, no AM/PM', () => {
+    for (const minutes of [
+      at(0, 5),
+      at(5, 30),
+      at(9, 0),
+      at(12, 45),
+      at(16, 10),
+      at(18, 10),
+      at(23, 59),
+    ]) {
+      const msg = appointmentMessage('bn', {
+        patientName: 'রহিম',
+        sex: 'Male',
+        doctorName: 'করিম',
+        chamber: 'ল্যাবএইড',
+        minutes,
+      }) as string;
+      expect(msg).not.toMatch(/[0-9]|AM|PM/);
+    }
   });
 
   it('a name from the profile, as the app has it', () => {
     expect(
       appointmentMessage('bn', {
         patientName: 'Jubayer',
+        sex: 'Male',
         doctorName: 'Dr. Shahariar',
         chamber: 'Labaid',
         minutes: at(18, 10),
       }),
     ).toBe(
-      'Jubayer, Labaid-এ ডাক্তার Shahariar-এর সাথে আপনার সাক্ষাতের সময় সন্ধ্যা ৬:১০। নির্ধারিত সময়ের ৩০ মিনিট আগে উপস্থিত থাকবেন।',
+      'জনাব Jubayer, Labaid-এ ডাক্তার Shahariar-এর সাথে আপনার সাক্ষাতের সময় সন্ধ্যা ৬:১০। নির্ধারিত সময়ের ৩০ মিনিট আগে উপস্থিত থাকবেন।',
     );
   });
 

@@ -26,7 +26,9 @@ const wholeNumber = (text: string): number | null => (/^\d+$/.test(text.trim()) 
 // Settings → Payment (physician's sheet, 28/10/2026: "Profile er por Payment
 // option add korbi: Renew, Buy SMS"). No payment gateway exists in the app: a
 // request goes to the admin, who adds the SMS after the payment has come in.
-// No price or package is set here — the doctor types the number and the amount.
+// "Renew means monthly subscription fees" (physician, 01/11/2026): Renew asks to
+// renew the doctor's MONTHLY subscription. No price or package is set here — the
+// doctor types the number of SMS or months, and the amount.
 export default function PaymentSettingsView({ onBack }: { onBack: () => void }) {
   const { isAssistantMode } = useMuqsit();
   const owner = !isAssistantMode;
@@ -77,7 +79,7 @@ export default function PaymentSettingsView({ onBack }: { onBack: () => void }) 
             </div>
             {option && <RequestForm key={option} kind={option} onDone={() => setOption(null)} />}
             <div style={{ fontSize: 12, color: C.n[600], marginTop: 12 }}>
-              There is no online payment in the app. Your request goes to the Muqsit admin; after your payment has been received the admin adds the SMS to your balance (or renews), and the request below shows Done.
+              There is no online payment in the app. Your request goes to the Muqsit admin; after your payment has been received the admin adds the SMS to your balance (or renews your monthly subscription), and the request below shows Done.
             </div>
           </Card>
 
@@ -126,12 +128,13 @@ function RequestForm({ kind, onDone }: { kind: Option; onDone: () => void }) {
 
   const submit = async () => {
     setProblem("");
-    const q = wholeNumber(quantity);
-    if (kind === "sms" && (q === null || q < 1)) return setProblem("Enter how many SMS you want to buy, as a whole number.");
+    const q = quantity.trim() === "" && kind === "renew" ? undefined : wholeNumber(quantity);
+    if (kind === "sms" && (q === null || q === undefined || q < 1)) return setProblem("Enter how many SMS you want to buy, as a whole number.");
+    if (kind === "renew" && (q === null || q === 0)) return setProblem("The number of months must be a whole number, or left empty.");
     const a = amount.trim() === "" ? undefined : wholeNumber(amount);
     if (a === null || a === 0) return setProblem("The amount must be a whole number of taka, or left empty.");
     try {
-      await create.mutateAsync({ kind, ...(kind === "sms" ? { quantity: q as number } : {}), ...(a ? { amount: a } : {}), ...(note.trim() ? { note: note.trim() } : {}) });
+      await create.mutateAsync({ kind, ...(q ? { quantity: q } : {}), ...(a ? { amount: a } : {}), ...(note.trim() ? { note: note.trim() } : {}) });
       setSentOk(true);
     } catch (e) {
       setProblem(e instanceof ApiError && e.status === 400 ? e.message : "The request could not be sent. Try again.");
@@ -149,12 +152,13 @@ function RequestForm({ kind, onDone }: { kind: Option; onDone: () => void }) {
 
   return (
     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10, maxWidth: 420 }}>
-      {kind === "sms" && (
-        <div>
-          <label data-caption htmlFor="pay-quantity" style={fieldLabel}>Number of SMS</label>
-          <input id="pay-quantity" inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ ...inputMd, width: "100%" }} />
-        </div>
+      {kind === "renew" && (
+        <div style={{ fontSize: 12.5, color: C.n[700] }}>Renew your monthly subscription.</div>
       )}
+      <div>
+        <label data-caption htmlFor="pay-quantity" style={fieldLabel}>{kind === "sms" ? "Number of SMS" : "Months to renew (optional)"}</label>
+        <input id="pay-quantity" inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ ...inputMd, width: "100%" }} />
+      </div>
       <div>
         <label data-caption htmlFor="pay-amount" style={fieldLabel}>Amount you pay (taka, optional)</label>
         <input id="pay-amount" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} style={{ ...inputMd, width: "100%" }} />
@@ -183,7 +187,7 @@ function RequestList({ rows }: { rows: PaymentRequest[] }) {
     <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
       {rows.map((r) => (
         <li key={r.id} data-payment-request={r.status} style={{ padding: "7px 0", borderBottom: `0.5px solid ${C.n[100]}`, fontSize: 12.5, display: "flex", gap: 8, flexWrap: "wrap", fontVariantNumeric: "tabular-nums" }}>
-          <span style={{ fontWeight: 600 }}>{r.kind === "sms" ? `Buy SMS · ${r.quantity ?? "—"} SMS` : "Renew"}</span>
+          <span style={{ fontWeight: 600 }}>{r.kind === "sms" ? `Buy SMS · ${r.quantity ?? "—"} SMS` : `Renew subscription${r.quantity ? ` · ${r.quantity} month${r.quantity === 1 ? "" : "s"}` : ""}`}</span>
           {r.amount !== null && <span style={{ color: C.n[700] }}>{r.amount} taka</span>}
           <span style={{ color: C.n[600] }}>{stamp(r.createdAt)}</span>
           <span style={{ marginLeft: "auto", fontWeight: 600, color: r.status === "credited" ? C.ok[800] : r.status === "rejected" ? C.danger[800] : C.warn[800] }}>

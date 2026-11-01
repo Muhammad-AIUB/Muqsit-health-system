@@ -17,6 +17,8 @@ import { SmsWalletService } from './sms-wallet.service';
 const ALREADY_HANDLED = 'This request has been handled already.';
 
 // Settings → Payment: "Renew" and "Buy SMS" (physician's sheet, 28/10/2026).
+// Renew is a renewal of the doctor's MONTHLY subscription (physician,
+// 01/11/2026); no fee was given, so the doctor types the months and the amount.
 // No payment gateway was named and none is built: a request is a note to the
 // admin, who credits the wallet after the payment has come in. Nothing here
 // sets a price or a package — the doctor types the number and the amount.
@@ -34,7 +36,8 @@ export class PaymentRequestsService {
       data: {
         doctorId,
         kind: dto.kind,
-        quantity: dto.kind === 'sms' ? dto.quantity : null,
+        // sms: SMS to buy; renew: months of the monthly subscription.
+        quantity: dto.quantity ?? null,
         amount: dto.amount ?? null,
         note: dto.note?.trim() || null,
         createdById: userId,

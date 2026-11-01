@@ -52,7 +52,7 @@ beforeEach(() => {
   ]);
   mocks.paymentRequests.mockReset().mockResolvedValue([
     { id: "p1", kind: "sms", quantity: 50, amount: 50, note: null, status: "credited", credited: 50, adminNote: null, handledAt: null, createdAt: "2026-10-31T09:00:00.000Z" },
-    { id: "p2", kind: "renew", quantity: null, amount: null, note: null, status: "pending", credited: null, adminNote: null, handledAt: null, createdAt: "2026-11-01T09:00:00.000Z" },
+    { id: "p2", kind: "renew", quantity: 1, amount: null, note: null, status: "pending", credited: null, adminNote: null, handledAt: null, createdAt: "2026-11-01T09:00:00.000Z" },
   ]);
   mocks.createPaymentRequest.mockReset().mockResolvedValue({ id: "p3", status: "pending" });
 });
@@ -83,6 +83,7 @@ describe("Settings → Payment", () => {
     expect((await screen.findByText("42 taka")).hasAttribute("data-sms-wallet")).toBe(true);
     expect(await screen.findByText("Done · 50 SMS added")).toBeTruthy();
     expect(screen.getByText("Waiting for the admin")).toBeTruthy();
+    expect(screen.getByText("Renew subscription · 1 month")).toBeTruthy();
     expect(screen.getByText("Added by admin")).toBeTruthy();
     expect(screen.getByText("-2 taka")).toBeTruthy();
   });
@@ -114,13 +115,23 @@ describe("Settings → Payment", () => {
     expect(mocks.createPaymentRequest).not.toHaveBeenCalled();
   });
 
-  it("Renew asks for no number of SMS", async () => {
+  it("Renew is the monthly subscription: months are optional, and sent as typed", async () => {
     page();
     fireEvent.click(screen.getByRole("button", { name: "Renew" }));
+    expect(screen.getByText("Renew your monthly subscription.")).toBeTruthy();
     expect(screen.queryByLabelText("Number of SMS")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Send Renew request" }));
     await screen.findByText(/Request sent to the admin/);
-    expect(mocks.createPaymentRequest).toHaveBeenCalledWith({ kind: "renew" });
+    expect(mocks.createPaymentRequest).toHaveBeenLastCalledWith({ kind: "renew" });
+  });
+
+  it("Renew with a number of months", async () => {
+    page();
+    fireEvent.click(screen.getByRole("button", { name: "Renew" }));
+    fireEvent.change(screen.getByLabelText("Months to renew (optional)"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send Renew request" }));
+    await screen.findByText(/Request sent to the admin/);
+    expect(mocks.createPaymentRequest).toHaveBeenLastCalledWith({ kind: "renew", quantity: 3 });
   });
 
   it("an assistant sees the balance and nothing else", async () => {

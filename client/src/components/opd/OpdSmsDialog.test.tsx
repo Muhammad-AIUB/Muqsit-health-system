@@ -35,7 +35,7 @@ const row = (serial: number, over: Record<string, unknown> = {}) => ({
   message: `Patient ${serial}, your appointment time to dr. Test at Clinic at 6.${(serial - 1) * 10}PM.`, encoding: "GSM-7", segments: 1, skip: null, ...over,
 });
 const plan = (over: Partial<SmsPlan> = {}): SmsPlan => ({
-  day: DAY, language: "en", doctorName: "Test", chambers: [{ id: "c1", address: "Clinic" }], chamberId: "c1", problems: [],
+  day: DAY, language: "en", doctorName: "Test", chamber: { id: null, name: "Main chamber", address: "Clinic", text: "Clinic" }, problems: [],
   rows: [row(1), row(2, { mobile: null, message: null, segments: 0, skip: "No mobile number." }), row(3)] as SmsPlan["rows"],
   recipients: 2, segments: 2, cost: 2, costPerSegment: 1, balance: 10, gatewayConfigured: true, canSend: true, signature: "sig", ...over,
 });
@@ -72,7 +72,7 @@ describe("Send SMS to all patients", () => {
     expect(screen.getByText("Send the SMS in Bangla or in English?")).toBeTruthy();
     expect(mocks.preview).not.toHaveBeenCalled();
     await choose(/Bangla/);
-    expect(mocks.preview).toHaveBeenCalledWith({ date: DAY, language: "bn", chamberId: undefined });
+    expect(mocks.preview).toHaveBeenCalledWith({ date: DAY, language: "bn" });
   });
 
   it("shows each patient, why one is not sent, the total and the balance — and sends only on Send", async () => {
@@ -87,7 +87,7 @@ describe("Send SMS to all patients", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send 2 SMS (2 taka)" }));
     await screen.findByRole("list", { name: "Results" });
     expect(mocks.send).toHaveBeenCalledTimes(1);
-    expect(mocks.send).toHaveBeenCalledWith({ date: DAY, language: "en", chamberId: "c1", previewSignature: "sig" });
+    expect(mocks.send).toHaveBeenCalledWith({ date: DAY, language: "en", previewSignature: "sig" });
     expect(document.querySelector("[data-sms-summary]")?.textContent).toBe("1 sent · 1 failed · 1 not sent");
     expect(screen.getByText("Gateway rejected the message: error")).toBeTruthy();
     expect(screen.getByText(/Charged 1 taka \(only for SMS that were sent\)/)).toBeTruthy();
@@ -114,19 +114,22 @@ describe("Send SMS to all patients", () => {
   });
 
   it("what is missing from the profile is said, and nothing can be sent", async () => {
-    mocks.preview.mockResolvedValue(plan({ problems: ["Add your chamber address in Settings → Profile before sending SMS."], recipients: 0, segments: 0, cost: 0, canSend: false }));
+    mocks.preview.mockResolvedValue(plan({ problems: ["Add this chamber's name or address in Settings → Chambers before sending SMS."], recipients: 0, segments: 0, cost: 0, canSend: false }));
     open();
     await choose("English");
-    expect(screen.getByText("Add your chamber address in Settings → Profile before sending SMS.")).toBeTruthy();
+    expect(screen.getByText("Add this chamber's name or address in Settings → Chambers before sending SMS.")).toBeTruthy();
     expect((screen.getByRole("button", { name: /^Send 0 SMS/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("several chambers: the one chosen is asked for", async () => {
-    mocks.preview.mockResolvedValue(plan({ chambers: [{ id: "c1", address: "Clinic" }, { id: "c2", address: "Hospital" }], chamberId: null, problems: ["Choose the chamber the patients are coming to."], canSend: false }));
+  it("names the chamber whose queue this is, and sends no chamber of its own (X-Chamber is the queue's)", async () => {
+    mocks.preview.mockResolvedValue(plan({ chamber: { id: "c2", name: "Ibn Sina", address: "Kalabagan", text: "Ibn Sina, Kalabagan" } }));
     open();
     await choose("English");
-    fireEvent.change(screen.getByLabelText("Chamber the patients are coming to"), { target: { value: "c2" } });
-    await waitFor(() => expect(mocks.preview).toHaveBeenLastCalledWith({ date: DAY, language: "en", chamberId: "c2" }));
+    expect(screen.getByText("Ibn Sina, Kalabagan")).toBeTruthy();
+    expect(mocks.preview).toHaveBeenCalledWith({ date: DAY, language: "en" });
+    fireEvent.click(screen.getByRole("button", { name: "Send 2 SMS (2 taka)" }));
+    await screen.findByRole("list", { name: "Results" });
+    expect(mocks.send).toHaveBeenCalledWith({ date: DAY, language: "en", previewSignature: "sig" });
   });
 
   it("⚕️ the same SMS again within 30 minutes asks 'Send again' first", async () => {

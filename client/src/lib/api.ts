@@ -1044,8 +1044,9 @@ export interface SmsPlan {
   day: string;
   language: SmsLanguage;
   doctorName: string;
-  chambers: { id: string; address: string }[];
-  chamberId: string | null;
+  /** The chamber whose queue this is (the X-Chamber this app sends; `id` null =
+   *  the default chamber) and what the message calls it. */
+  chamber: { id: string | null; name: string; address: string; text: string };
   problems: string[];
   rows: SmsPlanRow[];
   recipients: number;
@@ -1112,9 +1113,10 @@ export interface PaymentRequestInput {
 
 export const smsApi = {
   // Sends nothing and charges nothing.
-  preview: (input: { date: string; language: SmsLanguage; chamberId?: string }) =>
+  // The chamber is the one chosen on the OPD screen, sent as X-Chamber by apiFetch.
+  preview: (input: { date: string; language: SmsLanguage }) =>
     apiFetch<SmsPlan>("/opd/sms/preview", { method: "POST", body: JSON.stringify(input) }),
-  send: (input: { date: string; language: SmsLanguage; chamberId?: string; previewSignature: string; confirmRepeat?: boolean }) =>
+  send: (input: { date: string; language: SmsLanguage; previewSignature: string; confirmRepeat?: boolean }) =>
     apiFetch<SmsSendAnswer>("/opd/sms/send", { method: "POST", body: JSON.stringify(input) }),
   wallet: () => apiFetch<{ balance: number }>("/sms/wallet"),
   ledger: () => apiFetch<SmsLedgerRow[]>("/sms/ledger"),
