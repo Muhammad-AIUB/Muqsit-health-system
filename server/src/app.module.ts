@@ -28,6 +28,7 @@ import { RevisionNotesModule } from './revision-notes/revision-notes.module';
 import { WorkstationsModule } from './workstations/workstations.module';
 import { PatientChatModule } from './patient-chat/patient-chat.module';
 import { MirrorModule } from './mirror/mirror.module';
+import { SmsModule } from './sms/sms.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { MirrorModule } from './mirror/mirror.module';
     WorkstationsModule,
     PatientChatModule,
     MirrorModule,
+    SmsModule,
   ],
   controllers: [],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

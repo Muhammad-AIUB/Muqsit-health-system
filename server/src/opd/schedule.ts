@@ -43,3 +43,25 @@ export function scheduleProblem(s: OpdSchedule): string | null {
   if (to <= from) return 'The break must end after it starts.';
   return null;
 }
+
+// ⚕️ The time of each of `count` serials, in minutes since midnight — a COPY of
+// `client/src/lib/opdSchedule.ts#slotTimes`, which the Print Queue and the queue
+// rows show. The SMS to a day's patients (`src/sms/opd-sms.service.ts`) tells
+// them the same times, so this must give exactly what the client gives:
+// `schedule.spec.ts` ⇄ `opdSchedule.test.ts` hold the same cases. Edit one,
+// edit both. A schedule that cannot be read gives no times — nothing is guessed.
+export function slotTimes(count: number, s: OpdSchedule): number[] {
+  if (!(count > 0) || scheduleProblem(s) !== null) return [];
+  const start = parseClock(s.startTime) as number;
+  const from = s.breakStart === null ? null : (parseClock(s.breakStart) as number);
+  const to = s.breakEnd === null ? null : (parseClock(s.breakEnd) as number);
+  const outOfBreak = (t: number) => (from !== null && to !== null && t >= from && t < to ? to : t);
+
+  const times: number[] = [];
+  let next = outOfBreak(start);
+  for (let i = 0; i < count; i++) {
+    times.push(next);
+    next = outOfBreak(next + s.minutesPerPatient);
+  }
+  return times;
+}

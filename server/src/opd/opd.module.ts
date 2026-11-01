@@ -7,5 +7,7 @@ import { WorkstationsModule } from '../workstations/workstations.module';
   imports: [WorkstationsModule],
   controllers: [OpdController],
   providers: [OpdService],
+  // The SMS to a day's queue (src/sms) reads the queue and its times through it.
+  exports: [OpdService],
 })
 export class OpdModule {}

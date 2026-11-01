@@ -865,3 +865,78 @@ model SupervisedDraft {
   @@unique([doctorId, patientId])
   @@index([patientId])
 }
+
+// ── SMS wallet and payment requests (2026-11-01, manual-sms-wallet.sql) ──────
+// One wallet per PRACTICE doctor (the workstation's doctor, never an assistant):
+// a whole number of taka, never below 0. Every change is one SmsLedger row,
+// written in the same transaction as the balance, under the wallet's row lock.
+// 1 SMS the provider counts = 1 taka (src/sms/segments.ts).
+model SmsWallet {
+  id        String   @id @default(cuid())
+  doctorId  String   @unique
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SmsLedger {
+  id          String   @id @default(cuid())
+  doctorId    String
+  // + credit, − debit, in taka.
+  delta       Int
+  // send (an SMS job's reservation) | refund (what of it did not go) |
+  // topup (an admin credited a payment request) | adjust (by hand)
+  reason      String
+  // The SmsSendJob or PaymentRequest behind it.
+  ref         String?
+  note        String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([doctorId, createdAt])
+}
+
+// One send of the appointment SMS to a day's queue, in one language. Its cost is
+// RESERVED from the wallet when it starts and what did not go is refunded when it
+// ends; `results` is written after each message so a job cut short says what went.
+model SmsSendJob {
+  id          String    @id @default(cuid())
+  doctorId    String
+  day         String // yyyy-mm-dd, Dhaka
+  language    String // en | bn
+  status      String    @default("sending") // sending | done
+  reserved    Int
+  charged     Int?
+  // [{ visitId, name, mobile, message, segments, status, detail }]
+  results     Json?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([doctorId, day, language, createdAt])
+}
+
+// A doctor's request from Settings → Payment: SMS to buy, or a renewal. No
+// payment gateway is built — the request goes to the admin, who credits the
+// wallet (sms) or marks it handled (renew) after the payment is received.
+model PaymentRequest {
+  id          String    @id @default(cuid())
+  doctorId    String
+  kind        String // sms | renew
+  // sms: how many SMS (= taka). renew: unused.
+  quantity    Int?
+  // What the doctor says they will pay or have paid, in taka, as typed.
+  amount      Int?
+  note        String?
+  status      String    @default("pending") // pending | credited | rejected
+  // What the admin credited (sms), in taka.
+  credited    Int?
+  adminNote   String?
+  handledAt   DateTime?
+  handledById String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([doctorId, createdAt])
+  @@index([status, createdAt])
+}

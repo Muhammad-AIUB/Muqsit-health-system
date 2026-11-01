@@ -431,6 +431,27 @@ the serial the doctor sees is the place in the day's list. `POST /opd`, `POST /o
 `PATCH /opd/:id/move` take one advisory lock per doctor, so two writes to one queue never read it at
 the same moment.
 
+### 5.12b SMS to a day's queue, and the SMS wallet — `/opd/sms`, `/sms` (JWT + WS) (2026-11-01)
+
+The appointment SMS to every patient of a day (physician's sheet, 28/10/2026). Built **server-side** (`server/src/sms/appointment-message.ts`, both languages in one module) from the patient's name in the queue, the practice doctor's profile name, a chamber address from the doctor's profile (Settings → Profile → Chambers), and the serial's time — the Print Queue's: the day's queue in the order shown and `slotTimes` over `GET /opd/schedule` (`server/src/opd/schedule.ts`, a copy of the client's). Counted as the provider counts (`server/src/sms/segments.ts`: GSM-7 160 / 153 per part, any Bangla → UCS-2 70 / 67 per part); **1 taka per message counted**. The wallet is the PRACTICE doctor's (`@WorkstationDoctorId()`), a whole number of taka, never below 0; every change is one `SmsLedger` row in the same transaction, under the wallet's row lock (`ROW_LOCK_TX`). `manual-sms-wallet.sql` must be applied **before** the release that reads it.
+
+| Method | Path | Body / Notes |
+|---|---|---|
+| POST | `/opd/sms/preview` | `{ date, language: "en" \| "bn", chamberId? }` — sends nothing, charges nothing. Today or a later day only (past → 400 "SMS cannot be sent for a day that has passed."; an empty day → 400 "No one is in this day's queue."). → `{ day, language, doctorName, chambers: [{id, address}], chamberId, problems: string[], rows: [{ visitId, serial, name, mobile, minutes, message, encoding, segments, skip }], recipients, segments, cost, costPerSegment, balance, gatewayConfigured, canSend, signature }`. A row is **skipped** (with `skip` in words) when its number is missing or not a Bangladeshi mobile (`normaliseBdMobile` — never guessed), its serial time is past midnight, or the patient was already seen (`done`, or `rxStatus: complete`). `problems` says what stops every message (no chamber address or no name in the profile; more than one chamber and none chosen); `chamberId` must be one of the doctor's own (400 otherwise) |
+| POST | `/opd/sms/send` | `{ date, language, chamberId?, previewSignature, confirmRepeat? }` — refused before anything is reserved when: the day has passed (400), a `problem` stands (400), the gateway is not configured (**503**, `code: SMS_NOT_CONFIGURED`, "SMS gateway is not configured…" — in dev it would only log), nobody can be sent one (400), the queue or a message changed since the preview (409, `code: SMS_CHANGED`), a send of the same day and language is running (409, `SMS_SENDING`), a patient was sent this same message within 30 minutes and `confirmRepeat` is not `true` (409, `SMS_REPEAT`), the balance is short (400, `SMS_BALANCE`, "Not enough SMS balance."). Otherwise the cost is **reserved** (ledger `send`), each message sent one at a time, and what did not go is **refunded** (ledger `refund`). → `{ jobId, day, language, results: [{ visitId, serial, name, mobile, message, segments, status: "sent" \| "failed" \| "skipped", detail }], sent, failed, skipped, charged, balance }`. One job per (doctor, day, language), decided under an advisory lock. An assistant may preview and send (the queue is open to every assistant, `opd.addPatient`); the practice's wallet pays |
+| GET | `/sms/wallet` | `{ balance }` — anyone at the workstation |
+| GET | `/sms/ledger` | the last 50 ledger rows `{ id, delta, reason: send \| refund \| topup \| adjust, ref, note, createdAt }`, newest first — **the doctor only** (an assistant → 403) |
+| GET | `/sms/payment-requests` | the doctor's last 50 requests, newest first — the doctor only |
+| POST | `/sms/payment-requests` | `{ kind: "sms" \| "renew", quantity?, amount?, note? }` — the doctor only. `sms` needs `quantity` (SMS to buy, a whole number ≥ 1); `amount` is what the doctor says they pay, in taka, as typed. No price or package is set by the app and no payment gateway is built: the request goes to the admin. → the request, `status: "pending"` |
+
+### 5.12c Payment requests (admin) — `/admin/payment-requests` (JWT + admin)
+
+| Method | Path | Body / Notes |
+|---|---|---|
+| GET | `/admin/payment-requests` | optional `?status=pending\|credited\|rejected`; each row with `doctor { id, name, displayName, email, mobile }` and the wallet `balance` |
+| PATCH | `/admin/payment-requests/:id/credit` | `{ credit?, note? }` — one transaction under the request's row lock: a `sms` request credits `credit` (default: its `quantity`) taka to the doctor's wallet with a ledger `topup` line; a `renew` request is only marked (no renewal is built). Then `status: "credited"`. A request no longer pending → 409, so pressed twice it credits once |
+| PATCH | `/admin/payment-requests/:id/reject` | `{ note? }` → `status: "rejected"`; not pending → 409 |
+
 ### 5.13 IPD — `/ipd` (JWT + WS)
 
 | Method | Path | Body / Notes |
