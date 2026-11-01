@@ -392,6 +392,7 @@ model Patient {
   supervisors  PatientSupervisor[]
   supervisedDrafts SupervisedDraft[]
   personalNotes DoctorPatientNote[]
+  drugSafety    PatientDrugSafety[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -863,5 +864,45 @@ model SupervisedDraft {
   updatedAt DateTime @updatedAt
 
   @@unique([doctorId, patientId])
+  @@index([patientId])
+}
+
+/// ⚕️ "H/O drug hypersensitivity and High-Alert Medication" (physician's sheet,
+/// 31/10/2026). A per-PATIENT list that stays with the patient for life and is
+/// read by every practice that can reach the patient (owner, the owner's
+/// assistants, supervising doctors). Typed by a doctor — nothing here is
+/// derived or inferred. `manual-patient-drug-safety.sql`.
+///
+/// `kind` "drug": a medicine (`brand` as picked or typed, `generic` from the
+/// medicines catalogue row or null — never guessed) with one or both of
+/// `hypersensitive` / `highAlert`. `kind` "text": a line as typed (`text`).
+///
+/// Never hard-deleted: removal sets `removedAt` / `removedById`, and a removed
+/// entry can be restored. No FK to User on purpose: deleting a doctor's account
+/// must not take a patient's allergy record with it (Patient.doctorId is SetNull
+/// for the same reason). The patient's own DELETE (owner-only) cascades.
+model PatientDrugSafety {
+  id        String  @id @default(cuid())
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  kind           String
+  brand          String  @default("")
+  generic        String?
+  hypersensitive Boolean @default(false)
+  highAlert      Boolean @default(false)
+  text           String  @default("")
+
+  /// The practice (workstation doctor) that added it — decides who may change it.
+  practiceDoctorId String
+  /// The signed-in user who added it, and their name as it was then.
+  createdById   String
+  createdByName String
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  removedAt   DateTime?
+  removedById String?
+
   @@index([patientId])
 }

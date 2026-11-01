@@ -736,6 +736,55 @@ export const patientsApi = {
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
 };
 
+// ── H/O drug hypersensitivity and High-Alert Medication (31/10/2026) ──
+// A per-PATIENT list kept for life, read by every practice that reaches the
+// patient. One entry is added at a time; removal is SOFT (the server keeps the
+// row) and can be undone with `restore`. `editable` is whether the caller's
+// practice may change that entry. See server/src/patient-drug-safety.
+export interface DrugSafetyEntry {
+  id: string;
+  kind: "drug" | "text";
+  /** kind "drug": the medicine as picked from the catalogue, or as typed. */
+  brand: string;
+  /** The catalogue's generic name, or null when none is known — never guessed. */
+  generic: string | null;
+  hypersensitive: boolean;
+  highAlert: boolean;
+  /** kind "text": the line as typed. */
+  text: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  editable: boolean;
+}
+export interface DrugSafetyAddInput {
+  kind: "drug" | "text";
+  brand?: string;
+  generic?: string;
+  hypersensitive?: boolean;
+  highAlert?: boolean;
+  text?: string;
+}
+export interface DrugSafetyUpdateInput {
+  hypersensitive?: boolean;
+  highAlert?: boolean;
+  text?: string;
+}
+export const drugSafetyApi = {
+  /** Read by `lib/drugSafety.ts#readDrugSafetyList`, never trusted as it comes. */
+  list: (patientId: string, abort?: AbortSignal) =>
+    apiFetch<unknown>(`/patients/${encodeURIComponent(patientId)}/drug-safety`, { signal: abort }),
+  add: (patientId: string, input: DrugSafetyAddInput) =>
+    apiFetch<DrugSafetyEntry>(`/patients/${encodeURIComponent(patientId)}/drug-safety`, { method: "POST", body: JSON.stringify(input) }),
+  update: (patientId: string, entryId: string, input: DrugSafetyUpdateInput) =>
+    apiFetch<DrugSafetyEntry>(`/patients/${encodeURIComponent(patientId)}/drug-safety/${encodeURIComponent(entryId)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  /** A SOFT removal: the server keeps the row. */
+  remove: (patientId: string, entryId: string) =>
+    apiFetch<{ id: string }>(`/patients/${encodeURIComponent(patientId)}/drug-safety/${encodeURIComponent(entryId)}`, { method: "DELETE" }),
+  restore: (patientId: string, entryId: string) =>
+    apiFetch<DrugSafetyEntry>(`/patients/${encodeURIComponent(patientId)}/drug-safety/${encodeURIComponent(entryId)}/restore`, { method: "POST" }),
+};
+
 // ── Device mirroring (real-time multi-device sync, primary only) ─────
 export const mirrorApi = {
   streamUrl: () => `${API_URL}/mirror/stream`,

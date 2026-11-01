@@ -44,6 +44,16 @@ These came out of the health-trend-chart work and its review. Each one is a
 **product decision**, deliberately not taken unilaterally. Read the linked
 CLAUDE.md section before picking one up.
 
+- [ ] **H/O drug hypersensitivity and High-Alert Medication (31/10/2026) — readings for the physician to confirm.** Built on the most conservative reading of the sheet; each of these is an assumption:
+  1. The two questions are worded "Is the patient hypersensitive to this drug?" / "Is it a high-alert medication?" (the sheet: "Does he hypersensitive to this drug" / "Does it high alert medication").
+  2. The printed/shown words: `Hypersensitive to NAPA(Paracetamol)` and `High-alert drug: NAPA(Paracetamol)` (the sheet wrote "high alert drug:"). The brand is in capitals up to its first digit (a typed strength keeps its letters); the generic is the catalogue's, and a medicine typed and not picked from the list is shown by its brand alone. The strength of the row picked is NOT stored — hypersensitivity is to the medicine.
+  3. A medicine NOT in the catalogue may be added "as typed" (no generic). A medicine with neither question ticked is refused.
+  4. On the printed sheet it stands in the clinical column right after Drug history's place, in a red box; it is NOT on the privacy (pharmacy) copy, which carries no clinical column. Should the pharmacy copy carry it?
+  5. A supervising doctor may read and ADD; may change/remove only what their own practice added. The owner's practice may change any entry. An assistant needs the Drug history key (`rx.drugHistory`) to write, and sees the list without it.
+  6. Removal (inside ✎ Edit only) has no "are you sure" question — the established ✕ + Undo pattern of the sidebar — and is soft on the server.
+  7. It is not linked to the ℞ pad's prescribing alerts (a hypersensitive medicine put on the pad raises nothing). That link needs the physician's wording for the alert; `rxAlerts.ts` was not touched.
+  8. Not on the IPD sheet; activity is logged to the acting practice's feed only (a supervising doctor's addition does not appear in the owner's feed).
+  Not verified: the integration spec (`server/test/patient-drug-safety.int-spec.ts`) was written and typechecked but not run; no browser pass; `manual-patient-drug-safety.sql` is NOT applied — apply it before deploying, or the section says "could not be loaded" and Save & print asks before printing without it.
 - [ ] **Unowned patients are retained but unreachable.** Deleting a doctor no
   longer deletes their patients (`Patient.doctorId` → `SetNull`), which is the
   owner's stated model: a patient is not the property of the account that

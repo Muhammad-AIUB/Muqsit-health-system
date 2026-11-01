@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { suggestionDB } from "@/data/suggestions";
 import ExpandableField from "@/components/common/ExpandableField";
 import Lock from "@/components/common/Lock";
 import InvestigationFindingsField from "@/components/investigation/InvestigationFindingsField";
 import DrugHistoryField from "@/components/prescription/DrugHistoryField";
+import DrugSafetyField from "@/components/prescription/DrugSafetyField";
 import PreviousComplaintsField from "@/components/prescription/PreviousComplaintsField";
 import { PersonalNoteSection } from "@/components/prescription/PersonalNote";
 import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
@@ -17,7 +18,7 @@ import { isInlineEditField } from "@/lib/inlineEditFields";
 import { BANGLA_FIELDS } from "@/lib/banglaInput";
 
 export default function LeftColumn() {
-  const { leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory, savedDrugAdvice } = useMuqsit();
+  const { currentPatientId, leftFields, allFieldValues, setShowInvPopup, setShowOePopup, invImages, canEditLabel, hiddenInvestigation, setHiddenInvestigation, hideDrugHistory, setHideDrugHistory, savedDrugAdvice } = useMuqsit();
   const logActivity = useActivityLog();
   // "P.D" — offered inside the Final diagnosis popup only.
   const previousDiagnoses = usePreviousDiagnoses();
@@ -40,9 +41,17 @@ export default function LeftColumn() {
             // ℞ pad writes Current medications through the mirror. The Lock STAYS.
             // An assistant without `rx.drugHistory` could not reach this list
             // before and must not gain a patient's medications now.
-            <Lock key={f.label} locked={!canEditLabel("Drug history")}>
-              <DrugHistoryField items={f.items} hidden={hideDrugHistory} onHidden={setHideDrugHistory} />
-            </Lock>
+            <Fragment key={f.label}>
+              <Lock locked={!canEditLabel("Drug history")}>
+                <DrugHistoryField items={f.items} hidden={hideDrugHistory} onHidden={setHideDrugHistory} />
+              </Lock>
+              {/* ⚕️ Directly after Drug history (physician's sheet, 31/10/2026).
+                  Not behind the Lock: an allergy is never hidden from anyone
+                  who can open the patient — the same key only gates its "+"
+                  and "✎ Edit". Keyed by the patient, so nothing half-typed
+                  or an Undo for one patient stays on the screen for the next. */}
+              <DrugSafetyField key={currentPatientId ?? "none"} canEdit={canEditLabel("Drug history")} />
+            </Fragment>
           );
         }
         if (f.label === "Previous complaints") {

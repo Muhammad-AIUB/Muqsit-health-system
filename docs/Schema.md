@@ -132,7 +132,7 @@ One person, found again by mobile number. **Not the property of a doctor** — d
 | Owner | `doctorId String?` → `User`, `onDelete: SetNull` |
 
 Indexes: `doctorId`, `name`.
-Relations: `Prescription[]`, `OpdVisit[]`, `IpdAdmission[]`, `PatientChatMessage[]`, `PatientSupervisor[]`, `SupervisedDraft[]`, `DoctorPatientNote[]`.
+Relations: `Prescription[]`, `OpdVisit[]`, `IpdAdmission[]`, `PatientChatMessage[]`, `PatientSupervisor[]`, `SupervisedDraft[]`, `DoctorPatientNote[]`, `PatientDrugSafety[]`.
 
 **Open gap:** a patient with `doctorId = null` is retained but unreachable, because the lookup matches owner-or-supervisor. Making it reachable exposes personal data across practices and needs a product decision (`FUNCTIONAL-AUDIT.md`, open threads).
 
@@ -142,6 +142,9 @@ One message in a patient's team chat. `authorId` → `User` (cascade), `authorNa
 #### `SupervisedDraft`
 A supervising practice's own unprinted visit for a patient it supervises — what `Patient.incompleteRx` is for the owner's practice. A supervisor may never write the owner's `incompleteRx`.
 `doctorId` (the supervising *practice*), `patientId`, `data Json` (opaque editor snapshot). Unique `(doctorId, patientId)`. Cascades with both.
+
+#### `PatientDrugSafety`
+"H/O drug hypersensitivity and High-Alert Medication" (31/10/2026): one entry of a patient's lifelong list. `kind` (`drug` | `text`), `brand`, `generic?` (the catalogue's, never guessed), `hypersensitive`, `highAlert`, `text`; `practiceDoctorId` (the practice that added it), `createdById` / `createdByName` snapshot — no FK to `User`, so deleting an account keeps the record; `removedAt?` / `removedById?` (soft removal, never deleted). Index `patientId`. Cascades with `Patient` only. `manual-patient-drug-safety.sql`.
 
 ### 3.3 Prescriptions
 
