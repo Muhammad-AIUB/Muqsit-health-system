@@ -148,8 +148,12 @@ export default function PatientHeader({ mobile }: { mobile?: boolean }) {
             style={{ width: mobile ? 44 : 54, height: mobile ? 44 : 54, borderRadius: 10, overflow: "hidden", border: `0.5px solid ${C.n[200]}`, background: C.n[100], display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
           >
             {ptInfo.picture && !photoError ? (
+              // ⚕️ Keyed by patient and URL: a browser keeps drawing an <img>'s
+              // OLD picture until its new src has downloaded, so on a slow
+              // clinic network the last patient's face stood beside this one's
+              // name. A new element starts empty (02/11/2026).
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={ptInfo.picture} alt="Patient" onError={() => setPhotoError(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img key={`${currentPatientId ?? "new"}|${ptInfo.picture}`} src={ptInfo.picture} alt="Patient" onError={() => setPhotoError(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
               // No photo yet: a man's or a woman's picture by the sex recorded,
               // the plain person when it is Other or not recorded.

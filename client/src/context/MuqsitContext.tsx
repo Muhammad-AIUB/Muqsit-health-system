@@ -410,6 +410,8 @@ function useMuqsitStore() {
   // switch) and whenever another device's state is applied to it (the device
   // mirror), so the mount-time draft hydration can tell it is no longer wanted.
   const editorEpochRef = useRef(0);
+  // Moved by each `loadPatientById`: only the last patient asked for is opened.
+  const loadSeqRef = useRef(0);
   // Family members the doctor deliberately removed from this patient's tree, by
   // identity (`familyKey`), so the merge in `saveFamilyMembers` does not bring
   // them back from the stored copy. Per patient.
@@ -993,6 +995,13 @@ function useMuqsitStore() {
     setEditorEpoch((n) => n + 1);
     setPtName(""); setPtAge(""); setPtGender(""); setPtAddress(""); setPtWeight("");
     setPtDate(todayISO()); setPtPhone(""); setPtHospitalId("");
+    // ⚕️ The patient's record fields — the header PHOTO among them — go with the
+    // rest (02/11/2026). Left as they were, "New Prescription" showed the last
+    // patient's face over an empty header, and a new patient saved from it was
+    // created with that photo (`pictureUrl: ptInfo.picture`) and the last
+    // patient's watch flag. A caller that opens a patient sets both after this.
+    setPtInfo(initialPtInfo);
+    setWatchPatient(false);
     setChiefComplaints([]); setPreviousComplaints([]); setHistory([]); setInvestigation([]); setHiddenInvestigation([]); setHideDrugHistory(true); setHideOnExamination(false);
     setDrugHistory([]); setOnExamination([]); setNote([]); setPlan([]); setProvisionalDiagnosis([]);
     setAssociatedIllness([]); setFinalDiagnosis([]);
@@ -1272,9 +1281,16 @@ function useMuqsitStore() {
   }, [resetEditor, applyEditorSnapshot, flushEditorDraft]);
 
   // Convenience: load by id (fetches first). Returns the patient, or null.
+  // ⚕️ The answer is taken only while it is still the LAST patient asked for and
+  // the editor has not been reset meanwhile (02/11/2026). A slow fetch for A that
+  // landed after B was opened, or after "New Prescription", put A — name, record
+  // and photo — back on the screen the doctor had moved on from.
   const loadPatientById = useCallback(async (id: string): Promise<Patient | null> => {
+    const seq = ++loadSeqRef.current;
+    const epoch = editorEpochRef.current;
     try {
       const p = await patientsApi.get(id);
+      if (loadSeqRef.current !== seq || editorEpochRef.current !== epoch) return null;
       loadPatient(p);
       return p;
     } catch {
@@ -2097,6 +2113,9 @@ function useMuqsitStore() {
     if (d.oeData && typeof d.oeData === "object") setOeData(d.oeData as OeData);
     // Patient settings form + family tree
     if (d.ptInfo && typeof d.ptInfo === "object") setPtInfo(d.ptInfo as PtInfo);
+    // ⚕️ Another patient with no record fields (an older build): never the last
+    // patient's — their photo stood over this one's name (02/11/2026).
+    else if (pid !== patientIdRef.current) setPtInfo(initialPtInfo);
     if (typeof d.ptEditing === "boolean") setPtEditing(d.ptEditing);
     if (Array.isArray(d.familyMembers)) setFamilyMembers(d.familyMembers as FamilyMember[]);
     if (typeof d.showFamilyForm === "boolean") setShowFamilyForm(d.showFamilyForm);

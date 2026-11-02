@@ -1416,3 +1416,8 @@ Open:
 - [ ] **A visit cannot be moved from one chamber to another.**
 - [ ] **SMS per chamber** is not built (the address is stored for it).
 - [ ] **Not run:** Safari / Firefox, a phone in a real browser, and an assistant choosing a chamber in a browser (covered by integration tests).
+
+### Patient photo (02/11/2026) - open for the physician
+- [ ] **A new patient saved from a cleared screen was created with the LAST patient's photo and watch flag** (before this release). Records made that way cannot be told apart from the server; a photo that is not the patient's is removed in Patient Settings.
+- [ ] **While a patient is being opened, the previous patient is still on the screen** (name and photo together) until the record arrives — the screen does not show a half-loaded mix. Should it go blank at once instead?
+- [ ] **Not checked:** the photo on a slow network in a real browser (the `<img>` is redrawn per patient so the old face cannot linger while the new one downloads).
