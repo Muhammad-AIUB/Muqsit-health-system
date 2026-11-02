@@ -10,6 +10,17 @@ export interface OeFinding {
   // appended (`POST /patients/:id/on-examination`, 31/10/2026). Entries from
   // before that carry none, and none is ever made up for them.
   by?: string;
+  // A Disease / Surgical history entry taken off in the sidebar (02/11/2026):
+  // kept in the record, stamped by the server, and left out by every reader.
+  removedAt?: string;
+  removedBy?: string;
+}
+
+/** Taken off softly — kept in the record, shown nowhere. */
+export function isRemovedOe(f: unknown): boolean {
+  if (!f || typeof f !== "object") return false;
+  const at = (f as { removedAt?: unknown }).removedAt;
+  return typeof at === "string" && at.length > 0;
 }
 
 const oeKey = (f: OeFinding) => `${f.date}|${f.text.trim().toLowerCase()}`;
@@ -56,7 +67,7 @@ export function oeAuthorLabel(by: unknown): string | null {
 // which line is whose, and an entry with no author is never put under one.
 export function groupOeForRecords(findings: OeFinding[]): { date: string; by: string | null; items: OeFinding[] }[] {
   const out: { date: string; by: string | null; items: OeFinding[] }[] = [];
-  for (const g of groupOeByDate(findings)) {
+  for (const g of groupOeByDate((findings ?? []).filter((f) => !isRemovedOe(f)))) {
     const byAuthor: { date: string; by: string | null; items: OeFinding[] }[] = [];
     for (const f of g.items) {
       const by = typeof f.by === "string" && f.by.trim() ? f.by.trim() : null;

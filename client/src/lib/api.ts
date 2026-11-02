@@ -96,7 +96,7 @@ export interface Patient {
   investigationSummary: Array<{ date: string; category: string; test: string; value: string }>;
   // `by`: the practice doctor who wrote it, stamped by the server (31/10/2026);
   // entries from before that have none.
-  onExaminationSummary: Array<{ date: string; text: string; by?: string }>;
+  onExaminationSummary: Array<{ date: string; text: string; by?: string; removedAt?: string; removedBy?: string }>;
   drugHistory: string[];
   incompleteRx: Record<string, unknown> | null;
   doctorId: string | null;
@@ -135,7 +135,7 @@ export interface PatientInput {
   hmSelectedDrugs?: string[];
   familyMembers?: Array<{ name: string; mobile: string; nid: string; sex: string; relation: string; patientId?: string }>;
   investigationSummary?: Array<{ date: string; category: string; test: string; value: string }>;
-  onExaminationSummary?: Array<{ date: string; text: string; by?: string }>;
+  onExaminationSummary?: Array<{ date: string; text: string; by?: string; removedAt?: string; removedBy?: string }>;
   drugHistory?: string[];
   incompleteRx?: Record<string, unknown> | null;
 }
@@ -777,6 +777,12 @@ export const patientsApi = {
   // sheets 28/10 + 31/10/2026). Answers with the history as stored.
   appendOnExamination: (id: string, entries: Array<{ date: string; text: string }>) =>
     apiFetch<{ onExaminationSummary: Array<{ date: string; text: string; by?: string }> }>(`/patients/${id}/on-examination`, { method: "POST", body: JSON.stringify({ entries: entries }) }),
+  // ⚕️ A Disease / Surgical history entry of that shared history taken off
+  // SOFTLY, or put back (the sidebar's Undo) — sheet 28/10/2026, item 7.
+  removeHistoryEntry: (id: string, kind: "disease" | "surgical", text: string) =>
+    apiFetch<{ onExaminationSummary: Array<{ date: string; text: string; by?: string; removedAt?: string; removedBy?: string }> }>(`/patients/${id}/on-examination/remove`, { method: "POST", body: JSON.stringify({ kind: kind, text: text }) }),
+  restoreHistoryEntry: (id: string, kind: "disease" | "surgical", text: string) =>
+    apiFetch<{ onExaminationSummary: Array<{ date: string; text: string; by?: string; removedAt?: string; removedBy?: string }> }>(`/patients/${id}/on-examination/restore`, { method: "POST", body: JSON.stringify({ kind: kind, text: text }) }),
   remove: (id: string) => apiFetch<{ id: string }>(`/patients/${id}`, { method: "DELETE" }),
 };
 

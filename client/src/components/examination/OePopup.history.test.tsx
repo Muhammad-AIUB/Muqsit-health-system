@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
 //
-// ⚕️ Physician's sheet, 18/10/2026, item 3: Disease history and Surgical /
-// intervention history take SEVERAL entries, each with a date — "H/O
-// cholecystectomy", 151026 → "H/O cholecystectomy 15/01/2024"-style, Add puts it
-// under the others, and each prints as its own On-examination line.
+// ⚕️ Physician's sheet, 28/10/2026, item 7: Disease history and Surgical /
+// intervention history MOVED from this popup to the prescription sidebar's
+// History row (`PatientHistoryField`). The popup no longer edits them — but a
+// visit parked before the move may still carry them in `oeData`, and nothing
+// typed then may be lost: they are shown read-only and still written into the
+// visit's On-examination lines on Save, as before.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-const ask = vi.hoisted(() => ({ answer: true, asked: [] as string[] }));
-vi.mock("@/lib/dialogs", () => ({
-  confirmAction: (r: { title: string }) => { ask.asked.push(r.title); return Promise.resolve(ask.answer); },
-}));
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import OePopup from "./OePopup";
 import type { OeData } from "@/types";
@@ -21,166 +19,52 @@ const blankOe: OeData = {
   ascites: "", auscHeart: "", auscLung: "", specialNote: "", diseaseHistory: "", surgicalHistory: "",
 };
 
-// A store that really holds the value, so what Add writes is what the list shows.
 let oeData: OeData = blankOe;
-let showOePopup = true;
-const setShowOePopup = vi.fn((v: boolean) => { showOePopup = v; });
-let currentPatientId: string | null = "A";
+const setShowOePopup = vi.fn();
 const setOnExamination = vi.fn();
 vi.mock("@/context/MuqsitContext", () => ({
   useMuqsit: () => ({
-    showOePopup, setShowOePopup, oeData, currentPatientId,
+    showOePopup: true, setShowOePopup, oeData, currentPatientId: "A",
     setOeData: (u: OeData | ((p: OeData) => OeData)) => { oeData = typeof u === "function" ? u(oeData) : u; },
     setOnExamination, setPtWeight: vi.fn(),
   }),
 }));
 
-afterEach(() => { cleanup(); setOnExamination.mockReset(); setShowOePopup.mockClear(); oeData = blankOe; showOePopup = true; currentPatientId = "A"; ask.answer = true; ask.asked = []; });
+afterEach(() => { cleanup(); setOnExamination.mockReset(); setShowOePopup.mockClear(); oeData = blankOe; });
 
 const view = (oe: Partial<OeData> = {}) => {
   oeData = { ...blankOe, ...oe };
-  const r = render(<OePopup />);
-  return { ...r, again: () => r.rerender(<OePopup />) };
+  return render(<OePopup />);
 };
-const box = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
 
-describe("On examination — dated history entries", () => {
-  it("Add writes the text and its DDMMYY date as dd/mm/yyyy, and lists it", () => {
-    const { again } = view();
-    fireEvent.change(box("Disease history"), { target: { value: "H/O cholecystectomy" } });
-    fireEvent.change(box("Disease history date"), { target: { value: "150124" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add disease history" }));
-    expect(oeData.diseaseHistory).toBe("H/O cholecystectomy 15/01/2024");
-    again();
-    expect(screen.getByText("H/O cholecystectomy 15/01/2024")).toBeTruthy();
-    // The boxes are emptied for the next one.
-    expect(box("Disease history").value).toBe("");
-    expect(box("Disease history date").value).toBe("");
-  });
-
-  it("a second entry goes under the first", () => {
-    const { again } = view({ surgicalHistory: "H/O cholecystectomy 15/10/2025" });
-    fireEvent.change(box("Surgical / intervention history"), { target: { value: "H/O ERCP" } });
-    fireEvent.change(box("Surgical / intervention history date"), { target: { value: "16/01/2026" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add surgical / intervention history" }));
-    expect(oeData.surgicalHistory).toBe("H/O cholecystectomy 15/10/2025\nH/O ERCP 16/01/2026");
-    again();
-    const items = screen.getAllByRole("listitem").map((li) => li.textContent?.replace(/[•×]/g, "").trim());
-    expect(items).toEqual(["H/O cholecystectomy 15/10/2025", "H/O ERCP 16/01/2026"]);
-  });
-
-  it("Enter in the text box adds too", () => {
+describe("On examination — Disease / Surgical history moved to the sidebar", () => {
+  it("has no history boxes any more: one fact, one place to write it", () => {
     view();
-    fireEvent.change(box("Disease history"), { target: { value: "Known HTN" } });
-    fireEvent.keyDown(box("Disease history"), { key: "Enter" });
-    expect(oeData.diseaseHistory).toBe("Known HTN");
+    expect(screen.queryByLabelText("Disease history")).toBeNull();
+    expect(screen.queryByLabelText("Surgical / intervention history")).toBeNull();
+    expect(screen.queryByRole("button", { name: /add disease history/i })).toBeNull();
+    expect(screen.queryByTestId("oe-legacy-history")).toBeNull();
   });
 
-  it("a date it cannot read writes nothing and says why", () => {
+  it("closes at once — there is nothing half-typed of its own to ask about", () => {
     view();
-    fireEvent.change(box("Disease history"), { target: { value: "H/O ERCP" } });
-    fireEvent.change(box("Disease history date"), { target: { value: "99" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add disease history" }));
-    expect(oeData.diseaseHistory).toBe("");
-    expect(screen.getByText(/Not a valid date/)).toBeTruthy();
-    expect(box("Disease history").value).toBe("H/O ERCP"); // kept, to correct the date
-  });
-
-  it("× takes off that one entry", () => {
-    view({ diseaseHistory: "Known DM\nKnown HTN" });
-    fireEvent.click(screen.getByRole("button", { name: "Remove “Known DM”" }));
-    expect(oeData.diseaseHistory).toBe("Known HTN");
-  });
-
-  it("an old single value shows as one entry", () => {
-    view({ diseaseHistory: "First known 2019" });
-    expect(screen.getByText("First known 2019")).toBeTruthy();
-  });
-
-  it("Save writes one On-examination line per entry", () => {
-    view({ diseaseHistory: "Known DM\nKnown HTN", surgicalHistory: "H/O ERCP 16/10/2026" });
-    fireEvent.click(screen.getByText("Save examination"));
-    expect(setOnExamination.mock.calls[0][0]).toEqual(["Disease Hx: Known DM", "Disease Hx: Known HTN", "Surgical Hx: H/O ERCP 16/10/2026"]);
-  });
-
-  // What is typed and not yet added is not lost on Save: it is added first,
-  // exactly as Add would (a doctor reads the box as part of the form).
-  it("Save adds what is typed and not yet added", () => {
-    view({ diseaseHistory: "Known DM" });
-    fireEvent.change(box("Disease history"), { target: { value: "Known HTN" } });
-    fireEvent.click(screen.getByText("Save examination"));
-    expect(setOnExamination.mock.calls[0][0]).toEqual(["Disease Hx: Known DM", "Disease Hx: Known HTN"]);
-  });
-
-  it("Save with a typed entry whose date cannot be read saves nothing and says why", () => {
-    view();
-    fireEvent.change(box("Disease history"), { target: { value: "H/O ERCP" } });
-    fireEvent.change(box("Disease history date"), { target: { value: "99" } });
-    fireEvent.click(screen.getByText("Save examination"));
-    expect(setOnExamination).not.toHaveBeenCalled();
-    expect(screen.getByText(/Not a valid date/)).toBeTruthy();
-  });
-
-  // ⚕️ Independent review, 18/10/2026: the popup stays mounted for the whole
-  // session, so what was typed and not added must not wait in it for the next
-  // patient — Save would have added patient A's history to patient B.
-  it("what is typed and not added is gone once the popup closes", () => {
-    const { again } = view();
-    fireEvent.change(box("Disease history"), { target: { value: "CKD stage 3" } });
-    showOePopup = false; again();
-    showOePopup = true; again();
-    expect(box("Disease history").value).toBe("");
-  });
-
-  it("…and once another patient is loaded under it", () => {
-    const { again } = view();
-    fireEvent.change(box("Surgical / intervention history"), { target: { value: "H/O ERCP" } });
-    currentPatientId = "B"; again();
-    fireEvent.click(screen.getByText("Save examination"));
-    expect(setOnExamination.mock.calls[0][0]).toEqual([]);
-  });
-
-  // ⚕️ Closing the popup must not drop what was typed and not added without a
-  // word (second review, 18/10/2026) — and the question is about DISCARDING:
-  // only its red button discards. Escape or a press beside it (which the app's
-  // question reads as "no") keeps the popup open with the text (release review:
-  // asked "keep it?", a second Escape threw it away). Nothing is written after
-  // the question, so no other patient can be touched while it is on screen.
-  it("closing with history typed and not added asks to discard; Discard drops it and closes", async () => {
-    view();
-    fireEvent.change(box("Disease history"), { target: { value: "CKD stage 3" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Close" })); });
-    expect(ask.asked).toEqual(["Discard the history you typed?"]);
-    expect(oeData.diseaseHistory).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(setShowOePopup).toHaveBeenCalledWith(false);
   });
 
-  it("…and any other answer keeps the popup open with the text", async () => {
-    ask.answer = false;
-    view();
-    fireEvent.change(box("Disease history"), { target: { value: "CKD stage 3" } });
-    await act(async () => { fireEvent.click(screen.getByText("Cancel")); });
-    expect(setShowOePopup).not.toHaveBeenCalled();
-    expect(box("Disease history").value).toBe("CKD stage 3");
-    expect(oeData.diseaseHistory).toBe("");
-  });
-
-  it("closing with nothing typed asks nothing", async () => {
-    view();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Close" })); });
-    expect(ask.asked).toEqual([]);
-    expect(setShowOePopup).toHaveBeenCalledWith(false);
-  });
-
-  // The physician's 15/10/2026 decision about accidental deletes: a line taken
-  // off in one press can be put back.
-  it("× on an entry offers Undo, which puts it back where it was", () => {
-    const { again } = view({ diseaseHistory: "Known DM\nKnown HTN\nCKD" });
-    fireEvent.click(screen.getByRole("button", { name: "Remove “Known HTN”" }));
-    expect(oeData.diseaseHistory).toBe("Known DM\nCKD");
-    again();
-    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    expect(oeData.diseaseHistory).toBe("Known DM\nKnown HTN\nCKD");
+  it("a visit parked before the move keeps its history: shown read-only, and written on Save as before", () => {
+    view({ pulse: "78", diseaseHistory: "DM 01/01/2010\nHTN", surgicalHistory: "H/O cholecystectomy 15/01/2024" });
+    const legacy = screen.getByTestId("oe-legacy-history");
+    expect(legacy.textContent).toContain("Disease Hx: DM 01/01/2010");
+    expect(legacy.textContent).toContain("Disease Hx: HTN");
+    expect(legacy.textContent).toContain("Surgical Hx: H/O cholecystectomy 15/01/2024");
+    expect(legacy.querySelector("input, button")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save examination" }));
+    expect(setOnExamination).toHaveBeenCalledWith([
+      "Pulse: 78 b/m",
+      "Disease Hx: DM 01/01/2010",
+      "Disease Hx: HTN",
+      "Surgical Hx: H/O cholecystectomy 15/01/2024",
+    ]);
   });
 });
-

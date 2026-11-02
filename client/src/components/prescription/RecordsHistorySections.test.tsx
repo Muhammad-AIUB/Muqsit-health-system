@@ -117,6 +117,27 @@ describe("the history sections after the Investigation summary", () => {
     expect(written[0]).toContain("&gt;&gt;&gt; 0+0+1");
   });
 
+  // ⚕️ Regression (sheet 28/10/2026, item 7): the entries now written in the
+  // sidebar's History block are the same lines, so the section still lists
+  // them — and an entry taken off there (soft, `removedAt`) is listed nowhere,
+  // neither here nor on the On-examination card of its date.
+  it("lists what the sidebar wrote, and leaves out an entry taken off there", async () => {
+    ctx = fresh({
+      onExaminationSummary: [
+        { date: "20/10/2026", text: "Disease Hx: DM 10/01/2020" },
+        { date: "02/11/2026", text: "Surgical Hx: H/O cholecystectomy 15/10/2026", by: "Dr. Karim" },
+        { date: "02/11/2026", text: "Disease Hx: HTN", by: "Dr. Karim", removedAt: "2026-11-02T10:00:00.000Z", removedBy: "Dr. Karim" },
+      ],
+    });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    const hx = sectionOf("Disease and surgical history");
+    expect(within(hx).getByText(/DM 10\/01\/2020/)).toBeTruthy();
+    expect(within(hx).getByText(/H\/O cholecystectomy 15\/10\/2026/)).toBeTruthy();
+    expect(within(hx).queryByText(/HTN/)).toBeNull();
+    expect(screen.queryByText(/HTN/)).toBeNull();
+  });
+
   it("chief complaints and diagnoses per saved prescription, newest first", async () => {
     api.list.mockResolvedValue([
       { id: "1", doctorId: "d", patientId: "A", items: [], createdAt: "2026-10-20T04:00:00.000Z", chiefComplaints: ["Fever 3 days"], finalDiagnosis: ["Viral fever"] },

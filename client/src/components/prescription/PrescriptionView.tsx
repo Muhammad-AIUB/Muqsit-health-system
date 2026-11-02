@@ -1,6 +1,8 @@
 "use client";
 
-import { printableOnExamination } from "@/lib/onExaminationSummary";
+import { printableOnExamination, type OeFinding } from "@/lib/onExaminationSummary";
+import { patientHistory, printableHistory, type HxKind, type PatientHxEntry } from "@/lib/patientHistory";
+import { patientsApi } from "@/lib/api";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { confirmAction, tell } from "@/lib/dialogs";
@@ -137,8 +139,36 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     );
   };
 
+  // ⚕️ The patient's Disease / Surgical history for the sheet about to be built
+  // (sidebar History block, sheet 28/10/2026 item 7) — read again, so an entry
+  // another doctor added is on the paper, and laid on the screen too. When it
+  // cannot be read: the copy on screen, if the record loaded; with no copy at
+  // all it is never printed as "none" — the doctor is asked, and no stops here.
+  const NO_HX: Record<HxKind, PatientHxEntry[]> = { disease: [], surgical: [] };
+  const historyForPrint = async (): Promise<Record<HxKind, PatientHxEntry[]> | null> => {
+    const pid = m.currentPatientId;
+    if (!pid || m.hideHistory) return NO_HX;
+    try {
+      const p = await patientsApi.get(pid);
+      const list = Array.isArray(p?.onExaminationSummary) ? (p.onExaminationSummary as OeFinding[]) : null;
+      if (list) {
+        if (m.patientIdRef.current === pid) m.setOnExaminationSummary(list);
+        return patientHistory(list);
+      }
+    } catch { /* falls through to the copy on screen */ }
+    if (m.recordStatus === "ready") return patientHistory(m.onExaminationSummary);
+    const go = await confirmAction({
+      title: "This patient's disease and surgical history could not be loaded.",
+      body: "The printed prescription will not show it. Check the connection and try again, or print without it.",
+      confirmLabel: "Print without it",
+      cancelLabel: "Go back",
+      danger: true,
+    });
+    return go ? NO_HX : null;
+  };
+
   // Build the printable prescription HTML from the current editor state.
-  const buildHtml = (safetyLines: string[]) => {
+  const buildHtml = (safetyLines: string[], hx: Record<HxKind, PatientHxEntry[]>) => {
     const rxMirrored = new Set(rxDrugHistoryEntries(m.rxItems, isoToDdmmyyyy(m.ptDate)));
     const printableDrugHistory = m.drugHistory.filter((e) => !rxMirrored.has(e));
     const followUp =
@@ -155,7 +185,11 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       clinical: [
         { label: "Chief complaints", items: m.chiefComplaints },
         { label: "Previous complaints", items: m.previousComplaints.map(formatPc) },
-        { label: "History", items: m.history },
+        // ⚕️ This visit's History lines, then the patient's Disease / Surgical
+        // history (`Disease Hx: …`, as On examination printed them before
+        // they moved here) — or nothing, when ⊘ Hide is pressed (sheet
+        // 28/10/2026, item 7; off by default, so History prints as before).
+        { label: "History", items: printableHistory(m.history, hx, m.hideHistory) },
         // ⚕️ `printableInvestigation` drops what never printed (attached-report
         // markers, report-pool staging rows) AND what the doctor marked ⊘ Hide
         // on this visit. The finding itself stays in the record and on screen —
@@ -265,10 +299,14 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     const showing = m.hasRxContent;
     // Asked BEFORE the save: a doctor who goes back has filed nothing.
     let safetyLines: string[] = [];
+    let hx = NO_HX;
     if (showing) {
       const lines = await drugSafetyForPrint();
       if (lines === null) return;
       safetyLines = lines;
+      const h = await historyForPrint();
+      if (h === null) return;
+      hx = h;
     }
     if (showing) setSheet({ open: true, html: null, afterSave: true });
 
@@ -290,7 +328,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     // untouched by the save, so this is still exactly what the doctor saw.
     let html: string;
     try {
-      html = buildHtml(safetyLines);
+      html = buildHtml(safetyLines, hx);
     } catch {
       closeSheet();
       tell({ title: "Prescription saved, but the printable sheet could not be built.", body: "Open Preview PDF to print it." });
@@ -355,8 +393,10 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     }
     const safetyLines = await drugSafetyForPrint();
     if (safetyLines === null) return;
+    const hx = await historyForPrint();
+    if (hx === null) return;
     try {
-      setSheet({ open: true, html: buildHtml(safetyLines), afterSave: false });
+      setSheet({ open: true, html: buildHtml(safetyLines, hx), afterSave: false });
     } catch {
       tell({ title: "The printable sheet could not be built.", body: "Nothing you have written is affected." });
     }

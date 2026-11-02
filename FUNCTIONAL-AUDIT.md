@@ -1399,7 +1399,7 @@ Open:
 - [ ] **The records page's On examination has no delete any more** (the Edit went, as asked). A wrong entry can no longer be taken off from the screen; it stays in the history.
 - [ ] **⊘ Hide for On examination starts OFF** (the section prints, as before). Drug history's starts ON. The physician to say if On examination should also start hidden.
 - [ ] **"Patient's input" is empty.** Nothing in the app is called that; the section says so. What should it hold (a form the patient fills? the patient chat?) is the physician's to say.
-- [ ] **Disease and surgical history** is read from the On-examination popup's History boxes as they reached the shared history on Save & print (`Disease Hx:` / `Surgical Hx:` lines); each entry once, at the visit it was first recorded. What is typed in today's visit shows after Save & print.
+- [ ] **Disease and surgical history** is read from the On-examination popup's History boxes as they reached the shared history on Save & print (`Disease Hx:` / `Surgical Hx:` lines); each entry once, at the visit it was first recorded. What is typed in today's visit shows after Save & print. *(02/11/2026: those boxes moved to the sidebar's History row and write at Add — see the section below.)*
 - [ ] **Chief complaints / Diagnosis history** list THIS practice's prescriptions only (a supervising practice never sees the owner's prescriptions, and the other way round — the access rule). The date is the day the prescription was saved (Dhaka).
 - [ ] **Drug history on the records page** is the list the Drug history modal holds, including today's ℞ lines before they are printed.
 - [ ] **Not run in a browser:** the records page and its Downloads (pop-up window) were checked in jsdom only.
@@ -1416,3 +1416,26 @@ Open:
 - [ ] **A visit cannot be moved from one chamber to another.**
 - [ ] **SMS per chamber** is not built (the address is stored for it).
 - [ ] **Not run:** Safari / Firefox, a phone in a real browser, and an assistant choosing a chamber in a browser (covered by integration tests).
+
+### History in the sidebar: the patient's Disease / Surgical history (02/11/2026) - open for the physician
+
+Physician's sheet 28/10/2026, item 7 ("On examination er aituk prescription er history te nia jao purota, same format a … Keu likhle porer bar o 'my personal note' er moto oi patient er khetre sob somoi thakbe … Aita ai patient er sob dr. Aita medication list (drug history) er moto print korar age hide kora jabe"). The release of 31/10/2026 read this item as the "by Dr." card of On examination; that card belongs to the sheet of 31/10 (item 3) and stays. This is the item as written.
+
+**What the sidebar's "History" was before (investigated):** a per-VISIT list of free lines (`history` in `MuqsitContext`, an `ExpandableField` with the suggestion list), saved on each prescription (`Prescription.history`), carried by the draft / `incompleteRx` / the device mirror, emptied by `resetEditor` for a new visit, and printed under "History". Nothing of it was kept for the patient. **It is unchanged:** old prescriptions keep their History lines, and the field works as before.
+
+**What was built:** under the visit's History lines, the patient's two lists — Disease history and Surgical / intervention history — in the On-examination popup's format (text box with the popup's placeholder, Date box DDMMYY, Add; entries listed). Kept for the patient (written to the server at Add), seen by every doctor who reaches the patient, ⊘ Hide on the row, × with a question and Undo (soft). Stored as `Disease Hx:` / `Surgical Hx:` entries of the shared On-examination history (`Patient.onExaminationSummary`), so every entry typed in the popup since 18/10/2026 shows in the sidebar, nothing is stored twice, and no schema change or SQL was needed. The popup's boxes are gone.
+
+- [ ] **⊘ Hide for History starts OFF** — History has always printed, so a new visit prints it as before (the visit's lines, and now the patient's Disease / Surgical history under them). Drug history's starts ON. The physician to say if History should start hidden.
+- [ ] **⊘ Hide takes the WHOLE History section off the sheet** — the visit's own History lines too, not only the patient's lists (like Drug history: all or nothing).
+- [ ] **The patient's history now prints at EVERY visit** (unless hidden) under History, as `Disease Hx: …` / `Surgical Hx: …` — the words On examination printed. Before, an entry printed only on the visit it was typed at, under On examination. A sheet may be longer than before.
+- [ ] **Entries are written at Add, not at Save & print.** A visit closed without printing still keeps them for the patient.
+- [ ] **Order:** the order first written (oldest first), as the popup listed them; the records page keeps newest first. The same words written at two visits are one entry.
+- [ ] **Who may add and remove:** every doctor who reaches the patient — the owner's practice (and its assistants with History's key `rx.history`; the server asks an assistant for any `rx.*` key, as for the append) and a supervising doctor. Removal is not limited to the entry's author (the server keeps who removed it, and Undo). The physician to say if only the author, or only the owner's practice, should remove.
+- [ ] **A removed entry is shown nowhere** — not in the sidebar, the records page's Disease and surgical history, nor the On-examination card of the visit it was written at. It stays in the record (`removedAt`, `removedBy`); there is no screen yet to see removed entries.
+- [ ] **The entry's visit date** is the prescription header's date when it was added; the date typed in the box is part of the text (`DM 01/01/2010`), as in the popup.
+- [ ] **The printed prescription is not a record of the history printed with it.** The saved prescription keeps this visit's History lines; the patient's Disease / Surgical history is read from the patient at print time (as the drug hypersensitivity list is). Before, the lines were saved in the prescription's On examination.
+- [ ] **A visit parked before this release** may carry Disease / Surgical history typed in the popup: the popup shows it read-only and it is saved and printed under On examination as before; after Save & print it also appears in the sidebar. On such a visit only, a preview made after that print shows it twice (once under each heading), and removing it in the sidebar before that visit is printed again would let the print put it back.
+- [ ] **Half-typed text in the boxes is not asked about** at Save & print or when another patient is opened — it is dropped with the patient, like the other sidebar boxes. Press Add to keep it.
+- [ ] **Another device's additions** reach this screen when the patient is opened again, and are on the paper at Save & print / Preview (the list is read again then).
+- [ ] **Not run in a browser** if the PR says so; the whole flow is covered in jsdom and by HTTP integration tests.
+

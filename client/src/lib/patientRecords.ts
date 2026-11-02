@@ -12,7 +12,7 @@ import { ddmmyyyyMs, isoToDdmmyyyy } from "@/lib/dateInput";
 import { NO_DATE } from "@/lib/drugHistoryAdd";
 import { parseDrugHistoryEntry, type DrugHistoryRow } from "@/lib/drugHistorySplit";
 import { dhakaToday } from "@/lib/opdDay";
-import type { OeFinding } from "@/lib/onExaminationSummary";
+import { isRemovedOe, type OeFinding } from "@/lib/onExaminationSummary";
 
 export interface DatedGroup<T> { date: string; items: T[] }
 
@@ -57,10 +57,11 @@ export const dateLabel = (d: string) => (d === NO_DATE ? NO_DATE_LABEL : d);
 
 export interface HxEntry { text: string; date: string; by: string | null }
 
-// The two history boxes of the On-examination popup are written into the
-// visit's On-examination lines as `Disease Hx: …` / `Surgical Hx: …`
-// (`lib/oeHistory.ts#historyLines`), and so reach the patient's shared
-// on-examination history on Save & print. Read back from there.
+// Disease / Surgical history are entries of the patient's shared
+// on-examination history written `Disease Hx: …` / `Surgical Hx: …` — by the
+// sidebar's History block since 02/11/2026 (`lib/patientHistory.ts`, at Add),
+// by the On-examination popup's boxes before (on Save & print). Read back from
+// there; an entry taken off in the sidebar (`removedAt`) is left out.
 const HX = { disease: "Disease Hx:", surgical: "Surgical Hx:" } as const;
 
 /** Each distinct disease / surgical history entry once, with the visit it was
@@ -72,6 +73,7 @@ export function diseaseSurgicalHistory(findings: OeFinding[]): { disease: HxEntr
     const first = new Map<string, HxEntry>();
     for (const f of findings ?? []) {
       if (!f || typeof f.text !== "string" || !f.text.startsWith(prefix)) continue;
+      if (isRemovedOe(f)) continue; // taken off in the sidebar (02/11/2026)
       const text = f.text.slice(prefix.length).trim();
       if (!text) continue;
       const key = text.toLowerCase();
