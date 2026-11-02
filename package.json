@@ -2,13 +2,13 @@
   "name": "muqsit",
   "version": "0.1.0",
   "private": true,
-  "description": "Muqsit Health System — patient management & prescription system (client + server + admin monorepo)",
+  "description": "Muqsit Health System \u2014 patient management & prescription system (client + server + admin monorepo)",
   "scripts": {
-    "dev": "concurrently -n api,web,admin -c blue,green,magenta \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:admin\"",
-    "dev:api": "npm --prefix server run start:dev",
-    "dev:web": "npm --prefix client run dev",
-    "dev:admin": "npm --prefix admin run dev",
-    "build": "npm --prefix server run build && npm --prefix client run build && npm --prefix admin run build",
+    "dev": "node init && concurrently -n api,web,admin -c blue,green,magenta \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:admin\"",
+    "dev:api": "node init && npm --prefix server run start:dev",
+    "dev:web": "node init && npm --prefix client run dev",
+    "dev:admin": "node init && npm --prefix admin run dev",
+    "build": "node init && npm --prefix server run build && npm --prefix client run build && npm --prefix admin run build",
     "install:all": "npm --prefix server install && npm --prefix client install && npm --prefix admin install"
   },
   "devDependencies": {
