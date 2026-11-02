@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
-import { appendOeEntries } from './on-examination';
+import { appendOeEntries, setHxRemoved, type HxKind } from './on-examination';
 import {
   CreatePatientDto,
   LinkPatientDto,
@@ -247,6 +247,48 @@ export class PatientsService {
       if (next.length !== stored.length) {
         await tx.patient.update({ where: { id }, data: { onExaminationSummary: next as Prisma.InputJsonValue } });
       }
+      return { onExaminationSummary: next };
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
+  }
+
+  // ⚕️ A Disease / Surgical history entry of the shared history taken off, or
+  // put back (sheet 28/10/2026, item 7). SOFT: the entry stays in the row with
+  // `removedAt` / `removedBy` (the practice doctor's name, never a client's
+  // word), and every reader leaves it out. Same reach and the same row lock as
+  // the append. Nothing to do — already removed elsewhere, or not there — is
+  // a 409 in a doctor's words, never a quiet success.
+  async setHistoryEntryRemoved(
+    doctorId: string,
+    id: string,
+    kind: HxKind,
+    text: string,
+    remove: boolean,
+  ): Promise<{ onExaminationSummary: unknown[] }> {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id, ...this.accessibleWhere(doctorId) },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
+    const author = await this.prisma.user.findUnique({
+      where: { id: doctorId },
+      select: { name: true, displayName: true },
+    });
+    const by = (author?.displayName?.trim() || author?.name?.trim() || '').slice(0, 160);
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ onExaminationSummary: unknown }>>`
+        SELECT "onExaminationSummary" FROM "Patient" WHERE "id" = ${id} FOR UPDATE
+      `;
+      const stored = locked[0]?.onExaminationSummary;
+      if (!Array.isArray(stored)) {
+        throw new ConflictException("This patient's history could not be read, so nothing was changed.");
+      }
+      const { next, changed } = setHxRemoved(stored, kind, text, remove ? { at: new Date().toISOString(), by } : null);
+      if (!changed) {
+        throw new ConflictException(remove
+          ? 'This entry is no longer in the patient\'s history — it may have been removed on another screen.'
+          : 'This entry was not found among the removed history, so nothing was put back.');
+      }
+      await tx.patient.update({ where: { id }, data: { onExaminationSummary: next as Prisma.InputJsonValue } });
       return { onExaminationSummary: next };
     }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
   }

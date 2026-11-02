@@ -115,3 +115,101 @@ describe('POST /patients/:id/on-examination', () => {
     expect(await stored(p)).toEqual([OLD]);
   });
 });
+
+// ⚕️ The sidebar's Disease / Surgical history (sheet 28/10/2026, item 7):
+// entries of the same shared list, taken off SOFTLY and put back by Undo.
+describe('POST /patients/:id/on-examination/remove and /restore', () => {
+  let t: TestApp;
+  let owner: User, supervisor: User, other: User, assistantRx: User, assistantNone: User;
+  let o: Agent, s: Agent, x: Agent, aRx: Agent, aNone: Agent;
+  const DM = { date: '20/10/2026', text: 'Disease Hx: DM 01/01/2010' }; // from the old popup, no author
+  const BP = { date: '20/10/2026', text: 'BP: 120/80 mmHg' };
+  const CHOLE = { date: '28/10/2026', text: 'Surgical Hx: H/O cholecystectomy 15/10/2026', by: 'Dr. Owner' };
+
+  beforeAll(async () => {
+    t = await createTestApp();
+    await resetDb(t.prisma);
+    owner = await makeDoctor(t.prisma, { name: 'Owner Name', displayName: 'Dr. Owner' });
+    supervisor = await makeDoctor(t.prisma, { name: 'Super Visor' });
+    other = await makeDoctor(t.prisma);
+    assistantRx = await makeDoctor(t.prisma);
+    assistantNone = await makeDoctor(t.prisma);
+    await makeAssistantLink(t.prisma, owner.id, assistantRx.id, ['rx.history']);
+    await makeAssistantLink(t.prisma, owner.id, assistantNone.id, []);
+    [o, s, x, aRx, aNone] = await Promise.all([owner, supervisor, other, assistantRx, assistantNone].map((u) => loginAs(t, u)));
+  });
+  afterAll(async () => {
+    await t.close();
+  });
+
+  const withOe = (onExaminationSummary: unknown) =>
+    makePatient(t.prisma, owner.id, { onExaminationSummary } as unknown as Partial<Patient>);
+  const call = (agent: Agent, p: Patient, what: 'remove' | 'restore', body: unknown, ws?: string) => {
+    const req = agent.post(`/api/patients/${p.id}/on-examination/${what}`);
+    return (ws ? req.set(WS, ws) : req).send(body as object);
+  };
+  const stored = async (p: Patient) =>
+    (await t.prisma.patient.findUniqueOrThrow({ where: { id: p.id } })).onExaminationSummary as Array<Record<string, unknown>>;
+
+  it('removes softly — the entry stays, stamped with the remover — and restore puts it back exactly', async () => {
+    const p = await withOe([DM, BP, CHOLE]);
+    const res = await call(o, p, 'remove', { kind: 'disease', text: ' dm 01/01/2010' });
+    expect(res.status).toBe(200);
+    const after = await stored(p);
+    expect(after).toHaveLength(3);
+    expect(after[0]).toEqual({ ...DM, removedAt: expect.any(String), removedBy: 'Dr. Owner' });
+    expect(after.slice(1)).toEqual([BP, CHOLE]);
+    expect(res.body.onExaminationSummary).toEqual(after);
+    const back = await call(o, p, 'restore', { kind: 'disease', text: 'DM 01/01/2010' });
+    expect(back.status).toBe(200);
+    expect(await stored(p)).toEqual([DM, BP, CHOLE]);
+  });
+
+  it('a supervising doctor reads the owner\'s entries, and may take one off and put it back', async () => {
+    const p = await withOe([DM, CHOLE]);
+    await makeSupervisor(t.prisma, p.id, supervisor.id);
+    const read = await s.get(`/api/patients/${p.id}`);
+    expect(read.status).toBe(200);
+    expect(read.body.onExaminationSummary).toEqual([DM, CHOLE]);
+    expect((await call(s, p, 'remove', { kind: 'surgical', text: 'H/O cholecystectomy 15/10/2026' })).status).toBe(200);
+    expect((await stored(p))[1]).toMatchObject({ removedBy: 'Super Visor' });
+    expect((await call(s, p, 'restore', { kind: 'surgical', text: 'H/O cholecystectomy 15/10/2026' })).status).toBe(200);
+    expect(await stored(p)).toEqual([DM, CHOLE]);
+  });
+
+  it('nothing to remove (or to restore) is a 409, and nothing is written', async () => {
+    const p = await withOe([DM, BP]);
+    expect((await call(o, p, 'remove', { kind: 'surgical', text: 'DM 01/01/2010' })).status).toBe(409);
+    expect((await call(o, p, 'remove', { kind: 'disease', text: '120/80 mmHg' })).status).toBe(409);
+    expect((await call(o, p, 'restore', { kind: 'disease', text: 'DM 01/01/2010' })).status).toBe(409);
+    expect(await stored(p)).toEqual([DM, BP]);
+  });
+
+  it('after a removal the same words can be added again — a new entry, not skipped', async () => {
+    const p = await withOe([DM]);
+    await call(o, p, 'remove', { kind: 'disease', text: 'DM 01/01/2010' });
+    const res = await o.post(`/api/patients/${p.id}/on-examination`).send({ entries: [{ date: DM.date, text: DM.text }] });
+    expect(res.status).toBe(201);
+    const after = await stored(p);
+    expect(after).toHaveLength(2);
+    expect(after[1]).toEqual({ ...DM, by: 'Dr. Owner' });
+  });
+
+  it("an assistant needs a prescription key; a doctor who cannot reach the patient is 404", async () => {
+    const p = await withOe([DM]);
+    expect((await call(aNone, p, 'remove', { kind: 'disease', text: 'DM 01/01/2010' }, owner.id)).status).toBe(403);
+    expect((await call(x, p, 'remove', { kind: 'disease', text: 'DM 01/01/2010' })).status).toBe(404);
+    expect(await stored(p)).toEqual([DM]);
+    expect((await call(aRx, p, 'remove', { kind: 'disease', text: 'DM 01/01/2010' }, owner.id)).status).toBe(200);
+  });
+
+  it.each([
+    ['an unknown kind', { kind: 'family', text: 'x' }],
+    ['no text', { kind: 'disease', text: '' }],
+    ['no kind', { text: 'DM 01/01/2010' }],
+  ])('a body with %s is refused, and nothing is written', async (_why, body) => {
+    const p = await withOe([DM]);
+    expect((await call(o, p, 'remove', body)).status).toBe(400);
+    expect(await stored(p)).toEqual([DM]);
+  });
+});
