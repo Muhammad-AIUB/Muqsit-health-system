@@ -14,6 +14,8 @@ import { useDialog } from "@/lib/useDialog";
 import AddMedicineRow from "./AddMedicineRow";
 import { useKbdLang } from "@/lib/kbdLang";
 import { rxCellIn, rxItemsIn } from "@/lib/rxLanguage";
+import { useDrugHistoryGenerics } from "@/hooks/useDrugHistoryGenerics";
+import DrugHistoryName, { GenericsNotLoaded, shownName } from "./DrugHistoryName";
 
 // ── Date-stamped drug history ───────────────────────────────
 // One list, each entry stamped with the visit date it was added on:
@@ -110,6 +112,11 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
     return { drug: parts[0] ?? "", dose: parts[1] ?? "", food: parts[2] ?? "", duration: parts[3] ?? "" };
   };
   const currentMedEntries = currentMeds.map(toAddInput);
+  // ⚕️ Read by the generic (physician, 02/11/2026) — display only; the entries,
+  // ticks, Move to Rx and every "already on ℞" check read the stored text.
+  // The chart is asked once per opening of the list, for both tabs.
+  const medLabels = [...todays, ...split.past].filter((p) => p.kind === "med").map((p) => cells(p.body)[0] ?? "").filter(Boolean);
+  const generics = useDrugHistoryGenerics(Array.from(new Set(medLabels)), open);
   const pastMedEntries = pastParsed.filter((p) => p.kind === "med").map(toAddInput);
 
   const pastGroups = (() => {
@@ -242,6 +249,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px" }}>
+              <GenericsNotLoaded g={generics} />
               {tab === "current" ? (
                 <>
                   <AddMedicineRow key="current" existing={currentMedEntries} tabLabel="Current medications" date={cd} onAdd={addDrugHistoryEntries} />
@@ -269,7 +277,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                         <span style={{ display: "flex", alignItems: "center", paddingTop: 2 }}>
                           {tick ? (
                             <Tick checked={sel.has(tick.key)} dim={!tick.head}
-                              label={tick.head ? `Select ${parts[0]}` : "Part of the medicine above"}
+                              label={tick.head ? `Select ${shownName(parts[0] ?? "", generics.answer(parts[0] ?? ""))}` : "Part of the medicine above"}
                               onToggle={tick.head ? () => toggle(tick.key) : undefined} />
                           ) : null}
                         </span>
@@ -294,7 +302,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                         <div style={row}>
                           {tickCell}
                           <span style={{ color: C.n[400], fontSize: 11.5 }}>{isCont ? "↳" : `${todaysNumbers[i]}.`}</span>
-                          <span style={{ color: C.n[900], fontWeight: isCont ? 400 : 500, overflowWrap: "anywhere" }}>{isCont ? "" : parts[0]}</span>
+                          <span style={{ color: C.n[900], fontWeight: isCont ? 400 : 500, overflowWrap: "anywhere" }}>{isCont ? "" : <DrugHistoryName label={parts[0] ?? ""} answer={generics.answer(parts[0] ?? "")} />}</span>
                           <span style={{ color: C.n[700] }}>{dose}</span>
                           <span style={{ color: C.n[700] }}>{food}</span>
                           <span style={{ color: C.n[700] }}>{duration}</span>
@@ -328,7 +336,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                               <span style={{ width: 13, flexShrink: 0, display: "flex", alignItems: "center" }}>
                                 {tick ? (
                                   <Tick checked={sel.has(tick.key)} dim={!tick.head}
-                                    label={tick.head ? `Select ${parts[0]}` : "Part of the medicine above"}
+                                    label={tick.head ? `Select ${shownName(parts[0] ?? "", generics.answer(parts[0] ?? ""))}` : "Part of the medicine above"}
                                     onToggle={tick.head ? () => toggle(tick.key) : undefined} />
                                 ) : null}
                               </span>
@@ -336,7 +344,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                             <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: C.n[800] }}>
                               {p.kind === "cont" ? <span style={{ color: C.n[400] }}>↳ </span> : null}
                               {p.kind === "note" ? <i style={{ color: C.n[600] }}>{p.body}</i> : (
-                                <><b style={{ fontWeight: 600 }}>{parts[0]}</b>{parts.slice(1).filter(Boolean).length ? <span style={{ color: C.n[500] }}> · {parts.slice(1).filter(Boolean).join(" · ")}</span> : null}</>
+                                <><b style={{ fontWeight: 600 }}>{p.kind === "cont" ? parts[0] : <DrugHistoryName label={parts[0] ?? ""} answer={generics.answer(parts[0] ?? "")} />}</b>{parts.slice(1).filter(Boolean).length ? <span style={{ color: C.n[500] }}> · {parts.slice(1).filter(Boolean).join(" · ")}</span> : null}</>
                               )}
                             </div>
                           </div>

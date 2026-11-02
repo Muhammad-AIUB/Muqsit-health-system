@@ -44,6 +44,8 @@ export const MONTH_DAYS = 30;
 /** A row of the medicine chart, as `POST /medicines/by-brand` gives it. */
 export interface ChartRow {
   brandName: string;
+  /** The catalogue's generic (02/11/2026, for Drug history). Not read for a price. */
+  genericName?: string | null;
   dosageForm: string | null;
   strength: string | null;
   priceRaw: string | null;
@@ -244,6 +246,7 @@ export function readChartRows(body: unknown): ChartRow[] | null {
     .filter((r): r is Record<string, unknown> => !!r && typeof r === "object" && typeof (r as { brandName?: unknown }).brandName === "string")
     .map((r) => ({
       brandName: r.brandName as string,
+      genericName: textOrNull(r.genericName),
       dosageForm: textOrNull(r.dosageForm),
       strength: textOrNull(r.strength),
       priceRaw: textOrNull(r.priceRaw),

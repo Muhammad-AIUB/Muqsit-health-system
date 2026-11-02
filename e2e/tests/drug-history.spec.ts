@@ -33,7 +33,7 @@ test('Move to Rx does not write a line a second time because its medicine was ty
   // Today: the same patient, and the same medicine PICKED from the medicine
   // list, with the same dose and duration.
   await mobileLookup(page).fill(mobile);
-  // The patient's own row begins with the name ("＋ Add person related to …" ends with it).
+  // The patient's own row begins with the name ("Add person related to …" ends with it).
   await page.getByRole('button', { name: /^Move Rx Patient/ }).click();
   await expect(newRxButton(page)).toBeVisible();
   await expect(page.getByPlaceholder('Patient name')).toHaveValue('Move Rx Patient');
@@ -45,7 +45,13 @@ test('Move to Rx does not write a line a second time because its medicine was ty
   // That visit is the previous one, so its medicines are under Current
   // medications (physician's sheet, 18/10/2026, item 2), which the box opens on.
   await expect(box.getByRole('button', { name: /^Current medications \(2\)/ })).toBeVisible();
-  await box.getByRole('checkbox', { name: 'Select tab napa 500mg' }).check();
+  // ⚕️ Read by the generic (physician, 02/11/2026): the stored `tab napa 500mg`
+  // is shown as `tab Paracetamol 500mg`, the form and strength as typed; the
+  // made-up medicine is not in the chart and is shown as stored, marked.
+  await expect(box.getByText('tab Paracetamol 500mg')).toBeVisible();
+  await expect(box).not.toContainText('napa');
+  await expect(box).toContainText(`${OTHER}(generic not found)`);
+  await box.getByRole('checkbox', { name: 'Select tab Paracetamol 500mg' }).check();
   await box.getByRole('checkbox', { name: `Select ${OTHER}` }).check();
   await box.getByRole('button', { name: 'Move to Rx (2)' }).click();
   // One line was there already — and it is said, not swallowed.
@@ -56,7 +62,7 @@ test('Move to Rx does not write a line a second time because its medicine was ty
   await settle(page);
 
   // The pad: Napa ONCE, as it was picked; then the other medicine, as the
-  // history has it; then the typing line.
+  // history has it (the stored brand line, never the generic); then the typing line.
   await expect(padRow(page, 0).locator('input').first()).toHaveValue(NAPA.label);
   await expect(padRow(page, 0).getByPlaceholder('dose')).toHaveValue(NAPA.dose);
   await expect(padRow(page, 1).locator('input').first()).toHaveValue(OTHER);

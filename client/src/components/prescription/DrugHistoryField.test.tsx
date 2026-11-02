@@ -44,9 +44,26 @@ vi.mock("@/hooks/useMedicineSearch", () => ({
   useMedicineSearch: (q: string) => ({ results: /napa/i.test(q ?? "") ? [NAPA] : [], isLoading: false }),
 }));
 vi.mock("@/hooks/useRxHabits", () => ({ useRxHabits: () => ({ groups: [], refresh: vi.fn() }) }));
+// The medicine chart's answer for the generic names (02/11/2026): null while it
+// is "being asked" (the default — every test before this reads the stored text),
+// else the rows, read by the real `genericOf`. `chartFailed` is a lookup that failed.
+const chart = vi.hoisted(() => ({ rows: null as null | import("@/lib/monthlyCost").ChartRow[], failed: false, opened: [] as boolean[] }));
+vi.mock("@/hooks/useDrugHistoryGenerics", async () => {
+  const { genericOf } = await import("@/lib/drugHistoryGeneric");
+  return {
+    useDrugHistoryGenerics: (_labels: string[], enabled: boolean) => {
+      chart.opened.push(enabled);
+      return {
+        state: chart.failed ? "failed" : chart.rows ? "ready" : "asking",
+        answer: (l: string) => (chart.rows && !chart.failed ? genericOf(l, chart.rows) : null),
+        retry: () => {}, retrying: false,
+      };
+    },
+  };
+});
 vi.mock("@/hooks/useDoctorPhrases", () => ({ useDoctorPhrases: () => ({ phrases: [], refresh: vi.fn() }) }));
 
-afterEach(() => { cleanup(); setRxItems.mockClear(); addDrugHistoryEntries.mockReset().mockReturnValue(true); padItems = []; mayWriteRx = true; act(() => setKbdLang("en")); });
+afterEach(() => { cleanup(); setRxItems.mockClear(); addDrugHistoryEntries.mockReset().mockReturnValue(true); padItems = []; mayWriteRx = true; chart.rows = null; chart.failed = false; chart.opened = []; act(() => setKbdLang("en")); });
 
 /** The array `setRxItems` would have produced, given the pad it was called on. */
 const appended = (prev: RxItem[] = padItems): RxItem[] => {
@@ -548,3 +565,107 @@ describe("Drug history shows the dose / food / duration in the current language"
     expect(screen.getByLabelText("Select Metformin 500mg")).toBeTruthy();
   });
 });
+
+// ⚕️ Drug history is READ by the generic, never by the trade name (physician,
+// 02/11/2026: "drug history te trade name show korbe na kokono medicine er").
+// Display only: the stored entry, the counts, Move to Rx and "already on ℞"
+// keep the stored text.
+describe("Drug history shows the generic, never the trade name", () => {
+  const row = (brandName: string, genericName: string | null, dosageForm: string | null, strength: string | null) =>
+    ({ brandName, genericName, dosageForm, strength, priceRaw: null });
+  const STORED = [
+    "01/09/2026: Tablet. Famotack 20 mg — 1+0+1 — Before meal — 1 month",
+    "01/09/2026: Tablet. Handtyped 5 mg — 1+0+0 — — 7 days",
+    "01/09/2026: Tablet. Twogen 10 mg — 0+0+1 — — 7 days",
+    "10/01/2024: Tablet. Famotack 40 mg — 1+0+1 — — 1 month",
+  ];
+  const ROWS = [
+    row("Famotack", "Famotidine", "Tablet", "20 mg"),
+    row("Famotack", "Famotidine", "Tablet", "40 mg"),
+    row("Twogen", "Alpha", "Tablet", "10 mg"),
+    row("Twogen", "Beta", "Tablet", "10 mg"),
+  ];
+  const dialogText = () => (screen.getByRole("dialog").textContent ?? "");
+
+  it("one generic: shown as form + generic + strength, the brand nowhere in the list", () => {
+    chart.rows = ROWS;
+    render(<DrugHistoryField items={STORED} />);
+    openModal();
+    expect(screen.getByText("Tablet. Famotidine 20 mg")).toBeTruthy();
+    expect(dialogText()).not.toContain("Famotack");
+    fireEvent.click(screen.getByText(/^Distant past medication/));
+    expect(screen.getByText("Tablet. Famotidine 40 mg")).toBeTruthy();
+    expect(dialogText()).not.toContain("Famotack");
+  });
+
+  it("none or several generics: the entry as stored, marked quietly, never hidden", () => {
+    chart.rows = ROWS;
+    render(<DrugHistoryField items={STORED} />);
+    openModal();
+    expect(dialogText()).toContain("Tablet. Handtyped 5 mg");
+    expect(dialogText()).toContain("(generic not found)");
+    expect(dialogText()).toContain("Tablet. Twogen 10 mg");
+    expect(dialogText()).toContain("(more than one generic in the medicine chart)");
+    expect(dialogText()).not.toContain("Alpha");
+    expect(dialogText()).not.toContain("Beta");
+  });
+
+  it("a failed lookup (offline): every entry as stored, no per-line note, and the list says so once", () => {
+    chart.failed = true;
+    render(<DrugHistoryField items={STORED} />);
+    openModal();
+    expect(dialogText()).toContain("Tablet. Famotack 20 mg");
+    expect(dialogText()).toContain("Tablet. Handtyped 5 mg");
+    expect(dialogText()).not.toContain("generic not found");
+    expect(screen.getByText(/Generic names could not be loaded/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+
+  it("asks the chart only while the list is open", () => {
+    render(<DrugHistoryField items={STORED} />);
+    expect(chart.opened.every((o) => o === false)).toBe(true);
+    openModal();
+    expect(chart.opened[chart.opened.length - 1]).toBe(true);
+  });
+
+  it("the counts are the same whatever the chart says", () => {
+    render(<DrugHistoryField items={STORED} />);
+    const before = badgeText();
+    cleanup();
+    chart.rows = ROWS;
+    render(<DrugHistoryField items={STORED} />);
+    expect(badgeText()).toBe(before);
+    expect(before).toBe("💊 3 current · 1 past · view");
+  });
+
+  it("Move to Rx puts the STORED brand line on the pad, not the generic", () => {
+    chart.rows = ROWS;
+    render(<DrugHistoryField items={STORED} />);
+    openModal();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Tablet. Famotidine 20 mg" }));
+    fireEvent.click(screen.getByText(/^Move to Rx/));
+    const added = appended([]);
+    expect(added.map((it) => it.drug)).toEqual(["Tablet. Famotack 20 mg"]);
+  });
+
+  it("'already on ℞' compares the stored text: the brand on the pad is skipped, the generic would not be", () => {
+    chart.rows = ROWS;
+    padItems = [{ drug: "Tablet. Famotack 20 mg", dose: "1+0+1", instruction: "Before meal", duration: "1 month" }];
+    render(<DrugHistoryField items={STORED} />);
+    openModal();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Tablet. Famotidine 20 mg" }));
+    fireEvent.click(screen.getByText(/^Move to Rx/));
+    expect(appended()).toEqual(padItems);
+    expect(screen.getByText("0 added · 1 already on ℞")).toBeTruthy();
+  });
+
+  it("never changes a stored entry", () => {
+    chart.rows = ROWS;
+    const items = [...STORED];
+    render(<DrugHistoryField items={items} />);
+    openModal();
+    expect(items).toEqual(STORED);
+    expect(addDrugHistoryEntries).not.toHaveBeenCalled();
+  });
+});
+

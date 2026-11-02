@@ -23,10 +23,10 @@ describe('MedicinesService.byBrand', () => {
     expect($queryRawUnsafe.mock.calls[0][0]).not.toContain('napa');
   });
 
-  it('gives back the rows as the chart holds them: brand, form, strength and the price as written', async () => {
+  it('gives back the rows as the chart holds them: brand, generic, form, strength and the price as written', async () => {
     const { svc } = svcWith();
     expect(await svc.byBrand(['napa'])).toEqual({
-      rows: [{ brandName: 'Napa', dosageForm: 'Tablet', strength: '500 mg', priceRaw: 'Unit Price: ৳ 1.20 (50 x 10: ৳ 60.00)' }],
+      rows: [{ brandName: 'Napa', genericName: 'Paracetamol', dosageForm: 'Tablet', strength: '500 mg', priceRaw: 'Unit Price: ৳ 1.20 (50 x 10: ৳ 60.00)' }],
     });
   });
 

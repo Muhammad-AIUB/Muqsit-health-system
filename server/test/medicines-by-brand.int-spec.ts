@@ -12,7 +12,7 @@ import { resetDb } from './support/test-db';
 // the shapes the chart's source workbooks use.
 
 type Browser = ReturnType<TestApp['agent']>;
-interface Row { brandName: string; dosageForm: string | null; strength: string | null; priceRaw: string | null }
+interface Row { brandName: string; genericName: string | null; dosageForm: string | null; strength: string | null; priceRaw: string | null }
 
 const ROWS: [string, string | null, string | null, string | null][] = [
   ['Zzprice', 'Tablet', '20 mg', 'Unit Price: ৳ 7.00 (3 x 10: ৳ 210.00)'],
@@ -63,6 +63,8 @@ describe('POST /api/medicines/by-brand', () => {
       ['Zzprice', null, null, null],
       ['zzprice Extra', 'Capsule (Enteric Coated)', '40 mg', "Unit Price: ৳ 12.50 (100's pack: ৳ 1,250.00)"],
     ]);
+    // With the generic, which Drug history shows in place of the brand (02/11/2026).
+    expect(new Set(rows.map((r) => r.genericName))).toEqual(new Set(['Made-up generic']));
   });
 
   it('a word is asked in any case, and each once', async () => {

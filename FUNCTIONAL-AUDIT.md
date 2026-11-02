@@ -1423,3 +1423,13 @@ Open:
 - [ ] **Assumed:** "every plus" means every ADD. The zoom-in `+`, a directory group's open `+` / `−` and the Anaemia / Jaundice grades `+ ++ +++` were left as they were; the admin console was not changed.
 - [ ] **Assumed:** buttons with words keep their words, with the circled plus in front ("⊕ Add medicine"); the `+` is no longer part of the words.
 - [ ] **Not checked:** the photo on a slow network in a real browser (the `<img>` is redrawn per patient so the old face cannot linger while the new one downloads), and the circled plus in night mode by eye.
+
+### Drug history shown by its generic names (02/11/2026) - open for the physician
+- [ ] **Should the PRINTED prescription's Drug history block also show generics?** Not changed: the printed sheet is a legal document and still prints each entry as stored (the brand line). The Records page's Download prints them as stored too.
+- [ ] **Assumed:** "drug history" means the Drug history modal (Current medications and Distant past) and the Records page's Drug history section. The Health-trend chart's medicine bars, the ℞ pad, "+ Add medicine", H/O drug hypersensitivity and the monthly-cost list still show the brand.
+- [ ] **Assumed:** the name shown is `<dosage form as stored> <generic> <strength as stored>`; the brand is shown nowhere in the list, not even in a tooltip. While the chart is being asked (a moment after the list opens) the entries are shown as stored.
+- [ ] **A medicine the chart lists under two different generics is shown as stored**, marked "more than one generic in the medicine chart" — never one of them. "Your usual" uses the first such generic (older rule, `server/CLAUDE.md`); the two differ on purpose until the catalogue is looked at.
+- [ ] **A label the chart cannot match is shown as stored, marked "generic not found"** — hand-typed medicines, a strength the chart does not have, a form written another way the app does not know.
+- [ ] **Not verified against the production medicine chart** (the test chart has six medicines): how many stored entries find exactly one generic is not known.
+- [ ] **Not checked by eye:** the note's look in night mode and on a phone.
+

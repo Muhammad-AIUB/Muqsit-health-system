@@ -10,10 +10,11 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-const api = vi.hoisted(() => ({ list: vi.fn() }));
+const api = vi.hoisted(() => ({ list: vi.fn(), byBrand: vi.fn() }));
 vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<object>()),
   prescriptionsApi: { listByPatient: api.list, create: vi.fn() },
+  medicinesApi: { byBrand: api.byBrand },
 }));
 let ctx: Record<string, unknown>;
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
@@ -41,6 +42,8 @@ let written: string[];
 beforeEach(() => {
   api.list.mockReset();
   api.list.mockResolvedValue([]);
+  api.byBrand.mockReset();
+  api.byBrand.mockResolvedValue({ rows: [] });
   written = [];
   vi.spyOn(window, "open").mockImplementation(() => ({ document: { write: (h: string) => written.push(h), close: () => {} } }) as unknown as Window);
 });
@@ -143,3 +146,41 @@ describe("the history sections after the Investigation summary", () => {
     expect(within(sectionOf("Diagnosis history")).getByText("Asthma")).toBeTruthy();
   });
 });
+
+// ⚕️ Drug history is READ by the generic here too (physician, 02/11/2026) —
+// display only; the Download keeps the entries as stored.
+describe("Drug history on the records page shows the generic", () => {
+  const HISTORY = [
+    "20/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 7 days",
+    "20/10/2026(cont): 0+0+1 —  — 7 days",
+    "20/10/2026: Tablet. Handtyped 5 mg — 1+0+0 —  — 7 days",
+  ];
+  it("one generic in place of the brand, as stored where none is found; tapers and Download unchanged", async () => {
+    api.byBrand.mockResolvedValue({ rows: [{ brandName: "Napa", genericName: "Paracetamol", dosageForm: "Tablet", strength: "500 mg", priceRaw: null }] });
+    ctx = fresh({ drugHistory: HISTORY });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    const dh = sectionOf("Drug history");
+    expect(api.byBrand).toHaveBeenCalledTimes(1);
+    expect(dh.textContent).toContain("Tablet. Paracetamol 500 mg — 1+0+1 —  — 7 days");
+    expect(dh.textContent).not.toContain("Napa");
+    expect(dh.textContent).toContain("Tablet. Handtyped 5 mg(generic not found) — 1+0+0");
+    expect(within(dh).getByText(/0\+0\+1/)).toBeTruthy();
+    fireEvent.click(within(dh).getByLabelText("Download Drug history"));
+    expect(written[0]).toContain("Tablet. Napa 500 mg");
+    expect(ctx.drugHistory).toEqual(HISTORY);
+  });
+
+  it("a failed lookup shows every entry as stored and says so once", async () => {
+    api.byBrand.mockRejectedValue(new Error("Failed to fetch"));
+    ctx = fresh({ drugHistory: HISTORY });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    const dh = sectionOf("Drug history");
+    // After the hook's two quiet retries (about 3 s).
+    expect(await within(dh).findByText(/Generic names could not be loaded/, undefined, { timeout: 8000 })).toBeTruthy();
+    expect(dh.textContent).toContain("Tablet. Napa 500 mg");
+    expect(dh.textContent).not.toContain("generic not found");
+  });
+});
+

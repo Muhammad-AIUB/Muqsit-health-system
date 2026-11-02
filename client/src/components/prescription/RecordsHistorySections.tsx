@@ -17,6 +17,8 @@ import { tell } from "@/lib/dialogs";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { dhakaToday } from "@/lib/opdDay";
 import { buildRecordsDoc, type DocGroup } from "@/lib/recordsDoc";
+import { useDrugHistoryGenerics } from "@/hooks/useDrugHistoryGenerics";
+import DrugHistoryName, { GenericsNotLoaded } from "./DrugHistoryName";
 import { dateLabel, diseaseSurgicalHistory, drugHistoryByDate, perVisit, type HxEntry } from "@/lib/patientRecords";
 import { oeAuthorLabel } from "@/lib/onExaminationSummary";
 import { LoadError } from "@/components/common/ListState";
@@ -61,6 +63,11 @@ const line: React.CSSProperties = { fontSize: 13, color: C.n[800], lineHeight: 1
 const heading: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: C.n[900], marginBottom: 2 };
 const section: React.CSSProperties = { marginTop: 22 };
 
+// A stored medicine line is `Drug — dose — food — duration`: its name, and the rest as written.
+const SEP = " — ";
+const medName = (body: string): string => { const i = body.indexOf(SEP); return (i === -1 ? body : body.slice(0, i)).trim(); };
+const medRest = (body: string): string => { const i = body.indexOf(SEP); return i === -1 ? "" : body.slice(i); };
+
 export default function RecordsHistorySections() {
   const { currentPatientId, drugHistory, ptDate, onExaminationSummary, ptName } = useMuqsit();
   const patient = useRecordsPatient();
@@ -76,6 +83,12 @@ export default function RecordsHistorySections() {
 
   const visitDate = isoToDdmmyyyy(ptDate);
   const dh = useMemo(() => drugHistoryByDate(drugHistory ?? [], visitDate), [drugHistory, visitDate]);
+  // ⚕️ Read by the generic (physician, 02/11/2026), as in the Drug history
+  // modal — display only. The Download keeps the entries as stored (open
+  // question for the physician, FUNCTIONAL-AUDIT.md).
+  const medLabels = useMemo(() => Array.from(new Set(dh.flatMap((g) => g.items)
+    .filter((r) => r.kind === "med").map((r) => medName(r.body)).filter(Boolean))), [dh]);
+  const generics = useDrugHistoryGenerics(medLabels, dh.length > 0);
   const hx = useMemo(() => diseaseSurgicalHistory(onExaminationSummary ?? []), [onExaminationSummary]);
   const rxList = Array.isArray(rxQuery.data) ? rxQuery.data : undefined;
   const complaints = useMemo(() => perVisit(rxList, "chiefComplaints"), [rxList]);
@@ -123,13 +136,15 @@ export default function RecordsHistorySections() {
           <div style={empty}>No drug history recorded for this patient.</div>
         ) : (
           <div style={card}>
+            <GenericsNotLoaded g={generics} />
             {dh.map((g, gi) => (
               <div key={gi} style={{ marginBottom: gi < dh.length - 1 ? 12 : 0 }}>
                 <div style={heading}>{dateLabel(g.date)}</div>
                 <div style={{ paddingLeft: 16 }}>
                   {g.items.map((r, i) => (
                     <div key={i} style={{ ...line, paddingLeft: r.kind === "cont" ? 18 : 0, color: r.kind === "note" ? C.n[600] : C.n[800], fontStyle: r.kind === "note" ? "italic" : undefined }}>
-                      {r.kind === "cont" ? <span aria-hidden="true">↳ </span> : null}{r.body}
+                      {r.kind === "cont" ? <span aria-hidden="true">↳ </span> : null}
+                      {r.kind === "med" ? <><DrugHistoryName label={medName(r.body)} answer={generics.answer(medName(r.body))} />{medRest(r.body)}</> : r.body}
                     </div>
                   ))}
                 </div>

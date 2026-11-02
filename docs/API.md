@@ -695,10 +695,11 @@ parameter) is answered as before; its cross-tab read is not covered.
 ranked brand-prefix → brand-contains → generic-prefix → generic-contains, then by
 dosage form.
 
-`by-brand` (2026-10-14) → `{ rows: { brandName, dosageForm, strength, priceRaw }[] }`:
+`by-brand` (2026-10-14) → `{ rows: { brandName, genericName, dosageForm, strength, priceRaw }[] }` (`genericName` added 02/11/2026 for Drug history's generic names — additive):
 every row whose brand's FIRST WORD is one of `words` (lower case; asked once
 each), ordered brand, form, strength. It feeds the "Total monthly approximate
-cost" box on the prescription header: the client sends the first word of each
+cost" box on the prescription header, and the generic names of the Drug history
+modal and the Records page (`client/src/lib/drugHistoryGeneric.ts`): the client sends the first word of each
 brand on the ℞ pad, decides which row IS each line's medicine by its own
 comparison (`client/src/lib/medicineKey.ts#sameMedicine` — form and strength
 included, so Sergel 20 mg is never priced as Sergel 40 mg), and reads `priceRaw`

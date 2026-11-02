@@ -2,9 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { catalogueRowsByBrandWord } from './catalogue';
 
-/** A catalogue row as the monthly-cost box reads it: the medicine, and its price as the chart writes it. */
+/**
+ * A catalogue row as the monthly-cost box reads it: the medicine, and its price
+ * as the chart writes it — and its generic, which Drug history shows in place
+ * of the brand (physician, 02/11/2026; additive: the cost box ignores it).
+ */
 export interface PricedRow {
   brandName: string;
+  genericName: string | null;
   dosageForm: string | null;
   strength: string | null;
   priceRaw: string | null;
@@ -83,7 +88,7 @@ export class MedicinesService {
     if (asked.length === 0) return { rows: [] };
     const rows = await catalogueRowsByBrandWord(this.prisma, asked);
     return {
-      rows: rows.map((r) => ({ brandName: r.brandName, dosageForm: r.dosageForm, strength: r.strength, priceRaw: r.priceRaw })),
+      rows: rows.map((r) => ({ brandName: r.brandName, genericName: r.genericName, dosageForm: r.dosageForm, strength: r.strength, priceRaw: r.priceRaw })),
     };
   }
 }

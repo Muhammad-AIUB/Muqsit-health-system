@@ -32,6 +32,7 @@ vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }
 vi.mock("@/hooks/useMedicineSearch", () => ({ useMedicineSearch: () => ({ results: [], isLoading: false }) }));
 vi.mock("@/hooks/useFieldRecents", () => ({ useFieldRecents: () => ({ getRecents: () => [], addRecents: vi.fn() }) }));
 vi.mock("@/hooks/useDoctorPhrases", () => ({ useDoctorPhrases: () => ({ phrases: [], refresh: vi.fn() }) }));
+vi.mock("@/hooks/useDrugHistoryGenerics", () => ({ useDrugHistoryGenerics: () => ({ state: "asking", answer: () => null, retry: () => {}, retrying: false }) }));
 // The shells draw whole screens around their tab bars; only the bars are tried here.
 vi.mock("./AccountMenu", () => ({ default: () => null }));
 vi.mock("./MirrorToggle", () => ({ default: () => null }));

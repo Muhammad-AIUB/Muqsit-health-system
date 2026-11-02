@@ -282,12 +282,16 @@ describe("monthlyCost — a medicine's month, priced", () => {
 });
 
 describe("readChartRows — the server's answer, read without trusting it", () => {
+  // The generic rides along since 02/11/2026 (Drug history's names); a row
+  // without one reads it as null.
   it("reads the rows", () => {
-    expect(readChartRows({ rows: [CHART[0]] })).toEqual([CHART[0]]);
+    expect(readChartRows({ rows: [CHART[0]] })).toEqual([{ ...CHART[0], genericName: null }]);
+    expect(readChartRows({ rows: [{ ...CHART[0], genericName: "Famotidine" }] })).toEqual([{ ...CHART[0], genericName: "Famotidine" }]);
+    expect(readChartRows({ rows: [{ ...CHART[0], genericName: 7 }] })).toEqual([{ ...CHART[0], genericName: null }]);
   });
 
   it("skips a row it cannot read, and keeps the rest", () => {
-    expect(readChartRows({ rows: [CHART[0], { brandName: 7 }, null, "x"] })).toEqual([CHART[0]]);
+    expect(readChartRows({ rows: [CHART[0], { brandName: 7 }, null, "x"] })).toEqual([{ ...CHART[0], genericName: null }]);
   });
 
   it.each([null, undefined, "", 7, [], {}, { rows: "no" }, "<html>Sign in</html>"])("%j is not the chart: null", (body) => {
