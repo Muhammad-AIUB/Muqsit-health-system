@@ -1437,5 +1437,5 @@ Physician's sheet 28/10/2026, item 7 ("On examination er aituk prescription er h
 - [ ] **A visit parked before this release** may carry Disease / Surgical history typed in the popup: the popup shows it read-only and it is saved and printed under On examination as before; after Save & print it also appears in the sidebar. On such a visit only, a preview made after that print shows it twice (once under each heading), and removing it in the sidebar before that visit is printed again would let the print put it back.
 - [ ] **Half-typed text in the boxes is not asked about** at Save & print or when another patient is opened — it is dropped with the patient, like the other sidebar boxes. Press Add to keep it.
 - [ ] **Another device's additions** reach this screen when the patient is opened again, and are on the paper at Save & print / Preview (the list is read again then).
-- [ ] **Not run in a browser** if the PR says so; the whole flow is covered in jsdom and by HTTP integration tests.
+- [ ] **Browser:** run in Chromium only (`e2e/tests/history-sidebar.spec.ts`: add, reload, × / Undo; the whole suite 47 passed, 1 skipped as before). Not run: Safari / Firefox, a phone, the printed sheet on paper (its History lines are pinned in unit tests), an assistant or a supervising doctor in a browser (covered by integration tests).
 
