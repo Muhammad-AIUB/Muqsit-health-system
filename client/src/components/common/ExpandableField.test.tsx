@@ -185,7 +185,7 @@ describe("ExpandableField — the P.D (previous diagnosis) panel", () => {
     render(
       <ExpandableField label="Final diagnosis" items={items} setItems={setItems} inlineEdit previousItems={previousItems} />,
     );
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     return { setItems };
   };
 
@@ -344,7 +344,7 @@ describe("ExpandableField — the doctor's own learned phrases", () => {
     const r = render(
       <ExpandableField label="Advice" items={[]} setItems={vi.fn()} suggestions={["Plenty of fluids"]} {...props} />,
     );
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     return r;
   };
   const chips = () =>
@@ -412,7 +412,7 @@ describe("ExpandableField — the doctor's own learned phrases", () => {
 describe("ExpandableField — Investigations / Investigations group tabs", () => {
   const open = (props: Partial<React.ComponentProps<typeof ExpandableField>> = {}, setItems = vi.fn()) => {
     render(<ExpandableField label="Advised tests / investigation" items={["ESR"]} setItems={setItems} suggestions={["CBC"]} {...props} />);
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     return setItems;
   };
 
@@ -455,7 +455,7 @@ describe("ExpandableField — Advised tests shows only the doctor's own tests", 
   it("with no built-in list, the chips are exactly the doctor's recents", () => {
     recents = ["Serum ferritin", "CBC"];
     render(<ExpandableField label="Advised tests / investigation" items={[]} setItems={vi.fn()} investigationTabs />);
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     expect(screen.getByText("Suggestions")).toBeTruthy();
     expect(screen.getByText(/Serum ferritin/)).toBeTruthy();
     expect(screen.queryByText("USG abdomen")).toBeNull();
@@ -463,14 +463,14 @@ describe("ExpandableField — Advised tests shows only the doctor's own tests", 
 
   it("with no recents yet, there is no Suggestions section at all", () => {
     render(<ExpandableField label="Advised tests / investigation" items={[]} setItems={vi.fn()} investigationTabs />);
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     expect(screen.queryByText("Suggestions")).toBeNull();
   });
 
   it("typing a test and pressing Add puts it in Added", () => {
     const setItems = vi.fn();
     render(<ExpandableField label="Advised tests / investigation" items={[]} setItems={setItems} investigationTabs />);
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     fireEvent.change(screen.getByPlaceholderText(/Type advised tests/), { target: { value: "Serum ferritin" } });
     fireEvent.click(screen.getByText("Add"));
     expect(screen.getByText("Added (1)")).toBeTruthy();

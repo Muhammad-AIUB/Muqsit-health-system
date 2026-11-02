@@ -37,7 +37,7 @@ vi.setConfig({ testTimeout: 30_000 });
 afterEach(() => { cleanup(); byMobile.mockReset(); admitMock.mockReset(); });
 
 const SAVED = { id: "p1", name: "srii nornob", mobile: "01827115684", hospitalId: "H-77" } as Patient;
-const openForm = () => fireEvent.click(screen.getByText("+ Admit patient"));
+const openForm = () => fireEvent.click(screen.getByText("Admit patient"));
 const mobileBox = () => screen.getByRole("textbox", { name: "Mobile" });
 const bedBox = () => screen.getByRole("textbox", { name: "Bed" });
 const admitBtn = () => screen.getByRole("button", { name: "Admit" }) as HTMLButtonElement;

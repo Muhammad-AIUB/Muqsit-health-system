@@ -149,11 +149,11 @@ describe("suggestions: everything the doctor wrote, no count, + for recent", () 
     expect(list.getByRole("button").textContent).toBe("★ Insulin as before");
   });
 
-  it("marks a recent line with the plus icon, never ↺", () => {
+  it("marks a recent line with the circled plus icon, never ↺", () => {
     recents = ["Typed earlier"];
     const list = openEmpty();
     const chip = list.getByRole("button");
-    expect(chip.querySelector('svg[data-icon="plus"]')).not.toBeNull();
+    expect(chip.querySelector('svg[data-icon="plusCircle"]')).not.toBeNull();
     expect(chip.textContent).toBe("Typed earlier");
     expect(document.body.textContent).not.toContain("↺");
   });

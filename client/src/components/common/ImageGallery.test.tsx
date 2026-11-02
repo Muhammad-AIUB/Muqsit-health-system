@@ -130,7 +130,7 @@ describe("ImageGallery", () => {
 
   it("shows nothing that mutates when the caller has no permission", () => {
     render(<ImageGallery {...base} onLabel={vi.fn()} canEdit={false} />);
-    expect(screen.queryByText("＋ Add more")).toBeNull();
+    expect(screen.queryByText("Add more")).toBeNull();
     expect(screen.queryByText("✎ Edit")).toBeNull();
     expect(screen.queryByLabelText("Label for image 3")).toBeNull();
     // Viewing is never gated: the pages are still there and still open.

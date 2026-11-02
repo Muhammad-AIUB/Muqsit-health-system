@@ -30,9 +30,9 @@ async function chooseDay(page: Page, key: string) {
   await expect(calendar).toBeHidden();
 }
 
-/** "+ Add to queue" → a number no one has → Add New → a name → Save. */
+/** "Add to queue" → a number no one has → Add New → a name → Save. */
 async function addNewToQueue(page: Page, name: string) {
-  await page.getByRole('button', { name: '+ Add to queue' }).click();
+  await page.getByRole('button', { name: 'Add to queue' }).click();
   await page.getByPlaceholder('01XXXXXXXXX').fill(uniqueMobile());
   await page.getByRole('button', { name: /No patient on this number/ }).click();
   await page.getByPlaceholder('Full name').fill(name);
@@ -110,7 +110,7 @@ test('a later day is booked, timed and put in order; today is untouched; a day t
   // ── A day that has passed is locked, on the screen and in the API ──────────
   await chooseDay(page, PAST);
   await expect(dateButton(page)).toContainText('Locked');
-  await expect(page.getByRole('button', { name: '+ Add to queue' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add to queue' })).toBeDisabled();
   await expect(page.getByLabel('Start time')).toBeDisabled();
   await expect(page.getByLabel('Minutes per patient')).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Save schedule' })).toHaveCount(0);

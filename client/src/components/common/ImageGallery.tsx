@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react";
 import { C, font } from "@/theme";
 import { btnDisabled, btnPrimary, btnSecondary, btnDanger } from "@/theme/styles";
@@ -241,7 +242,7 @@ export default function ImageGallery({
           {canEdit && (
             <>
               <button onClick={() => inputRef.current?.click()} disabled={busy} style={{ ...btnPrimary("md"), ...(busy ? { ...btnDisabled, cursor: "default" } : null) }}>
-                ＋ {addLabel}
+                <PlusLabel>{addLabel}</PlusLabel>
               </button>
               <input
                 ref={inputRef}

@@ -68,7 +68,9 @@ const add = () => fireEvent.click(within(box()).getByRole("button", { name: /^Ad
 describe("BulkMedicineButton — the + beside the ℞ mark", () => {
   it("is a + that says what it is, to a pointer and to a screen reader", () => {
     mount();
-    expect(plus().textContent).toBe("+");
+    // The circled plus (physician, 02/11/2026), not a "+" character.
+    expect(plus().querySelector('svg[data-icon="plusCircle"]')).not.toBeNull();
+    expect(plus().textContent).toBe("");
     expect(plus().title).toBe("Add Bulk Medicine");
     expect(plus().getAttribute("aria-label")).toBe("Add Bulk Medicine");
     expect(plus().getAttribute("aria-disabled")).toBe("false");

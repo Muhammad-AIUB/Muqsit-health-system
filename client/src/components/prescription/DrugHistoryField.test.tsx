@@ -36,7 +36,7 @@ vi.mock("@/context/MuqsitContext", () => ({
     addDrugHistoryEntries,
   }),
 }));
-// "+ Add medicine" types into the ℞ pad's own rows, which search the medicines
+// "Add medicine" types into the ℞ pad's own rows, which search the medicines
 // catalogue: "napa" finds one medicine here, anything else nothing, all off
 // the network. The pad's learned suggestions are kept quiet too.
 const NAPA = vi.hoisted(() => ({ id: "m1", brandName: "Napa", genericName: "Paracetamol", dosageForm: "Tablet", strength: "500 mg", company: null, priceRaw: null }));
@@ -367,7 +367,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
     openModal();
     return r;
   };
-  const openAddRow = () => fireEvent.click(screen.getByText("+ Add medicine"));
+  const openAddRow = () => fireEvent.click(screen.getByText("Add medicine"));
   const typing = () => screen.getByPlaceholderText("Start typing a medicine or note…") as HTMLInputElement;
   const pickNapa = () => {
     fireEvent.focus(typing());
@@ -399,7 +399,7 @@ describe("+ Add medicine — a new line, never a correction", () => {
     // Switching tabs remounts the row — Current's open draft is gone, and
     // Distant past's own copy is collapsed, same as on first open.
     expect(screen.queryByDisplayValue("half typed")).toBeNull();
-    expect(screen.getByText("+ Add medicine")).toBeTruthy();
+    expect(screen.getByText("Add medicine")).toBeTruthy();
   });
 
   it("a medicine picked from the list takes the pad's shorthand, and is stamped with the visit date", () => {

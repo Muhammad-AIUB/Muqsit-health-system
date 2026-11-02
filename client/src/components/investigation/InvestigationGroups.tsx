@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useState } from "react";
 import { C } from "@/theme";
 import { btnPrimary, btnSecondary, btnTonal, scrim, btnDisabled, shadowDialog, btnClose, dialogTitle } from "@/theme/styles";
@@ -26,7 +27,7 @@ export default function InvestigationGroups({ selected, apply }: {
         type="button"
         onClick={() => setAdding(true)}
         style={{ ...btnTonal("md"), fontWeight: 600 }}
-      >+ Add new group</button>
+      ><PlusLabel>Add new group</PlusLabel></button>
 
       <div style={{ marginTop: 14 }}>
         {!isLoading && !loaded && (

@@ -83,7 +83,7 @@ describe("Advised tests / investigation — Select from Directories", () => {
         renderDirectory={(selected, toggle) => <InvestigationDirectory selected={selected} onToggle={toggle} />}
       />,
     );
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     expect(screen.getByText("Select from Directories")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Hematology/ }));
     fireEvent.click(screen.getByLabelText(hema.tests[0].name));
@@ -99,7 +99,7 @@ describe("Advised tests / investigation — Select from Directories", () => {
         renderDirectory={(selected, toggle) => <InvestigationDirectory selected={selected} onToggle={toggle} />}
       />,
     );
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     fireEvent.click(screen.getByRole("tab", { name: "Investigations group" }));
     expect(screen.queryByText("Select from Directories")).toBeNull();
   });

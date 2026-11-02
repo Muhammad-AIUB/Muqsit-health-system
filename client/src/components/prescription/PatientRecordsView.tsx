@@ -16,6 +16,7 @@
 // Galleries support: Edit mode (select → remove), drag-to-reorder, and a
 // lightbox with ←/→ keyboard navigation.
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { tell } from "@/lib/dialogs";
@@ -348,12 +349,12 @@ export default function PatientRecordsView() {
                 ? <button onClick={() => { setEditingSummary(false); setUndo(null); }} style={ghostBtn}>Done</button>
                 : <button onClick={() => setEditingSummary(true)} style={ghostBtn}>✎ Edit</button>
             )}
-            <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ ...btnPrimary("sm"), ...(currentPatientId ? null : btnDisabled) }}>+ Add</button>
+            <button onClick={openInvForSummary} disabled={!currentPatientId} title={currentPatientId ? undefined : "Load a saved patient first"} style={{ ...btnPrimary("sm"), ...(currentPatientId ? null : btnDisabled) }}><PlusLabel>Add</PlusLabel></button>
             <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ ...btnSecondary("sm"), color: C.pri[600], ...(allFindings.length ? null : btnDisabled) }}><Icon name="download" size={14} /> Download</button>
           </div>
         </div>
         {summary.length === 0 ? (
-          <div style={{ fontSize: 13, color: C.n[500] }}>No investigation findings entered yet. Use <b>+ Add</b> to record results.</div>
+          <div style={{ fontSize: 13, color: C.n[500] }}>No investigation findings entered yet. Use <b>Add</b> to record results.</div>
         ) : (
           <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
             {summary.map((g, gi) => (

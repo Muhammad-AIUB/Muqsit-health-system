@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import type { ReactNode } from "react";
 import { C, colorOf, font } from "@/theme";
 import { btnPrimary, btnSecondary, pageTitle } from "@/theme/styles";
@@ -135,14 +136,14 @@ export default function PatientsView() {
       {/* ── GROUP 2: All patients (from API) ── */}
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 12, padding: "14px 16px" }}>
         <SectionHeader icon="folder" title="Your patients" count={patients.length} color={C.pri}
-          action={<button onClick={newPatient} style={btnPrimary("sm")}>+ New patient</button>}
+          action={<button onClick={newPatient} style={btnPrimary("sm")}><PlusLabel>New patient</PlusLabel></button>}
         />
         {isLoading ? (
           <Loading label="Loading patients…" />
         ) : isError ? (
           <LoadError title="Could not load patients." detail={error instanceof ApiError ? error.message : undefined} onRetry={() => refetch()} retrying={isFetching} />
         ) : patients.length === 0 ? (
-          <EmptyState icon="folder" title="No patients yet" hint={<>Add your first one with <strong>+ New patient</strong>.</>} />
+          <EmptyState icon="folder" title="No patients yet" hint={<>Add your first one with <strong>New patient</strong>.</>} />
         ) : (
           <div style={{ borderTop: `0.5px solid ${C.n[100]}` }}>
             {/* ⚕️ No Delete here (physician's decision, 2026-08-30). A patient row

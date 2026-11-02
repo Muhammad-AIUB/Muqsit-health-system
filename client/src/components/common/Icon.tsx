@@ -12,8 +12,9 @@ import type { CSSProperties } from "react";
 // reads them as part of a label and tests pin several of them: ✎ Edit, ⊘ Hide,
 // 💊 on the drug-history badge, ★ on a learned phrase, ↳ on a tapering line,
 // ▲ ▼, ✓, ×, ℞. Do not "tidy" those into icons. (A RECENT phrase was marked ↺
-// until the physician's sheet of 31/10/2026 asked for a plus sign instead; it
-// is the `plus` icon below, drawn in the chip's own colour.)
+// until the physician's sheet of 31/10/2026 asked for a plus sign instead; since
+// 02/11/2026 every plus is the circled one, `plusCircle`, drawn in the colour of
+// what it stands in. The plain `plus` is kept for no screen and may go.)
 const PATHS = {
   user: ["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"],
   // A patient with no photo yet (physician's request, 2026-10-15): a collar and
@@ -57,10 +58,17 @@ const PATHS = {
   moon: ["M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"],
   calendar: ["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"],
   plus: ["M12 5v14", "M5 12h14"],
+  // "Add" everywhere (physician, 02/11/2026: "joto jaygay plus icon ase eta hobe
+  // pluser upore round er moto"): a ring with a bold plus in it. The plus is
+  // drawn heavier than the ring (`[path, strokeWidth]`) so it still reads as a
+  // plus at 11px beside a chip's text.
+  plusCircle: ["M12 21.5a9.5 9.5 0 1 0 0-19 9.5 9.5 0 0 0 0 19z", ["M12 7.5v9", 2.6], ["M7.5 12h9", 2.6]],
   flask: ["M9 3h6", "M10 3v6l-5.2 9a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9V3", "M7.5 15h9"],
 } as const;
 
 export type IconName = keyof typeof PATHS;
+/** A path, or a path with a stroke width of its own. */
+type Stroke = string | readonly [string, number];
 
 interface IconProps {
   name: IconName;
@@ -74,7 +82,9 @@ interface IconProps {
 export default function Icon({ name, size = 16, style }: IconProps) {
   return (
     <svg data-icon={name} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false" style={{ flexShrink: 0, ...style }}>
-      {PATHS[name].map((d) => <path key={d} d={d} />)}
+      {(PATHS[name] as readonly Stroke[]).map((p) => typeof p === "string"
+        ? <path key={p} d={p} />
+        : <path key={p[0]} d={p[0]} strokeWidth={p[1]} />)}
     </svg>
   );
 }

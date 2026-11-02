@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, font } from "@/theme";
 import { inputSm, fieldLabel, btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, shadowMenu } from "@/theme/styles";
@@ -146,7 +147,7 @@ export default function PatientMobileLookup({
           ))}
           {!loading && anchor && (
             <button onClick={() => { setModal({ kind: "related", anchor }); setOpen(false); }} style={rowAction} type="button">
-              ＋ Add person related to {anchor.name}
+              <PlusLabel>Add person related to {anchor.name}</PlusLabel>
             </button>
           )}
           {!loading && matches.length === 0 && (

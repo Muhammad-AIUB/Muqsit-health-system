@@ -40,7 +40,7 @@ afterEach(cleanup);
 
 const fillAndAdmit = async () => {
   render(<IpdView />);
-  fireEvent.click(screen.getByText("+ Admit patient"));
+  fireEvent.click(screen.getByText("Admit patient"));
   fireEvent.click(screen.getByText("pick patient"));
   fireEvent.change(screen.getByPlaceholderText("Bed (e.g. B-3)"), { target: { value: "B-3" } });
   await act(async () => { fireEvent.click(screen.getByText("Admit")); });

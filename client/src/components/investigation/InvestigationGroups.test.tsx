@@ -2,7 +2,7 @@
 //
 // The doctor's own investigation groups (physician's request, 2026-09-24).
 // The tick rules are pinned in lib/investigationGroups.test.ts; this pins the
-// screen: a tick stages every test of the group, "+ Add new group" saves a
+// screen: a tick stages every test of the group, "Add new group" saves a
 // name with the tests ticked from the directories, and a failed save keeps the
 // window open with the doctor's work in it.
 
@@ -39,7 +39,7 @@ describe("InvestigationGroups", () => {
   it("says so when there are no groups, and still offers + Add new group", () => {
     render(<Harness />);
     expect(screen.getByText("No investigation groups yet.")).toBeTruthy();
-    expect(screen.getByText("+ Add new group")).toBeTruthy();
+    expect(screen.getByText("Add new group")).toBeTruthy();
   });
 
   it("ticking a group stages all its tests; unticking takes them back", () => {
@@ -58,7 +58,7 @@ describe("InvestigationGroups", () => {
     groups = [{ name: "DM follow-up", tests: ["FBS"] }];
     mutateAsync.mockResolvedValue({});
     render(<Harness />);
-    fireEvent.click(screen.getByText("+ Add new group"));
+    fireEvent.click(screen.getByText("Add new group"));
     expect(screen.getByRole("dialog", { name: "Add new group" })).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText(/DM follow-up/), { target: { value: "Anaemia work-up" } });
     fireEvent.click(screen.getByRole("button", { name: /Hematology/ }));
@@ -74,7 +74,7 @@ describe("InvestigationGroups", () => {
   it("says what is missing instead of saving an empty or duplicate group", async () => {
     groups = [{ name: "DM follow-up", tests: ["FBS"] }];
     render(<Harness />);
-    fireEvent.click(screen.getByText("+ Add new group"));
+    fireEvent.click(screen.getByText("Add new group"));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
     expect(screen.getByRole("alert").textContent).toMatch(/name/);
     fireEvent.change(screen.getByPlaceholderText(/DM follow-up/), { target: { value: "dm follow-up" } });
@@ -88,7 +88,7 @@ describe("InvestigationGroups", () => {
   it("a test can be typed and added with Add or Enter, alongside ticked ones, and removed with ×", async () => {
     mutateAsync.mockResolvedValue({});
     render(<Harness />);
-    fireEvent.click(screen.getByText("+ Add new group"));
+    fireEvent.click(screen.getByText("Add new group"));
     fireEvent.change(screen.getByPlaceholderText(/DM follow-up/), { target: { value: "Custom" } });
     const box = screen.getByLabelText("Type a test");
     fireEvent.change(box, { target: { value: "  Serum ferritin  " } });
@@ -108,7 +108,7 @@ describe("InvestigationGroups", () => {
   it("a failed save keeps the window open with the doctor's work", async () => {
     mutateAsync.mockRejectedValue(new Error("Network error"));
     render(<Harness />);
-    fireEvent.click(screen.getByText("+ Add new group"));
+    fireEvent.click(screen.getByText("Add new group"));
     fireEvent.change(screen.getByPlaceholderText(/DM follow-up/), { target: { value: "Anaemia work-up" } });
     fireEvent.click(screen.getByRole("button", { name: /Hematology/ }));
     fireEvent.click(screen.getByLabelText(hema.tests[0].name));
@@ -122,7 +122,7 @@ describe("InvestigationGroups", () => {
     loaded = false;
     render(<Harness />);
     expect(screen.queryByText("No investigation groups yet.")).toBeNull();
-    fireEvent.click(screen.getByText("+ Add new group"));
+    fireEvent.click(screen.getByText("Add new group"));
     fireEvent.change(screen.getByPlaceholderText(/DM follow-up/), { target: { value: "Anaemia work-up" } });
     fireEvent.click(screen.getByRole("button", { name: /Hematology/ }));
     fireEvent.click(screen.getByLabelText(hema.tests[0].name));

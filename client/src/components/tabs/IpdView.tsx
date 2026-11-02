@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useState } from "react";
 import { C, colorOf, font } from "@/theme";
 import { btnDisabled, btnPrimary, btnSecondary, inputMd, pageTitle, fieldLabel } from "@/theme/styles";
@@ -137,7 +138,7 @@ export default function IpdView() {
           </button>
         </div>
         <button onClick={() => { setShowAdd((s) => !s); setAdmitError(""); }} style={btnPrimary("md")}>
-          {showAdd ? "Close" : "+ Admit patient"}
+          {showAdd ? "Close" : <PlusLabel>Admit patient</PlusLabel>}
         </button>
       </div>
 

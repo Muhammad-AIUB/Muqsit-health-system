@@ -258,7 +258,7 @@ test.describe('OPD → Print Queue', () => {
     const date = page.getByRole('button', { name: /^Date: / });
     await expect(date).toBeVisible();
     await expect(printButton(page)).toBeVisible();
-    await expect(page.getByRole('button', { name: '+ Add to queue' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add to queue' })).toBeVisible();
     await page.screenshot({ path: join(OUT, 'phone-header.png') });
 
     const m = await page.evaluate(() => ({
@@ -268,7 +268,7 @@ test.describe('OPD → Print Queue', () => {
     }));
     expect(m.sw, `page scrollWidth ${m.sw} vs ${m.cw}`).toBeLessThanOrEqual(m.cw);
     // Each of the three buttons lies inside the screen.
-    for (const b of [date, printButton(page), page.getByRole('button', { name: '+ Add to queue' })]) {
+    for (const b of [date, printButton(page), page.getByRole('button', { name: 'Add to queue' })]) {
       const box = (await b.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(375 + 0.5);

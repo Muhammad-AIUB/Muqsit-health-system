@@ -9,7 +9,7 @@ const rows = (page: Page) => page.locator('.queue-row');
 const myChamber = (page: Page) => page.getByLabel('My Chamber').first();
 
 async function addNewToQueue(page: Page, name: string) {
-  await page.getByRole('button', { name: '+ Add to queue' }).click();
+  await page.getByRole('button', { name: 'Add to queue' }).click();
   await page.getByPlaceholder('01XXXXXXXXX').fill(uniqueMobile());
   await page.getByRole('button', { name: /No patient on this number/ }).click();
   await page.getByPlaceholder('Full name').fill(name);
@@ -25,7 +25,7 @@ test('a chamber added in Settings has its own OPD list, chosen under My Chamber'
   await expect(page.getByLabel('Name', { exact: true }).first()).toHaveValue('Main chamber');
   await page.getByLabel('Chamber name').fill('Ibn Sina');
   await page.getByLabel('Address').last().fill('Kalyanpur');
-  await page.getByRole('button', { name: '+ Add chamber' }).click();
+  await page.getByRole('button', { name: 'Add chamber' }).click();
   await expect(page.getByLabel('Name', { exact: true }).nth(1)).toHaveValue('Ibn Sina');
 
   // Main chamber's queue.

@@ -8,6 +8,7 @@
 // cannot be removed. Changing chambers is the practice doctor's; an assistant
 // sees the list read-only.
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useState } from "react";
 import { C } from "@/theme";
 import { btnDanger, btnDisabled, btnPrimary, btnSecondary, fieldLabel, inputMd, pageTitle } from "@/theme/styles";
@@ -79,7 +80,7 @@ export default function ChambersSettingsView({ onBack }: { onBack: () => void })
               onClick={() => void add()}
               disabled={!name.trim() || create.isPending}
               style={{ ...btnPrimary("md"), ...(!name.trim() || create.isPending ? btnDisabled : null) }}
-            >{create.isPending ? "Adding…" : "+ Add chamber"}</button>
+            >{create.isPending ? "Adding…" : <PlusLabel>Add chamber</PlusLabel>}</button>
           </div>
         </div>
       ) : (

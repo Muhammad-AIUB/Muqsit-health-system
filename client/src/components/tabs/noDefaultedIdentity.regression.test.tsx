@@ -4,7 +4,7 @@
 // screens; the form and `patientToPtInfo` are pinned elsewhere).
 //
 // Two places built a blank patient form with `religion: "Islam"`:
-//   • PatientsView's "+ New patient", and
+//   • PatientsView's "New patient", and
 //   • OpdView's "Prescribe" on a queue row that has no saved patient yet.
 // The first Save from either wrote a religion nobody had recorded onto a
 // patient's record. client/CLAUDE.md states the rule for sex — "Never default a
@@ -56,11 +56,11 @@ const visit = (over: Partial<OpdVisit>): OpdVisit => ({
 /** Every identity field that must arrive blank unless the doctor typed it. */
 const NEVER_DEFAULTED: (keyof PtInfo)[] = ["religion", "ethnicity", "bloodGroup", "dob", "district", "nid", "hospitalId", "monthlyIncome"];
 
-describe("35e7039: PatientsView — '+ New patient' opens a form with nothing pre-filled", () => {
+describe("35e7039: PatientsView — 'New patient' opens a form with nothing pre-filled", () => {
   it("⚕️ religion and sex are blank, like every other field", () => {
     ctx = freshCtx();
     render(<PatientsView />);
-    fireEvent.click(screen.getByRole("button", { name: "+ New patient" }));
+    fireEvent.click(screen.getByRole("button", { name: "New patient" }));
     const info = ctx.setPtInfo!.mock.calls[0][0] as PtInfo;
     expect(info.religion).toBe("");
     expect(info.sex).toBe("");

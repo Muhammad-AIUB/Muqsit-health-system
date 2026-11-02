@@ -4,6 +4,7 @@ Moved verbatim from the root `CLAUDE.md` on 2026-09-24 to keep that file short. 
 
 
 - **The patient photo (02/11/2026):** the header's photo is always the photo of the patient on screen — cleared with the rest of the editor ("New Prescription", another practice, a fresh login, Save to complete later), replaced when a patient is opened, never put back by a patient fetch that lands after the doctor moved on, and never handed to a NEW patient saved from a cleared screen (it was: the new record was created with the last patient's photo and watch flag). A wrong face on a prescription screen is a patient-safety defect (`client/CLAUDE.md`, Editor lifecycle).
+- **Add is a circled plus (02/11/2026):** every "add" in the doctor app is drawn as a plus in a ring (`plusCircle`); a `+` that means zoom, open a group or a clinical grade (Anaemia `++`) is not an "add" and stays as it was.
 - **Account tiers:** `primary`/`premium` own a practice ("workstation"); `secondary` can only work as someone's assistant (upgrade gate otherwise). New signups start `secondary`; admin app promotes.
 - **Workstation:** the practice a request acts on. Client sends `X-Workstation: <doctorId>`; server resolves owner/assistant + permissions. See server/CLAUDE.md.
 - **Assistant:** a user another doctor added (`Assistant` table) with granted permission keys; works inside that doctor's workstation.

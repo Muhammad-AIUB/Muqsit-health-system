@@ -23,9 +23,9 @@ const card = (page: Page, which: 'Total Serial' | 'Present' | 'Completed' | 'Wai
 const presentLabel = (page: Page, name: string): Locator =>
   row(page, name).locator('label').filter({ has: box(page, 'Present', name) });
 
-/** "+ Add to queue" → a number no one has → Add New → a name → Save. */
+/** "Add to queue" → a number no one has → Add New → a name → Save. */
 async function addNewToQueue(page: Page, name: string) {
-  await page.getByRole('button', { name: '+ Add to queue' }).click();
+  await page.getByRole('button', { name: 'Add to queue' }).click();
   await page.getByPlaceholder('01XXXXXXXXX').fill(uniqueMobile());
   await page.getByRole('button', { name: /No patient on this number/ }).click();
   await page.getByPlaceholder('Full name').fill(name);

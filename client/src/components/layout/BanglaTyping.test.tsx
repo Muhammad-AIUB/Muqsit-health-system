@@ -160,7 +160,7 @@ describe("BanglaTyping", () => {
     const setItems = vi.fn();
     render(<><BanglaTyping /><ExpandableField label="Advice" items={[]} setItems={setItems} bangla /></>);
     act(() => setKbdLang("bn"));
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     const input = screen.getByPlaceholderText(/Type advice/) as HTMLInputElement;
     input.focus();
     typeKeys(input, "beshi");
@@ -177,7 +177,7 @@ describe("BanglaTyping", () => {
 
   it("a list field that did not opt in carries no Bangla marker", () => {
     render(<ExpandableField label="History" items={[]} setItems={vi.fn()} />);
-    fireEvent.click(screen.getByText("+"));
+    fireEvent.click(screen.getByRole("button", { name: /^Add / }));
     expect(screen.getByPlaceholderText(/Type history/).getAttribute("data-bangla")).toBeNull();
   });
 

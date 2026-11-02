@@ -1,5 +1,6 @@
 "use client";
 
+import AddCircleButton from "@/components/common/AddCircleButton";
 import { useEffect, useId, useState, useRef, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { C } from "@/theme";
 import { btnPrimary, btnSecondary, scrim, shadowDialog, btnClose, dialogTitle, tabInk, tabOn } from "@/theme/styles";
@@ -310,9 +311,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 28 }}>
         <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], cursor: editable ? "pointer" : "default" }} onClick={editable ? handleOpen : undefined}>{label}</span>
         {editable ? (
-          <button className="hit-area" aria-label={`Add ${label}`} onClick={handleOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.12s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
+          <AddCircleButton aria-label={`Add ${label}`} onClick={handleOpen} />
         ) : (
           <span title="View only — you don't have access to edit this section" style={{ fontSize: 10, color: C.n[400] }}>🔒</span>
         )}
@@ -565,7 +564,7 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                         }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; e.currentTarget.style.color = C.pri[600]; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = isRecent ? C.pri[50] : C.n[50]; e.currentTarget.style.borderColor = isRecent ? C.pri[100] : C.n[200]; e.currentTarget.style.color = isRecent ? C.pri[600] : C.n[800]; }}
-                        >{lp ? "★ " : isRecent ? <Icon name="plus" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} /> : ""}{s.text}</button>
+                        >{lp ? "★ " : isRecent ? <Icon name="plusCircle" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} /> : ""}{s.text}</button>
                       );
                     })}
                   </div>

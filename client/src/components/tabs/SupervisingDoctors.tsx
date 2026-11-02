@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useState, useRef } from "react";
 import { C } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
@@ -100,7 +101,7 @@ export default function SupervisingDoctors() {
 
         {canManage && !showAdd && (
           <button onClick={() => { setShowAdd(true); setErr(""); }} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 6, border: "1px dashed " + C.n[300], background: "transparent", color: C.pri[400], fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-            + Add supervising doctor
+            <PlusLabel size={13}>Add supervising doctor</PlusLabel>
           </button>
         )}
 

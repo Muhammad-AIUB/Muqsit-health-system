@@ -122,7 +122,7 @@ describe("OPD queue — a later day is booked ahead", () => {
     mocks.add.mockResolvedValue({});
     render(<OpdView />);
     pickDay(LATER);
-    const add = screen.getByRole("button", { name: "+ Add to queue" }) as HTMLButtonElement;
+    const add = screen.getByRole("button", { name: "Add to queue" }) as HTMLButtonElement;
     expect(add.disabled).toBe(false);
     fireEvent.click(add);
     fireEvent.change(screen.getByRole("textbox", { name: "Mobile" }), { target: { value: "01827115684" } });
@@ -150,14 +150,14 @@ describe("OPD queue — a day that has passed is locked", () => {
     expect(screen.getByText("Old Two")).toBeTruthy();
     for (const name of ["Prescribe", "Done"]) expect(screen.queryByRole("button", { name })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Move / })).toBeNull();
-    const add = screen.getByRole("button", { name: "+ Add to queue" }) as HTMLButtonElement;
+    const add = screen.getByRole("button", { name: "Add to queue" }) as HTMLButtonElement;
     expect(add.disabled).toBe(true);
     expect(screen.getAllByText(/has passed/i).length).toBeGreaterThan(0);
   });
 
   it("⚕️ opening the add form is not possible there — and a form left open on today is closed by moving to the past", () => {
     render(<OpdView />);
-    fireEvent.click(screen.getByRole("button", { name: "+ Add to queue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to queue" }));
     expect(screen.getByRole("textbox", { name: "Mobile" })).toBeTruthy();
     pickDay(PAST);
     expect(screen.queryByRole("textbox", { name: "Mobile" })).toBeNull();

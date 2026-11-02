@@ -1,7 +1,8 @@
 "use client";
 
+import AddCircleButton from "@/components/common/AddCircleButton";
 import { useState } from "react";
-import { C, font } from "@/theme";
+import { C } from "@/theme";
 import BulkMedicineBox from "@/components/prescription/BulkMedicineBox";
 import type { RxItem } from "@/types";
 
@@ -58,9 +59,8 @@ export default function BulkMedicineButton({ patientId, workstationId, allowed, 
       {/* Without the pad's own key the + is greyed, never hidden — and still a
           Tab stop (`aria-disabled`, not `disabled`), so that the reason can be
           reached from the keyboard and is read out with its name. */}
-      <button
-        type="button"
-        className="hit-area"
+      <AddCircleButton
+        inactive={!allowed}
         aria-label={allowed ? "Add Bulk Medicine" : `Add Bulk Medicine. ${NO_ACCESS}`}
         aria-disabled={!allowed}
         title={allowed ? "Add Bulk Medicine" : NO_ACCESS}
@@ -70,10 +70,7 @@ export default function BulkMedicineButton({ patientId, workstationId, allowed, 
         // the lines just added, and what was said about them wiped. A key that
         // is being HELD presses nothing; a fresh press does.
         onKeyDown={(e) => { if (e.repeat && (e.key === "Enter" || e.key === " ")) e.preventDefault(); }}
-        onMouseEnter={(e) => { if (allowed) { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; } }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}
-        style={{ width: 20, height: 20, padding: 0, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: allowed ? C.pri[400] : C.n[400], fontSize: 14, lineHeight: 1, cursor: allowed ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: font }}
-      >+</button>
+      />
       {/* What the last Add did, until the next press or the next patient.
           Something DONE, so in the colour of done (`C.ok`), not of the brand. */}
       <span role="status" aria-label="Add Bulk Medicine result" style={{ fontSize: 11, color: C.ok[600] }}>{said}</span>

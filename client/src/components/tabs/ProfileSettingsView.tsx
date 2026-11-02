@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { C, font } from "@/theme";
 import { inputSm, btnPrimary, btnSecondary, pageTitle, btnDisabled } from "@/theme/styles";
@@ -300,7 +301,7 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
               onClick={() => set("otherCertificates", [...draft.otherCertificates, { url: "", details: "" }])}
               style={{ ...btnGhost, padding: "9px 14px", alignSelf: "flex-start", borderStyle: "dashed" }}
             >
-              + Add certificate
+              <PlusLabel>Add certificate</PlusLabel>
             </button>
           </div>
         </div>
@@ -401,7 +402,7 @@ export default function ProfileSettingsView({ onBack }: { onBack: () => void }) 
           onClick={() => set("chambers", [...draft.chambers, { address: "", mapLink: "" }])}
           style={{ ...btnGhost, padding: "9px 14px" }}
         >
-          + Add chamber
+          <PlusLabel>Add chamber</PlusLabel>
         </button>
       </Section>
 
@@ -636,7 +637,7 @@ function CertImageUploader({
           <img src={value} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: busy ? 0.5 : 1 }} />
         ) : (
           <span style={{ fontSize: 11, color: C.pri[600], fontWeight: 500, textAlign: "center", padding: 4 }}>
-            {busy ? "Uploading…" : "+ Upload image"}
+            {busy ? "Uploading…" : <PlusLabel size={12}>Upload image</PlusLabel>}
           </span>
         )}
         <input type="file" accept={IMAGE_ACCEPT} style={{ display: "none" }} onChange={onPick} disabled={busy} />

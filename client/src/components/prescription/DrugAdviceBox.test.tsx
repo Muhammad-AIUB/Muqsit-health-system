@@ -34,7 +34,7 @@ describe("DrugAdviceBox — the keyboard stays in the box", () => {
 
 describe("DrugAdviceBox — Escape asks before it throws typed advice away", () => {
   const typeALine = () => {
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Advice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Advice" }));
     const inputs = screen.getByRole("dialog", { name: "Special advice" }).querySelectorAll<HTMLInputElement>("input[type=text]");
     fireEvent.change(inputs[inputs.length - 1], { target: { value: "Take with a full glass of water" } });
   };

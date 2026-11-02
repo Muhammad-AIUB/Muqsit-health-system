@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import ChamberPicker from "@/components/layout/ChamberPicker";
 import { useRef, useState } from "react";
 import { C, colorOf, font } from "@/theme";
@@ -198,7 +199,7 @@ export default function OpdView() {
             title={canEdit ? undefined : PAST_HINT}
             style={canEdit ? btnPrimary("md") : { ...btnPrimary("md"), ...btnDisabled }}
           >
-            {showAdd && canEdit ? "Close" : "+ Add to queue"}
+            {showAdd && canEdit ? "Close" : <PlusLabel>Add to queue</PlusLabel>}
           </button>
         </div>
       </div>

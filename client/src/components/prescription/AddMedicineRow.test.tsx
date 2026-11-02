@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// ⚕️ The "+ Add medicine" row (physician's decision, 2026-10-14). Collapsed
+// ⚕️ The "Add medicine" row (physician's decision, 2026-10-14). Collapsed
 // by default — nothing here is typeable until the doctor presses it, which
 // is what lets DrugHistoryField.test.tsx's "offers nothing to type into, on
 // either tab" keep passing unchanged: this row is the ONE typeable thing in
@@ -32,7 +32,7 @@ const DATE = "15/10/2026";
 const openRow = (existing: { drug: string; dose: string; food: string; duration: string }[] = []) => {
   const onAdd = vi.fn((_: string[]) => true);
   render(<AddMedicineRow existing={existing} tabLabel="Current medications" date={DATE} onAdd={onAdd} />);
-  fireEvent.click(screen.getByText("+ Add medicine"));
+  fireEvent.click(screen.getByText("Add medicine"));
   return { onAdd };
 };
 const typing = () => screen.getByPlaceholderText("Start typing a medicine or note…") as HTMLInputElement;
@@ -45,7 +45,7 @@ const addBtn = () => screen.getByRole("button", { name: "Add to Drug history" })
 describe("AddMedicineRow — collapsed by default", () => {
   it("shows only the + Add medicine button, nothing typeable", () => {
     render(<AddMedicineRow existing={[]} tabLabel="Current medications" date={DATE} onAdd={vi.fn()} />);
-    expect(screen.getByText("+ Add medicine")).toBeTruthy();
+    expect(screen.getByText("Add medicine")).toBeTruthy();
     expect(document.querySelectorAll("input, textarea")).toHaveLength(0);
   });
 });
@@ -109,7 +109,7 @@ describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
     fireEvent.click(addBtn());
     expect(onAdd).toHaveBeenCalledTimes(1);
     expect(typing().value).toBe("");
-    expect(screen.queryByText("+ Add medicine")).toBeNull(); // still open
+    expect(screen.queryByText("Add medicine")).toBeNull(); // still open
   });
 
   it("refuses an exact duplicate, names it, and does not call onAdd", () => {
@@ -138,7 +138,7 @@ describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
   it("keeps what was typed when the lines are not taken (the store has said why)", () => {
     const onAdd = vi.fn((_: string[]) => false);
     render(<AddMedicineRow existing={[]} tabLabel="Current medications" date={DATE} onAdd={onAdd} />);
-    fireEvent.click(screen.getByText("+ Add medicine"));
+    fireEvent.click(screen.getByText("Add medicine"));
     type("na");
     pick("Tablet. Napa 500 mg");
     fireEvent.click(addBtn());
@@ -151,7 +151,7 @@ describe("AddMedicineRow — opened, it types like the ℞ pad", () => {
     type("Tablet. Napa 500 mg");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByPlaceholderText("Start typing a medicine or note…")).toBeNull();
-    fireEvent.click(screen.getByText("+ Add medicine"));
+    fireEvent.click(screen.getByText("Add medicine"));
     expect(typing().value).toBe("");
   });
 });

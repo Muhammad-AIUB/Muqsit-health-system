@@ -1,5 +1,6 @@
 "use client";
 
+import AddCircleButton from "@/components/common/AddCircleButton";
 import { useState, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { C, font } from "@/theme";
@@ -96,10 +97,10 @@ export default function DrugSafetyField({ canEdit }: { canEdit: boolean }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 28, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, fontWeight: 500, color: C.danger[800] }}>{SECTION_TITLE}</span>
         {showControls ? (
-          <button className="hit-area" type="button" aria-label={`Add to ${SECTION_TITLE}`} title="Add one entry"
+          <AddCircleButton aria-label={`Add to ${SECTION_TITLE}`} title="Add one entry"
             disabled={adding || busy || !q.isSuccess}
             onClick={() => { setAdding(true); setEditOpen(false); }}
-            style={{ width: 20, height: 20, borderRadius: "50%", border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...(adding || busy || !q.isSuccess ? btnDisabled : null) }}>+</button>
+            inactive={adding || busy || !q.isSuccess} />
         ) : (
           <span title="View only — you don't have access to edit this section" style={{ color: C.n[400], display: "flex" }}><Icon name="lock" size={12} /></span>
         )}

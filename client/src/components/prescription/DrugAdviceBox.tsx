@@ -30,6 +30,7 @@
 // reworded if need be and stored with Save. The other entry is not touched.
 // And a line's text opens Edit when pressed, so a line is corrected in place.
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { btnTonal, btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, btnClose } from "@/theme/styles";
@@ -286,7 +287,7 @@ export default function DrugAdviceBox({ drug, generic, diagnosis, onClose }: Pro
               disabled={lines.length >= MAX_LINES || (scope === "generic" && !genericName)}
               style={{ ...btnTonal("sm"), alignSelf: "flex-start", fontWeight: 600 }}
             >
-              + Add Advice
+              <PlusLabel>Add Advice</PlusLabel>
             </button>
           )}
           {mayEdit && offered.length > 0 && !scopeClosed && (

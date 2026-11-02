@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useEffect, useRef, useState } from "react";
 import { C } from "@/theme";
 import { confirmAction } from "@/lib/dialogs";
@@ -139,7 +140,7 @@ export default function ManageAssistantsView({ onBack }: { onBack: () => void })
       {/* ── Your assistants ─────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 500 }}>Your assistants</div>
-        <button onClick={() => setSearchOpen((s) => !s)} style={btn(C.pri[50], C.pri[600])}>+ Add new assistant</button>
+        <button onClick={() => setSearchOpen((s) => !s)} style={btn(C.pri[50], C.pri[600])}><PlusLabel>Add new assistant</PlusLabel></button>
       </div>
 
       {searchOpen && (

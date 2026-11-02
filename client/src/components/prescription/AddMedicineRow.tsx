@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useState } from "react";
 import { C, font } from "@/theme";
 import { btnPrimary, btnSecondary, btnDisabled } from "@/theme/styles";
@@ -68,7 +69,7 @@ export default function AddMedicineRow({ existing, tabLabel, date, onAdd }: Prop
     return (
       <button onClick={() => setOpen(true)}
         style={{ height: 22, borderRadius: 999, border: `1px solid ${C.n[300]}`, background: "transparent", color: C.pri[400], fontSize: 11, padding: "0 10px", cursor: "pointer", fontFamily: font, marginBottom: 8 }}>
-        + Add medicine
+        <PlusLabel size={13}>Add medicine</PlusLabel>
       </button>
     );
   }

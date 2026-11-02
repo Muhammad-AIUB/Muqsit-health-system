@@ -54,7 +54,7 @@ describe("Settings → Chambers", () => {
     const boxes = screen.getAllByRole("textbox");
     fireEvent.change(boxes[boxes.length - 2], { target: { value: "Popular" } });
     fireEvent.change(boxes[boxes.length - 1], { target: { value: "Shantinagar" } });
-    await act(async () => { fireEvent.click(screen.getByText("+ Add chamber")); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add chamber" })); });
     expect(api.create).toHaveBeenCalledWith({ name: "Popular", address: "Shantinagar" });
   });
 

@@ -55,7 +55,7 @@ afterEach(() => { cleanup(); byMobile.mockReset(); create.mockReset(); addVisit.
 
 const SAVED: Patient = { id: "p1", name: "mr shahariar", mobile: "01827115684", age: 38, ageAsOfYear: new Date().getFullYear(), sex: "Male" } as Patient;
 
-const openForm = () => fireEvent.click(screen.getByRole("button", { name: "+ Add to queue" }));
+const openForm = () => fireEvent.click(screen.getByRole("button", { name: "Add to queue" }));
 const typeNumber = (n: string) => fireEvent.change(screen.getByRole("textbox", { name: "Mobile" }), { target: { value: n } });
 
 describe("OPD — a patient is added by mobile number first", () => {

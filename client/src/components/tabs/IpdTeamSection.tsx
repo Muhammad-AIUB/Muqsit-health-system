@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useState } from "react";
 import { C } from "@/theme";
 import { btnDisabled } from "@/theme/styles";
@@ -63,7 +64,7 @@ export default function IpdTeamSection() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ fontSize: 13, fontWeight: 500 }}>Your IPD team</div>
         <button onClick={() => { setAdding((s) => !s); setError(""); }} style={btn(C.pri[50], C.pri[600])}>
-          {adding ? "Cancel" : "+ Add ward"}
+          {adding ? "Cancel" : <PlusLabel>Add ward</PlusLabel>}
         </button>
       </div>
       <div style={{ fontSize: 11, color: C.n[600], marginBottom: 10 }}>
@@ -203,7 +204,7 @@ function WardCard({
         )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           <button onClick={() => { setSearchOpen((s) => !s); setQuery(""); }} style={btn(C.pri[50], C.pri[600])}>
-            {searchOpen ? "Close" : "+ Add team member"}
+            {searchOpen ? "Close" : <PlusLabel>Add team member</PlusLabel>}
           </button>
           <button onClick={() => { setName(ward.name); setRenaming(true); }} disabled={busy} style={btn(C.info[50], C.info[800])}>Rename</button>
           <button onClick={confirmDelete} disabled={busy} style={{ ...btn(C.danger[50], C.danger[800]), ...(busy ? btnDisabled : null) }}>Delete ward</button>

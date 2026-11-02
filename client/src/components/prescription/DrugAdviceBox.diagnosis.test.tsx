@@ -41,7 +41,7 @@ describe("DrugAdviceBox — for a final diagnosis", () => {
   it("⚕️ saves what the doctor wrote, under the diagnosis", async () => {
     const onClose = vi.fn();
     render(box(onClose));
-    fireEvent.click(screen.getByRole("button", { name: "+ Add Advice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Advice" }));
     fireEvent.change(screen.getByPlaceholderText("Write the advice…"), { target: { value: "Take folic acid daily" } });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
     expect(save).toHaveBeenCalledWith({ scope: "diagnosis", label: "Pregnant", lines: ["Take folic acid daily"] });

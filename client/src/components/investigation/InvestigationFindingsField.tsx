@@ -1,5 +1,6 @@
 "use client";
 
+import AddCircleButton from "@/components/common/AddCircleButton";
 import { useState } from "react";
 import { C } from "@/theme";
 import { IMAGE_MARKER, testImageUrls } from "@/lib/investigationImages";
@@ -71,9 +72,7 @@ export default function InvestigationFindingsField({
     <div style={{ marginBottom: 2 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 28 }}>
         <span style={{ fontSize: 12, fontWeight: 500, color: C.n[800], cursor: "pointer" }} onClick={onOpen}>{label}</span>
-        <button className="hit-area" aria-label={`Add ${label}`} onClick={onOpen} style={{ width: 20, height: 20, borderRadius: "50%", border: "1px solid " + C.n[300], background: "transparent", color: C.pri[400], fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.borderColor = C.pri[400]; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.n[300]; }}>+</button>
+        <AddCircleButton aria-label={`Add ${label}`} onClick={onOpen} />
         {items.length > 0 && (
           <button onClick={onOpen} style={{ fontSize: 11, lineHeight: 1.4, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "1px 8px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}>✎ Edit</button>
         )}

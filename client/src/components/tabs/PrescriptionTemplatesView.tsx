@@ -95,7 +95,7 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
           {!removeMode && (
             <button onClick={() => setEditing("new")} style={blankCard}>
               <div style={{ flex: 1, width: "100%", border: `1.5px dashed ${C.n[300]}`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: C.info[400], fontSize: 34, fontWeight: 300 }}>
-                +
+                <Icon name="plusCircle" size={34} />
               </div>
               <div style={{ fontSize: 13, color: C.n[600], marginTop: 8 }}>Blank</div>
             </button>
