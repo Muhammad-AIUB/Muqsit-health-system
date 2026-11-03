@@ -45,6 +45,16 @@ describe("diseaseSurgicalHistory", () => {
     expect(r.surgical).toEqual([{ text: "Appendicectomy 01/02/2015", date: "28/10/2026", by: "Rahim" }]);
   });
 
+  it("leaves out an entry taken off in the sidebar (02/11/2026), and keeps its other copies' kind apart", () => {
+    const r = diseaseSurgicalHistory([
+      { date: "20/10/2026", text: "Disease Hx: DM", removedAt: "2026-11-02T10:00:00.000Z" },
+      { date: "28/10/2026", text: "Disease Hx: DM", removedAt: "2026-11-02T10:00:00.000Z" },
+      { date: "28/10/2026", text: "Surgical Hx: DM" },
+    ]);
+    expect(r.disease).toEqual([]);
+    expect(r.surgical.map((e) => e.text)).toEqual(["DM"]);
+  });
+
   it("two different texts are never folded together", () => {
     const r = diseaseSurgicalHistory([
       { date: "20/10/2026", text: "Disease Hx: DM" },

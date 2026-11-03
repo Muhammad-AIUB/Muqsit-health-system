@@ -4,6 +4,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -16,6 +17,7 @@ import {
   AppendDrugHistoryDto,
   AppendOnExaminationDto,
   CreatePatientDto,
+  HistoryEntryRefDto,
   LinkPatientDto,
   SupervisedDraftDto,
   UpdatePatientDto,
@@ -179,6 +181,39 @@ export class PatientsController {
       throw new ForbiddenException('You do not have permission to update prescriptions');
     }
     return this.patients.appendOnExamination(doctorId, id, dto.entries);
+  }
+
+  // ⚕️ A Disease / Surgical history entry of that shared history taken off —
+  // SOFTLY: stamped removed, kept in the row, and put back by /restore (the
+  // sidebar's Undo). Same reach as the append above: every practice that adds
+  // to the patient's history (sheet 28/10/2026, item 7). Only entries written
+  // `Disease Hx:` / `Surgical Hx:` can be named; an examination finding cannot.
+  @Post(':id/on-examination/remove')
+  @HttpCode(200)
+  removeHistoryEntry(
+    @WorkstationDoctorId() doctorId: string,
+    @ActiveWorkstation() ws: Workstation,
+    @Param('id') id: string,
+    @Body() dto: HistoryEntryRefDto,
+  ) {
+    if (ws.role === 'assistant' && !ws.permissions.some((p) => p.startsWith('rx.'))) {
+      throw new ForbiddenException('You do not have permission to update prescriptions');
+    }
+    return this.patients.setHistoryEntryRemoved(doctorId, id, dto.kind, dto.text, true);
+  }
+
+  @Post(':id/on-examination/restore')
+  @HttpCode(200)
+  restoreHistoryEntry(
+    @WorkstationDoctorId() doctorId: string,
+    @ActiveWorkstation() ws: Workstation,
+    @Param('id') id: string,
+    @Body() dto: HistoryEntryRefDto,
+  ) {
+    if (ws.role === 'assistant' && !ws.permissions.some((p) => p.startsWith('rx.'))) {
+      throw new ForbiddenException('You do not have permission to update prescriptions');
+    }
+    return this.patients.setHistoryEntryRemoved(doctorId, id, dto.kind, dto.text, false);
   }
 
   @Delete(':id')
