@@ -833,6 +833,70 @@ describe("On examination ⊘ Hide", () => {
 
 });
 
+// ⚕️ Physician's sheet, 28/10/2026, item 7: History (this visit's lines and
+// the patient's Disease / Surgical history) can be hidden before printing,
+// like Drug history. It PRINTS by default: History always printed.
+describe("History ⊘ Hide", () => {
+  it("starts shown, and a new visit starts shown again", async () => {
+    const { result } = await setup();
+    expect(result.current.hideHistory).toBe(false);
+    act(() => result.current.setHideHistory(true));
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    expect(result.current.hideHistory).toBe(false);
+  });
+
+  it("rides the visit: the device mirror and the auto-saved draft carry it", async () => {
+    const { result } = await setup();
+    act(() => result.current.loadPatient(patient()));
+    await tick(50);
+    act(() => { result.current.setHistory(["H/O fever"]); result.current.setHideHistory(true); });
+    await tick(3000);
+    expect(result.current.mirrorSnapshot.hideHistory).toBe(true);
+    const saved = api.draftSave.mock.calls.map(([d]) => d as Record<string, unknown>);
+    expect(saved.some((d) => JSON.stringify(d).includes('"hideHistory":true'))).toBe(true);
+  });
+
+  it("joins the visit's fingerprint only when set: pressed after the print the visit is changed, pressed back it is the printed one", async () => {
+    const { result } = await setup();
+    await typeAndPrint(result);
+    expect(result.current.visitPrinted).toBe(true);
+    act(() => result.current.setHideHistory(true));
+    expect(result.current.visitPrinted).toBe(false);
+    act(() => result.current.setHideHistory(false));
+    expect(result.current.visitPrinted).toBe(true);
+  });
+});
+
+// ⚕️ The sidebar's Disease / Surgical history draws its state from whether
+// the patient's RECORD is in hand — never an empty list for one that is not.
+describe("recordStatus", () => {
+  it("loading until the record lands, then ready with its history", async () => {
+    const { result } = await setup();
+    let land!: (p: Patient) => void;
+    api.patientGet.mockImplementation(() => new Promise<Patient>((r) => { land = r; }));
+    act(() => result.current.loadPatient(patient({ id: "H1" })));
+    await tick(10);
+    expect(result.current.recordStatus).toBe("loading");
+    await act(async () => { land(patient({ id: "H1", onExaminationSummary: [{ date: "20/10/2026", text: "Disease Hx: DM" }] } as Partial<Patient>)); });
+    await tick(10);
+    expect(result.current.recordStatus).toBe("ready");
+    expect(result.current.onExaminationSummary).toEqual([{ date: "20/10/2026", text: "Disease Hx: DM" }]);
+  });
+
+  it("error once the quiet retries are spent; Try again asks once more", async () => {
+    const { result } = await setup();
+    api.patientGet.mockRejectedValue(new Error("offline"));
+    act(() => result.current.loadPatient(patient({ id: "H2" })));
+    await tick(4500);
+    expect(result.current.recordStatus).toBe("error");
+    api.patientGet.mockResolvedValue(patient({ id: "H2" }));
+    act(() => result.current.retryRecord());
+    await tick(50);
+    expect(result.current.recordStatus).toBe("ready");
+  });
+});
+
 // ⚕️ Independent review, 18/10/2026 — two ways the ℞ → Drug-history mirror
 // mis-read whose line was whose.
 describe("the ℞ mirror withdraws only what it inserted", () => {

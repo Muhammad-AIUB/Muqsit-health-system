@@ -9,6 +9,7 @@ import InvestigationFindingsField from "@/components/investigation/Investigation
 import DrugHistoryField from "@/components/prescription/DrugHistoryField";
 import DrugSafetyField from "@/components/prescription/DrugSafetyField";
 import PreviousComplaintsField from "@/components/prescription/PreviousComplaintsField";
+import PatientHistoryField from "@/components/prescription/PatientHistoryField";
 import { PersonalNoteSection } from "@/components/prescription/PersonalNote";
 import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
 import { savedAdviceForDiagnosis } from "@/lib/rxDrugAdvice";
@@ -76,7 +77,7 @@ export default function LeftColumn() {
             </Lock>
           );
         }
-        return (
+        const field = (
           <ExpandableField
             key={f.label}
             label={f.label}
@@ -94,6 +95,14 @@ export default function LeftColumn() {
             onAdd={(item) => logActivity(f.label, item)}
           />
         );
+        // ⚕️ History: this visit's lines (above, as always) and the patient's
+        // Disease / Surgical history under them, moved here from the
+        // On-examination popup (physician's sheet 28/10/2026, item 7). Gated by
+        // History's own key (`rx.history`).
+        if (f.label === "History") {
+          return <PatientHistoryField key={f.label} canEdit={canEditLabel("History")}>{field}</PatientHistoryField>;
+        }
+        return field;
       })}
       {/* ⚕️ Private to the signed-in user — not a clinical field, not printed
           with the prescription, and not gated by assistant keys: each user

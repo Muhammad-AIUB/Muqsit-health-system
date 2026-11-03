@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsISO8601,
   IsObject,
@@ -154,6 +155,14 @@ export class AppendOnExaminationDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(500)
   @ValidateNested({ each: true }) @Type(() => OnExaminationEntryDto)
   entries!: OnExaminationEntryDto[];
+}
+
+// ⚕️ One Disease / Surgical history entry of the shared history, named by its
+// kind and its words (sheet 28/10/2026, item 7) — to take it off (softly) or
+// put it back. Nothing else about the entry can be changed through this.
+export class HistoryEntryRefDto {
+  @IsIn(['disease', 'surgical']) kind!: 'disease' | 'surgical';
+  @IsString() @MinLength(1) @MaxLength(2000) text!: string;
 }
 
 export class LinkPatientDto {

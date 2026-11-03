@@ -16,8 +16,9 @@ export function historyEntries(value: string): string[] {
 
 export type AddResult = { ok: true; value: string } | { ok: false; reason: string };
 
-/** Add one entry below the others. Nothing is written when the date cannot be read. */
-export function addHistoryEntry(value: string, text: string, date: string, now = new Date()): AddResult {
+/** One entry as it is written: the text, then the date (dd/mm/yyyy) when one
+ *  was typed. Nothing is made when the date cannot be read. */
+export function historyEntryText(text: string, date: string, now = new Date()): AddResult {
   const what = String(text ?? "").replace(/\s+/g, " ").trim();
   if (!what) return { ok: false, reason: "Write the history first." };
   let when = "";
@@ -31,7 +32,14 @@ export function addHistoryEntry(value: string, text: string, date: string, now =
     }
     when = isoToDdmmyyyy(r.iso);
   }
-  return { ok: true, value: [...historyEntries(value), when ? `${what} ${when}` : what].join("\n") };
+  return { ok: true, value: when ? `${what} ${when}` : what };
+}
+
+/** Add one entry below the others. Nothing is written when the date cannot be read. */
+export function addHistoryEntry(value: string, text: string, date: string, now = new Date()): AddResult {
+  const r = historyEntryText(text, date, now);
+  if (!r.ok) return r;
+  return { ok: true, value: [...historyEntries(value), r.value].join("\n") };
 }
 
 /** Take off the entry at `index` — that one, by place, so a repeat elsewhere stays. */
