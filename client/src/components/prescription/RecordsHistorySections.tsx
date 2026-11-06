@@ -12,13 +12,16 @@ import { useQuery } from "@tanstack/react-query";
 import { C } from "@/theme";
 import { btnDisabled, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
-import { prescriptionsApi } from "@/lib/api";
+import { patientsApi, prescriptionsApi } from "@/lib/api";
 import { tell } from "@/lib/dialogs";
-import { isoToDdmmyyyy } from "@/lib/dateInput";
+import { ddmmyyyyMs, isoToDdmmyyyy } from "@/lib/dateInput";
 import { dhakaToday } from "@/lib/opdDay";
+import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import { buildRecordsDoc, type DocGroup } from "@/lib/recordsDoc";
 import { useDrugHistoryGenerics } from "@/hooks/useDrugHistoryGenerics";
-import DrugHistoryName, { GenericsNotLoaded } from "./DrugHistoryName";
+import { useActivityLog } from "@/hooks/useActivity";
+import { GenericsNotLoaded } from "./DrugHistoryName";
+import DrugHistoryTable from "./DrugHistoryTable";
 import { dateLabel, diseaseSurgicalHistory, drugHistoryByDate, perVisit, type HxEntry } from "@/lib/patientRecords";
 import { oeAuthorLabel } from "@/lib/onExaminationSummary";
 import { LoadError } from "@/components/common/ListState";
@@ -39,18 +42,21 @@ export function useRecordsPatient(): [string, string][] {
 
 export const printedToday = () => isoToDdmmyyyy(dhakaToday());
 
-export function SectionHeader({ title, onDownload, canDownload }: { title: string; onDownload?: () => void; canDownload?: boolean }) {
+export function SectionHeader({ title, onDownload, canDownload, actions }: { title: string; onDownload?: () => void; canDownload?: boolean; actions?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, rowGap: 8, marginBottom: 10 }}>
       <h3 style={{ fontSize: 15, fontWeight: 600, color: C.n[900], margin: 0, minWidth: 0 }}>{title}</h3>
-      {onDownload && (
-        <button
-          onClick={onDownload}
-          disabled={!canDownload}
-          aria-label={`Download ${title}`}
-          style={{ ...btnSecondary("sm"), color: C.pri[600], ...(canDownload ? null : btnDisabled) }}
-        ><Icon name="download" size={14} /> Download</button>
-      )}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+        {actions}
+        {onDownload && (
+          <button
+            onClick={onDownload}
+            disabled={!canDownload}
+            aria-label={`Download ${title}`}
+            style={{ ...btnSecondary("sm"), color: C.pri[600], ...(canDownload ? null : btnDisabled) }}
+          ><Icon name="download" size={14} /> Download</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -66,12 +72,30 @@ const section: React.CSSProperties = { marginTop: 22 };
 // A stored medicine line is `Drug — dose — food — duration`: its name, and the rest as written.
 const SEP = " — ";
 const medName = (body: string): string => { const i = body.indexOf(SEP); return (i === -1 ? body : body.slice(0, i)).trim(); };
-const medRest = (body: string): string => { const i = body.indexOf(SEP); return i === -1 ? "" : body.slice(i); };
 
 export default function RecordsHistorySections() {
-  const { currentPatientId, drugHistory, ptDate, onExaminationSummary, ptName } = useMuqsit();
+  const {
+    currentPatientId, drugHistory, ptDate, onExaminationSummary, ptName,
+    rxItems, can, activeWorkstationId, authUserId, editDrugHistoryBlock, addDrugHistoryEntries,
+  } = useMuqsit();
   const patient = useRecordsPatient();
   const title = (t: string) => `${t} — ${ptName || "Patient"}`;
+  const logActivity = useActivityLog();
+
+  // ⚕️ Edit / Add of the Drug history write the patient's RECORD, which only the
+  // owner's practice may (the server refuses a supervising doctor, and an
+  // assistant needs a prescription key). The affordance is offered only where
+  // the write would be taken — the server is still the boundary. Same test as
+  // the Health-trend chart's: the patient's doctor is the practice on screen.
+  const mayEditDh = can("rx.drugHistory");
+  const mayAddMed = can("rx.medicines");
+  const { data: record } = useQuery({
+    queryKey: ["patient", currentPatientId],
+    queryFn: () => patientsApi.get(currentPatientId as string),
+    enabled: Boolean(currentPatientId) && (mayEditDh || mayAddMed),
+  });
+  const practiceId = activeWorkstationId ?? authUserId;
+  const ownRecord = Boolean(record?.doctorId && practiceId && record.doctorId === practiceId);
 
   // Same query key as Previous complaints and "P.D", so the three share one
   // fetch. The list is this practice's own prescriptions (server Rule 2).
@@ -83,6 +107,10 @@ export default function RecordsHistorySections() {
 
   const visitDate = isoToDdmmyyyy(ptDate);
   const dh = useMemo(() => drugHistoryByDate(drugHistory ?? [], visitDate), [drugHistory, visitDate]);
+  // The lines today's ℞ owns (the pad mirrors them into the history): their rows
+  // are the pad's to change, not this table's.
+  const padLines = useMemo(() => new Set(rxDrugHistoryEntries(rxItems ?? [], visitDate)), [rxItems, visitDate]);
+  const todayMs = ddmmyyyyMs(isoToDdmmyyyy(dhakaToday()));
   // ⚕️ Read by the generic (physician, 02/11/2026), as in the Drug history
   // modal — display only. The Download keeps the entries as stored (open
   // question for the physician, FUNCTIONAL-AUDIT.md).
@@ -124,34 +152,42 @@ export default function RecordsHistorySections() {
     <div>
       {/* Drug history — the patient's list, as the Drug history modal holds it. */}
       <section style={section} aria-label="Drug history">
-        <SectionHeader
-          title="Drug history"
-          canDownload={dh.length > 0}
-          onDownload={() => download("Drug history", dh.map((g) => ({
-            heading: dateLabel(g.date),
-            lines: g.items.map((r) => ({ text: r.kind === "cont" ? `>>> ${r.body}` : r.body, indent: r.kind === "cont", muted: r.kind === "note" })),
-          })))}
+        <DrugHistoryTable
+          key={currentPatientId ?? "none"}
+          entries={drugHistory ?? []}
+          visitDate={visitDate}
+          todayMs={todayMs}
+          newStartIso={ptDate}
+          generics={generics}
+          canEdit={ownRecord && mayEditDh}
+          canAdd={ownRecord && mayAddMed}
+          padLines={padLines}
+          onSave={editDrugHistoryBlock}
+          onAdd={(entries) => {
+            const ok = addDrugHistoryEntries(entries, { toRecord: true });
+            if (ok) {
+              const names = entries.filter((e) => !/^[^:]*\((cont|note)\):/.test(e)).map((e) => `“${medName(e.replace(/^[^:]*:\s*/, ""))}”`);
+              const on = entries[0]?.match(/^(\d{2}\/\d{2}\/\d{4})/)?.[1];
+              if (names.length) logActivity("Drug history", `Added ${names.join(", ")}${on ? ` (start ${on})` : ""}`.slice(0, 380), "added");
+            }
+            return ok;
+          }}
+          onSaved={(note) => logActivity("Drug history", note.slice(0, 380), "saved")}
+          renderActions={(actions) => (
+            <>
+              <SectionHeader
+                title="Drug history"
+                canDownload={dh.length > 0}
+                actions={actions}
+                onDownload={() => download("Drug history", dh.map((g) => ({
+                  heading: dateLabel(g.date),
+                  lines: g.items.map((r) => ({ text: r.kind === "cont" ? `>>> ${r.body}` : r.body, indent: r.kind === "cont", muted: r.kind === "note" })),
+                })))}
+              />
+              <GenericsNotLoaded g={generics} />
+            </>
+          )}
         />
-        {dh.length === 0 ? (
-          <div style={empty}>No drug history recorded for this patient.</div>
-        ) : (
-          <div style={card}>
-            <GenericsNotLoaded g={generics} />
-            {dh.map((g, gi) => (
-              <div key={gi} style={{ marginBottom: gi < dh.length - 1 ? 12 : 0 }}>
-                <div style={heading}>{dateLabel(g.date)}</div>
-                <div style={{ paddingLeft: 16 }}>
-                  {g.items.map((r, i) => (
-                    <div key={i} style={{ ...line, paddingLeft: r.kind === "cont" ? 18 : 0, color: r.kind === "note" ? C.n[600] : C.n[800], fontStyle: r.kind === "note" ? "italic" : undefined }}>
-                      {r.kind === "cont" ? <span aria-hidden="true">↳ </span> : null}
-                      {r.kind === "med" ? <><DrugHistoryName label={medName(r.body)} answer={generics.answer(medName(r.body))} />{medRest(r.body)}</> : r.body}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* Patient's input — no such record exists in the app yet. Said plainly;

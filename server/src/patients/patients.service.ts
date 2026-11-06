@@ -3,6 +3,7 @@ import { Patient, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
 import { appendOeEntries, setHxRemoved, type HxKind } from './on-examination';
+import { blockEditProblem, findBlock } from './drug-history-edit';
 import {
   CreatePatientDto,
   LinkPatientDto,
@@ -206,6 +207,50 @@ export class PatientsService {
         throw new ConflictException("This patient's drug history could not be read, so nothing was added to it.");
       }
       const next = [...stored, ...entries];
+      await tx.patient.update({ where: { id }, data: { drugHistory: next as Prisma.InputJsonValue } });
+      return { drugHistory: next };
+    }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts
+  }
+
+  // ⚕️ ONE stored medicine's date and duration put right (physician's sheet,
+  // 07/11/2026) — the only place a stored drug-history line is rewritten.
+  // `replace` is the block as the doctor saw it (a medicine and its tapering
+  // lines); it is found in the record BY ITS TEXT under the row's lock, never at
+  // a position a client read earlier, and when it is no longer there — another
+  // device changed it — nothing is written and the doctor is told so. What may
+  // replace it is `blockEditProblem`: the same lines with another date and other
+  // durations, never another name, dose or food, never more or fewer lines. The
+  // owner's practice only, as the append: a supervising doctor never writes the
+  // owner's record. A stored value that is not a list is refused, never replaced.
+  async replaceDrugHistoryBlock(
+    doctorId: string,
+    id: string,
+    replace: string[],
+    replacement: string[],
+  ): Promise<{ drugHistory: unknown[] }> {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id, ...this.accessibleWhere(doctorId) },
+      select: { id: true, doctorId: true },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
+    if (patient.doctorId !== doctorId) {
+      throw new ForbiddenException('Supervising doctors cannot modify the patient record');
+    }
+    const problem = blockEditProblem(replace, replacement);
+    if (problem) throw new BadRequestException(problem);
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ drugHistory: unknown }>>`
+        SELECT "drugHistory" FROM "Patient" WHERE "id" = ${id} FOR UPDATE
+      `;
+      const stored = locked[0]?.drugHistory;
+      if (!Array.isArray(stored)) {
+        throw new ConflictException("This patient's drug history could not be read, so nothing was changed.");
+      }
+      const at = findBlock(stored, replace);
+      if (at === -1) {
+        throw new ConflictException("This medicine's line has changed since the list was read, so nothing was changed. Open the list again and make the change once more.");
+      }
+      const next = [...stored.slice(0, at), ...replacement, ...stored.slice(at + replace.length)];
       await tx.patient.update({ where: { id }, data: { drugHistory: next as Prisma.InputJsonValue } });
       return { drugHistory: next };
     }, ROW_LOCK_TX); // waits its turn behind the row lock — prisma/row-lock.ts

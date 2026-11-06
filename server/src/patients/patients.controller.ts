@@ -19,6 +19,7 @@ import {
   CreatePatientDto,
   HistoryEntryRefDto,
   LinkPatientDto,
+  ReplaceDrugHistoryBlockDto,
   SupervisedDraftDto,
   UpdatePatientDto,
 } from './dto/patient.dto';
@@ -162,6 +163,24 @@ export class PatientsController {
       throw new ForbiddenException('You do not have permission to update prescriptions');
     }
     return this.patients.appendDrugHistory(doctorId, id, dto.entries);
+  }
+
+  // ⚕️ One stored medicine's start date and duration put right (physician's
+  // sheet, 07/11/2026): the block is replaced by its exact text under the row's
+  // lock, and only a new date and new durations are accepted — see the service.
+  // Gated as the append: an assistant needs any prescription key, a supervising
+  // doctor is refused in the service.
+  @Patch(':id/drug-history')
+  replaceDrugHistoryBlock(
+    @WorkstationDoctorId() doctorId: string,
+    @ActiveWorkstation() ws: Workstation,
+    @Param('id') id: string,
+    @Body() dto: ReplaceDrugHistoryBlockDto,
+  ) {
+    if (ws.role === 'assistant' && !ws.permissions.some((p) => p.startsWith('rx.'))) {
+      throw new ForbiddenException('You do not have permission to update prescriptions');
+    }
+    return this.patients.replaceDrugHistoryBlock(doctorId, id, dto.replace, dto.replacement);
   }
 
   // ⚕️ On-examination findings of a saved visit, appended to the patient's

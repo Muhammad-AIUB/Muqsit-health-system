@@ -15,7 +15,7 @@ export type Role =
   | 'monthlyCost' | 'taperOrphan' | 'taperRefused' | 'taperHeld' | 'saveFailed' | 'draftFailed' | 'keepWork'
   | 'answerLost' | 'answerLostAll'
   | 'ipdSaveFailed' | 'opdQueueDay' | 'opdPresence' | 'opdPrintQueue' | 'opdSms'
-  | 'chambers' | 'recordsOe' | 'patientPhoto' | 'historySidebar';
+  | 'chambers' | 'recordsOe' | 'patientPhoto' | 'historySidebar' | 'drugTable' | 'drugTableStale';
 
 interface Seed { password: string; doctors: Record<Role, { email: string; name: string }> }
 let seedCache: Seed | null = null;

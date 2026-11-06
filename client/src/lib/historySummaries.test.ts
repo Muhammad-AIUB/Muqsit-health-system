@@ -78,7 +78,7 @@ describe("drugHistorySummary", () => {
     expect(drugMentions(["", "Losartan 50mg", "7/9/2026: Napa", "2026-09-07: Napa", "07/09/2026: "], TODAY)).toEqual([]);
   });
 
-  it("ranges run from the earliest to the latest mention of the exact same name", () => {
+  it("ranges run from the earliest to the latest mention of the exact same name — or to the end of the course, when its duration can be read", () => {
     const entries = [
       "20/07/2026: Metformin 500mg — 1+0+1 — after food — 1 month",
       "10/01/2024: Losartan 50mg — 1+0+1 — after food — continuing",
@@ -86,19 +86,52 @@ describe("drugHistorySummary", () => {
       "03/06/2025: Losartan 50mg — 1+0+0 —  — ",
     ];
     expect(drugMentionRanges(entries, TODAY)).toEqual([
-      { name: "Metformin 500mg", start: "20/07/2026", end: "20/07/2026" },
+      // 1 month = 30 days, as the Drug history table counts it (physician's sheet, 07/11/2026)
+      { name: "Metformin 500mg", start: "20/07/2026", end: "19/08/2026" },
+      // "continuing" is no duration the app can read: the range is still the mentions
       { name: "Losartan 50mg", start: "10/01/2024", end: "07/09/2026" },
     ]);
   });
 
-  // "Bar durations are derived and understate. A tapering (cont) drug-history
-  // line carries no drug name, so it does not extend that drug's range … don't
-  // 'fix' them by guessing" (client/CLAUDE.md, Health monitoring).
-  it("a later (cont) line does NOT extend its medicine's range", () => {
+  // Before 07/11/2026 every duration was ignored ("bar durations are derived and
+  // understate"). The physician's sheet asked that a medicine added or edited in
+  // Patient's Prescriptions & reports go to Health monitoring with its date, the
+  // bar running to the End the table shows; a tapering line is the medicine
+  // above it, by position, as everywhere else in the app.
+  it("a tapering (cont) line extends its medicine's range by its own days, after the medicine's", () => {
     expect(drugMentionRanges([
       "01/09/2026: Mesacol 400 mg — 2+2+2 — food — 7 week",
       "07/09/2026(cont): 2+0+2 — food — 4 week",
-    ], TODAY)).toEqual([{ name: "Mesacol 400 mg", start: "01/09/2026", end: "01/09/2026" }]);
+    ], TODAY)).toEqual([{ name: "Mesacol 400 mg", start: "01/09/2026", end: "17/11/2026" }]); // 49 + 28 days
+  });
+
+  it("the sheet's own example: a 7-day course from 06/11 is a bar from 06/11 to 13/11", () => {
+    expect(drugMentionRanges(["06/11/2026: Capsule. Denvar 400 mg — 1+0+1 —  — 7 days"], TODAY))
+      .toEqual([{ name: "Capsule. Denvar 400 mg", start: "06/11/2026", end: "13/11/2026" }]);
+  });
+
+  it("a duration that cannot be read, a Continue, a no-date entry and a legacy line extend nothing", () => {
+    expect(drugMentionRanges([
+      "01/09/2026: A 5 mg — 1+0+1 —  — 5",
+      "01/09/2026: B 5 mg — 1+0+1 —  — Continue",
+      "01/01/2000: C 5 mg — 1+0+1 —  — 7 days",
+      "Current: D 5 mg — 1+0+1 —  — 7 days",
+      "01/09/2026: E 5 mg — 1+0+1 —  — 3 days",
+      "01/09/2026(cont): 1+0+1 —  — 5", // a taper with no unit: the whole course is unreadable, so E stays where its mentions were
+    ], TODAY)).toEqual([
+      { name: "A 5 mg", start: "01/09/2026", end: "01/09/2026" },
+      { name: "B 5 mg", start: "01/09/2026", end: "01/09/2026" },
+      { name: "C 5 mg", start: "01/01/2000", end: "01/01/2000" },
+      { name: "D 5 mg", start: TODAY, end: TODAY },
+      { name: "E 5 mg", start: "01/09/2026", end: "01/09/2026" },
+    ]);
+  });
+
+  it("two courses of the same name: the bar runs from the first start to the last end", () => {
+    expect(drugMentionRanges([
+      "01/02/2025: Capsule. Cef 3 400 mg — 1+0+1 —  — 14 days",
+      "06/11/2026: Capsule. Cef 3 400 mg — 1+0+1 —  — 7 days",
+    ], TODAY)).toEqual([{ name: "Capsule. Cef 3 400 mg", start: "01/02/2025", end: "13/11/2026" }]);
   });
 
   it("two strengths are two tracks — names are never fuzzy-matched", () => {

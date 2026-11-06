@@ -142,6 +142,19 @@ export class AppendDrugHistoryDto {
   entries!: string[];
 }
 
+// PATCH /patients/:id/drug-history — ONE stored medicine (a block: its line and
+// the tapering lines under it) with its date and duration put right (physician's
+// sheet, 07/11/2026). `replace` is the block exactly as it is stored; `replacement`
+// is the same block with a new date and new durations. The service refuses
+// anything else (`patients/drug-history-edit.ts`).
+export class ReplaceDrugHistoryBlockDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @IsString({ each: true }) @MaxLength(2000, { each: true })
+  replace!: string[];
+
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @IsString({ each: true }) @MaxLength(2000, { each: true })
+  replacement!: string[];
+}
+
 // ⚕️ On-examination findings of a saved visit (physician's sheets 28/10 item 7,
 // 31/10 item 3: "this patient's every doctor sees it"), appended by the server
 // to the patient's shared history. The author is NOT sent: the server stamps
