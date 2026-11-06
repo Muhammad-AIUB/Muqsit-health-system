@@ -27,7 +27,11 @@ test('On examination names its author on the records page; the history sections 
   await expect(page.getByText(`by Dr. ${name}`).first()).toBeVisible();
   await expect(page.getByText('BP: 120/80 mmHg')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Download On examination' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: '✎ Edit' })).toHaveCount(0);
+  // On examination has no Edit (31/10/2026). The one ✎ Edit on the page is the
+  // Drug history's, which the owner has since 07/11/2026 (it is where a start
+  // date or a duration is put right, and a medicine added).
+  await expect(page.getByRole('button', { name: '✎ Edit' })).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'Drug history' }).getByRole('button', { name: '✎ Edit' })).toHaveCount(1);
 
   const sections = page.getByRole('region');
   await expect(sections).toHaveText([/Drug history/, /Patient's input/, /Disease and surgical history/, /Chief complaints history/, /Diagnosis history/]);

@@ -31,7 +31,16 @@ jobs:
             # blocking the next pull. They're safely discarded — npm install
             # right below regenerates them anyway.
             git checkout -- client/package-lock.json server/package-lock.json admin/package-lock.json 2>/dev/null || true
-            git pull origin main
+            # ⚠️ --ff-only, and NEVER `git reset --hard origin/main` to "fix" a failure
+            # here. When main's history is rewritten (a force push) the box's clone is
+            # not an ancestor of it, and this step stops the deploy BEFORE any build or
+            # restart: the three runs of 2026-11-06 (20e80cc, 834005b, 3f9699f, all
+            # pushed by another account) died exactly here with "divergent branches",
+            # which left production on the last good commit while the pushed history
+            # carried a hidden payload (`init` files + `node init &&` in the build
+            # scripts). A reset would have built and run it. Fix the HISTORY on origin
+            # (root CLAUDE.md, "merge commit"), not this line.
+            git pull --ff-only origin main
             # ⚠️ Each build runs in a SUBSHELL, so that a failed step STOPS the
             # script before `pm2 restart all` and this Action goes red. Until
             # 2026-10-16 they were written `cd client && … && npm run build && cd ..`,

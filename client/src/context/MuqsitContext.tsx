@@ -14,7 +14,7 @@ import React, {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TAB_PATHS, tabFromPath } from "@/components/layout/tabs";
-import { activityApi, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
+import { activityApi, ApiError, patientsApi, prescriptionsApi, prescriptionDraftApi, opdApi, setActiveWorkstationId, type Patient, type Workstation } from "@/lib/api";
 import { createRxSnapshotGate } from "@/lib/rxSnapshot";
 import { mergeThumbs, safeThumbMap, type ThumbMap } from "@/lib/imageThumbs";
 import { buildRxAlertInput, checkRxAlerts } from "@/lib/rxAlerts";
@@ -157,6 +157,16 @@ function hasRun(list: string[], entries: string[]): boolean {
 function withoutBlock(list: string[], entries: string[]): string[] {
   for (let i = list.length - entries.length; i >= 0; i--) {
     if (entries.every((e, k) => list[i + k] === e)) return [...list.slice(0, i), ...list.slice(i + entries.length)];
+  }
+  return list;
+}
+
+// The list with the FIRST run of exactly these entries — together, in this
+// order — replaced by `to`: one stored medicine with its date and durations put
+// right (`editDrugHistoryBlock`). The list itself is not changed.
+function replaceRun(list: string[], from: string[], to: string[]): string[] {
+  for (let i = 0; i + from.length <= list.length; i++) {
+    if (from.every((e, k) => list[i + k] === e)) return [...list.slice(0, i), ...to, ...list.slice(i + from.length)];
   }
   return list;
 }
@@ -1495,12 +1505,18 @@ function useMuqsitStore() {
   // Takes one press's lines together (a medicine and its tapers) and says
   // whether it took them: when it did not, it has said why in a box, and the
   // "+ Add medicine" pad keeps what was typed.
-  const addDrugHistoryEntries = useCallback((entries: string[]): boolean => {
+  //
+  // `toRecord` (Patient's Prescriptions & reports, physician's sheet 07/11/2026):
+  // that screen's "+ Add" is an edit of the patient's RECORD, like its other
+  // sections — the line goes to the record at once, before Save & print as well,
+  // by the same server append and under the same queue as after it. The editor's
+  // own list takes it too, so a Save & print that follows writes it once.
+  const addDrugHistoryEntries = useCallback((entries: string[], opts?: { toRecord?: boolean }): boolean => {
     if (!entries.length) return true;
     const pid = patientIdRef.current;
     // Before Save & print the lines are part of the visit: parked with it,
     // written to the record by Save & print.
-    if (!pid || rxCompletedRef.current !== pid) {
+    if (!pid || (rxCompletedRef.current !== pid && !opts?.toRecord)) {
       setDrugHistory((prev) => [...prev, ...entries]);
       return true;
     }
@@ -1510,7 +1526,9 @@ function useMuqsitStore() {
     if (supervisedRef.current) {
       tell({
         title: "The medicine was not added.",
-        body: "This visit is already printed, and as this patient's supervising doctor you cannot add to the drug history on the patient's own record — a line added now would be kept nowhere. Write it before Save & print: the prescription keeps it.",
+        body: rxCompletedRef.current === pid
+          ? "This visit is already printed, and as this patient's supervising doctor you cannot add to the drug history on the patient's own record — a line added now would be kept nowhere. Write it before Save & print: the prescription keeps it."
+          : "As this patient's supervising doctor you cannot add to the drug history on the patient's own record. Write it on this visit's prescription: it keeps it.",
         tone: "info",
       });
       return false;
@@ -1572,6 +1590,77 @@ function useMuqsitStore() {
     // The next queued write waits for this outcome, withdrawal included.
     dhWritesRef.current = outcome.catch(() => {});
     return true;
+  }, []);
+
+  // ⚕️ ONE medicine of the patient's drug history with its start date and
+  // durations put right (Patient's Prescriptions & reports → Drug history → Edit,
+  // physician's sheet 07/11/2026). Written to the patient's RECORD at once, by
+  // the server (`PATCH /patients/:id/drug-history`): the block is found there BY
+  // ITS TEXT under the row's lock, and only a new date and new durations are
+  // taken. On the same queue as every other drug-history write, so it never
+  // lands before a Save & print's list that was sent first. The editor's own
+  // list takes the same change, so a Save & print that follows writes it once.
+  //
+  // Says whether it was taken. When it was not, it has said why, in a box, in the
+  // doctor's words — and the list on the screen is as it was. A block that no
+  // longer stands on the record (another device changed it) is a 409 and is never
+  // written over. No answer is not "not saved": the record is asked, as for an
+  // added line, and only what it says is told.
+  const editDrugHistoryBlock = useCallback(async (from: string[], to: string[]): Promise<boolean> => {
+    const pid = patientIdRef.current;
+    if (!pid) return false;
+    if (supervisedRef.current) {
+      tell({
+        title: "The change was not saved.",
+        body: "As this patient's supervising doctor you cannot change the drug history on the patient's own record.",
+        tone: "info",
+      });
+      return false;
+    }
+    const shown = (from[0] ?? "").replace(/^[^:]*:\s*/, "").split(" — ")[0] || "this medicine";
+    const adopt = (list: unknown) => {
+      if (patientIdRef.current !== pid) return;
+      setDrugHistory((live) => replaceRun(live, from, to));
+      if (!Array.isArray(list) || drugHistoryHydratedRef.current !== pid) return;
+      const record = list as string[];
+      drugHistoryBaselineRef.current = record;
+      setDrugHistory((live) => mergeWithRecord(record, live));
+    };
+    const send = () => patientsApi.replaceDrugHistoryBlock(pid, from, to);
+    const outcome: Promise<boolean> = dhWritesRef.current.then(send, send).then(
+      (res) => { adopt(res?.drugHistory); return true; },
+      async (e) => {
+        if (e instanceof ApiError && e.status === 409) {
+          tell({
+            title: "The change was not saved.",
+            body: `“${shown}” has been changed on another screen or device since this list was read, so nothing was changed. Open the patient again, then make the change once more.`,
+            tone: "danger",
+          });
+          return false;
+        }
+        if (e instanceof ApiError) {
+          tell({ title: "The change was not saved.", body: `${whyNotSaved(e)} “${shown}” is as it was.`, tone: "danger" });
+          return false;
+        }
+        // No answer: the change may be on the record all the same. The record says.
+        console.error("[drug history] no answer for a changed line:", e);
+        let stored: unknown;
+        try { stored = (await patientsApi.get(pid)).drugHistory; } catch { stored = undefined; }
+        if (Array.isArray(stored) && hasRun(stored as string[], to)) { adopt(stored); return true; }
+        if (Array.isArray(stored) && hasRun(stored as string[], from)) {
+          tell({ title: "The change was not saved.", body: `${whyNotSaved(e)} “${shown}” is as it was.`, tone: "danger" });
+          return false;
+        }
+        tell({
+          title: "The change may not have been saved.",
+          body: `${whyNotSaved(e)} Open the patient again to see what “${shown}” says now before changing it again.`,
+          tone: "danger",
+        });
+        return false;
+      },
+    );
+    dhWritesRef.current = outcome.then(() => {}, () => {});
+    return outcome;
   }, []);
 
   // ⚕️ Special advice mirror (℞ pad •••, physician's design 2026-09-24). While a
@@ -2216,7 +2305,7 @@ function useMuqsitStore() {
     hideOnExamination, setHideOnExamination,
     hideHistory, setHideHistory,
     rxPadUnwritable, rxPadHeld, setRxPadHeld, editorEpoch,
-    drugHistory, setDrugHistory, addDrugHistoryEntries, onExamination, setOnExamination, note, setNote, plan, setPlan,
+    drugHistory, setDrugHistory, addDrugHistoryEntries, editDrugHistoryBlock, onExamination, setOnExamination, note, setNote, plan, setPlan,
     provisionalDiagnosis, setProvisionalDiagnosis, associatedIllness, setAssociatedIllness,
     finalDiagnosis, setFinalDiagnosis,
     rxItems, setRxItems, advice, setAdvice, adviceTest, setAdviceTest,
@@ -2242,7 +2331,7 @@ function useMuqsitStore() {
     handleLogin, savePrescription, toggleWatch,
     resetEditor, flushEditorDraft, saveDraftNow, hasRxContent, visitPrinted, loadPatient, loadPatientById, allFieldValues, leftFields,
     activeWorkstation, activeWorkstationId, showWorkstations, setShowWorkstations, selectWorkstation,
-    can, canEditLabel, isAssistantMode,
+    can, canEditLabel, isAssistantMode, authUserId: authUser?.id ?? null,
     // device mirroring
     mirrorOn, setMirrorOn, mirrorConnId, setMirrorConnId, mirrorSnapshot, applyMirrorSnapshot, mirrorApplyingRef,
   };

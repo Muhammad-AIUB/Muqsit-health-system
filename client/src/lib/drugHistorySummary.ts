@@ -12,6 +12,7 @@
 //   "Current: Drug — ..." / "Past: Drug — ..."    (legacy, pre-migration)
 
 import { ddmmyyyyMs } from "@/lib/dateInput";
+import { coursesOf } from "@/lib/drugCourse";
 export interface DrugMention { name: string; date: string } // date: dd/mm/yyyy
 export interface MentionRange { name: string; start: string; end: string } // dd/mm/yyyy
 
@@ -45,14 +46,22 @@ export function drugMentions(entries: string[], today: string): DrugMention[] {
   return out;
 }
 
-// Groups mentions by exact drug name; start/end = earliest/latest mention date.
+// Groups mentions by exact drug name; start = the earliest mention date, end =
+// the latest mention date — or, where a dated medicine's duration can be read,
+// the day that course ENDS if that is later (physician, 07/11/2026: a medicine
+// added or edited in Patient's Prescriptions & reports goes to Health
+// monitoring "with its date", and the bar runs from its Start to its End).
 //
-// A tapering "(cont)" line carries no drug name, so it does NOT extend the
-// range even though it means the drug was still being taken on that later
-// date. Attaching it to the nearest preceding medicine would be an assumption
-// about array order in a list that is merged and deduped on save, so the range
-// deliberately understates instead of guessing. This is one of the cases the
-// chart's duration override exists to let the doctor correct.
+// The End is the one the Drug history table shows (`lib/drugCourse.ts`): the
+// start plus the days of the medicine's line and of the tapering lines under it,
+// in order. A tapering "(cont)" line carries no drug name; it belongs to the
+// medicine directly above it by position, as everywhere else in the app (the
+// Drug history modal, Move to Rx, the ℞ mirror). Before 07/11/2026 the range
+// ignored every duration and so understated; it still does where a duration
+// cannot be read (no unit, `Continue`), the entry has no real date (the no-date
+// marker, a legacy `Current:` line, whose date is only today's), or the dose of
+// a line is irrelevant here — only days are. The chart's duration override
+// (hmDrugDates) is still what lets the doctor correct a bar, and it still wins.
 export function drugMentionRanges(entries: string[], today: string): MentionRange[] {
   const map = new Map<string, { start: string; end: string }>();
   for (const m of drugMentions(entries, today)) {
@@ -60,6 +69,11 @@ export function drugMentionRanges(entries: string[], today: string): MentionRang
     if (!cur) { map.set(m.name, { start: m.date, end: m.date }); continue; }
     if (ddmmyyyyMs(m.date) < ddmmyyyyMs(cur.start)) cur.start = m.date;
     if (ddmmyyyyMs(m.date) > ddmmyyyyMs(cur.end)) cur.end = m.date;
+  }
+  for (const c of coursesOf(entries, today)) {
+    if (c.kind !== "med" || !c.hasDate || c.end === null) continue;
+    const cur = map.get(c.label);
+    if (cur && ddmmyyyyMs(c.end) > ddmmyyyyMs(cur.end)) cur.end = c.end;
   }
   return Array.from(map.entries()).map(([name, r]) => ({ name, ...r }));
 }

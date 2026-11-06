@@ -772,6 +772,14 @@ export const patientsApi = {
   // never a whole list built here. Answers with the list as stored.
   appendDrugHistory: (id: string, entries: string[]) =>
     apiFetch<{ drugHistory: string[] }>(`/patients/${id}/drug-history`, { method: "POST", body: JSON.stringify({ entries: entries }) }),
+  // ⚕️ ONE stored medicine's start date and durations put right (physician's
+  // sheet, 07/11/2026): `replace` is the block — a medicine and its tapering
+  // lines — exactly as stored, `replacement` the same lines with a new date and
+  // new durations. The server finds the block by its text under the row's lock
+  // and refuses any other change; 409 when it is no longer there. Answers with
+  // the list as stored.
+  replaceDrugHistoryBlock: (id: string, replace: string[], replacement: string[]) =>
+    apiFetch<{ drugHistory: string[] }>(`/patients/${id}/drug-history`, { method: "PATCH", body: JSON.stringify({ replace: replace, replacement: replacement }) }),
   // ⚕️ On-examination findings of a saved visit, APPENDED by the server to the
   // patient's shared history with the author stamped there (physician's
   // sheets 28/10 + 31/10/2026). Answers with the history as stored.

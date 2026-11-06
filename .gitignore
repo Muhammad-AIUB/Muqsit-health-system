@@ -4,6 +4,7 @@ node_modules/
 .DS_Store
 
 # Never commit secrets
+.env
 .env*.local
 .gstack/
 
@@ -12,4 +13,3 @@ node_modules/
 
 # Flaky-detector run reports
 .test-repeat/
-config.bat

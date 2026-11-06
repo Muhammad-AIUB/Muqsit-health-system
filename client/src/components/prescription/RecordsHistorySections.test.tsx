@@ -10,17 +10,25 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-const api = vi.hoisted(() => ({ list: vi.fn(), byBrand: vi.fn() }));
+const api = vi.hoisted(() => ({ list: vi.fn(), byBrand: vi.fn(), patientGet: vi.fn(), log: vi.fn() }));
 vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<object>()),
   prescriptionsApi: { listByPatient: api.list, create: vi.fn() },
   medicinesApi: { byBrand: api.byBrand },
+  patientsApi: { get: api.patientGet },
+  activityApi: { log: api.log },
 }));
 let ctx: Record<string, unknown>;
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
 vi.mock("@/components/common/ImageGallery", () => ({ default: () => null }));
+vi.mock("./AddMedicineRow", () => ({
+  default: (p: { date: string; onAdd: (e: string[]) => boolean }) => (
+    <button type="button" onClick={() => p.onAdd([`${p.date}: Tablet. Seclo 20 mg — 1+0+0 —  — 3 days`])}>Add to Drug history</button>
+  ),
+}));
 
 import PatientRecordsView from "./PatientRecordsView";
+import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 
 const fresh = (over: Record<string, unknown> = {}) => ({
   currentPatientId: "A", ptName: "Test Patient", ptAge: "40", ptGender: "Female", ptPhone: "01700000000", ptDate: "2026-11-01",
@@ -29,6 +37,9 @@ const fresh = (over: Record<string, unknown> = {}) => ({
   investigation: [], investigationSummary: [], setInvestigationSummary: vi.fn(),
   saveInvestigationSummary: vi.fn(), openInvForSummary: vi.fn(),
   onExaminationSummary: [], drugHistory: [],
+  // Drug history's Edit / Add (physician's sheet 07/11/2026): off unless a test turns them on.
+  rxItems: [], can: () => false, activeWorkstationId: null, authUserId: null,
+  editDrugHistoryBlock: vi.fn(), addDrugHistoryEntries: vi.fn(),
   ...over,
 });
 
@@ -44,6 +55,10 @@ beforeEach(() => {
   api.list.mockResolvedValue([]);
   api.byBrand.mockReset();
   api.byBrand.mockResolvedValue({ rows: [] });
+  api.patientGet.mockReset();
+  api.patientGet.mockResolvedValue({ id: "A", doctorId: "doc1" });
+  api.log.mockReset();
+  api.log.mockResolvedValue({});
   written = [];
   vi.spyOn(window, "open").mockImplementation(() => ({ document: { write: (h: string) => written.push(h), close: () => {} } }) as unknown as Window);
 });
@@ -102,7 +117,7 @@ describe("the history sections after the Investigation summary", () => {
     expect(within(sectionOf("Diagnosis history")).getByText(/No diagnosis history yet/)).toBeTruthy();
   });
 
-  it("drug history by date with tapers under their medicine; disease/surgical from On examination", async () => {
+  it("drug history as a table with tapers under their medicine; disease/surgical from On examination", async () => {
     ctx = fresh({
       drugHistory: ["20/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 7 days", "20/10/2026(cont): 0+0+1 —  — 7 days"],
       onExaminationSummary: [{ date: "28/10/2026", text: "Disease Hx: DM 10/01/2020", by: "Rahim" }],
@@ -169,23 +184,25 @@ describe("the history sections after the Investigation summary", () => {
 });
 
 // ⚕️ Drug history is READ by the generic here too (physician, 02/11/2026) —
-// display only; the Download keeps the entries as stored.
+// display only; the Download keeps the entries as stored. Since the physician's
+// sheet of 07/11/2026 the table writes the generic with the brand as stored in
+// brackets, as the sheet's own example does (`Paracetamol(Tab. Napa 500mg)`);
+// the Drug history MODAL still shows the generic alone.
 describe("Drug history on the records page shows the generic", () => {
   const HISTORY = [
     "20/10/2026: Tablet. Napa 500 mg — 1+0+1 —  — 7 days",
     "20/10/2026(cont): 0+0+1 —  — 7 days",
     "20/10/2026: Tablet. Handtyped 5 mg — 1+0+0 —  — 7 days",
   ];
-  it("one generic in place of the brand, as stored where none is found; tapers and Download unchanged", async () => {
+  it("the generic with the stored brand in brackets, as stored where none is found; tapers and Download unchanged", async () => {
     api.byBrand.mockResolvedValue({ rows: [{ brandName: "Napa", genericName: "Paracetamol", dosageForm: "Tablet", strength: "500 mg", priceRaw: null }] });
     ctx = fresh({ drugHistory: HISTORY });
     render(<PatientRecordsView />, { wrapper: wrap });
     await flush();
     const dh = sectionOf("Drug history");
     expect(api.byBrand).toHaveBeenCalledTimes(1);
-    expect(dh.textContent).toContain("Tablet. Paracetamol 500 mg — 1+0+1 —  — 7 days");
-    expect(dh.textContent).not.toContain("Napa");
-    expect(dh.textContent).toContain("Tablet. Handtyped 5 mg(generic not found) — 1+0+0");
+    expect(dh.textContent).toContain("Paracetamol (Tablet. Napa 500 mg)");
+    expect(dh.textContent).toContain("Tablet. Handtyped 5 mg(generic not found)");
     expect(within(dh).getByText(/0\+0\+1/)).toBeTruthy();
     fireEvent.click(within(dh).getByLabelText("Download Drug history"));
     expect(written[0]).toContain("Tablet. Napa 500 mg");
@@ -205,3 +222,127 @@ describe("Drug history on the records page shows the generic", () => {
   });
 });
 
+
+// ⚕️ Drug history's Edit / Add (physician's sheet, 07/11/2026): offered only
+// where the record may be written, wired to the store's writes, and a line on
+// today's ℞ is the pad's to change.
+describe("Drug history Edit and Add on the records page", () => {
+  const DENVAR = "06/11/2026: Capsule. Denvar 400 mg — 1+0+1 —  — 7 days";
+  const own = (over: Record<string, unknown> = {}) => fresh({
+    drugHistory: [DENVAR], can: () => true, authUserId: "doc1", activeWorkstationId: null, ...over,
+  });
+  const editButton = () => within(sectionOf("Drug history")).queryByText("✎ Edit");
+
+  it("the owner's practice with the keys gets Edit", async () => {
+    ctx = own();
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    expect(editButton()).toBeTruthy();
+  });
+
+  it("a supervising doctor does not: the patient's record belongs to another practice", async () => {
+    api.patientGet.mockResolvedValue({ id: "A", doctorId: "the-owner" });
+    ctx = own();
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    expect(editButton()).toBeNull();
+  });
+
+  it("an assistant acting for the owner is judged by the owner's id and by their keys", async () => {
+    ctx = own({ authUserId: "assistant-1", activeWorkstationId: "doc1" });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    expect(editButton()).toBeTruthy();
+    cleanup();
+    ctx = own({ authUserId: "assistant-1", activeWorkstationId: "doc1", can: (k: string) => k !== "rx.drugHistory" && k !== "rx.medicines" });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    expect(editButton()).toBeNull();
+  });
+
+  it("while the patient's record has not loaded, or cannot be read, there is no Edit — the write is never offered on a guess", async () => {
+    api.patientGet.mockRejectedValue(new Error("offline"));
+    ctx = own();
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    expect(editButton()).toBeNull();
+  });
+
+  it("Save sends the block to the store as it is stored, and writes one activity line", async () => {
+    const edit = vi.fn().mockResolvedValue(true);
+    ctx = own({ editDrugHistoryBlock: edit });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    fireEvent.click(editButton()!);
+    fireEvent.change(screen.getByLabelText(/Duration of Capsule. Denvar/), { target: { value: "5 days" } });
+    fireEvent.click(screen.getByLabelText(/Save changes to Capsule. Denvar/));
+    await flush();
+    expect(edit).toHaveBeenCalledWith([DENVAR], ["06/11/2026: Capsule. Denvar 400 mg — 1+0+1 —  — 5 days"]);
+    expect(api.log).toHaveBeenCalledTimes(1);
+    expect(api.log.mock.calls[0][0]).toMatchObject({ section: "Drug history", action: "saved", patientId: "A" });
+    expect(api.log.mock.calls[0][0].detail).toContain("Capsule. Denvar 400 mg");
+  });
+
+  it("a save the record did not take writes no activity line", async () => {
+    ctx = own({ editDrugHistoryBlock: vi.fn().mockResolvedValue(false) });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    fireEvent.click(editButton()!);
+    fireEvent.change(screen.getByLabelText(/Duration of Capsule. Denvar/), { target: { value: "5 days" } });
+    fireEvent.click(screen.getByLabelText(/Save changes to Capsule. Denvar/));
+    await flush();
+    expect(api.log).not.toHaveBeenCalled();
+  });
+
+  it("a medicine on today's ℞ is the pad's: its row cannot be edited here", async () => {
+    // the line the ℞ mirror writes for this pad, as the store would hold it
+    const item = { drug: "Capsule. Denvar 400 mg", dose: "1+0+1", instruction: "", duration: "7 days" };
+    const mirrored = rxDrugHistoryEntries([item], "06/11/2026");
+    expect(mirrored).toEqual([DENVAR]);
+    ctx = own({ ptDate: "2026-11-06", rxItems: [item] });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    fireEvent.click(editButton()!);
+    expect(screen.queryByLabelText(/Duration of/)).toBeNull();
+    expect(screen.getByText(/On today's ℞/)).toBeTruthy();
+  });
+
+  // The pad itself (typing, the medicine list, shorthand) is AddMedicineRow's and
+  // has its own tests; here it is a button that presses Add with one line, so
+  // that what is checked is where that press goes.
+  const LINE = "07/11/2026: Tablet. Seclo 20 mg — 1+0+0 —  — 3 days";
+
+  it("a medicine added here goes to the RECORD at once — before Save & print too — and is logged once the store took it", async () => {
+    const add = vi.fn().mockReturnValue(true);
+    ctx = own({ addDrugHistoryEntries: add, ptDate: "2026-11-07" });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    fireEvent.click(editButton()!);
+    expect(add).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Add to Drug history"));
+    expect(add).toHaveBeenCalledWith([LINE], { toRecord: true });
+    await flush();
+    expect(api.log).toHaveBeenCalledTimes(1);
+    expect(api.log.mock.calls[0][0]).toMatchObject({ section: "Drug history", action: "added" });
+    expect(api.log.mock.calls[0][0].detail).toBe("Added “Tablet. Seclo 20 mg” (start 07/11/2026)");
+  });
+
+  it("a press the store did not take writes no activity line", async () => {
+    ctx = own({ addDrugHistoryEntries: vi.fn().mockReturnValue(false) });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    fireEvent.click(editButton()!);
+    fireEvent.click(screen.getByText("Add to Drug history"));
+    await flush();
+    expect(api.log).not.toHaveBeenCalled();
+  });
+
+  it("no Add for someone who may put dates right but not write medicines", async () => {
+    ctx = own({ can: (k: string) => k !== "rx.medicines" });
+    render(<PatientRecordsView />, { wrapper: wrap });
+    await flush();
+    fireEvent.click(editButton()!);
+    expect(screen.queryByText("Add to Drug history")).toBeNull();
+    expect(screen.getByLabelText(/Duration of Capsule. Denvar/)).toBeTruthy();
+  });
+});
