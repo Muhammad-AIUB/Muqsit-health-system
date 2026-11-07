@@ -3,7 +3,7 @@ import { NO_DATE } from "@/lib/drugHistoryAdd";
 import { SEP } from "@/lib/rxDrugHistory";
 import { ddmmyyyyMs } from "@/lib/dateInput";
 import {
-  NO_DATE_MARKER, CELL_SEP, addDays, coursesOf, formatTotal, isCurrentCourse, rewriteCourse, sortCourses,
+  NO_DATE_MARKER, CELL_SEP, addDays, collapseContinuing, coursesOf, formatTotal, isCurrentCourse, rewriteCourse, sortCourses,
 } from "@/lib/drugCourse";
 
 const TODAY = "07/11/2026";
@@ -295,5 +295,51 @@ describe("rewriteCourse: the start date and the durations, and nothing else", ()
     expect(back.label).toBe(c.label);
     expect(back.end).toBe("13/11/2026");
     expect(back.total).toBe(12);
+  });
+});
+
+describe("a course that goes on is counted up to today (physician's sheet, 07/11/2026, item 3)", () => {
+  const total = (entries: string[]) => coursesOf(entries, TODAY, todayMs)[0].total;
+  it("0+0+1 Continue from 09/09/2026 is 60 (both days counted, months of any length)", () => {
+    expect(total(["09/09/2026: Capsule. Lenva 4 mg — 0+0+1 —  — Continue"])).toBe(60);
+  });
+  it("0+0+2 Continue from the same day is 120", () => {
+    expect(total(["09/09/2026: Capsule. Lenva 4 mg — 0+0+2 —  — Continue"])).toBe(120);
+  });
+  it("0+0+1 for 7 days, then 0+0+2 Continue is 113", () => {
+    expect(total([
+      "09/09/2026: Capsule. Lenva 4 mg — 0+0+1 —  — 7 days",
+      "09/09/2026(cont): 0+0+2 —  — Continue",
+    ])).toBe(113);
+  });
+  it("a start six months back counts to today", () => {
+    expect(total(["09/05/2026: Tablet. Monas 10 mg — 0+0+1 —  — Continue"])).toBe(183);
+  });
+  it("without a today it stays blank, as before; an unreadable dose stays blank", () => {
+    expect(coursesOf(["09/09/2026: Tablet. X — 0+0+1 —  — Continue"], TODAY)[0].total).toBeNull();
+    expect(total(["09/09/2026: Tablet. X — as needed —  — Continue"])).toBeNull();
+  });
+});
+
+describe("collapseContinuing — a medicine that goes on is one row from the day it began", () => {
+  const rows = (entries: string[]) => collapseContinuing(coursesOf(entries, TODAY, todayMs));
+  const cont = (d: string, dose = "1+0+1") => `${d}: Tablet. Doxiva 200 mg — ${dose} —  — Continue`;
+  it("the same medicine and dose continued at every visit is ONE row, from the earliest date", () => {
+    const r = rows([cont("24/09/2026"), cont("21/09/2026"), cont("19/09/2026")]);
+    expect(r).toHaveLength(1);
+    expect(r[0].date).toBe("19/09/2026");
+    expect(r[0].extraLines).toHaveLength(2);
+  });
+  it("a visit between WITHOUT it is a break: two rows", () => {
+    const r = rows([cont("06/11/2026"), "13/10/2026: Capsule. Lenva 4 mg — 0+0+1 —  — 7 days", cont("24/09/2026")]);
+    expect(r.filter((c) => c.label.includes("Doxiva")).map((c) => c.date).sort()).toEqual(["06/11/2026", "24/09/2026"]);
+  });
+  it("another dose is another row; a course with an end is never joined", () => {
+    expect(rows([cont("24/09/2026"), cont("21/09/2026", "1+1+1")])).toHaveLength(2);
+    expect(rows([cont("24/09/2026"), "21/09/2026: Tablet. Doxiva 200 mg — 1+0+1 —  — 5 days"])).toHaveLength(2);
+  });
+  it("nothing is dropped from the record: every stored line is carried", () => {
+    const r = rows([cont("24/09/2026"), cont("21/09/2026")]);
+    expect([...r[0].lines, ...(r[0].extraLines ?? [])].sort()).toEqual([cont("21/09/2026"), cont("24/09/2026")].sort());
   });
 });

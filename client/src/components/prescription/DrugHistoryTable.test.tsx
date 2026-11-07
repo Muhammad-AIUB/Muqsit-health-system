@@ -97,7 +97,8 @@ describe("the table", () => {
     const a = rows.find((r) => r.textContent?.includes("A 5 mg"))!;
     const b = rows.find((r) => r.textContent?.includes("B 5 mg"))!;
     expect(cellsOf(a).slice(3)).toEqual(["06/11/2026", "—", "—"]);
-    expect(cellsOf(b).slice(3)).toEqual(["06/11/2026", "Continue", "—"]);
+    // Continue is counted up to today, both days (physician, 07/11/2026): 06/11 and 07/11 = 2 × 1.
+    expect(cellsOf(b).slice(3)).toEqual(["06/11/2026", "Continue", "2"]);
   });
 
   it("a tapering line is under its medicine; End and Total are of the whole regimen", () => {

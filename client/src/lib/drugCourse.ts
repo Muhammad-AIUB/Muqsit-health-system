@@ -66,6 +66,8 @@ export interface Course {
   total: number | null;
   /** A dated medicine whose every line is dated: its start and durations may be edited. */
   editable: boolean;
+  /** Stored lines of the later visits this row stands for (`collapseContinuing`); `lines` are the earliest block's. */
+  extraLines?: string[];
 }
 
 interface Parsed { raw: string; date: string; dated: boolean; kind: "med" | "note" | "cont"; body: string }
@@ -113,16 +115,33 @@ export function formatTotal(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
 }
 
-function figures(startOk: boolean, start: string, lines: CourseLine[]): { end: string | null; open: boolean; total: number | null } {
+function figures(startOk: boolean, start: string, lines: CourseLine[], todayMs?: number): { end: string | null; open: boolean; total: number | null } {
   let days = 0;
   let allDays = true;
   let open = false;
   let units = 0;
   let allUnits = true;
-  for (const l of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
     // A cell BAN wrote in Bangla is read as its English, as the monthly-cost box reads it.
     const d = durationDays(rxCellIn(l.duration, "en"));
-    if (d === "continue") { open = true; allDays = false; allUnits = false; continue; }
+    if (d === "continue") {
+      open = true; allDays = false;
+      // ⚕️ A course that goes on is counted up to TODAY (physician, 07/11/2026:
+      // "ajker date porjonto" — from the start date to today, both days counted;
+      // a line for N days first, then Continue, takes the days that are left).
+      // Only the LAST line may be the open one; a Continue with lines after it
+      // has no readable count.
+      const perDay = dosesPerDay(rxCellIn(l.dose, "en"));
+      const startMs = startOk ? ddmmyyyyMsStrict(start) : NaN;
+      if (todayMs !== undefined && i === lines.length - 1 && allUnits && perDay !== null && saysOnlyWhen(l.food) && !Number.isNaN(startMs)) {
+        const left = Math.max(0, Math.round((todayMs - startMs) / 86_400_000) + 1 - days);
+        units += perDay * left;
+      } else {
+        allUnits = false;
+      }
+      continue;
+    }
     if (d === null) { allDays = false; allUnits = false; continue; }
     days += d;
     const perDay = dosesPerDay(rxCellIn(l.dose, "en"));
@@ -145,7 +164,7 @@ function figures(startOk: boolean, start: string, lines: CourseLine[]): { end: s
  * note; one with nothing above it is a row of its own that cannot be edited.
  * `visitDate` is what a legacy `Current:` line reads as.
  */
-export function coursesOf(entries: string[], visitDate: string): Course[] {
+export function coursesOf(entries: string[], visitDate: string, todayMs?: number): Course[] {
   const blocks: Parsed[][] = [];
   for (const raw of entries ?? []) {
     if (typeof raw !== "string" || !raw.trim()) continue;
@@ -169,10 +188,58 @@ export function coursesOf(entries: string[], visitDate: string): Course[] {
     const h = headOf(first.body);
     const tapers = b.slice(1).map((r) => contOf(r.body));
     const all = [h.line, ...tapers.map((t) => t.line)];
-    const f = figures(hasDate, first.date, all);
+    const f = figures(hasDate, first.date, all, todayMs);
     const editable = b.every((r) => r.dated) && !h.tooLong && !tapers.some((t) => t.tooLong);
     return { key, lines, kind: "med", label: h.label, date: first.date, hasDate, head: h.line, tapers: tapers.map((t) => t.line), end: f.end, open: f.open, total: f.total, editable };
   });
+}
+
+const norm = (s: string): string => s.replace(/\s+/g, "").toLowerCase();
+const sigOf = (c: Course): string =>
+  [c.label, ...[c.head, ...c.tapers].map((l) => `${l.dose}|${l.food}|${l.duration}`)].map(norm).join("¦");
+
+/**
+ * ⚕️ A medicine that goes on (`Continue`) is ONE row from the day it began, not one
+ * per visit (physician, 07/11/2026: "jehetu 19 tarikh theke continued tahola to ar
+ * bolar dorkar nai 21 or 24"). The same medicine at the same dose and instruction,
+ * open, joins the earlier visit's row while EVERY visit in between also had it; a
+ * visit in between without it is a break, and what follows is a row of its own
+ * ("break thakle 2ta ba 3ta ba beshi hobe"). A different dose is another row.
+ * Nothing is deleted: the stored lines stay as they are, the row carries them in
+ * `extraLines`, and it is the earliest block that Edit would change.
+ */
+export function collapseContinuing(courses: Course[]): Course[] {
+  const visits = new Set<number>();
+  for (const c of courses) if (c.hasDate) visits.add(ddmmyyyyMsStrict(c.date));
+  const groups = new Map<string, number[]>();
+  courses.forEach((c, i) => {
+    if (c.kind !== "med" || !c.open || !c.hasDate) return;
+    const k = sigOf(c);
+    groups.set(k, [...(groups.get(k) ?? []), i]);
+  });
+  const dropped = new Set<number>();
+  const replaced = new Map<number, Course>();
+  for (const idx of groups.values()) {
+    if (idx.length < 2) continue;
+    const ms = (i: number) => ddmmyyyyMsStrict(courses[i].date);
+    const sorted = [...idx].sort((a, b) => ms(a) - ms(b) || a - b);
+    const have = new Set(sorted.map(ms));
+    const runs: number[][] = [];
+    for (const i of sorted) {
+      const run = runs[runs.length - 1];
+      const prev = run ? ms(run[run.length - 1]) : NaN;
+      const gap = run ? [...visits].some((v) => v > prev && v < ms(i) && !have.has(v)) : true;
+      if (run && !gap) run.push(i); else runs.push([i]);
+    }
+    for (const run of runs) {
+      if (run.length < 2) continue;
+      const first = courses[run[0]];
+      const extra = run.slice(1).flatMap((i) => courses[i].lines);
+      replaced.set(run[0], { ...first, extraLines: extra });
+      for (const i of run.slice(1)) dropped.add(i);
+    }
+  }
+  return courses.flatMap((c, i) => (dropped.has(i) ? [] : [replaced.get(i) ?? c]));
 }
 
 /** Still being taken: it goes on (`Continue`), or its End is today or later. A note and a line with no readable End are not. */

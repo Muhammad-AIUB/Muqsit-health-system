@@ -29,13 +29,15 @@ import { confirmAction } from "@/lib/dialogs";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
 import { parseDuration } from "@/lib/rxShorthand";
 import {
-  NO_DATE_MARKER, coursesOf, formatTotal, isCurrentCourse, rewriteCourse, sortCourses,
+  NO_DATE_MARKER, collapseContinuing, coursesOf, formatTotal, isCurrentCourse, rewriteCourse, sortCourses,
   type Course, type CourseSort,
 } from "@/lib/drugCourse";
 import { GENERIC_NOT_FOUND, GENERIC_SEVERAL } from "@/lib/drugHistoryGeneric";
 import type { DrugHistoryGenerics } from "@/hooks/useDrugHistoryGenerics";
 import type { DrugHistoryAddInput } from "@/lib/drugHistoryAdd";
 import DateField from "@/components/common/DateField";
+import type { DocGroup, DocTableRow } from "@/lib/recordsDoc";
+import Icon from "@/components/common/Icon";
 import AddMedicineRow from "./AddMedicineRow";
 
 export interface DrugHistoryTableProps {
@@ -60,6 +62,8 @@ export interface DrugHistoryTableProps {
   onAdd: (entries: string[]) => boolean;
   /** Called once a change is on the record, with a sentence for the activity feed. */
   onSaved?: (note: string) => void;
+  /** Download: the table as shown (same order, same bands, same columns) as printable groups. */
+  onDownload?: (groups: DocGroup[]) => void;
   /** Puts the sort and the Edit / Done buttons into the section header. */
   renderActions: (actions: React.ReactNode) => React.ReactNode;
 }
@@ -90,7 +94,10 @@ export default function DrugHistoryTable(p: DrugHistoryTableProps) {
   const [problem, setProblem] = useState<Record<string, string>>({});
   const [addIso, setAddIso] = useState(p.newStartIso);
 
-  const courses = useMemo(() => coursesOf(p.entries, p.visitDate), [p.entries, p.visitDate]);
+  const courses = useMemo(
+    () => collapseContinuing(coursesOf(p.entries, p.visitDate, p.todayMs)),
+    [p.entries, p.visitDate, p.todayMs],
+  );
   const genericOf = (label: string): string | null => {
     const a = p.generics.answer(label);
     return a?.kind === "generic" ? a.generic : null;
@@ -119,7 +126,7 @@ export default function DrugHistoryTable(p: DrugHistoryTableProps) {
     });
   }, [courses]);
 
-  const isLocked = (c: Course) => c.lines.some((l) => p.padLines.has(l));
+  const isLocked = (c: Course) => c.lines.some((l) => p.padLines.has(l)) || (c.extraLines ?? []).some((l) => p.padLines.has(l));
 
   const startEdit = () => { setEditing(true); setProblem({}); };
   const stopEdit = async () => {
@@ -185,6 +192,35 @@ export default function DrugHistoryTable(p: DrugHistoryTableProps) {
     >{label}</button>
   );
 
+  // ⚕️ The printed page is the table as shown — by Date or by Generic alike:
+  // Current medication first, then Earlier medication, the same six columns, the
+  // tapering lines under their medicine (physician, 07/11/2026, item 2).
+  const download = () => {
+    const nameText = (c: Course) => {
+      const a = p.generics.answer(c.label);
+      return a?.kind === "generic" ? `${a.generic} (${c.label})` : c.label;
+    };
+    const head = ["Drug name", "Dose", "Duration", "Start date", "End date", "Total number"];
+    const groups: DocGroup[] = [];
+    const add = (heading: string, row: DocTableRow[]) => {
+      const last = groups[groups.length - 1];
+      if (last && last.heading === heading) last.table!.rows.push(...row);
+      else groups.push({ heading, lines: [], table: { head, rows: row } });
+    };
+    for (const c of sorted) {
+      const heading = anyCurrent ? (isCurrentCourse(c, p.todayMs) ? "Current medication" : "Earlier medication") : "Drug history";
+      if (c.kind !== "med") {
+        add(heading, [{ cells: [c.label, "", "", c.kind === "note" ? shownDate(c) : "", "", ""], muted: true }]);
+        continue;
+      }
+      add(heading, [
+        { cells: [nameText(c), c.head.dose || "—", c.head.duration || "—", shownDate(c), c.end ?? (c.open ? "Continue" : "—"), c.total !== null ? formatTotal(c.total) : "—"] },
+        ...c.tapers.map((t) => ({ cells: ["then", t.dose || "—", t.duration || "—", "", "", ""], indent: true })),
+      ]);
+    }
+    p.onDownload?.(groups);
+  };
+
   const actions = (
     <>
       {courses.length > 1 && (
@@ -193,6 +229,15 @@ export default function DrugHistoryTable(p: DrugHistoryTableProps) {
           {sortButton("generic", "Generic")}
           {sortButton("date", "Date")}
         </span>
+      )}
+      {p.onDownload && (
+        <button
+          type="button"
+          onClick={download}
+          disabled={courses.length === 0}
+          aria-label="Download Drug history"
+          style={{ ...btnSecondary("sm"), color: C.pri[600], ...(courses.length === 0 ? { opacity: 0.5, cursor: "default" } : null) }}
+        ><Icon name="download" size={14} /> Download</button>
       )}
       {(p.canEdit || p.canAdd) && (
         editing
@@ -219,7 +264,7 @@ export default function DrugHistoryTable(p: DrugHistoryTableProps) {
     if (editable && isDirty) {
       const start = draft.startIso ? isoToDdmmyyyy(draft.startIso) : c.date;
       const lines = rewriteCourse(c, { start, durations: draft.durations });
-      preview = lines ? coursesOf(lines, p.visitDate)[0] ?? null : null;
+      preview = lines ? coursesOf(lines, p.visitDate, p.todayMs)[0] ?? null : null;
     }
     const end = preview ?? c;
     const endText = end.end ?? (end.open ? "Continue" : "—");

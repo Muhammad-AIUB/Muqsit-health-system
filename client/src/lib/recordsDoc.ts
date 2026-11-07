@@ -6,7 +6,9 @@
 // cut to fit; long text wraps.
 
 export interface DocLine { text: string; indent?: boolean; muted?: boolean }
-export interface DocGroup { heading: string; lines: DocLine[] }
+export interface DocTableRow { cells: string[]; indent?: boolean; muted?: boolean }
+export interface DocTable { head: string[]; rows: DocTableRow[] }
+export interface DocGroup { heading: string; lines: DocLine[]; table?: DocTable }
 
 const esc = (s: string) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -17,8 +19,11 @@ export function buildRecordsDoc(opts: {
   patient: [string, string][];
   groups: DocGroup[];
 }): string {
+  const tableOf = (t: DocTable) =>
+    `<table><thead><tr>${t.head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${t.rows.map((r) =>
+      `<tr class="${r.indent ? "ind" : ""}${r.muted ? " mut" : ""}">${r.cells.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   const body = opts.groups.map((g) =>
-    `<div class="grp"><div class="gh">${esc(g.heading)}</div>${g.lines.map((l) =>
+    `<div class="grp"><div class="gh">${esc(g.heading)}</div>${g.table ? tableOf(g.table) : ""}${g.lines.map((l) =>
       `<div class="row${l.indent ? " ind" : ""}${l.muted ? " mut" : ""}">${esc(l.text)}</div>`).join("")}</div>`).join("");
   const pt = opts.patient.map(([k, v]) => `<div><span>${esc(k)}:</span> <b>${esc(v || "—")}</b></div>`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(opts.title)}</title>
@@ -37,6 +42,12 @@ export function buildRecordsDoc(opts: {
   .row{font-size:12.5px;padding:3px 0;border-bottom:0.5px solid #eee;white-space:pre-wrap;overflow-wrap:anywhere}
   .row.ind{padding-left:18px}
   .row.mut{color:#6b6b6b;font-style:italic}
+  table{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}
+  th{text-align:left;color:#6b6b6b;font-weight:600;padding:3px 6px;border-bottom:1px solid #ccc}
+  td{padding:3px 6px;vertical-align:top;border-bottom:0.5px solid #eee;overflow-wrap:anywhere}
+  tr{break-inside:avoid}
+  tr.ind td:first-child{padding-left:18px;color:#6b6b6b}
+  tr.mut td{color:#6b6b6b;font-style:italic}
   @media print{.toolbar{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0}}
 </style></head><body>
   <div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button><button onclick="window.close()">Close</button></div>

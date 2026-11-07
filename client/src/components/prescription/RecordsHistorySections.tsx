@@ -22,7 +22,7 @@ import { useDrugHistoryGenerics } from "@/hooks/useDrugHistoryGenerics";
 import { useActivityLog } from "@/hooks/useActivity";
 import { GenericsNotLoaded } from "./DrugHistoryName";
 import DrugHistoryTable from "./DrugHistoryTable";
-import { dateLabel, diseaseSurgicalHistory, drugHistoryByDate, perVisit, type HxEntry } from "@/lib/patientRecords";
+import { diseaseSurgicalHistory, drugHistoryByDate, perVisit, type HxEntry } from "@/lib/patientRecords";
 import { oeAuthorLabel } from "@/lib/onExaminationSummary";
 import { LoadError } from "@/components/common/ListState";
 import Icon from "@/components/common/Icon";
@@ -163,6 +163,7 @@ export default function RecordsHistorySections() {
           canAdd={ownRecord && mayAddMed}
           padLines={padLines}
           onSave={editDrugHistoryBlock}
+          onDownload={(groups) => download("Drug history", groups)}
           onAdd={(entries) => {
             const ok = addDrugHistoryEntries(entries, { toRecord: true });
             if (ok) {
@@ -177,12 +178,7 @@ export default function RecordsHistorySections() {
             <>
               <SectionHeader
                 title="Drug history"
-                canDownload={dh.length > 0}
                 actions={actions}
-                onDownload={() => download("Drug history", dh.map((g) => ({
-                  heading: dateLabel(g.date),
-                  lines: g.items.map((r) => ({ text: r.kind === "cont" ? `>>> ${r.body}` : r.body, indent: r.kind === "cont", muted: r.kind === "note" })),
-                })))}
               />
               <GenericsNotLoaded g={generics} />
             </>

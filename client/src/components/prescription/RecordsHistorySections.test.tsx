@@ -132,7 +132,9 @@ describe("the history sections after the Investigation summary", () => {
     expect(within(hx).getByText(/DM 10\/01\/2020/)).toBeTruthy();
     expect(within(hx).getByText(/recorded 28\/10\/2026 by Dr\. Rahim/)).toBeTruthy();
     fireEvent.click(within(dh).getByLabelText("Download Drug history"));
-    expect(written[0]).toContain("&gt;&gt;&gt; 0+0+1");
+    // The printed page is the table as shown: same columns, the taper under its medicine.
+    expect(written[0]).toContain("<th>Total number</th>");
+    expect(written[0]).toContain("<td>then</td><td>0+0+1</td>");
   });
 
   // ⚕️ Regression (sheet 28/10/2026, item 7): the entries now written in the
