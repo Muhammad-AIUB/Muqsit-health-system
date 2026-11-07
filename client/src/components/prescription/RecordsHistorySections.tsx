@@ -14,7 +14,7 @@ import { btnDisabled, btnSecondary } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { patientsApi, prescriptionsApi } from "@/lib/api";
 import { tell } from "@/lib/dialogs";
-import { ddmmyyyyMs, isoToDdmmyyyy } from "@/lib/dateInput";
+import { ddmmyyyyMs, ddmmyyyyMsStrict, isoToDdmmyyyy } from "@/lib/dateInput";
 import { dhakaToday } from "@/lib/opdDay";
 import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import { buildRecordsDoc, type DocGroup } from "@/lib/recordsDoc";
@@ -22,7 +22,7 @@ import { useDrugHistoryGenerics } from "@/hooks/useDrugHistoryGenerics";
 import { useActivityLog } from "@/hooks/useActivity";
 import { GenericsNotLoaded } from "./DrugHistoryName";
 import DrugHistoryTable from "./DrugHistoryTable";
-import { diseaseSurgicalHistory, drugHistoryByDate, perVisit, type HxEntry } from "@/lib/patientRecords";
+import { diseaseSurgicalHistory, drugHistoryByDate, perVisit, rxDay, type HxEntry } from "@/lib/patientRecords";
 import { oeAuthorLabel } from "@/lib/onExaminationSummary";
 import { LoadError } from "@/components/common/ListState";
 import Icon from "@/components/common/Icon";
@@ -119,6 +119,19 @@ export default function RecordsHistorySections() {
   const generics = useDrugHistoryGenerics(medLabels, dh.length > 0);
   const hx = useMemo(() => diseaseSurgicalHistory(onExaminationSummary ?? []), [onExaminationSummary]);
   const rxList = Array.isArray(rxQuery.data) ? rxQuery.data : undefined;
+  // ⚕️ The days a prescription was written — what "a visit" means to the Drug
+  // history table's "one row while it goes on, a break starts another". Today's
+  // unsaved ℞ counts once it holds a line. Unknown (undefined) until the list is here.
+  const visitDays = useMemo(() => {
+    if (!rxList) return undefined;
+    const days = new Set<number>();
+    for (const r of rxList) {
+      const ms = ddmmyyyyMsStrict(rxDay(r.createdAt));
+      if (!Number.isNaN(ms)) days.add(ms);
+    }
+    if (padLines.size > 0) { const t = ddmmyyyyMsStrict(visitDate); if (!Number.isNaN(t)) days.add(t); }
+    return [...days];
+  }, [rxList, padLines, visitDate]);
   const complaints = useMemo(() => perVisit(rxList, "chiefComplaints"), [rxList]);
   const diagnoses = useMemo(() => perVisit(rxList, "finalDiagnosis"), [rxList]);
 
@@ -155,6 +168,7 @@ export default function RecordsHistorySections() {
         <DrugHistoryTable
           key={currentPatientId ?? "none"}
           entries={drugHistory ?? []}
+          visitDays={visitDays}
           visitDate={visitDate}
           todayMs={todayMs}
           newStartIso={ptDate}

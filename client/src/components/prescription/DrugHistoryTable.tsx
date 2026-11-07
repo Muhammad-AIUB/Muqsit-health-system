@@ -43,6 +43,8 @@ import AddMedicineRow from "./AddMedicineRow";
 export interface DrugHistoryTableProps {
   /** The stored drug-history entries. */
   entries: string[];
+  /** Days (ms, local midnight) the doctor wrote a prescription; undefined while that list is not here. */
+  visitDays?: number[];
   /** The visit's date, `dd/mm/yyyy` — what a legacy `Current:` line reads as. */
   visitDate: string;
   /** Today as `dd/mm/yyyy` and in milliseconds: Current is "ends today or later". */
@@ -95,8 +97,8 @@ export default function DrugHistoryTable(p: DrugHistoryTableProps) {
   const [addIso, setAddIso] = useState(p.newStartIso);
 
   const courses = useMemo(
-    () => collapseContinuing(coursesOf(p.entries, p.visitDate, p.todayMs)),
-    [p.entries, p.visitDate, p.todayMs],
+    () => collapseContinuing(coursesOf(p.entries, p.visitDate, p.todayMs), p.visitDays),
+    [p.entries, p.visitDate, p.todayMs, p.visitDays],
   );
   const genericOf = (label: string): string | null => {
     const a = p.generics.answer(label);

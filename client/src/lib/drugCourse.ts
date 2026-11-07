@@ -208,9 +208,15 @@ const sigOf = (c: Course): string =>
  * Nothing is deleted: the stored lines stay as they are, the row carries them in
  * `extraLines`, and it is the earliest block that Edit would change.
  */
-export function collapseContinuing(courses: Course[]): Course[] {
+export function collapseContinuing(courses: Course[], visitDays?: number[]): Course[] {
+  // ⚕️ A "visit" is a day the doctor wrote a prescription (`visitDays`, 07/11/2026
+  // second review: "Entecavir 3bar ashse ken"). Read from the history's own dates
+  // it also counted a medicine ADDED by hand with a start date of its own, which
+  // made a break where there was none. With no list of days given (not loaded
+  // yet) the dated entries stand in, as before, and no course is ended.
   const visits = new Set<number>();
-  for (const c of courses) if (c.hasDate) visits.add(ddmmyyyyMsStrict(c.date));
+  if (visitDays) for (const v of visitDays) { if (Number.isFinite(v)) visits.add(v); }
+  else for (const c of courses) if (c.hasDate) visits.add(ddmmyyyyMsStrict(c.date));
   const groups = new Map<string, number[]>();
   courses.forEach((c, i) => {
     if (c.kind !== "med" || !c.open || !c.hasDate) return;
@@ -232,10 +238,25 @@ export function collapseContinuing(courses: Course[]): Course[] {
       if (run && !gap) run.push(i); else runs.push([i]);
     }
     for (const run of runs) {
-      if (run.length < 2) continue;
       const first = courses[run[0]];
       const extra = run.slice(1).flatMap((i) => courses[i].lines);
-      replaced.set(run[0], { ...first, extraLines: extra });
+      let row: Course = run.length < 2 ? first : { ...first, extraLines: extra };
+      // ⚕️ A run that a later visit does not carry on has STOPPED there: its End
+      // is the day before that visit and its Total is counted to it (physician's
+      // example: Barcavir from 12/09 to 01/11, then Cavir from 02/11). Left open
+      // it was counted to today and overlapped the row that follows it.
+      const last = ms(run[run.length - 1]);
+      const brk = visitDays ? [...visits].filter((v) => v > last && !have.has(v)).sort((a, b) => a - b)[0] : undefined;
+      if (brk !== undefined && row.open && row.hasDate) {
+        const before = new Date(brk);
+        before.setDate(before.getDate() - 1);
+        const capMs = before.getTime();
+        const all = [row.head, ...row.tapers];
+        const f = figures(true, row.date, all, capMs);
+        const end = `${String(before.getDate()).padStart(2, "0")}/${String(before.getMonth() + 1).padStart(2, "0")}/${before.getFullYear()}`;
+        row = { ...row, open: false, end, total: f.total };
+      }
+      if (run.length >= 2 || row !== first) replaced.set(run[0], row);
       for (const i of run.slice(1)) dropped.add(i);
     }
   }

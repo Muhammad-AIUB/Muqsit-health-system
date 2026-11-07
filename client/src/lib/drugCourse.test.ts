@@ -343,3 +343,33 @@ describe("collapseContinuing — a medicine that goes on is one row from the day
     expect([...r[0].lines, ...(r[0].extraLines ?? [])].sort()).toEqual([cont("21/09/2026"), cont("24/09/2026")].sort());
   });
 });
+
+describe("collapseContinuing with the days a prescription was written (physician's Entecavir case, 07/11/2026)", () => {
+  const D = (d: string) => ddmmyyyyMs(d);
+  const bar = (d: string) => `${d}: Tablet. Barcavir 0.5 mg — 1+0+0 — Before meal — Continue`;
+  const entries = [
+    bar("06/11/2026"), bar("02/11/2026"), bar("24/09/2026"), bar("21/09/2026"), bar("19/09/2026"), bar("12/09/2026"),
+    // a medicine ADDED by hand with a start date of its own: not a visit
+    "15/09/2026: Capsule. Denvar 400 mg — 1+0+1 —  — 7 days",
+    "13/10/2026: Capsule. Lenva 4 mg — 0+0+1 —  — 7 days",
+  ];
+  const visits = ["12/09/2026", "19/09/2026", "21/09/2026", "24/09/2026", "13/10/2026", "02/11/2026", "06/11/2026"].map(D);
+  const barRows = (days?: number[]) => collapseContinuing(coursesOf(entries, TODAY, todayMs), days).filter((c) => c.label.includes("Barcavir"));
+
+  it("a hand-added course on a day with no prescription is not a break: from 12/09 to the 13/10 break is ONE row", () => {
+    const r = barRows(visits).sort((a, b) => ddmmyyyyMs(a.date) - ddmmyyyyMs(b.date));
+    expect(r.map((c) => c.date)).toEqual(["12/09/2026", "02/11/2026"]);
+  });
+  it("the run a visit did not carry on has stopped: End the day before it, Total counted to it", () => {
+    const r = barRows(visits).sort((a, b) => ddmmyyyyMs(a.date) - ddmmyyyyMs(b.date));
+    expect(r[0].open).toBe(false);
+    expect(r[0].end).toBe("12/10/2026"); // 12/09 .. 12/10 = 31 days
+    expect(r[0].total).toBe(31);
+    expect(r[1].open).toBe(true);
+    expect(r[1].end).toBeNull();
+    expect(r[1].total).toBe(6); // 02/11 .. 07/11
+  });
+  it("without the list of prescription days nothing is ended (old reading)", () => {
+    expect(barRows(undefined).every((c) => c.open)).toBe(true);
+  });
+});
