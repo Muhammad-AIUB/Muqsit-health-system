@@ -336,6 +336,7 @@ model Patient {
   // patient's "Prescriptions & reports" view.
   prescriptionImages String[] @default([])
   reportImages       String[] @default([])
+  files              PatientFile[]
   // Small (400px) copies of the two galleries above, as a SIDE MAP keyed by the
   // full image URL — { [fullUrl]: thumbUrl }. Deliberately not folded into the
   // arrays: those arrays ARE the record (their order is the doctor's chosen
@@ -1020,4 +1021,32 @@ model PaymentRequest {
 
   @@index([doctorId, createdAt])
   @@index([status, createdAt])
+}
+
+/// Files filed against a patient that are not one of the two image galleries
+/// on Patient: signed "permissions" (scanned images) and Imaging DICOM studies
+/// (physician's sheet 07/11/2026). The bytes live in /uploads; this row is the
+/// record. Removal is SOFT (removedAt) — never a hard delete of a clinical file.
+model PatientFile {
+  id        String  @id @default(cuid())
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  /// 'permission' | 'dicom'
+  kind      String
+  /// What the doctor called it (e.g. "MRI whole abdomen").
+  name      String
+  /// dd/mm/yyyy as the app writes dates — the date of the permission / study.
+  fileDate  String
+  url       String
+  size      Int      @default(0)
+  originalName String @default("")
+  /// The practice (workstation doctor) that filed it, and the person who did.
+  practiceDoctorId String?
+  addedById        String?
+  addedByName      String?
+  removedAt DateTime?
+  removedById String?
+  createdAt DateTime @default(now())
+
+  @@index([patientId, kind])
 }

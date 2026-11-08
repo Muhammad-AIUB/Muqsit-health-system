@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { mkdirSync, writeFileSync } from 'fs';
+import { closeSync, mkdirSync, openSync, readSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import { extname, join } from 'path';
 
 // A host only this machine can reach. The URL minted here is stored in the
@@ -81,6 +81,50 @@ export class UploadService {
     writeFileSync(join(this.dir, name), file.buffer);
 
     return `${this.publicBase()}/uploads/${name}`;
+  }
+
+  // A DICOM study file (Imaging DICOM, 07/11/2026). Too big to hold in memory
+  // like a photo, so multer has already streamed it to `tmpPath` inside the
+  // uploads folder; this checks the bytes and moves it to its final name.
+  //
+  // ⚕️ Only a file that carries the standard 128-byte preamble + `DICM` marker
+  // is taken. The extension and Content-Type are the caller's word and prove
+  // nothing. (An old file with no preamble is refused with a message rather than
+  // guessed at — it would not open in the viewer either.) The temp file is
+  // always gone afterwards, accepted or not: it sits where /uploads is served.
+  storeDicomFromDisk(tmpPath: string): string {
+    try {
+      const why = this.unusableBase();
+      if (why) {
+        throw new ServiceUnavailableException(
+          `Uploads are disabled: this server's public URL is ${why}, so the file ` +
+            'would be saved with an address no other device can open. ' +
+            'Set PUBLIC_URL (or ALLOW_LOCALHOST_UPLOAD_URLS=true for a local-only database).',
+        );
+      }
+      const head = Buffer.alloc(132);
+      const fd = openSync(tmpPath, 'r');
+      let n = 0;
+      try {
+        n = readSync(fd, head, 0, 132, 0);
+      } finally {
+        closeSync(fd);
+      }
+      if (n < 132 || head.toString('ascii', 128, 132) !== 'DICM') {
+        throw new BadRequestException(
+          'That file is not a DICOM file (it has no DICM marker). Upload the .dcm file exported from the scanner or the CD.',
+        );
+      }
+      const name = `${randomUUID()}.dcm`;
+      renameSync(tmpPath, join(this.dir, name));
+      return `${this.publicBase()}/uploads/${name}`;
+    } finally {
+      try {
+        unlinkSync(tmpPath); // no-op error once renamed
+      } catch {
+        /* already moved or never written */
+      }
+    }
   }
 
   // On the VPS set PUBLIC_URL to the real domain (e.g. https://api.example.com).

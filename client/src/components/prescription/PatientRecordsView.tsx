@@ -35,6 +35,10 @@ import ImageGallery from "@/components/common/ImageGallery";
 import { pdfFileName } from "@/lib/galleryPdf";
 import ImageLightbox from "@/components/common/ImageLightbox";
 import Icon from "@/components/common/Icon";
+import { CollapseToggle, useOpenSections } from "@/components/common/CollapseToggle";
+import TotalSummary from "./TotalSummary";
+import PermissionsSection from "./PermissionsSection";
+import DicomSection from "./DicomSection";
 
 // A dd/mm/yyyy group heading, flagged when the date sits implausibly far ahead.
 // Findings written before the DDMMYY century fix could only land in 2000-2099,
@@ -79,6 +83,8 @@ export default function PatientRecordsView() {
     investigation, investigationSummary, saveInvestigationSummary, openInvForSummary,
     setInvestigationSummary, onExaminationSummary,
   } = useMuqsit();
+  // Every section starts closed (physician's sheet 07/11/2026, item 1).
+  const sec = useOpenSections();
   const [showDownload, setShowDownload] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [undo, setUndo] = useState<UndoEntry<InvFinding> | null>(null);
@@ -277,6 +283,8 @@ export default function PatientRecordsView() {
         onRemoveMany={removeRx}
         onReorder={reorderRx}
         onOpen={openViewer}
+        collapsed={!sec.isOpen("rx")}
+        onToggleCollapsed={() => sec.toggle("rx")}
         orientation="landscape"
         pdf={{ footerTitle: "All prescriptions", fileName: () => pdfFileName(ptName, "All prescriptions") }}
         emptyText="No prescription images yet. Upload photos of the patient's prescriptions."
@@ -291,6 +299,8 @@ export default function PatientRecordsView() {
         onRemoveMany={removeReports}
         onReorder={reorderReports}
         onOpen={openViewer}
+        collapsed={!sec.isOpen("reports")}
+        onToggleCollapsed={() => sec.toggle("reports")}
         orientation="portrait"
         pdf={{ footerTitle: "All reports", fileName: () => pdfFileName(ptName, "All reports") }}
         emptyText="No report images yet. Upload photos of the patient's lab/investigation reports."
@@ -301,8 +311,8 @@ export default function PatientRecordsView() {
           patient sees it, each card says who wrote it, and it is read-only here
           ("Edit option thakbe na") with a Download in the Edit button's place. */}
       <div style={{ marginTop: 8, marginBottom: 22 }}>
-        <SectionHeader title="On examination" canDownload={oeGroups.length > 0} onDownload={downloadOe} />
-        {oeGroups.length === 0 ? (
+        <SectionHeader title="On examination" canDownload={oeGroups.length > 0} onDownload={downloadOe} open={sec.isOpen("oe")} onToggle={() => sec.toggle("oe")} />
+        {!sec.isOpen("oe") ? null : oeGroups.length === 0 ? (
           <div style={{ fontSize: 13, color: C.n[500] }}>No on-examination findings yet. They are recorded here with the visit date each time you fill <b>On examination</b> in a prescription and save.</div>
         ) : (
           <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
@@ -342,7 +352,10 @@ export default function PatientRecordsView() {
           .inv-undo-btn:focus-visible{outline:2px solid ${C.pri[400]};outline-offset:2px}
         `}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, rowGap: 8, marginBottom: 10 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], minWidth: 0 }}>Investigation reports summary</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], minWidth: 0, display: "flex", alignItems: "center" }}>
+            <CollapseToggle title="Investigation reports summary" open={sec.isOpen("inv")} onToggle={() => sec.toggle("inv")} />
+            Investigation reports summary
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {summary.length > 0 && (
               editingSummary
@@ -353,7 +366,7 @@ export default function PatientRecordsView() {
             <button onClick={() => setShowDownload(true)} disabled={allFindings.length === 0} style={{ ...btnSecondary("sm"), color: C.pri[600], ...(allFindings.length ? null : btnDisabled) }}><Icon name="download" size={14} /> Download</button>
           </div>
         </div>
-        {summary.length === 0 ? (
+        {!sec.isOpen("inv") ? null : summary.length === 0 ? (
           <div style={{ fontSize: 13, color: C.n[500] }}>No investigation findings entered yet. Use <b>Add</b> to record results.</div>
         ) : (
           <div style={{ border: `0.5px solid ${C.n[200]}`, borderRadius: 10, background: C.n[0], padding: "14px 18px", maxHeight: 340, overflowY: "auto" }}>
@@ -377,7 +390,19 @@ export default function PatientRecordsView() {
         {undo && <UndoBar entry={undo} onUndo={undoRemove} onDismiss={() => setUndo(null)} />}
       </div>
 
-      <RecordsHistorySections />
+      <RecordsHistorySections sec={sec} />
+
+      {/* After Diagnosis history (physician's sheet 07/11/2026): the signed
+          Permissions, then the Imaging DICOM files. */}
+      <PermissionsSection open={sec.isOpen("perm")} onToggle={() => sec.toggle("perm")} onOpenImage={openViewer} />
+      <DicomSection open={sec.isOpen("dicom")} onToggle={() => sec.toggle("dicom")} />
+
+      {/* Total summary of this patient (physician's sheet 07/11/2026) — premium
+          accounts only; the others see it blurred. */}
+      <section style={{ marginTop: 22 }} aria-label="Total summary of this patient">
+        <SectionHeader title="Total summary of this patient" open={sec.isOpen("total")} onToggle={() => sec.toggle("total")} />
+        <TotalSummary open={sec.isOpen("total")} />
+      </section>
 
       {showDownload && (
         <InvestigationDownload findings={allFindings} onClose={() => setShowDownload(false)} />

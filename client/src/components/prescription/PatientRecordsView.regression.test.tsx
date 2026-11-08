@@ -52,6 +52,15 @@ const fresh = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
+vi.mock("@/components/common/CollapseToggle", async (orig) => ({
+  ...(await orig<object>()),
+  // These tests are about what a section holds, so they see it open; the arrow itself is in `PatientRecordsView.collapse.test.tsx`.
+  useOpenSections: () => ({ isOpen: () => true, toggle: () => {} }),
+}));
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { accountTier: "primary" } }) }));
+vi.mock("./TotalSummary", () => ({ default: () => null }));
+vi.mock("./PermissionsSection", () => ({ default: () => null }));
+vi.mock("./DicomSection", () => ({ default: () => null }));
 // The history sections below the summary read past prescriptions through React
 // Query; they have their own tests (RecordsHistorySections.test.tsx).
 vi.mock("./RecordsHistorySections", async (orig) => ({ ...(await orig<object>()), default: () => null }));

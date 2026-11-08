@@ -26,6 +26,7 @@ import { diseaseSurgicalHistory, drugHistoryByDate, perVisit, rxDay, type HxEntr
 import { oeAuthorLabel } from "@/lib/onExaminationSummary";
 import { LoadError } from "@/components/common/ListState";
 import Icon from "@/components/common/Icon";
+import { CollapseToggle } from "@/components/common/CollapseToggle";
 
 /** Open a printable page; says so in a box when the browser blocks it. */
 export function openRecordsDoc(html: string) {
@@ -42,10 +43,13 @@ export function useRecordsPatient(): [string, string][] {
 
 export const printedToday = () => isoToDdmmyyyy(dhakaToday());
 
-export function SectionHeader({ title, onDownload, canDownload, actions }: { title: string; onDownload?: () => void; canDownload?: boolean; actions?: React.ReactNode }) {
+export function SectionHeader({ title, onDownload, canDownload, actions, open, onToggle }: { title: string; onDownload?: () => void; canDownload?: boolean; actions?: React.ReactNode; open?: boolean; onToggle?: () => void }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, rowGap: 8, marginBottom: 10 }}>
-      <h3 style={{ fontSize: 15, fontWeight: 600, color: C.n[900], margin: 0, minWidth: 0 }}>{title}</h3>
+      <h3 style={{ fontSize: 15, fontWeight: 600, color: C.n[900], margin: 0, minWidth: 0, display: "flex", alignItems: "center" }}>
+        {onToggle && <CollapseToggle title={title} open={Boolean(open)} onToggle={onToggle} />}
+        {title}
+      </h3>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         {actions}
         {onDownload && (
@@ -73,7 +77,14 @@ const section: React.CSSProperties = { marginTop: 22 };
 const SEP = " — ";
 const medName = (body: string): string => { const i = body.indexOf(SEP); return (i === -1 ? body : body.slice(0, i)).trim(); };
 
-export default function RecordsHistorySections() {
+/** Which sections are open (`PatientRecordsView` owns it). Without it every
+ *  section is drawn open and has no arrow — how the tests and any other caller
+ *  have always seen it. */
+export type Sections = { isOpen: (key: string) => boolean; toggle: (key: string) => void };
+
+export default function RecordsHistorySections({ sec }: { sec?: Sections }) {
+  const open = (k: string) => (sec ? sec.isOpen(k) : true);
+  const arrow = (k: string) => (sec ? { open: sec.isOpen(k), onToggle: () => sec.toggle(k) } : {});
   const {
     currentPatientId, drugHistory, ptDate, onExaminationSummary, ptName,
     rxItems, can, activeWorkstationId, authUserId, editDrugHistoryBlock, addDrugHistoryEntries,
@@ -176,6 +187,7 @@ export default function RecordsHistorySections() {
           canEdit={ownRecord && mayEditDh}
           canAdd={ownRecord && mayAddMed}
           padLines={padLines}
+          collapsed={!open("drug")}
           onSave={editDrugHistoryBlock}
           onDownload={(groups) => download("Drug history", groups)}
           onAdd={(entries) => {
@@ -193,8 +205,9 @@ export default function RecordsHistorySections() {
               <SectionHeader
                 title="Drug history"
                 actions={actions}
+                {...arrow("drug")}
               />
-              <GenericsNotLoaded g={generics} />
+              {open("drug") && <GenericsNotLoaded g={generics} />}
             </>
           )}
         />
@@ -203,8 +216,8 @@ export default function RecordsHistorySections() {
       {/* Patient's input — no such record exists in the app yet. Said plainly;
           nothing is made up to fill it (open question for the physician). */}
       <section style={section} aria-label="Patient's input">
-        <SectionHeader title="Patient's input" />
-        <div style={empty}>Nothing is recorded as the patient&apos;s own input yet. This section will show it once what it should hold is decided.</div>
+        <SectionHeader title="Patient's input" {...arrow("input")} />
+        {open("input") && <div style={empty}>Nothing is recorded as the patient&apos;s own input yet. This section will show it once what it should hold is decided.</div>}
       </section>
 
       {/* Disease and surgical history — the On-examination popup's two history
@@ -212,13 +225,14 @@ export default function RecordsHistorySections() {
       <section style={section} aria-label="Disease and surgical history">
         <SectionHeader
           title="Disease and surgical history"
+          {...arrow("hx")}
           canDownload={hx.disease.length + hx.surgical.length > 0}
           onDownload={() => download("Disease and surgical history", [
             { heading: "Disease history", lines: hx.disease.map((e) => ({ text: hxLine(e) })) },
             { heading: "Surgical / intervention history", lines: hx.surgical.map((e) => ({ text: hxLine(e) })) },
           ].filter((g) => g.lines.length))}
         />
-        {hx.disease.length + hx.surgical.length === 0 ? (
+        {!open("hx") ? null : hx.disease.length + hx.surgical.length === 0 ? (
           <div style={empty}>No disease or surgical history yet. It is listed here from <b>On examination</b> → History of each saved prescription.</div>
         ) : (
           <div style={card}>
@@ -241,19 +255,21 @@ export default function RecordsHistorySections() {
       <section style={section} aria-label="Chief complaints history">
         <SectionHeader
           title="Chief complaints history"
+          {...arrow("cc")}
           canDownload={complaints.length > 0}
           onDownload={() => download("Chief complaints history", complaints.map((g) => ({ heading: g.date, lines: g.items.map((text) => ({ text })) })))}
         />
-        {rxState(complaints, "chief complaints history")}
+        {open("cc") && rxState(complaints, "chief complaints history")}
       </section>
 
       <section style={section} aria-label="Diagnosis history">
         <SectionHeader
           title="Diagnosis history"
+          {...arrow("dx")}
           canDownload={diagnoses.length > 0}
           onDownload={() => download("Diagnosis history", diagnoses.map((g) => ({ heading: g.date, lines: g.items.map((text) => ({ text })) })))}
         />
-        {rxState(diagnoses, "diagnosis history")}
+        {open("dx") && rxState(diagnoses, "diagnosis history")}
       </section>
     </div>
   );

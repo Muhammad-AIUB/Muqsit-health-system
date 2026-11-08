@@ -62,7 +62,7 @@ export interface HxEntry { text: string; date: string; by: string | null }
 // sidebar's History block since 02/11/2026 (`lib/patientHistory.ts`, at Add),
 // by the On-examination popup's boxes before (on Save & print). Read back from
 // there; an entry taken off in the sidebar (`removedAt`) is left out.
-const HX = { disease: "Disease Hx:", surgical: "Surgical Hx:" } as const;
+export const HX = { disease: "Disease Hx:", surgical: "Surgical Hx:" } as const;
 
 /** Each distinct disease / surgical history entry once, with the visit it was
  *  FIRST recorded at (and by whom, when that was stored), newest first. The

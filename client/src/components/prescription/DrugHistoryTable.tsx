@@ -68,6 +68,8 @@ export interface DrugHistoryTableProps {
   onDownload?: (groups: DocGroup[]) => void;
   /** Puts the sort and the Edit / Done buttons into the section header. */
   renderActions: (actions: React.ReactNode) => React.ReactNode;
+  /** The Records page's arrow: only the header stays (its buttons with it). */
+  collapsed?: boolean;
 }
 
 interface Draft { startIso: string; durations: string[] }
@@ -363,6 +365,7 @@ export default function DrugHistoryTable(p: DrugHistoryTableProps) {
     body.push(rowsOf(c));
   }
 
+  if (p.collapsed) return <>{p.renderActions(actions)}</>;
   return (
     <>
       {p.renderActions(actions)}

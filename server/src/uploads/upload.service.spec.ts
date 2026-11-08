@@ -282,3 +282,47 @@ describe('UploadService — which image formats may be stored', () => {
     expect(existsSync(up) ? readdirSync(up) : []).toHaveLength(0);
   });
 });
+
+// DICOM (07/11/2026): the file is kept only when its bytes carry `DICM` at 128.
+describe('UploadService.storeDicomFromDisk', () => {
+  const { writeFileSync } = jest.requireActual('fs') as typeof import('fs');
+  let cwd: string;
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'mhs-dicom-'));
+    cwd = process.cwd();
+    process.chdir(dir);
+  });
+  afterEach(() => {
+    process.chdir(cwd);
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const svc = () => new UploadService(config({ PUBLIC_URL: 'https://api.example.com' }));
+  const dicom = (marker: string) => Buffer.concat([Buffer.alloc(128), Buffer.from(marker, 'ascii'), Buffer.alloc(32)]);
+
+  it('keeps a real DICOM file under a new .dcm name and leaves no temp file', () => {
+    const s = svc();
+    const tmp = join(dir, 'uploads', 'tmp-1');
+    writeFileSync(tmp, dicom('DICM'));
+    const url = s.storeDicomFromDisk(tmp);
+    expect(url).toMatch(/^https:\/\/api\.example\.com\/uploads\/[0-9a-f-]{36}\.dcm$/);
+    expect(readdirSync(join(dir, 'uploads'))).toHaveLength(1);
+    expect(existsSync(tmp)).toBe(false);
+  });
+
+  it('refuses a file with no DICM marker — whatever it is called — and deletes it', () => {
+    const s = svc();
+    const tmp = join(dir, 'uploads', 'tmp-2');
+    writeFileSync(tmp, dicom('NOPE'));
+    expect(() => s.storeDicomFromDisk(tmp)).toThrow(BadRequestException);
+    expect(readdirSync(join(dir, 'uploads'))).toHaveLength(0);
+  });
+
+  it('refuses when the public URL is a local one, and deletes the temp file', () => {
+    const s = new UploadService(config({ PUBLIC_URL: 'http://localhost:4000' }));
+    const tmp = join(dir, 'uploads', 'tmp-3');
+    writeFileSync(tmp, dicom('DICM'));
+    expect(() => s.storeDicomFromDisk(tmp)).toThrow(ServiceUnavailableException);
+    expect(readdirSync(join(dir, 'uploads'))).toHaveLength(0);
+  });
+});

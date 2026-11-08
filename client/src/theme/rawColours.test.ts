@@ -27,6 +27,8 @@ const ALLOWED: { file: string; text: string; why: string }[] = [
   { file: "components/common/RichTextEditor.tsx", text: "#", why: "text colours, highlight and swatches a doctor applies; drawn on paper" },
   { file: "components/common/RichTextEditor.tsx", text: "rgba(0,0,0,0.18)", why: "swatch edge" },
   { file: "lib/sensitive.ts", text: "#", why: "the sensitive mark, on paper and in print" },
+  // The DICOM viewer is a reading room: a dark canvas with light text in both modes.
+  { file: "components/prescription/DicomViewer.tsx", text: "", why: "dark reading-room canvas, same in both modes" },
   // Printed documents: their own HTML, never the app's palette.
   { file: "components/prescription/InvestigationDownload.tsx", text: "", why: "a printout" },
   { file: "components/prescription/PersonalNote.tsx", text: "#1a1a1a", why: "the note's print CSS" },

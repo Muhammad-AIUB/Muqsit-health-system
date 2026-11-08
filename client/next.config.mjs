@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -21,6 +23,18 @@ const nextConfig = {
   // it if an image is ever meant to go through the optimizer. Pinned by
   // src/lib/imageOptimizerOff.test.ts, for this app and admin/.
   images: { unoptimized: true },
+  // The DICOM viewer's library (`dwv`) names a NODE build in its package
+  // `exports`, and the server compile follows it into a file that cannot be
+  // bundled ("Can't resolve './'"). It is only ever imported in the browser, when
+  // a scan is opened (`DicomViewer`, loaded with ssr:false); the server pass is
+  // pointed at the browser build so it compiles and never runs it.
+  webpack(config) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      dwv$: path.resolve(process.cwd(), 'node_modules/dwv/dist/dwv.min.js'),
+    };
+    return config;
+  },
   // Self-hosted font files never change under the same path (the folder name
   // carries the version), so browsers may keep them for a year.
   async headers() {

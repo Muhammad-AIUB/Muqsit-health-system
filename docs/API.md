@@ -822,3 +822,14 @@ Pinned in `src/uploads/upload.service.spec.ts`; repair tool:
 6. Schema change? An idempotent `server/prisma/manual-<name>.sql`, applied through
    the tunnel. Prisma Migrate is not used, and the DB is shared with production.
 7. Update this file and the relevant `CLAUDE.md` in the same commit.
+
+### Patient files — Permissions and Imaging DICOM (07/11/2026)
+
+`patients/:id/files` — read: anyone who reaches the patient; add / remove: the patient's OWNER practice only (403 for a supervising doctor; an assistant needs `pt.info`). Removal is soft (`removedAt`).
+
+| Route | Body | Answer |
+|---|---|---|
+| `GET /patients/:id/files/:kind` (`permission` \| `dicom`) | — | `[{ id, kind, name, fileDate, url, size, addedByName, createdAt }]`, newest first, not removed |
+| `POST /patients/:id/files/permission` | multipart: `file` (image, ≤ 8 MB, checked by its bytes), optional `name`, `fileDate` (dd/mm/yyyy) | the row |
+| `POST /patients/:id/files/dicom` | multipart: `name` (required), `fileDate`, `file` (≤ 300 MB, must carry `DICM` at byte 128; streamed to disk) | the row |
+| `DELETE /patients/:id/files/:fileId` | — | `{ ok: true }` (soft) |

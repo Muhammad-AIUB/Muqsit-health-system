@@ -252,8 +252,11 @@ async function attemptRefresh(): Promise<RefreshResult> {
 
 // ── Core fetch wrapper ──────────────────────────────────────
 async function apiFetch<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
+  // A multipart body (a file upload) names its own Content-Type, with the
+  // boundary; setting JSON here would break it.
+  const isForm = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isForm ? {} : { "Content-Type": "application/json" }),
     ...(activeWorkstationId ? { "X-Workstation": activeWorkstationId } : {}),
     ...(activeChamberId ? { "X-Chamber": activeChamberId } : {}),
     ...(options.headers as Record<string, string> | undefined),
@@ -502,6 +505,37 @@ export const patientNotesApi = {
     apiFetch<{ note: PatientNote | null }>(`/patient-notes/${encodeURIComponent(patientId)}`).then((r) => r.note),
   save: (patientId: string, input: { html: string; patientInfo: PatientNoteInfo }) =>
     apiFetch<PatientNote>(`/patient-notes/${encodeURIComponent(patientId)}`, { method: "PUT", body: JSON.stringify(input) }),
+};
+
+// ── Permissions and Imaging DICOM files of a patient (physician's sheet 07/11/2026) ──
+// Kept in their own table (`PatientFile`), not on the Patient row: the galleries
+// there are written by the editor's whole-record saves, these are one file at a
+// time. Read: anyone who reaches the patient. Add / remove: the patient's own
+// practice only (an assistant needs `pt.info`); a removal is soft on the server.
+export type PatientFileKind = "permission" | "dicom";
+export interface PatientFileRow {
+  id: string;
+  kind: PatientFileKind;
+  name: string;
+  fileDate: string; // dd/mm/yyyy
+  url: string;
+  size: number;
+  addedByName: string | null;
+  createdAt: string;
+}
+export const patientFilesApi = {
+  list: (patientId: string, kind: PatientFileKind) =>
+    apiFetch<PatientFileRow[]>(`/patients/${encodeURIComponent(patientId)}/files/${kind}`),
+  upload: (patientId: string, kind: PatientFileKind, file: File | Blob, meta: { name?: string; fileDate?: string; fileName?: string }) => {
+    const form = new FormData();
+    // Text fields first, the file last — the server reads them as they stream.
+    if (meta.name) form.append("name", meta.name);
+    if (meta.fileDate) form.append("fileDate", meta.fileDate);
+    form.append("file", file, meta.fileName ?? (file instanceof File ? file.name : "file"));
+    return apiFetch<PatientFileRow>(`/patients/${encodeURIComponent(patientId)}/files/${kind}`, { method: "POST", body: form });
+  },
+  remove: (patientId: string, fileId: string) =>
+    apiFetch<{ ok: true }>(`/patients/${encodeURIComponent(patientId)}/files/${encodeURIComponent(fileId)}`, { method: "DELETE" }),
 };
 
 // ── Revision Notes (physician's sheet, 18/10/2026, item 4) ────

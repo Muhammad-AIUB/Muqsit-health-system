@@ -40,6 +40,8 @@ Audit of what works, what doesn't persist, and what's a stub. Updated as items a
 
 ## Open threads — decisions owed, not bugs (2026-07-27)
 
+- [ ] **Physician's sheet of 07/11/2026 (Records page).** Done: collapsible sections (item 1) and the premium-only Total summary with its Download. Built, not yet released: **Permissions** gallery and **Imaging DICOM** (server `PatientFile` table + `patient-files` routes + in-app `dwv` viewer so scans never leave our server). **`server/prisma/manual-patient-files.sql` is NOT applied** — the shared DB is production, so apply it (`npx prisma db execute --file prisma/manual-patient-files.sql --schema prisma/schema.prisma`) before the release; until then both sections show "could not load". Not done: the Permissions *Templates* download (the physician sends the templates); DICOM compressed formats untried in the viewer; a server integration spec for `patient-files`. Open: (b) Total summary order: newest date first, the sheet's example reads oldest first. (c) Premium gate is client-side only. (d) Patient's input has no record in the app, so it is always empty in the summary.
+
 - [ ] **Physician's sheet of 31/10/2026 (UI items) — readings to confirm.**
   (1) "Sob jaigai edit" was read as every list of the OPD PRESCRIPTION (History,
   Associated illness and Advice joined the in-place edit); the IPD sheet's lists

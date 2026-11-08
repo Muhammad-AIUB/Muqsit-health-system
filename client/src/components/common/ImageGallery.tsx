@@ -7,6 +7,7 @@ import { btnDisabled, btnPrimary, btnSecondary, btnDanger } from "@/theme/styles
 import { IMAGE_ACCEPT } from "@/lib/imageFormats";
 import { pressable } from "@/lib/a11y";
 import Icon from "@/components/common/Icon";
+import { CollapseToggle } from "@/components/common/CollapseToggle";
 
 // ── A titled image gallery: upload, edit/remove, drag-reorder, open ─────────
 //
@@ -51,7 +52,13 @@ export default function ImageGallery({
   size = "md",
   fit = "cover",
   pdf,
+  collapsed,
+  onToggleCollapsed,
 }: {
+  /** When `onToggleCollapsed` is given the title gets an arrow, and `collapsed`
+   *  hides the box of pictures (the buttons beside the title stay). */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   title: string;
   addLabel: string;
   items: GalleryItem[];
@@ -216,7 +223,12 @@ export default function ImageGallery({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, rowGap: 8, marginBottom: 10 }}>
         {/* Empty when the caller supplies its own heading (the IPD panes have
             their own house style for it) — do not render a blank one. */}
-        {title ? <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], minWidth: 0 }}>{title}</div> : <span />}
+        {title ? (
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.n[900], minWidth: 0, display: "flex", alignItems: "center" }}>
+            {onToggleCollapsed && <CollapseToggle title={title} open={!collapsed} onToggle={onToggleCollapsed} />}
+            {title}
+          </div>
+        ) : <span />}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {busy && <span style={{ fontSize: 11, color: C.n[500] }}>Uploading…</span>}
           {pdf && items.length > 0 && !editing && (
@@ -268,7 +280,7 @@ export default function ImageGallery({
         </div>
       )}
 
-      <div
+      {!collapsed && <div
         data-testid="image-gallery-drop"
         onDragOver={(e) => { if (canEdit && isFileDrag(e)) { e.preventDefault(); setFileOver(true); } }}
         onDragLeave={(e) => { if (e.currentTarget === e.target) setFileOver(false); }}
@@ -405,9 +417,9 @@ export default function ImageGallery({
             })}
           </div>
         )}
-      </div>
+      </div>}
 
-      {editing && items.length > 0 && (
+      {!collapsed && editing && items.length > 0 && (
         <div style={{ fontSize: 11, color: C.n[500], marginTop: 6 }}>
           Click images to select, then {`"Remove selected"`}.{canReorder ? " Drag any image to reorder." : ""}
         </div>

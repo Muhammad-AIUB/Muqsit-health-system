@@ -20,6 +20,16 @@ vi.mock("@/lib/api", async (orig) => ({
 }));
 let ctx: Record<string, unknown>;
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
+vi.mock("@/components/common/CollapseToggle", async (orig) => ({
+  ...(await orig<object>()),
+  // These tests are about what a section holds, so they see it open; the arrow itself is in `PatientRecordsView.collapse.test.tsx`.
+  useOpenSections: () => ({ isOpen: () => true, toggle: () => {} }),
+}));
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { accountTier: "primary" } }) }));
+// The total summary repeats every line of the sections above it; it has its own test.
+vi.mock("./TotalSummary", () => ({ default: () => null }));
+vi.mock("./PermissionsSection", () => ({ default: () => null }));
+vi.mock("./DicomSection", () => ({ default: () => null }));
 vi.mock("@/components/common/ImageGallery", () => ({ default: () => null }));
 vi.mock("./AddMedicineRow", () => ({
   default: (p: { date: string; onAdd: (e: string[]) => boolean }) => (
@@ -103,7 +113,7 @@ describe("the history sections after the Investigation summary", () => {
     render(<PatientRecordsView />, { wrapper: wrap });
     await flush();
     const names = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
-    expect(names).toEqual(["Drug history", "Patient's input", "Disease and surgical history", "Chief complaints history", "Diagnosis history"]);
+    expect(names).toEqual(["Drug history", "Patient's input", "Disease and surgical history", "Chief complaints history", "Diagnosis history", "Total summary of this patient"]);
   });
 
   it("each says plainly when it has nothing — Patient's input is not made up", async () => {
