@@ -8,9 +8,10 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { C, font } from "@/theme";
-import { btnDisabled, btnPrimary, btnSecondary, btnClose, dialogTitle, scrim, shadowDialog } from "@/theme/styles";
+import { btnDisabled, btnPrimary, btnSecondary, btnClose, dialogTitle, scrim, shadowCard, shadowDialog } from "@/theme/styles";
 import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useMuqsit } from "@/context/MuqsitContext";
+import { useAuth } from "@/context/AuthContext";
 import { ApiError, patientFilesApi, type PatientFileRow } from "@/lib/api";
 import { confirmAction, tell } from "@/lib/dialogs";
 import { isoToDdmmyyyy } from "@/lib/dateInput";
@@ -21,6 +22,7 @@ import { usePatientFileAccess } from "@/hooks/usePatientFileAccess";
 import DateField from "@/components/common/DateField";
 import { LoadError } from "@/components/common/ListState";
 import { SectionHeader } from "./RecordsHistorySections";
+import { isPremium } from "./TotalSummary";
 import dynamic from "next/dynamic";
 
 // Browser only, and fetched when a scan is opened: `dwv` is large, and its
@@ -44,7 +46,10 @@ function DicomIcon() {
 
 export default function DicomSection({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const { currentPatientId } = useMuqsit();
-  const canEdit = usePatientFileAccess() && Boolean(currentPatientId);
+  // ⚕️ Premium accounts only (physician, 09/11/2026). Everyone else sees the
+  // section blurred and can press nothing; the server refuses them as well.
+  const premium = isPremium(useAuth().user?.accountTier);
+  const canEdit = usePatientFileAccess() && Boolean(currentPatientId) && premium;
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -52,7 +57,7 @@ export default function DicomSection({ open, onToggle }: { open: boolean; onTogg
   const q = useQuery({
     queryKey: ["patient-files", currentPatientId, "dicom"],
     queryFn: () => patientFilesApi.list(currentPatientId as string, "dicom"),
-    enabled: Boolean(currentPatientId) && open,
+    enabled: Boolean(currentPatientId) && open && premium,
   });
   const rows = q.data ?? [];
   const refresh = (pid: string) => qc.invalidateQueries({ queryKey: ["patient-files", pid, "dicom"] });
@@ -89,13 +94,26 @@ export default function DicomSection({ open, onToggle }: { open: boolean; onTogg
             <button
               onClick={() => setAdding(true)}
               disabled={!canEdit}
-              title={canEdit ? undefined : currentPatientId ? "Only the patient's own doctor can upload" : "Load a saved patient first"}
+              title={canEdit ? undefined : !premium ? "Premium accounts only" : currentPatientId ? "Only the patient's own doctor can upload" : "Load a saved patient first"}
               style={{ ...btnPrimary("sm"), ...(canEdit ? null : btnDisabled) }}
             ><PlusLabel>Upload DICOM</PlusLabel></button>
           </>
         }
       />
-      {!open ? null : !currentPatientId ? (
+      {!open ? null : !premium ? (
+        <div style={{ position: "relative" }}>
+          <div aria-hidden style={{ filter: "blur(6px)", userSelect: "none", pointerEvents: "none", display: "flex", gap: 18, padding: 16, border: `0.5px solid ${C.n[200]}`, borderRadius: 12 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ width: 150, textAlign: "center" }}><DicomIcon /><div style={{ fontSize: 12.5, fontWeight: 600 }}>MRI whole abdomen</div><div style={{ fontSize: 11.5 }}>02/09/2026</div></div>
+            ))}
+          </div>
+          <div role="note" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div style={{ background: C.n[0], border: `1px solid ${C.n[200]}`, borderRadius: 12, padding: "12px 18px", fontSize: 13, color: C.n[800], boxShadow: shadowCard, textAlign: "center", maxWidth: 360 }}>
+              Imaging DICOM is for <b>premium</b> accounts.
+            </div>
+          </div>
+        </div>
+      ) : !currentPatientId ? (
         <div style={{ fontSize: 13, color: C.n[500] }}>Load a saved patient to see their imaging files.</div>
       ) : q.isError ? (
         <LoadError compact title="Could not load the DICOM files." onRetry={() => void q.refetch()} retrying={q.isFetching} />

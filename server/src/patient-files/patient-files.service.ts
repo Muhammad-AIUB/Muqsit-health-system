@@ -111,10 +111,11 @@ export class PatientFilesService implements OnModuleInit {
     return row;
   }
 
-  async remove(doctorId: string, actor: Actor, patientId: string, fileId: string): Promise<{ ok: true }> {
+  async remove(doctorId: string, actor: Actor, patientId: string, fileId: string, premium = false): Promise<{ ok: true }> {
     const patient = await this.assertOwner(doctorId, patientId);
     const row = await this.prisma.patientFile.findFirst({ where: { id: fileId, patientId, removedAt: null } });
     if (!row) throw new NotFoundException('File not found');
+    if (row.kind === 'dicom' && !premium) throw new ForbiddenException('Imaging DICOM is available to premium accounts');
     await this.prisma.patientFile.update({ where: { id: row.id }, data: { removedAt: new Date(), removedById: actor.userId } });
     await this.logActivity(doctorId, actor, patient, row.kind as PatientFileKind, `Removed “${row.name}” (${row.fileDate})`);
     return { ok: true };

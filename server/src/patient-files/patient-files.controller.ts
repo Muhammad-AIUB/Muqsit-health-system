@@ -40,6 +40,14 @@ const actorOf = (user: AuthenticatedUser): Actor => ({
   name: user.displayName?.trim() || user.name || 'Someone',
 });
 
+// ⚕️ Imaging DICOM is a PREMIUM feature (physician, 09/11/2026): the signed-in
+// user's tier decides, on the server too — a blurred screen alone is not a gate.
+const assertPremium = (user: AuthenticatedUser): void => {
+  if (user.accountTier !== 'premium') {
+    throw new ForbiddenException('Imaging DICOM is available to premium accounts');
+  }
+};
+
 const assertMayWrite = (ws: Workstation): void => {
   if (ws.role === 'assistant' && !ws.permissions.includes(WRITE_KEY)) {
     throw new ForbiddenException('You do not have permission to add or remove patient files');
@@ -61,9 +69,11 @@ export class PatientFilesController {
   @Get(':kind')
   list(
     @WorkstationDoctorId() doctorId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Param('kind', new ParseEnumPipe(['permission', 'dicom'])) kind: 'permission' | 'dicom',
   ) {
+    if (kind === 'dicom') assertPremium(user);
     return this.svc.list(doctorId, id, kind);
   }
 
@@ -111,6 +121,7 @@ export class PatientFilesController {
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     try {
+      assertPremium(user);
       assertMayWrite(ws);
       // Name and the owner check come before the file is kept, so a refused
       // request leaves nothing on disk.
@@ -133,6 +144,6 @@ export class PatientFilesController {
     @Param('fileId') fileId: string,
   ) {
     assertMayWrite(ws);
-    return this.svc.remove(doctorId, actorOf(user), id, fileId);
+    return this.svc.remove(doctorId, actorOf(user), id, fileId, user.accountTier === 'premium');
   }
 }

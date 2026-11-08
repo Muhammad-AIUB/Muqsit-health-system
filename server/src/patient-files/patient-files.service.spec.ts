@@ -64,7 +64,7 @@ describe('PatientFilesService', () => {
 
   it('removal is soft: removedAt and who, never a delete', async () => {
     const { svc, update } = make();
-    await svc.remove('owner', actor, 'p1', 'f1');
+    await svc.remove('owner', actor, 'p1', 'f1', true);
     expect(update.mock.calls[0][0].data).toMatchObject({ removedById: 'u1' });
     expect(update.mock.calls[0][0].data.removedAt).toBeInstanceOf(Date);
   });
@@ -73,5 +73,17 @@ describe('PatientFilesService', () => {
     const { svc, findMany } = make();
     await svc.list('owner', 'p1', 'permission');
     expect(findMany.mock.calls[0][0].where).toEqual({ patientId: 'p1', kind: 'permission', removedAt: null });
+  });
+
+  it('a DICOM file cannot be removed by a non-premium caller; a permission can', async () => {
+    const { svc, update, findFirst } = make();
+    await expect(svc.remove('owner', actor, 'p1', 'f1')).rejects.toBeInstanceOf(ForbiddenException); // the row is a dicom
+    expect(update).not.toHaveBeenCalled();
+    findFirst.mockResolvedValue({ id: 'f2', kind: 'permission', name: 'consent', fileDate: '02/09/2026' });
+    await svc.remove('owner', actor, 'p1', 'f2');
+    expect(update).toHaveBeenCalledTimes(1);
+    findFirst.mockResolvedValue({ id: 'f1', kind: 'dicom', name: 'MRI', fileDate: '02/09/2026' });
+    await svc.remove('owner', actor, 'p1', 'f1', true);
+    expect(update).toHaveBeenCalledTimes(2);
   });
 });

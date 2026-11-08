@@ -18,6 +18,8 @@ vi.mock("@/lib/api", async (orig) => ({
 }));
 vi.mock("@/lib/dialogs", async (orig) => ({ ...(await orig<object>()), confirmAction: api.confirm, tell: vi.fn() }));
 let access = true;
+let tier = "premium";
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { accountTier: tier } }) }));
 vi.mock("@/hooks/usePatientFileAccess", () => ({ usePatientFileAccess: () => access }));
 let ctx: Record<string, unknown>;
 vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ctx }));
@@ -42,6 +44,7 @@ const row = { id: "f1", kind: "dicom", name: "MRI whole abdomen", fileDate: "02/
 
 beforeEach(() => {
   access = true;
+  tier = "premium";
   ctx = { currentPatientId: "A", ptName: "Test" };
   api.list.mockReset(); api.list.mockResolvedValue([row]);
   api.upload.mockReset(); api.upload.mockResolvedValue(row);
@@ -118,6 +121,16 @@ describe("Imaging DICOM", () => {
     await flush();
     expect((screen.getByRole("button", { name: /Upload DICOM/ }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole("button", { name: "✎ Edit" })).toBeNull();
+  });
+
+  it("not premium: blurred, nothing is asked of the server, nothing can be pressed", async () => {
+    tier = "primary";
+    render(<DicomSection open onToggle={() => {}} />, { wrapper: wrap });
+    await flush();
+    expect(api.list).not.toHaveBeenCalled();
+    expect(screen.getByRole("note").textContent).toMatch(/premium/);
+    expect((screen.getByRole("button", { name: /Upload DICOM/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /^Open / })).toBeNull();
   });
 
   it("no patient loaded: nothing is asked of the server", async () => {
