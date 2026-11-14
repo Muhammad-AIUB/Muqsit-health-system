@@ -1173,6 +1173,36 @@ export const smsApi = {
     apiFetch<PaymentRequest>("/sms/payment-requests", { method: "POST", body: JSON.stringify(input) }),
 };
 
+// ── Statistics (Settings → Statistics, physician's sheet 11/11/2026) ──
+// Read only. `chamber` is "all" (the total of every chamber) or a chamber's id;
+// the server resolves it for the practice and answers 404 for any other.
+export interface StatsDay { day: string; total: number; seen: number }
+export interface StatsMonth { month: string; total: number; seen: number }
+export interface StatsDays { month: string; days: StatsDay[] }
+export interface StatsMonths { year: string; months: StatsMonth[] }
+export interface StatsOverall {
+  totalVisits: number;
+  averageMonthly: number | null;
+  averageDaily: number | null;
+  thisMonth: number;
+  previousMonth: number;
+  firstSeenDay: string | null;
+  days: number;
+  months: number;
+  /** The Dhaka day the server counted on — "this month" is this day's month. */
+  today: string;
+}
+export interface StatsDiagnosis { name: string; patients: number }
+
+export const statisticsApi = {
+  days: (month: string, chamber: string) =>
+    apiFetch<StatsDays>(`/statistics/visits/days?month=${encodeURIComponent(month)}&chamber=${encodeURIComponent(chamber)}`),
+  months: (year: string, chamber: string) =>
+    apiFetch<StatsMonths>(`/statistics/visits/months?year=${encodeURIComponent(year)}&chamber=${encodeURIComponent(chamber)}`),
+  overall: (chamber: string) => apiFetch<StatsOverall>(`/statistics/visits/overall?chamber=${encodeURIComponent(chamber)}`),
+  diseases: () => apiFetch<{ diagnoses: StatsDiagnosis[] }>("/statistics/diseases"),
+};
+
 // ── IPD ward ────────────────────────────────────────────────
 // One "Follow Up" vitals/intake-output snapshot for an IPD admission.
 export interface IpdFollowUp {

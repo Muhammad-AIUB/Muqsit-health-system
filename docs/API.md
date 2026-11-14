@@ -480,6 +480,17 @@ The appointment SMS to every patient of a day (physician's sheet, 28/10/2026). B
 | PATCH | `/admin/payment-requests/:id/credit` | `{ credit?, note? }` — one transaction under the request's row lock: a `sms` request credits `credit` (default: its `quantity`) taka to the doctor's wallet with a ledger `topup` line; a `renew` request (monthly subscription) is only marked — the app changes no subscription. Then `status: "credited"`. A request no longer pending → 409, so pressed twice it credits once |
 | PATCH | `/admin/payment-requests/:id/reject` | `{ note? }` → `status: "rejected"`; not pending → 409 |
 
+### 5.12d Statistics — `/statistics` (JWT + WS) (physician's sheet 11/11/2026)
+
+Settings → Statistics. **Read only**, no migration: it counts the practice's OPD queue rows (`OpdVisit`) and saved prescriptions. Scoped to `@WorkstationDoctorId()`; open to the practice's assistants (physician's decision) — they read the practice's numbers. A visit is **seen** when it is Completed in the queue: Done pressed OR `rxStatus = 'complete'` (the same rule as the Completed card, `client/src/lib/opdPresence.ts#isCompleted`). A visit's day is `queueDate`, else the Dhaka day its `createdAt` falls on. `chamber` (visits only) is a claim resolved by `ChambersService.resolve`: absent / empty / `all` = every chamber of the practice ("All chamber total"); the default chamber's own id = the default chamber (visits stored with no chamber); another live chamber of this practice = that one; another practice's, a removed one or a made-up id = **404**, never the total in its place; two values (`?chamber=a&chamber=b`) = 400.
+
+| Method | Path | Body / Notes |
+|---|---|---|
+| GET | `/statistics/visits/days` | `?month=yyyy-mm&chamber=` (month defaults to the current Dhaka month; anything else is 400 `Choose a month written like 2026-11.`) → `{ month, days: [{ day: "yyyy-mm-dd", total, seen }] }` — EVERY day of the month, 0 and 0 where nobody was booked. `total` = every queue row of the day (the Total Serial card), `seen` as above |
+| GET | `/statistics/visits/months` | `?year=yyyy&chamber=` (year defaults to the current Dhaka year; 1900–2200, else 400) → `{ year, months: [{ month: "yyyy-mm", total, seen }] }` — all twelve months |
+| GET | `/statistics/visits/overall` | `?chamber=` → `{ totalVisits, averageMonthly, averageDaily, thisMonth, previousMonth, firstSeenDay, days, months, today }` (`today` = the Dhaka day it was counted on; the screen names "this month" / "previous month" from it, not from a PC clock). `totalVisits` = seen visits since the first one; `thisMonth` = seen this Dhaka month up to today; `previousMonth` = seen last calendar month. **Calendar averages** (physician, 11/11/2026): `averageDaily` = seen ÷ every day from the first seen visit to today (`days`), `averageMonthly` = seen ÷ every month from that visit's month to this one, this one included (`months`); one decimal place. Nobody seen → counts 0, averages and `firstSeenDay` `null` |
+| GET | `/statistics/diseases` | → `{ diagnoses: [{ name, patients }] }` — every final diagnosis written on this practice's prescriptions with the number of DIFFERENT patients who have it (a patient on five prescriptions is one), most patients first then A to Z. Two writings are one only when they differ in capitals and spacing (`DM` / `dm`); `DM` and `Diabetes mellitus` are two. `name` is the newest wording, trimmed, otherwise as written. A prescription holds no chamber, so there is no `chamber` here |
+
 ### 5.13 IPD — `/ipd` (JWT + WS)
 
 | Method | Path | Body / Notes |

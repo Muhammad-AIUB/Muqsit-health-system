@@ -64,6 +64,8 @@ const PATHS = {
   // plus at 11px beside a chip's text.
   plusCircle: ["M12 21.5a9.5 9.5 0 1 0 0-19 9.5 9.5 0 0 0 0 19z", ["M12 7.5v9", 2.6], ["M7.5 12h9", 2.6]],
   flask: ["M9 3h6", "M10 3v6l-5.2 9a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9V3", "M7.5 15h9"],
+  // Settings → Statistics (physician's sheet 11/11/2026): three bars on a base.
+  barChart: ["M18 20V10", "M12 20V4", "M6 20v-6"],
 } as const;
 
 export type IconName = keyof typeof PATHS;

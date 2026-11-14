@@ -26,6 +26,7 @@ const ROLES = [
   'saveFailed', 'draftFailed', 'keepWork', 'answerLost', 'answerLostAll',
   'ipdSaveFailed', 'opdQueueDay', 'opdPresence', 'opdPrintQueue', 'opdSms',
   'chambers', 'recordsOe', 'patientPhoto', 'historySidebar', 'drugTable', 'drugTableStale',
+  'statistics',
 ] as const;
 
 // The "Total monthly approximate cost" journey prices from the medicine chart:
