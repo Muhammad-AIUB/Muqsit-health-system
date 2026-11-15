@@ -131,6 +131,37 @@ export interface PrescriptionBody {
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// ⚕️ A number is never parted from its unit by a line break.
+//
+// When an ℞ cell is too narrow for its text the browser wraps at the spaces, and
+// it did so between "500" and "mg" — "Napa Extra 500 / mg+65 mg", "Esoral 20 /
+// mg" — which leaves a figure alone at the end of one line and its unit at the
+// start of the next. A non-breaking space between the number and a UNIT keeps
+// the pair on one line. Only the listed units: gluing every word after a digit
+// would make long unbreakable runs ("1+0+1 before") for no reason.
+//
+// It is the same character on paper as a space and changes no stored text; only
+// the printed ℞ cells go through it. The words of a cell are measured AFTER it
+// (`widestWordIn`), so a glued pair is the word a column has to fit.
+const UNIT_WORDS = [
+  "mg", "mcg", "µg", "μg", "g", "gm", "kg", "ml", "l", "iu", "u", "unit", "units",
+  "tsf", "tsp", "tbsp", "cc", "mmol", "meq", "%", "day", "days", "week", "weeks", "month",
+  "months", "year", "years", "hour", "hours", "hr", "hrs", "min", "mins", "minute", "minutes",
+  "tab", "tabs", "tablet", "tablets", "cap", "caps", "capsule", "capsules", "drop", "drops",
+  "puff", "puffs", "time", "times",
+  // Bangla: day, week, month, year, minute, spoon.
+  "দিন", "সপ্তাহ", "মাস", "বছর", "মিনিট", "চামচ",
+];
+// "µg" is listed twice on purpose: U+00B5 (micro sign) and U+03BC (Greek mu) are
+// both typed for it, and they look the same.
+const NUMBER_THEN_UNIT = new RegExp(
+  "([0-9\\u09E6-\\u09EF])[ \\t]+(?=(?:" + UNIT_WORDS.join("|") + ")(?![A-Za-z\\u0980-\\u09FF]))",
+  "gi",
+);
+// U+00A0, spelled out: a literal one is invisible in source and gets "tidied" into a plain space.
+const NBSP = String.fromCharCode(0xa0);
+export const glueUnits = (s: string): string => s.replace(NUMBER_THEN_UNIT, "$1" + NBSP);
+
 // ── Rx table: every cell on ONE line ────────────────────────────────────────
 // ⚠️ This block said "one type size for the whole sheet" until 2026-09-12. It
 // is no longer one size: the medicine NAME prints at `DRUG_PX` and everything
@@ -197,7 +228,9 @@ const DEFAULT_RX_SHARE = 1.7 / 2.4;
 // enough to set a long diagnosis word without breaking it. On paper too narrow
 // to satisfy both, the slider is ignored entirely and the sheet prints at its
 // historic split — a cramped sheet the doctor recognises beats a broken one.
-const RX_MIN_TRACK_PX = 160 + 18 + 32;   // the 160 floor + RIGHT_PAD_PX + RX_NO_PX
+// The narrowest the ℞ data columns are ever modelled at (`rxTableInnerPx`).
+const RX_INNER_FLOOR_PX = 160;
+const RX_MIN_TRACK_PX = RX_INNER_FLOOR_PX + 18 + 32;   // the floor + RIGHT_PAD_PX + RX_NO_PX
 const CLINICAL_MIN_TRACK_PX = 120;
 // Belt and braces, so a very wide page cannot hand either column the whole sheet.
 const BODY_MIN_LEFT = 0.12;
@@ -287,6 +320,34 @@ export function measureRxText(text: string, px: number, bold: boolean): number |
   return Number.isFinite(w) && w > 0 ? w : null;
 }
 
+/**
+ * `glueUnits`, but only where the glued text FITS the cell it is printed in.
+ *
+ * ⚕️ A glued pair cannot break at its space, so a run such as "500 mg+65 mg" is
+ * ONE unbreakable word. In a cell narrower than that word the browser has no
+ * space to wrap at and breaks it at any character (`td` carries
+ * `overflow-wrap: anywhere`) — on an A6 sheet it printed "500 mg+6" over "5 mg":
+ * a 65 mg strength read as 6 and 5. Before the glue, the same cell broke at the
+ * spaces and every number stayed whole. So the glue is applied only when every
+ * glued word fits `room` (the cell's content width, in px — the column, which
+ * already carries `FIT_SAFETY`, less its padding); otherwise the text is printed
+ * exactly as it was typed, breaking at its spaces, as it always did.
+ */
+export function glueWhereItFits(
+  text: string,
+  px: number,
+  bold: boolean,
+  room: number,
+  measure: (text: string, px: number, bold: boolean) => number | null = measureRxText,
+): string {
+  const glued = glueUnits(text);
+  if (glued === text) return text;
+  const widest = glued
+    .split(/[ \t\r\n]+/)
+    .reduce((m, w) => (w ? Math.max(m, measure(w, px, bold) ?? w.length * px * EM_PER_CHAR) : m), 0);
+  return widest <= room ? glued : text;
+}
+
 const pageNum = (v: string | undefined, fallback: number) => {
   const n = parseFloat(v ?? "");
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -342,7 +403,7 @@ export function bodyShares(
 
 /** Width available to the Rx data columns (everything right of the number). */
 export function rxTableInnerPx(page?: PrescriptionDoc["page"], body?: PrescriptionBody): number {
-  return Math.max(160, contentWidthPx(page) * bodyShares(page, body).rx - RIGHT_PAD_PX - RX_NO_PX);
+  return Math.max(RX_INNER_FLOOR_PX, contentWidthPx(page) * bodyShares(page, body).rx - RIGHT_PAD_PX - RX_NO_PX);
 }
 
 /**
@@ -500,7 +561,7 @@ export function layoutRxColumns(
   // off the page — it splits a word in two, and "consti / pation" on a dose
   // line is not something a prescription should ever print.
   const widestWordIn = (text: string, base: number, bold: boolean) =>
-    text.trim().split(/\s+/).reduce((m, w) => Math.max(m, width(w, base, bold)), 0);
+    glueUnits(text.trim()).split(/[ \t\r\n]+/).reduce((m, w) => Math.max(m, width(w, base, bold)), 0);
   const widestWord = (pick: (r: RxLine) => string, base: number, bold: boolean) =>
     lines.reduce((mx, r) => Math.max(mx, widestWordIn(pick(r), base, bold)), 0);
 
@@ -595,9 +656,15 @@ export function layoutRxColumns(
 // exactly the text the doctor entered. A label whose name cannot be read
 // (a bare dosage form, say) keeps the whole line bold — a medicine with no
 // emphasis at all would be worse than one with too much.
-const drugCell = (label: string): string => {
+// `glue` is decided for the WHOLE label (`glueWhereItFits`), so the three pieces
+// are glued together or not at all — the bold name included ("Tab 5 mg" reads its
+// name as "5 mg").
+const drugCell = (label: string, glue: boolean): string => {
+  const g = glue ? glueUnits : (s: string) => s;
   const { before, name, after } = splitDrugLabel(label);
-  return name ? `${esc(before)}<b>${esc(name)}</b>${esc(after)}` : `<b>${esc(label)}</b>`;
+  return name
+    ? `${esc(g(before))}<b>${esc(g(name))}</b>${esc(g(after))}`
+    : `<b>${esc(g(label))}</b>`;
 };
 
 // A clinical line, as printed. Plain text, not HTML: the fitting bound below
@@ -773,6 +840,22 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   const share = bodyShares(d.page, d.body);
   const lay = layoutRxColumns(rxLines, rxTableInnerPx(d.page, d.body));
   const noteSpan = lay.hasFood ? 3 : 2;
+  // What each ℞ cell can hold on one line, in px: its column less its padding.
+  // A number is glued to its unit only if the glued pair fits this
+  // (`glueWhereItFits`).
+  //
+  // ⚕️ Those columns are modelled on `rxTableInnerPx`, which never returns less
+  // than RX_INNER_FLOOR_PX. When the ℞ side of the real page is narrower than
+  // that floor the real table is NARROWER than the one the columns were sized
+  // for, every real cell is narrower than its modelled width, and a glued pair
+  // that "fits" the model can still be broken between its digits. So on such a
+  // page nothing is glued (room 0): the sheet prints as it did before the glue.
+  const floorBinds =
+    contentWidthPx(d.page) * share.rx - RIGHT_PAD_PX - RX_NO_PX < RX_INNER_FLOOR_PX;
+  const room = (col: number) => (floorBinds ? 0 : lay.cols[col] - CELL_PAD_PX);
+  const roomDrug = room(0);
+  const roomFood = lay.hasFood ? room(1) : 0;
+  const roomDur = room(lay.hasFood ? 2 : 1);
   // ⚕️ Column widths are a SHARE of the table, never a scaled px width.
   //
   // They used to be `calc(var(--k) * Npx)`, on the reasoning that a column can
@@ -795,7 +878,7 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
   // when the sheet is scaled to fill the page.
   let rxRowNo = -1;
   const rxRows = rxLines
-    .map((r) => {
+    .map((r, at) => {
       // Free-typed instruction line — span the whole width, italic.
       // ⚕️ It takes the NEXT SERIAL like a medicine does (physician's decision,
       // 2026-09-24: "bed rest", "insulin as before" and the medicines are one
@@ -838,15 +921,27 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
       // The dose sits INSIDE the drug cell, so it has to carry the smaller size
       // itself — the cell's own font-size is the medicine name's.
       const doseStyle = ` style="font-size:${SCALE_PX(midSize)}"`;
+      // A number is kept with its unit only where the pair fits its cell
+      // (`glueWhereItFits`): a pair that cannot break at its space is broken
+      // between its DIGITS in a cell that is too narrow for it.
+      // A tapering row's dose is not glued at all: it sits beside the ↳, whose
+      // real width (a symbol font's glyph plus two paddings) is only estimated by
+      // CONT_INDENT_PX, and a glued pair has no margin to give.
+      const doseShown = isCont ? r.dose : glueWhereItFits(r.dose, midSize, false, roomDrug);
+      const labelGlued = !isCont && glueWhereItFits(r.drug, lay.drugPx, true, roomDrug) !== r.drug;
       const body = isCont
-        ? `<span class="rx-cont">↳</span>${dose ? `<span class="rx-dose-inline"${doseStyle}>${esc(r.dose)}</span>` : ""}`
-        : `<span class="rx-name">${drugCell(r.drug)}</span>${dose ? `<span class="rx-dose"${doseStyle}>${esc(r.dose)}</span>` : ""}`;
+        ? `<span class="rx-cont">↳</span>${dose ? `<span class="rx-dose-inline"${doseStyle}>${esc(doseShown)}</span>` : ""}`
+        : `<span class="rx-name">${drugCell(r.drug, labelGlued)}</span>${dose ? `<span class="rx-dose"${doseStyle}>${esc(doseShown)}</span>` : ""}`;
+      // The row after this one continues it (a `>>>` taper): keep the two on
+      // one page.
+      const after = rxLines[at + 1];
+      const keepNext = !!after && !after.isNote && !after.drug.trim();
       return `
-        <tr>
+        <tr${keepNext ? ' class="rx-keep-next"' : ""}>
           <td class="rx-no">${isCont ? "" : rxNo + "."}</td>
           <td class="rx-drug" style="font-size:${SCALE_PX(size)};${nowrap}">${body}</td>
-          ${lay.hasFood ? `<td class="rx-mid"${mid}>${esc(r.instruction)}</td>` : ""}
-          <td class="rx-mid"${mid}>${esc(r.duration)}</td>
+          ${lay.hasFood ? `<td class="rx-mid"${mid}>${esc(glueWhereItFits(r.instruction, midSize, false, roomFood))}</td>` : ""}
+          <td class="rx-mid"${mid}>${esc(glueWhereItFits(r.duration, midSize, false, roomDur))}</td>
         </tr>`;
     })
     .join("");
@@ -1048,10 +1143,53 @@ function visibleHtml(html: string | undefined): boolean {
 //      printed before this existed;
 //   2. never spill onto a page the prescription did not need;
 //   3. never let an ℞ cell run past its own column — checked by measuring the
-//      table, so it holds even if the printer resolves a different font from
-//      the one the widths were measured against.
+//      table AND every cell, so it holds even if the printer resolves a
+//      different font from the one the widths were measured against.
+//
+// ⚕️ That third rule used to look at the TABLE only. A row the builder printed on
+// one line (white-space: nowrap, because it measured as fitting) whose text came
+// out wider in the print frame ran INTO the next column — "Before meal" 4–7px
+// into the duration — and the table, still inside its own box, reported
+// nothing. Measured by widening the glyphs of a built sheet after the fact
+// (2026-11-15). Now a cell like that is found and its row is let go: it wraps at
+// its spaces instead (`letWrap`), which is the one thing the physician asked of a
+// line too long for the pad. Letting a row wrap changes nothing when it fits —
+// `normal` only wraps where it must — so the page never loses by it.
 // If anything here throws, `--k` stays unset and the sheet prints at its floor.
 const FIT_SCRIPT = `(function(){
+  // The text of a cell held on one line, against the cell's CONTENT box. Not
+  // scrollWidth: that ignores text that spills into the cell's own empty right
+  // padding, which is how a column ends up with its words touching the next.
+  function held(c){
+    if (c.style.whiteSpace !== 'nowrap') return false;
+    var range = document.createRange();
+    range.selectNodeContents(c);
+    var rects = range.getClientRects(), right = 0;
+    for (var i = 0; i < rects.length; i++) if (rects[i].right > right) right = rects[i].right;
+    var pad = parseFloat(window.getComputedStyle(c).paddingRight) || 0;
+    return right > c.getBoundingClientRect().right - pad + 1;
+  }
+  function cellsOf(sheet){
+    return sheet.querySelectorAll('.right table td.rx-drug, .right table td.rx-mid');
+  }
+  function spills(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) if (held(cells[i])) return true;
+    return false;
+  }
+  // Only a cell of SEVERAL words is let go, and only that cell: a single word
+  // ("Continue", "1+0+1") has no space to wrap at and would be split mid-word,
+  // which is worse than the few pixels it spills — for those the search below
+  // backs the type off instead. Letting the whole ROW go turned on word-splitting
+  // in its other cells ("Continu / e").
+  function letWrap(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) {
+      if (held(cells[i]) && /[ \\t]/.test((cells[i].textContent || '').trim())) {
+        cells[i].style.whiteSpace = 'normal';
+      }
+    }
+  }
   function fits(sheet, availH){
     var c = sheet.querySelector('.pagecontent');
     var f = sheet.querySelector('.pagefoot');
@@ -1062,13 +1200,15 @@ const FIT_SCRIPT = `(function(){
     for (var i = 0; i < tables.length; i++) {
       if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
     }
+    if (spills(sheet)) return false;
     return true;
   }
   function fit(sheet){
     var availH = parseFloat(sheet.getAttribute('data-avail-h'));
     var kMax = parseFloat(sheet.getAttribute('data-kmax'));
-    if (!(availH > 0) || !(kMax > 1)) return;
     sheet.style.setProperty('--k', '1');
+    letWrap(sheet);
+    if (!(availH > 0) || !(kMax > 1)) return;
     if (!fits(sheet, availH)) return;
     var lo = 1, hi = kMax;
     for (var i = 0; i < 9; i++) {
@@ -1192,6 +1332,9 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   .right { padding-left: 18px; padding-top: ${rightTop}; }
   .rx-symbol { font-size: ${SCALE_PX(26)}; font-style: italic; color: #1a73e8; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
+  /* The block that follows the ℞ table (Advice, Advised tests) sat directly on
+     the last row's rule; give it the room every other block has. */
+  .right table + .block { margin-top: 12px; }
   /* Written from the constants, so the sizes the width bound measures against
      and the sizes that print can never drift apart. */
   .block-title { font-size: ${SCALE_PX(BLOCK_TITLE_PX)}; font-weight: 700; color: #185abc; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
@@ -1206,6 +1349,19 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
   /* Width comes from the colgroup (a share of the table) — not from here, or a
      px width would fight the percentage under table-layout: fixed. */
   .rx-no { color: #999; font-size: ${SCALE_PX(14)}; }
+  /* ⚕️ ONE baseline per medicine row. The serial (14px), the name (13px) and the
+     food / duration cells (11px) used to hang from the TOP of the row, so each
+     size sat on its own baseline — up to 2px apart on every line. */
+  .rx-no, .rx-drug, .rx-mid, .rx-note { vertical-align: baseline; }
+  /* ⚕️ A medicine is never cut across two pages. A row that does not fit the
+     rest of a page moves, whole, to the next one: a dose line that starts a
+     page without its medicine name above it is a misread, not a tidy break.
+     A tapering (>>>) row stays with the medicine it continues. */
+  .right table tr { break-inside: avoid; page-break-inside: avoid; }
+  .right table tr.rx-keep-next { break-after: avoid; page-break-after: avoid; }
+  .rx-symbol { break-after: avoid; page-break-after: avoid; }
+  .block-title { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+  li, .followup { break-inside: avoid; page-break-inside: avoid; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
@@ -1239,8 +1395,8 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      signature line is room to sign in; it is part of the foot's height, so the
      fitting script reserves it and the ℞ list can never run into it. */
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
-  .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(FOOT_PX)}; color: #333; flex: 0 0 auto; }
-  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  .sign { margin-top: 56px; text-align: right; font-size: ${SCALE_PX(FOOT_PX)}; color: #333; flex: 0 1 auto; min-width: 0; overflow-wrap: break-word; }
+  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: min(200px, 100%); }
   /* The Footer Section the doctor designed, under the signature row — the
      last thing on every page. Like .head-body: the editor's base size, never
      written through --k, and part of the foot the fitting script measures. */
@@ -1258,7 +1414,7 @@ export function buildPrescriptionHtml(d: PrescriptionDoc): string {
      no longer splits mid-word or collapses its column. */
   .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
-  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 1 auto; min-width: 0; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 0 auto; }
   .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1a73e8; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
   .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
   .bb-exhort { height: 19px; width: auto; display: block; }

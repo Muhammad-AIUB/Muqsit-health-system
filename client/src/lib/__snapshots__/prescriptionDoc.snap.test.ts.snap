@@ -62,6 +62,9 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
   .right { padding-left: 18px; padding-top: 0; }
   .rx-symbol { font-size: calc(var(--k, 1) * 26px); font-style: italic; color: #1a73e8; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
+  /* The block that follows the ℞ table (Advice, Advised tests) sat directly on
+     the last row's rule; give it the room every other block has. */
+  .right table + .block { margin-top: 12px; }
   /* Written from the constants, so the sizes the width bound measures against
      and the sizes that print can never drift apart. */
   .block-title { font-size: calc(var(--k, 1) * 13px); font-weight: 700; color: #185abc; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
@@ -76,6 +79,19 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
   /* Width comes from the colgroup (a share of the table) — not from here, or a
      px width would fight the percentage under table-layout: fixed. */
   .rx-no { color: #999; font-size: calc(var(--k, 1) * 14px); }
+  /* ⚕️ ONE baseline per medicine row. The serial (14px), the name (13px) and the
+     food / duration cells (11px) used to hang from the TOP of the row, so each
+     size sat on its own baseline — up to 2px apart on every line. */
+  .rx-no, .rx-drug, .rx-mid, .rx-note { vertical-align: baseline; }
+  /* ⚕️ A medicine is never cut across two pages. A row that does not fit the
+     rest of a page moves, whole, to the next one: a dose line that starts a
+     page without its medicine name above it is a misread, not a tidy break.
+     A tapering (>>>) row stays with the medicine it continues. */
+  .right table tr { break-inside: avoid; page-break-inside: avoid; }
+  .right table tr.rx-keep-next { break-after: avoid; page-break-after: avoid; }
+  .rx-symbol { break-after: avoid; page-break-after: avoid; }
+  .block-title { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+  li, .followup { break-inside: avoid; page-break-inside: avoid; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
@@ -109,8 +125,8 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
      signature line is room to sign in; it is part of the foot's height, so the
      fitting script reserves it and the ℞ list can never run into it. */
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
-  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 0 auto; }
-  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 1 auto; min-width: 0; overflow-wrap: break-word; }
+  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: min(200px, 100%); }
   /* The Footer Section the doctor designed, under the signature row — the
      last thing on every page. Like .head-body: the editor's base size, never
      written through --k, and part of the foot the fitting script measures. */
@@ -128,7 +144,7 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
      no longer splits mid-word or collapses its column. */
   .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
-  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 1 auto; min-width: 0; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 0 auto; }
   .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1a73e8; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
   .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
   .bb-exhort { height: 19px; width: auto; display: block; }
@@ -196,9 +212,9 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
         <table><colgroup><col style="width:6.667%" /><col style="width:72.708%" /><col style="width:20.625%" /></colgroup>
         <tr>
           <td class="rx-no">1.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
           
-          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
         </tr></table>
         
         
@@ -218,6 +234,39 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
   </div>
   
 <script>(function(){
+  // The text of a cell held on one line, against the cell's CONTENT box. Not
+  // scrollWidth: that ignores text that spills into the cell's own empty right
+  // padding, which is how a column ends up with its words touching the next.
+  function held(c){
+    if (c.style.whiteSpace !== 'nowrap') return false;
+    var range = document.createRange();
+    range.selectNodeContents(c);
+    var rects = range.getClientRects(), right = 0;
+    for (var i = 0; i < rects.length; i++) if (rects[i].right > right) right = rects[i].right;
+    var pad = parseFloat(window.getComputedStyle(c).paddingRight) || 0;
+    return right > c.getBoundingClientRect().right - pad + 1;
+  }
+  function cellsOf(sheet){
+    return sheet.querySelectorAll('.right table td.rx-drug, .right table td.rx-mid');
+  }
+  function spills(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) if (held(cells[i])) return true;
+    return false;
+  }
+  // Only a cell of SEVERAL words is let go, and only that cell: a single word
+  // ("Continue", "1+0+1") has no space to wrap at and would be split mid-word,
+  // which is worse than the few pixels it spills — for those the search below
+  // backs the type off instead. Letting the whole ROW go turned on word-splitting
+  // in its other cells ("Continu / e").
+  function letWrap(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) {
+      if (held(cells[i]) && /[ \\t]/.test((cells[i].textContent || '').trim())) {
+        cells[i].style.whiteSpace = 'normal';
+      }
+    }
+  }
   function fits(sheet, availH){
     var c = sheet.querySelector('.pagecontent');
     var f = sheet.querySelector('.pagefoot');
@@ -228,13 +277,15 @@ exports[`printed prescription — the whole document > a short prescription 1`] 
     for (var i = 0; i < tables.length; i++) {
       if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
     }
+    if (spills(sheet)) return false;
     return true;
   }
   function fit(sheet){
     var availH = parseFloat(sheet.getAttribute('data-avail-h'));
     var kMax = parseFloat(sheet.getAttribute('data-kmax'));
-    if (!(availH > 0) || !(kMax > 1)) return;
     sheet.style.setProperty('--k', '1');
+    letWrap(sheet);
+    if (!(availH > 0) || !(kMax > 1)) return;
     if (!fits(sheet, availH)) return;
     var lo = 1, hi = kMax;
     for (var i = 0; i < 9; i++) {
@@ -320,6 +371,9 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
   .right { padding-left: 18px; padding-top: 0; }
   .rx-symbol { font-size: calc(var(--k, 1) * 26px); font-style: italic; color: #1a73e8; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
+  /* The block that follows the ℞ table (Advice, Advised tests) sat directly on
+     the last row's rule; give it the room every other block has. */
+  .right table + .block { margin-top: 12px; }
   /* Written from the constants, so the sizes the width bound measures against
      and the sizes that print can never drift apart. */
   .block-title { font-size: calc(var(--k, 1) * 13px); font-weight: 700; color: #185abc; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
@@ -334,6 +388,19 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
   /* Width comes from the colgroup (a share of the table) — not from here, or a
      px width would fight the percentage under table-layout: fixed. */
   .rx-no { color: #999; font-size: calc(var(--k, 1) * 14px); }
+  /* ⚕️ ONE baseline per medicine row. The serial (14px), the name (13px) and the
+     food / duration cells (11px) used to hang from the TOP of the row, so each
+     size sat on its own baseline — up to 2px apart on every line. */
+  .rx-no, .rx-drug, .rx-mid, .rx-note { vertical-align: baseline; }
+  /* ⚕️ A medicine is never cut across two pages. A row that does not fit the
+     rest of a page moves, whole, to the next one: a dose line that starts a
+     page without its medicine name above it is a misread, not a tidy break.
+     A tapering (>>>) row stays with the medicine it continues. */
+  .right table tr { break-inside: avoid; page-break-inside: avoid; }
+  .right table tr.rx-keep-next { break-after: avoid; page-break-after: avoid; }
+  .rx-symbol { break-after: avoid; page-break-after: avoid; }
+  .block-title { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+  li, .followup { break-inside: avoid; page-break-inside: avoid; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
@@ -367,8 +434,8 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
      signature line is room to sign in; it is part of the foot's height, so the
      fitting script reserves it and the ℞ list can never run into it. */
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
-  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 0 auto; }
-  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 1 auto; min-width: 0; overflow-wrap: break-word; }
+  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: min(200px, 100%); }
   /* The Footer Section the doctor designed, under the signature row — the
      last thing on every page. Like .head-body: the editor's base size, never
      written through --k, and part of the foot the fitting script measures. */
@@ -386,7 +453,7 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
      no longer splits mid-word or collapses its column. */
   .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
-  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 1 auto; min-width: 0; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 0 auto; }
   .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1a73e8; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
   .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
   .bb-exhort { height: 19px; width: auto; display: block; }
@@ -458,19 +525,19 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
         <table><colgroup><col style="width:6.667%" /><col style="width:76.875%" /><col style="width:16.458%" /></colgroup>
         <tr>
           <td class="rx-no">1.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
           
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
         </tr>
         <tr>
           <td class="rx-no">2.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
           
-          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
         </tr>
         <tr>
           <td class="rx-no">3.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4tsf at night if constipation</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4tsf at night if constipation</span></td>
           
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
         </tr>
@@ -482,9 +549,9 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
         </tr>
         <tr>
           <td class="rx-no">5.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Denvar</b> 400 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Denvar</b> 400 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
           
-          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">7 days</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">7 days</td>
         </tr></table>
         <div class="block"><div class="block-title">Advice</div><ul><li>bed rest</li></ul></div>
         <div class="block"><div class="block-title">Advised tests / investigation</div><ul><li>ALT/SGPT</li></ul></div>
@@ -528,19 +595,19 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
         <table><colgroup><col style="width:6.667%" /><col style="width:76.875%" /><col style="width:16.458%" /></colgroup>
         <tr>
           <td class="rx-no">1.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
           
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
         </tr>
         <tr>
           <td class="rx-no">2.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Napa</b> 500 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+1+1</span></td>
           
-          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">5 days</td>
         </tr>
         <tr>
           <td class="rx-no">3.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4tsf at night if constipation</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4tsf at night if constipation</span></td>
           
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
         </tr>
@@ -552,9 +619,9 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
         </tr>
         <tr>
           <td class="rx-no">5.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Denvar</b> 400 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Denvar</b> 400 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
           
-          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">7 days</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">7 days</td>
         </tr></table>
         
         <div class="block"><div class="block-title">Advised tests / investigation</div><ul><li>ALT/SGPT</li></ul></div>
@@ -573,6 +640,39 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
     </td></tr></tfoot></table>
   </div>
 <script>(function(){
+  // The text of a cell held on one line, against the cell's CONTENT box. Not
+  // scrollWidth: that ignores text that spills into the cell's own empty right
+  // padding, which is how a column ends up with its words touching the next.
+  function held(c){
+    if (c.style.whiteSpace !== 'nowrap') return false;
+    var range = document.createRange();
+    range.selectNodeContents(c);
+    var rects = range.getClientRects(), right = 0;
+    for (var i = 0; i < rects.length; i++) if (rects[i].right > right) right = rects[i].right;
+    var pad = parseFloat(window.getComputedStyle(c).paddingRight) || 0;
+    return right > c.getBoundingClientRect().right - pad + 1;
+  }
+  function cellsOf(sheet){
+    return sheet.querySelectorAll('.right table td.rx-drug, .right table td.rx-mid');
+  }
+  function spills(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) if (held(cells[i])) return true;
+    return false;
+  }
+  // Only a cell of SEVERAL words is let go, and only that cell: a single word
+  // ("Continue", "1+0+1") has no space to wrap at and would be split mid-word,
+  // which is worse than the few pixels it spills — for those the search below
+  // backs the type off instead. Letting the whole ROW go turned on word-splitting
+  // in its other cells ("Continu / e").
+  function letWrap(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) {
+      if (held(cells[i]) && /[ \\t]/.test((cells[i].textContent || '').trim())) {
+        cells[i].style.whiteSpace = 'normal';
+      }
+    }
+  }
   function fits(sheet, availH){
     var c = sheet.querySelector('.pagecontent');
     var f = sheet.querySelector('.pagefoot');
@@ -583,13 +683,15 @@ exports[`printed prescription — the whole document > the OPD privacy copy 1`] 
     for (var i = 0; i < tables.length; i++) {
       if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
     }
+    if (spills(sheet)) return false;
     return true;
   }
   function fit(sheet){
     var availH = parseFloat(sheet.getAttribute('data-avail-h'));
     var kMax = parseFloat(sheet.getAttribute('data-kmax'));
-    if (!(availH > 0) || !(kMax > 1)) return;
     sheet.style.setProperty('--k', '1');
+    letWrap(sheet);
+    if (!(availH > 0) || !(kMax > 1)) return;
     if (!fits(sheet, availH)) return;
     var lo = 1, hi = kMax;
     for (var i = 0; i < 9; i++) {
@@ -675,6 +777,9 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
   .right { padding-left: 18px; padding-top: 0; }
   .rx-symbol { font-size: calc(var(--k, 1) * 26px); font-style: italic; color: #1a73e8; font-weight: 600; margin-bottom: 6px; }
   .block { margin-bottom: 12px; }
+  /* The block that follows the ℞ table (Advice, Advised tests) sat directly on
+     the last row's rule; give it the room every other block has. */
+  .right table + .block { margin-top: 12px; }
   /* Written from the constants, so the sizes the width bound measures against
      and the sizes that print can never drift apart. */
   .block-title { font-size: calc(var(--k, 1) * 13px); font-weight: 700; color: #185abc; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
@@ -689,6 +794,19 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
   /* Width comes from the colgroup (a share of the table) — not from here, or a
      px width would fight the percentage under table-layout: fixed. */
   .rx-no { color: #999; font-size: calc(var(--k, 1) * 14px); }
+  /* ⚕️ ONE baseline per medicine row. The serial (14px), the name (13px) and the
+     food / duration cells (11px) used to hang from the TOP of the row, so each
+     size sat on its own baseline — up to 2px apart on every line. */
+  .rx-no, .rx-drug, .rx-mid, .rx-note { vertical-align: baseline; }
+  /* ⚕️ A medicine is never cut across two pages. A row that does not fit the
+     rest of a page moves, whole, to the next one: a dose line that starts a
+     page without its medicine name above it is a misread, not a tidy break.
+     A tapering (>>>) row stays with the medicine it continues. */
+  .right table tr { break-inside: avoid; page-break-inside: avoid; }
+  .right table tr.rx-keep-next { break-after: avoid; page-break-after: avoid; }
+  .rx-symbol { break-after: avoid; page-break-after: avoid; }
+  .block-title { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+  li, .followup { break-inside: avoid; page-break-inside: avoid; }
   /* Column widths and the two font sizes are computed per sheet and emitted as
      a <colgroup> plus inline styles (see layoutRxColumns) — measured against
      what each column actually carries, so an empty "food" column holds no width
@@ -722,8 +840,8 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
      signature line is room to sign in; it is part of the foot's height, so the
      fitting script reserves it and the ℞ list can never run into it. */
   .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 14px; }
-  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 0 auto; }
-  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: 200px; }
+  .sign { margin-top: 56px; text-align: right; font-size: calc(var(--k, 1) * 13px); color: #333; flex: 0 1 auto; min-width: 0; overflow-wrap: break-word; }
+  .sign .line { display: inline-block; border-top: 1px solid #333; padding-top: 4px; min-width: min(200px, 100%); }
   /* The Footer Section the doctor designed, under the signature row — the
      last thing on every page. Like .head-body: the editor's base size, never
      written through --k, and part of the foot the fitting script measures. */
@@ -741,7 +859,7 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
      no longer splits mid-word or collapses its column. */
   .pagegrid > tbody > tr > td.pagebody { padding: 0; border: none; vertical-align: top; overflow-wrap: break-word; word-break: normal; }
   .pagegrid > tfoot > tr > td.pagefoot { padding: 0; border: none; vertical-align: bottom; }
-  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 1 auto; min-width: 0; }
+  .brandbar { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-top: 0.5px solid #e5e5e3; padding-top: 7px; flex: 1 0 auto; }
   .bb-mhs { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 30px; border-radius: 7px; background: #1a73e8; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
   .bb-by { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6b6b; }
   .bb-exhort { height: 19px; width: auto; display: block; }
@@ -821,19 +939,19 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
         <table><colgroup><col style="width:6.667%" /><col style="width:62.917%" /><col style="width:16.667%" /><col style="width:13.750%" /></colgroup>
         <tr>
           <td class="rx-no">1.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Xynovir</b> 300 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Xynovir</b> 300 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+0</span></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
         </tr>
         <tr>
           <td class="rx-no">2.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">0+0+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Barcavir</b> 0.5 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">0+0+1</span></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
         </tr>
-        <tr>
+        <tr class="rx-keep-next">
           <td class="rx-no">3.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Lenva</b> 4 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">0+0+2</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule. <b>Lenva</b> 4 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">0+0+2</span></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
         </tr>
@@ -845,7 +963,7 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
         </tr>
         <tr>
           <td class="rx-no">4.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Carvista</b> 3.125 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Carvista</b> 3.125 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Continue</td>
         </tr>
@@ -857,19 +975,19 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
         </tr>
         <tr>
           <td class="rx-no">6.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule (Enteric Coated). <b>Sergel</b> 40 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Capsule (Enteric Coated). <b>Sergel</b> 40 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
-          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">2 month</td>
+          <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">2 month</td>
         </tr>
         <tr>
           <td class="rx-no">7.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Deflux</b> 10 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Tablet. <b>Deflux</b> 10 mg</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">1+0+1</span></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">Before meal</td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;">if needed</td>
         </tr>
         <tr>
           <td class="rx-no">8.</td>
-          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4TSF at night if constipation</span></td>
+          <td class="rx-drug" style="font-size:calc(var(--k, 1) * 13px);white-space:nowrap;"><span class="rx-name">Oral Solution. <b>Avolac</b> 3.35 gm/5 ml</span><span class="rx-dose" style="font-size:calc(var(--k, 1) * 11px)">2-4TSF at night if constipation</span></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
           <td class="rx-mid" style="font-size:calc(var(--k, 1) * 11px);white-space:nowrap;"></td>
         </tr>
@@ -895,6 +1013,39 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
   </div>
   
 <script>(function(){
+  // The text of a cell held on one line, against the cell's CONTENT box. Not
+  // scrollWidth: that ignores text that spills into the cell's own empty right
+  // padding, which is how a column ends up with its words touching the next.
+  function held(c){
+    if (c.style.whiteSpace !== 'nowrap') return false;
+    var range = document.createRange();
+    range.selectNodeContents(c);
+    var rects = range.getClientRects(), right = 0;
+    for (var i = 0; i < rects.length; i++) if (rects[i].right > right) right = rects[i].right;
+    var pad = parseFloat(window.getComputedStyle(c).paddingRight) || 0;
+    return right > c.getBoundingClientRect().right - pad + 1;
+  }
+  function cellsOf(sheet){
+    return sheet.querySelectorAll('.right table td.rx-drug, .right table td.rx-mid');
+  }
+  function spills(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) if (held(cells[i])) return true;
+    return false;
+  }
+  // Only a cell of SEVERAL words is let go, and only that cell: a single word
+  // ("Continue", "1+0+1") has no space to wrap at and would be split mid-word,
+  // which is worse than the few pixels it spills — for those the search below
+  // backs the type off instead. Letting the whole ROW go turned on word-splitting
+  // in its other cells ("Continu / e").
+  function letWrap(sheet){
+    var cells = cellsOf(sheet);
+    for (var i = 0; i < cells.length; i++) {
+      if (held(cells[i]) && /[ \\t]/.test((cells[i].textContent || '').trim())) {
+        cells[i].style.whiteSpace = 'normal';
+      }
+    }
+  }
   function fits(sheet, availH){
     var c = sheet.querySelector('.pagecontent');
     var f = sheet.querySelector('.pagefoot');
@@ -905,13 +1056,15 @@ exports[`printed prescription — the whole document > the eight-medicine sheet,
     for (var i = 0; i < tables.length; i++) {
       if (tables[i].scrollWidth > tables[i].clientWidth + 1) return false;
     }
+    if (spills(sheet)) return false;
     return true;
   }
   function fit(sheet){
     var availH = parseFloat(sheet.getAttribute('data-avail-h'));
     var kMax = parseFloat(sheet.getAttribute('data-kmax'));
-    if (!(availH > 0) || !(kMax > 1)) return;
     sheet.style.setProperty('--k', '1');
+    letWrap(sheet);
+    if (!(availH > 0) || !(kMax > 1)) return;
     if (!fits(sheet, availH)) return;
     var lo = 1, hi = kMax;
     for (var i = 0; i < 9; i++) {

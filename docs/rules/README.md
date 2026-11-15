@@ -40,7 +40,7 @@ An entry that an indexing line gets wrong is corrected in the line, never in the
 | [`health-trends.md`](health-trends.md) | 24 | 48 KB | Health monitoring and the trend chart |
 | [`calculators.md`](calculators.md) | 1 | 1 KB | Clinical calculators |
 | [`visit-sheet.md`](visit-sheet.md) | 12 | 18 KB | The visit sheet and the app shell |
-| [`printing.md`](printing.md) | 56 | 44 KB | Printing |
+| [`printing.md`](printing.md) | 62 | 52 KB | Printing |
 | [`patient-identity.md`](patient-identity.md) | 7 | 6 KB | Patient identity: sex, age, NID, family tree, photo |
 | [`records-page.md`](records-page.md) | 8 | 15 KB | Patient Records page and files |
 | [`opd.md`](opd.md) | 18 | 25 KB | OPD queue, chambers, appointment SMS |

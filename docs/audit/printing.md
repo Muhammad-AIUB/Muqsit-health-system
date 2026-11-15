@@ -18,6 +18,9 @@
 **Known limits and defects, recorded on purpose**
 
 - **While a chamber's print settings load or fail, the general ones print** — Stated as built.
+- **A second printed page carries no patient name** — The header and patient block print once; a loose page 2 is unidentified. Not changed; a decision for the physician.
+- **On a very narrow page a long clinical heading breaks mid-word** — "CHIEF COMPLAINT / S" under about 5 in printable width; the fill bound never goes below 1.
+- **The patient block's wrapped value returns under its label** — A long name or address wraps flush left, not hung under its value. Not changed.
 
 **Closed — kept as the record of what was done or decided**
 
@@ -52,3 +55,12 @@
 - [ ] **The patient's history now prints at EVERY visit** (unless hidden) under History, as `Disease Hx: …` / `Surgical Hx: …` — the words On examination printed. Before, an entry printed only on the visit it was typed at, under On examination. A sheet may be longer than before.
 
 - [ ] **The printed prescription is not a record of the history printed with it.** The saved prescription keeps this visit's History lines; the patient's Disease / Surgical history is read from the patient at print time (as the drug hypersensitivity list is). Before, the lines were saved in the prescription's On examination.
+
+### A long ℞ line, and a sheet of more than one page (2026-11-15) - known limits, left on purpose
+
+The fix itself is in [`rules/printing.md`](../rules/printing.md) ("A long ℞ line wraps cleanly…"). Three things were seen while checking it in Chromium's PDF and were not changed:
+
+- [ ] **A second printed page carries no patient name.** The header and the patient block (name, age, date, mobile) print once, at the top of page 1; a ℞ that runs onto page 2 prints the rest of the medicines, the advice and the signature with nothing to say whose they are. Repeating the block under every page (in the table head, like the foot) is possible but it spends height on every page and the doctor's own Header Section is part of it — the physician's call, not made here.
+- [ ] **On a very narrow page a long clinical heading breaks mid-word.** At about 3.5 in printable width, "CHIEF COMPLAINTS" prints "CHIEF COMPLAINT / S" and "INVESTIGATION" prints "INVESTIGAT / ION". The fill factor cannot go below 1 (`wordHeadroom`), the physician's type floors stay, and the clinical column is a fixed share of the page, so a word wider than the column breaks. A5 and larger are not affected.
+- [ ] **The patient block's wrapped value returns under its label.** A long name or address wraps to the left edge ("Name: Mohammad Abdur Rahman / Chowdhury"), not hung under its value. Cosmetic; a hanging layout needs the fill bound (`headLeftAvail` / `headRightAvail`) to subtract each label's width.
+**Not run for this change** (a note, not a thread): the browser suite (`e2e/`; Docker was not running), a real printer or print dialog, and any browser but Chromium. The signature-repeats-under-every-page behaviour in particular is Chromium's own limit.

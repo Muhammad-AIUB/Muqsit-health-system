@@ -5,6 +5,8 @@ import {
   DEFAULT_LEFT_SHARE,
   CELL_PAD_PX,
   DRUG_PX,
+  glueUnits,
+  glueWhereItFits,
   layoutRxColumns,
   MAX_SCALE,
   MID_PX,
@@ -29,6 +31,10 @@ import {
 // Stand-in for canvas metrics (vitest has no DOM). Linear in font size, like
 // real text, near the ~0.47em/char DM Sans actually measures; bold a shade wider.
 const fakeMeasure = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.5 : 0.47);
+
+// The non-breaking space `glueUnits` prints between a number and its unit. Spelled
+// out: a literal one is invisible in source.
+const NB = String.fromCharCode(0xa0);
 
 const A4_INNER = 458;
 const line = (drug: string, dose = "1+0+0", duration = "5 days", instruction = ""): RxLine =>
@@ -384,7 +390,11 @@ describe("printed Rx markup", () => {
   // brand, not on "Tablet." or "500 mg".
   it("sets only the brand name in bold, leaving the label itself untouched", () => {
     const html = buildPrescriptionHtml(doc([line("Tablet. Napa 500 mg", "1+1+1", "5 days")]));
-    expect(html).toContain("Tablet. <b>Napa</b> 500 mg");
+    // The space between a number and its unit prints as a non-breaking one
+    // (`glueUnits`) — the same ink, so the label is still what was typed.
+    expect(html).toContain(`Tablet. <b>Napa</b> 500${NB}mg`);
+    const printed = /<span class="rx-name">(.*?)<\/span>/.exec(html)![1].replace(/<\/?b>/g, "");
+    expect(printed.split(NB).join(" ")).toBe("Tablet. Napa 500 mg");
     // The cell carries no weight of its own — the <b> is the only emphasis.
     expect(html).toContain(".rx-drug { font-weight: 400; }");
     expect(html).toContain(".rx-drug b { font-weight: 600; }");
@@ -397,7 +407,7 @@ describe("printed Rx markup", () => {
 
   it("escapes the medicine label on both sides of the bold name", () => {
     const html = buildPrescriptionHtml(doc([line("Tablet. A<B 5 mg & more", "1", "1d")]));
-    expect(html).toContain("Tablet. <b>A&lt;B</b> 5 mg &amp; more");
+    expect(html).toContain(`Tablet. <b>A&lt;B</b> 5${NB}mg &amp; more`);
     expect(html).not.toContain("A<B");
   });
 
@@ -419,7 +429,7 @@ describe("printed Rx markup", () => {
   it("prints the dose on its own line under the medicine name", () => {
     const html = buildPrescriptionHtml(doc([line("Tablet. Napa 500 mg", "1+1+1", "5 days")]));
     expect(html).toContain(
-      `<span class="rx-name">Tablet. <b>Napa</b> 500 mg</span>` +
+      `<span class="rx-name">Tablet. <b>Napa</b> 500${NB}mg</span>` +
       `<span class="rx-dose" style="font-size:calc(var(--k, 1) * ${MID_PX}px)">1+1+1</span>`,
     );
     // Blocks, so each is its own line; the cell's nowrap is inherited by both.
@@ -1108,5 +1118,240 @@ describe("clinical lines print verbatim", () => {
     expect(html).toContain("<li>Stopped warfarin — GI bleed</li>");
     expect(html).toContain("<li>allergic to penicillin — rash</li>");
     expect(html).not.toContain("<li>Stopped warfarin</li>");
+  });
+});
+
+// ⚕️ A line too long for the ℞ pad wraps CLEANLY, and a sheet that runs onto a
+// second page never cuts a medicine in two (physician's report, 2026-11-15:
+// "after printing, the lines come out misaligned and messy").
+//
+// Measured in Chromium's own PDF (Playwright `page.pdf`, read back through its
+// viewer) on A5, 6x9in and 15x21cm pages before the change: medicine 8 stood at
+// the foot of page 1 with its name and the start of its description, and the
+// rest of it — "prefilled pen" and the DOSE "20 units subcutaneous at bedtime" —
+// began page 2 with no name above it. A tapering line could be parted from its
+// medicine the same way. A number was parted from its unit ("Napa Extra 500 /
+// mg+65 mg"), and the serial (14px), name (13px) and food/duration (11px) hung
+// from the top of the row, each on its own baseline, up to 2px apart.
+//
+// Most of what fixes it is print-only CSS, which no other check in this suite can
+// see, so the rules are pinned here as markup; the page breaks themselves can
+// only be seen in a browser (docs/rules/printing.md names how it was checked).
+describe("a long ℞ line wraps cleanly", () => {
+  const sheet = (rx: RxLine[]): PrescriptionDoc => ({
+    doctorName: "Dr Test",
+    patient: { name: "Patient", age: "39", gender: "Male", address: "", weight: "", date: "15/11/2026", phone: "01700000000" },
+    clinical: [], rx, advice: [], adviceTest: [], followUp: "",
+  });
+  const taper = (dose: string): RxLine => ({ drug: "", dose, duration: "Continue", instruction: "" });
+
+  describe("glueUnits keeps a number with its unit", () => {
+    it.each([
+      ["500 mg", `500${NB}mg`],
+      ["Napa Extra 500 mg+65 mg", `Napa Extra 500${NB}mg+65${NB}mg`],
+      ["3.35 gm/5 ml", `3.35${NB}gm/5${NB}ml`],
+      ["100 IU/ml", `100${NB}IU/ml`],
+      ["20 units subcutaneous at bedtime", `20${NB}units subcutaneous at bedtime`],
+      ["5 days", `5${NB}days`],
+      ["1 month", `1${NB}month`],
+      ["30 min before meal", `30${NB}min before meal`],
+      ["৫ দিন", `৫${NB}দিন`],
+      ["১ চামচ", `১${NB}চামচ`],
+    ])("%j", (typed, glued) => {
+      expect(glueUnits(typed)).toBe(glued);
+    });
+
+    it("leaves everything that is not a number and its unit alone", () => {
+      for (const typed of [
+        "1+0+1 before meal", "2-4TSF at night if constipation", "Continue", "Before meal",
+        "12 hourly", "5 mgx", "2 tablespoon", "Tablet. Napa", "Take 1 or 2",
+      ]) {
+        expect(glueUnits(typed), typed).toBe(typed);
+      }
+    });
+
+    // The printed text is the typed text: a non-breaking space is the same ink as
+    // a space, so nothing may be added, lost or reordered.
+    it("never adds, loses or reorders a character", () => {
+      for (const typed of [
+        "Capsule (Enteric Coated). Sergel 40 mg", "Oral Solution. Avolac 3.35 gm/5 ml", "2-4tsf at night",
+        "10 mg + 5 mg", "500   mg", "1 month", "১+০+১", "Inj. 5-FU 500 mg in 250 ml", "after 2 hours",
+      ]) {
+        const back = glueUnits(typed).split(NB).join(" ");
+        expect(back.replace(/\s+/g, " ")).toBe(typed.replace(/\s+/g, " "));
+      }
+    });
+
+    it("is the same when applied twice", () => {
+      const once = glueUnits("Tablet. Napa 500 mg, 5 days, 20 units");
+      expect(glueUnits(once)).toBe(once);
+    });
+
+    it("reaches the dose, the food and the duration as well as the name", () => {
+      const html = buildPrescriptionHtml(sheet([line("Inj. Lantus 100 IU/ml", "20 units at bedtime", "2 weeks", "30 min before meal")]));
+      expect(html).toContain(`Inj. <b>Lantus</b> 100${NB}IU/ml`);
+      expect(html).toContain(`>20${NB}units at bedtime</span>`);
+      expect(html).toContain(`>2${NB}weeks</td>`);
+      expect(html).toContain(`>30${NB}min before meal</td>`);
+    });
+
+    // The word a column has to fit is the GLUED pair. Measured as "months" alone,
+    // a column squeezed to its fair share was set narrower than "12 months" and
+    // the pair broke after all.
+    it("is what a squeezed column is measured against", () => {
+      const rows = [line("Capsule (Enteric Coated). Esomeprazole Magnesium Trihydrate 40 mg", "1+0+1", "12 months")];
+      const fake = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.5 : 0.47);
+      const lay = layoutRxColumns(rows, 100, fake);
+      expect(lay.cols[1] - CELL_PAD_PX).toBeGreaterThanOrEqual(fake("12 months", MID_PX, false));
+    });
+  });
+
+  // ⚕️ A glued pair cannot break at its space, so in a cell too narrow for it the
+  // browser breaks it between DIGITS: on an A6 sheet "500 mg+65 mg" printed as
+  // "500 mg+6" over "5 mg" — a 65 mg strength read as 6 and 5 (found in review,
+  // 2026-11-15). The glue is therefore applied only where the glued pair fits.
+  describe("glue only where the glued pair fits its cell", () => {
+    const fake = (t: string, px: number, bold: boolean) => t.length * px * (bold ? 0.5 : 0.47);
+    const label = "Tablet. Napa Extra 500 mg+65 mg";
+    const gluedLabel = glueUnits(label);
+    const word = fake(`500${NB}mg+65${NB}mg`, DRUG_PX, true);
+
+    it("glues when the widest glued word fits, and prints the text untouched when it does not", () => {
+      expect(glueWhereItFits(label, DRUG_PX, true, word + 1, fake)).toBe(gluedLabel);
+      expect(glueWhereItFits(label, DRUG_PX, true, word, fake)).toBe(gluedLabel);
+      // Narrower than the glued word: exactly what was typed, breakable at its spaces.
+      expect(glueWhereItFits(label, DRUG_PX, true, word - 1, fake)).toBe(label);
+      expect(glueWhereItFits(label, DRUG_PX, true, 10, fake)).toBe(label);
+    });
+
+    it("has nothing to decide when there is nothing to glue", () => {
+      expect(glueWhereItFits("1+0+1", MID_PX, false, 1, fake)).toBe("1+0+1");
+      expect(glueWhereItFits("", MID_PX, false, 1, fake)).toBe("");
+    });
+
+    const page = (widthIn: number): PrescriptionDoc["page"] => ({
+      unit: "in", width: String(widthIn), height: "11", marginLeft: "0.4", marginRight: "0.4", headerHeight: "0.5", footerHeight: "0.5",
+    });
+    const rows = [
+      line("Tablet. Napa Extra 500 mg+65 mg", "1+1+1", "12 months", "30 min before meal"),
+      line("Oral Solution. Avolac 3.35 gm/5 ml", "2-4TSF at night if constipation", "Continue", "Before meal"),
+      line("Injection. Insulin Glargine 100 IU/ml (Lantus SoloStar)", "20 units subcutaneous at bedtime", "2 weeks"),
+      { drug: "", dose: "0+0+2 for 10 days", duration: "7 days", instruction: "" },
+      line("Tablet. Napa 500 mg", "1+0+1", "1000 months", "1000000 minutes before meal"),
+    ];
+    // The builder's estimate when no canvas exists (EM_PER_CHAR) — what vitest runs on.
+    const EM = 0.58;
+    const wide = (token: string, px: number) => token.length * px * EM;
+
+    // ⚕️ The columns are modelled on a table that is never narrower than 160px; on
+    // a page whose ℞ side is narrower than that the real table is smaller than the
+    // one the glue was checked against (second review, 2026-11-15). Nothing is
+    // glued there: the sheet prints as it did before the glue.
+    it("glues nothing on a page whose ℞ side is under the table's 160px floor", () => {
+      const narrow = buildPrescriptionHtml({ ...sheet(rows), page: page(3) });
+      expect(narrow.includes(NB)).toBe(false);
+      // …and the same rows on an ordinary page do glue (the test is not vacuous).
+      expect(buildPrescriptionHtml({ ...sheet(rows), page: page(6) }).includes(NB)).toBe(true);
+    });
+
+    // A tapering dose sits beside the ↳, whose width is only estimated.
+    it("never glues the dose of a tapering row", () => {
+      const html = buildPrescriptionHtml(sheet([
+        line("Capsule. Lenva 4 mg", "0+0+1", "7 days"),
+        { drug: "", dose: "20 units at bedtime", duration: "Continue", instruction: "" },
+      ]));
+      const taperDose = /<span class="rx-dose-inline"[^>]*>([^<]*)<\/span>/.exec(html)![1];
+      expect(taperDose).toBe("20 units at bedtime");
+    });
+
+    // The invariant itself, over every page width a doctor could set: no word the
+    // printed sheet glues is wider than the cell it sits in.
+    it("never prints a glued word wider than its cell, at any page width", () => {
+      let glued = 0;
+      let withheld = 0;
+      for (let w = 2.5; w <= 9.01; w += 0.125) {
+        const pg = page(w);
+        const html = buildPrescriptionHtml({ ...sheet(rows), page: pg });
+        const lay = layoutRxColumns(rows, rxTableInnerPx(pg));
+        const room = (i: number) => lay.cols[i] - CELL_PAD_PX;
+        const cells = [...html.matchAll(/<tr[^>]*>\s*<td class="rx-no">[^<]*<\/td>\s*<td class="rx-drug"[^>]*>([\s\S]*?)<\/td>\s*(?:<td class="rx-mid"[^>]*>([\s\S]*?)<\/td>\s*)?<td class="rx-mid"[^>]*>([\s\S]*?)<\/td>/g)];
+        expect(cells.length, `width ${w}`).toBe(rows.length);
+        cells.forEach((m, r) => {
+          const parts: [string, number, number][] = [];
+          // name block, dose block (or the inline dose of a taper), food, duration
+          const name = /<span class="rx-name">([\s\S]*?)<\/span>/.exec(m[1]);
+          const dose = /<span class="rx-dose(?:-inline)?"[^>]*>([\s\S]*?)<\/span>/.exec(m[1]);
+          if (name) parts.push([name[1].replace(/<\/?b>/g, ""), DRUG_PX, room(0)]);
+          if (dose) parts.push([dose[1], MID_PX, room(0)]);
+          if (lay.hasFood && m[2] !== undefined) parts.push([m[2], MID_PX, room(1)]);
+          parts.push([m[3], MID_PX, room(lay.hasFood ? 2 : 1)]);
+          for (const [text, px, cell] of parts) {
+            for (const token of text.split(/[ \t\r\n]+/)) {
+              if (!token.includes(NB)) continue;
+              glued += 1;
+              expect(wide(token, px), `${JSON.stringify(token)} in a ${cell}px cell at ${w} in`).toBeLessThanOrEqual(cell + 0.0001);
+            }
+          }
+          // The widest label is withheld at the narrow end, glued at the wide end.
+          if (r === 0 && name && !name[1].includes(NB)) withheld += 1;
+        });
+      }
+      // Not vacuous: the sweep saw pairs glued AND pairs left alone.
+      expect(glued).toBeGreaterThan(0);
+      expect(withheld).toBeGreaterThan(0);
+    });
+  });
+
+  describe("a medicine is never cut across two pages", () => {
+    it("stops a ℞ row from splitting at a page break", () => {
+      const html = buildPrescriptionHtml(sheet(REPORTED));
+      expect(html).toContain(".right table tr { break-inside: avoid; page-break-inside: avoid; }");
+    });
+
+    it("keeps a tapering line on the page of the medicine it continues — and nothing else", () => {
+      const html = buildPrescriptionHtml(sheet([
+        line("Capsule. Lenva 4 mg", "0+0+1", "7 days"),   // 1. keeps the next
+        taper("0+0+2"),                                   //    keeps the next
+        taper("0+0+3"),                                   //    last of the chain
+        line("Tablet. Napa 500 mg", "1+1+1", "5 days"),   // 2. followed by a note, not a taper
+        { drug: "Bed rest", dose: "", duration: "", instruction: "", isNote: true },
+        line("Tablet. Seclo 20 mg", "1+0+0", "5 days"),   // 3. last row
+      ]));
+      const rows = [...html.matchAll(/<tr( class="([^"]*)")?>\s*<td class="rx-no"/g)].map((m) => m[2] ?? "");
+      expect(rows).toEqual(["rx-keep-next", "rx-keep-next", "", "", "", ""]);
+      expect(html).toContain(".right table tr.rx-keep-next { break-after: avoid; page-break-after: avoid; }");
+    });
+
+    it("keeps a heading with the lines under it, and a line whole", () => {
+      const html = buildPrescriptionHtml(sheet(REPORTED));
+      expect(html).toMatch(/\.block-title \{ break-after: avoid; page-break-after: avoid; break-inside: avoid;/);
+      expect(html).toContain(".rx-symbol { break-after: avoid; page-break-after: avoid; }");
+      expect(html).toContain("li, .followup { break-inside: avoid; page-break-inside: avoid; }");
+    });
+  });
+
+  it("sets the serial, the name and the food / duration on ONE baseline", () => {
+    const html = buildPrescriptionHtml(sheet(REPORTED));
+    expect(html).toContain(".rx-no, .rx-drug, .rx-mid, .rx-note { vertical-align: baseline; }");
+  });
+
+  it("gives a block after the ℞ table room above it", () => {
+    const html = buildPrescriptionHtml(sheet(REPORTED));
+    expect(html).toContain(".right table + .block { margin-top: 12px; }");
+  });
+
+  // The foot is a repeating <tfoot>: it prints under every page ONLY if it is
+  // short enough, and a foot that wrapped onto a second line (flex-wrap, tried on
+  // 2026-11-15 to stop the brand bar being squeezed on a narrow page) was taller
+  // than Chromium repeats — pages 1 to 3 of a four-page sheet then printed with
+  // no signature at all. So the foot stays ONE row, and gives way inside it.
+  it("keeps the foot one row, so the signature repeats under every page", () => {
+    const html = buildPrescriptionHtml(sheet(REPORTED));
+    const foot = /\.foot \{([^}]*)\}/.exec(html)![1];
+    expect(foot).not.toMatch(/flex-wrap/);
+    // The brand bar never shrinks below its own content; the signature gives way.
+    expect(html).toMatch(/\.brandbar \{[^}]*flex: 1 0 auto;/);
+    expect(html).toMatch(/\.sign \{[^}]*flex: 0 1 auto; min-width: 0;/);
+    expect(html).toContain("min-width: min(200px, 100%);");
   });
 });

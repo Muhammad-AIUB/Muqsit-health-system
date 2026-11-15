@@ -27,7 +27,7 @@ The threads themselves are in [`docs/audit/<area>.md`](audit/), moved there **wo
 | Health monitoring and the trend chart | 4 | · | · | 9 | [`audit/health-trends.md`](audit/health-trends.md) |
 | Clinical calculators | 1 | · | · | 1 | [`audit/calculators.md`](audit/calculators.md) |
 | The visit sheet and the app shell | 3 | · | 3 | 1 | [`audit/visit-sheet.md`](audit/visit-sheet.md) |
-| Printing | 6 | · | 1 | 1 | [`audit/printing.md`](audit/printing.md) |
+| Printing | 6 | · | 4 | 1 | [`audit/printing.md`](audit/printing.md) |
 | Patient identity | 1 | · | 2 | 1 | [`audit/patient-identity.md`](audit/patient-identity.md) |
 | Patient Records page and files | 6 | · | 2 | 1 | [`audit/records-page.md`](audit/records-page.md) |
 | OPD queue, chambers, print queue | 15 | · | 5 | 5 | [`audit/opd.md`](audit/opd.md) |
