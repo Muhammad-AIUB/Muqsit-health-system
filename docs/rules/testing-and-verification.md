@@ -1,0 +1,63 @@
+# Testing and verification
+
+> **Read this before changing the code it covers.** Named in these rules: `client/src/lib/api.ts`, `scripts/test-repeat.mjs`, `server/test/support/setup-db.js`, `client/.next`, `assertTestDatabase()`, `client\.next`, `FC_SEED`, `muqsit_load_test`, `NEXT_DIST_DIR`, `NEXT_PUBLIC_API_URL`, `overflow-anchor: none`, `server/test/contract-dto.int-spec.ts`.
+>
+> "At a glance" is an index written on 2026-11-15: one line per entry, to find the one you need. **The entry itself, under "The rules, in full", is what counts** — it was moved here word for word from the root `CLAUDE.md` and `client/CLAUDE.md`; nothing was reworded. Where an entry says "above", "below", or names a section of a `CLAUDE.md`, that text is now in one of the files of `docs/rules/` ([index](README.md)).
+
+## At a glance
+
+- A test is never pointed at `DATABASE_URL` from `.env` (production behind the tunnel): DB-backed tests use the container on `127.0.0.1:5544`; `prisma db push` only inside `server/test/support/setup-db.js`.
+- A flaky test is never retried: a test whose outcome varies is a defect — find the cause (clock, order, timeout) with `scripts/test-repeat.mjs`.
+- A test is never changed to make a real defect pass: it stays as `it.failing` / `it.fails` with a `DEFECT-` comment until the code is fixed.
+- A property that has passed is not a rule that is held: a sampled property is run ONCE at a hundred times its budget when written and when its rule changes; a red property is read (`FC_SEED`), not run again.
+- A rule is not tested by an assertion that would hold with the rule broken: a test that something does NOT happen starts from the state in which it would, and is checked once by breaking the code.
+- Code is never broken in the checkout the dev servers are watching (the dev database is production): tests are checked by breaking a COPY of the sources with `node_modules` linked in (unlink before deleting).
+- One half of a change never lands in the watched checkout: where a component stops doing something because the store will, both halves are assembled and tested in a copy and copied in together, in one step.
+- A query is not called fast, nor a feature finished, on the six rows of a test table: a read that grows with a real table is run once against a table of that size (`muqsit_load_test`, never the tunnel).
+- `next dev` is not how fast a screen is, and one reading is not a measurement: time a production build in a directory of its own against the test API; each action several times, the median kept.
+- Chromium's word is not taken for another browser where Chromium covers for the page (scroll anchoring): the test switches it off, and what was not run in the other browser is said.
+- The server's integration suite is not left out because only the client changed: after touching `client/src/lib/api.ts` run `cd server && npm run test:int` (`contract-dto.int-spec.ts` reads it).
+- Client check 0: `npm test` (vitest); a red test is a clinical regression, not a formatting nit.
+- Client check 1: `npx tsc --noEmit` clean; the Next build also lints and unused vars fail the prod build.
+- Client check 2: exercise the flow at :3000; for editor changes also check reload-restore and that a supervised patient stays blank.
+- Client check 3: touching print/downloads → open Preview PDF and check fit; touching summaries → check records page grouping + Undo.
+- How it works — "Jest worker encountered N child process exceptions" from `next dev` is a corrupted cache: stop, `Remove-Item -Recurse -Force client\.next`, restart; not your change.
+- Never run `npm run build` while `next dev` is running (they share `client/.next`): stop dev → delete `.next` → build → restart.
+- Verify persistence through the API (`fetch('http://localhost:4000/api/...', { credentials: 'include' })`), not the rendered UI.
+
+---
+
+# The rules, in full
+
+## Patterns We Do Not Use
+
+_From the root `CLAUDE.md`._
+
+- We do not point a test at `DATABASE_URL` from `.env`. It is production behind the tunnel; DB-backed tests use the container on `127.0.0.1:5544` and `assertTestDatabase()` refuses anything else. `prisma db push` is allowed only inside `server/test/support/setup-db.js`, which forces both URLs to that container.
+- We do not retry a flaky test. A test whose outcome varies is a defect; find the cause (clock, order, timeout) with `scripts/test-repeat.mjs`.
+- We do not change a test to make a real defect pass. It stays as `it.failing` / `it.fails` with a `DEFECT-` comment until the code is fixed.
+
+- We do not take a property that has passed for a rule that is held. "Two names that are different are never written the same" draws 20,000 pairs a run, a different 20,000 each time. The seventh review's change to the rule under it left about one pair in eighty thousand alike — the test failing some one run in four — and it went out in a release: the run that was looked at had passed. On 2026-10-13 a run failed; drawn two million times, the property left 27 pairs alike where the code before that change left none. Nineteen were a defect in the rule and eight a limit, now written down; and drawn that far, "a number is never shown in part" gave up two labels of its own. A sampled property is run ONCE at a hundred times its budget when it is written and whenever the rule under it changes; a red property is read, not run again (`FC_SEED` replays it); and a check by breaking the code proves nothing while a test under it fails at random — any red run counts as a caught break.
+
+- We do not call a rule tested by an assertion that would hold with the rule broken. "The calendar's arrows choose no date" passed with nothing typed — and what the rule protects is the half-typed result that choosing a date files. A test that something does NOT happen starts from the state in which it would, and is checked once by breaking the code.
+
+- We do not break code in the checkout the dev servers are watching, to see whether a test catches it. The dev database is production. For the seconds a deliberately broken file is on disk, `next dev` serves it to whoever has `:3000` open and nodemon restarts the API with it — a + that fills in a dose nobody wrote, a list with its doctor filter taken off. Tests are checked by breaking a COPY of the sources with `node_modules` linked in (a junction; unlink it before deleting the copy), which runs the same suites. Several rounds were run in place before this was seen for what it is — pure display code on the health-trend chart, and on 2026-10-13 thirteen changes to the + button itself, minutes after it had been wired into the pad; nobody was prescribing through those seconds, which is luck and not a control.
+- We do not land one half of a change in the checkout the dev servers are watching either. On 19/10/2026 `RightColumn` stopped reporting the ℞ pad's count of lines it cannot write, a few minutes before the store learned to count them itself — and for those minutes `next dev` on `:3000`, on the production database, served a pad whose Save & print no longer refused a line with no medicine name. Whether anyone was prescribing on `:3000` in those minutes is not known. Where a component stops doing something because the store will do it instead, the two halves are assembled and tested in a copy of the sources and copied into the checkout together, in one step.
+- We do not call a query fast, or a feature finished, that has only met the six rows of a test table. "Add Bulk Medicine" asked the medicines catalogue for each brand by a pattern (`ILIKE 'napa%'`), as the "Your usual" dropdown always had for its four medicines — and every pattern is tried against every row. Three reviews, 1,800 unit tests and 22 browser journeys were green; the test catalogue has six medicines. Measured against a made-up catalogue of 35,000 (2026-10-14, before release) the box took 5 to 7 seconds to open for a doctor with 200 medicines and over a minute for one with 2,000. A read that grows with a real table is run once against a table of that size before it is called done — a throwaway script against the load-test database is enough (`muqsit_load_test`, never the tunnel) — and what was NOT measured, here the production catalogue itself, is said.
+- We do not take `next dev` for how fast a screen is — or one reading for a measurement. The dev server draws every component twice and runs every effect twice (`reactStrictMode`): the "Add Bulk Medicine" box asked for its list twice there, the first request thrown away, and took 4.6 s to open with 2,000 medicines where a production build of the same code asks once and takes 1.9 s. The first reading — "the request takes 1.7 s in the browser", with 300 medicines — did not repeat: a quiet machine gave 0.26 s and the production build 0.2 s, and the next step would have been spent on a server that was not slow. A screen is timed on a production build in a directory of its own, pointed at the test API (`NEXT_DIST_DIR`, `NEXT_PUBLIC_API_URL`); each action several times, the median kept; and two ways of doing a thing in alternation on ONE build — single readings said a tick was twice as slow with the change that was being weighed, and the next run that it was not. Running the journeys on that build also found a helper of theirs that only held on the dev server (Next's route announcer holds the page's title there and nothing in production): a test that tells one thing from another by what the dev server happens to print is checked once against a build (2026-10-14).
+
+- We do not take Chromium's word for another browser where Chromium covers for the page. A row of the "Add Bulk Medicine" list is drawn a frame after it comes near, taller than the space kept for it, and pushes the rows under it down; Chromium holds the scroll still through that (scroll anchoring), and a browser without it does not — Safari is documented as having none; it was not run. The first fix for "End leaves the row it lands on out of sight, where Space ticks it unseen" asked the row into view once, a frame later — too early — and the journey written for it passed, because in Chromium there was nothing to fix. With `overflow-anchor: none` on the list and rows taller than their stand-in, that journey failed on the fix and passes on the one that stands (asked on each of four frames). The browser suite runs ONE browser: where it does something for the page that others do not, the test switches it off — and what was not run in the other browser is said (third pass of the independent review, before release).
+
+- We do not leave out the server's integration suite because only the client changed. `server/test/contract-dto.int-spec.ts` reads `client/src/lib/api.ts` with the TypeScript compiler, and takes only `name: value` options as ones it can read: `apiFetch(path, { signal })`, written in shorthand, failed it — for a change that touched no server file and that the client's own suite passed. It stood unseen through one round of this feature, until the whole verification was run on the final state (2026-10-14). After touching `api.ts`: `cd server && npm run test:int`.
+
+## Verification checklist for client changes
+
+_From `client/CLAUDE.md`._
+
+0. `npm test` (vitest) — the clinical pure functions are pinned there; a red test is a clinical regression, not a formatting nit.
+1. `npx tsc --noEmit` clean (Next build also lints — unused vars fail the prod build).
+2. Exercise the flow at :3000; for editor changes also check reload-restore and a supervised patient stays blank.
+3. Touching print/downloads → open Preview PDF and check fit; touching summaries → check records page grouping + Undo.
+4. "Jest worker encountered N child process exceptions" from `next dev` = corrupted cache → stop, `Remove-Item -Recurse -Force client\.next`, restart. Not your change.
+5. **Never run `npm run build` while `next dev` is running.** They share `client/.next`; the build dies with `EPERM ... .next\trace` and leaves the dev server serving a half-written tree (`Server Error: Cannot find module './vendor-chunks/next.js'`). Stop dev → delete `.next` → build → restart. This *is* your change, and it looks exactly like the corrupted-cache symptom above.
+6. Verify persistence through the API, not the rendered UI — from the page, `fetch('http://localhost:4000/api/...', { credentials: 'include' })`. A value can be stored and still unreadable by the app (see the date-parsing section); only comparing the two catches it.

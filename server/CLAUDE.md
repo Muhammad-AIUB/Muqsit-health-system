@@ -5,472 +5,93 @@ NestJS 10 modular monolith, global prefix `/api`, Prisma 5.22 → shared VPS Pos
 **Every route is catalogued in `docs/API.md`** — paths, DTO shapes, scoping and the
 permission keys each one enforces. Keep it in the same commit as a route change.
 
-## Module map (src/)
+Where each thing lives: [`docs/CODEMAP.md`](../docs/CODEMAP.md) §1 — every module with its route prefix, guards and tables, the scripts and the integration specs.
 
-`auth` (cookie JWT + refresh rotation + OTP email verify) · `users` · `admin` (registrations, tier changes, evict) · `assistants` (doctor→assistant links + permission keys) · `wards` (IPD wards + their teams) · `workstations` (X-Workstation resolution) · `patients` (records, galleries, summaries, family tree, supervised access) · `prescriptions` + `prescription-draft` + `prescription-layout` + `templates` · `opd` / `ipd` (queues, admissions, follow-ups) · `patient-chat` (per-patient team chat + PatientSupervisor + `/supervised`) · `activity` (audit feed) · `medicines` (search; the chart's rows by brand for the monthly-cost box and, with `genericName` since 02/11/2026, for Drug history's generic names — `catalogue.ts` holds the one query by a brand's first word, shared with `rx-habits`) · `statistics` (Settings → Statistics, read only, below) · `sms` (the SMS gateway, the practice's SMS wallet, the appointment SMS to a day's queue, payment requests) · `patient-drug-safety` (a patient's drug hypersensitivity / high-alert list, below) · `patient-notes` (a user's PRIVATE note per patient) · `revision-notes` (a user's own notebook, keyed by the AUTHENTICATED user, no workstation; a save from a stale copy is a 409, and so is a save or a read whose `expectedUserId` is not `@CurrentUser().id` — two tabs share one cookie, checked here so it does not depend on the page; a save with NO id is a 409 too (not a 400 — an old tab shows a 409's sentence and keeps the typing), a read with none is answered as before — `manual-revision-notes.sql`, applied 2026-10-18) · `drug-advice` (the doctor's own ••• advice per medicine/generic) · `mirror` (SSE device mirroring) · `uploads` · `mail` · `research` · `prisma`.
+## How this file works
 
-## ⚠️ Rule 1 — every patient-data query is doctor-scoped
+The server's rules — the access model, the derived tables, the queue, uploads, the build traps — are in `docs/rules/<topic>.md`, each with its reason ([index](../docs/rules/README.md), which also says where each section of the old version of this file went). This file is the way in:
 
-Controllers touching practice data use `@UseGuards(JwtAuthGuard, WorkstationGuard)` and take the doctor from `@WorkstationDoctorId()` — **never** from `req.user.id` directly, and never trust a client-sent doctorId in the body. `WorkstationGuard` resolves the `X-Workstation` header: absent/own id → own context; a doctor the user actively assists → that doctor + granted permission keys; anything else → 403.
+- **Before any change that reads or writes patient data**, read [`docs/rules/access-and-scoping.md`](../docs/rules/access-and-scoping.md): the access table (owner / assistant / supervising doctor) is there, and a new patient-scoped endpoint must be placed in it.
+- **Rules for every server change** — one line per rule. Read the file named beside a group when one of its lines bears on what you are doing.
+- **Before you touch a module** — the file you MUST read before changing that module's code. The lines under it are the entries that had been raised to the root file or are marked ⚕️; they are pointers, and the file holds more than is listed here.
+- Open questions, known limits and the physician's answers for the same area: `docs/audit/<topic>.md` — the same file name.
+- A new lesson: the full entry and its "At a glance" line go in the topic file; a line goes here only if it bears on every server change or on what a patient is given.
 
-## ⚠️ Rule 2 — the patient access model (do not widen casually)
+## Rules for every server change
 
-| Action | Owner | Assistant (via workstation) | Supervisor (PatientSupervisor) |
-|---|---|---|---|
-| find by mobile / open / update patient | ✅ | ✅ (as the owner) | ✅ (`accessibleWhere`: owner OR `supervisors.some({doctorId})`) |
-| create prescription on the patient | ✅ | ✅ | ✅ — stored under the **supervisor's own** `doctorId` |
-| list prescriptions | own `doctorId` only — a supervisor never sees the owner's Rx and vice versa | | |
-| DELETE patient | ✅ **owner-only, always** | ❌ | ❌ |
+### Access and scoping (workstation, assistants, supervised doctor) → [`docs/rules/access-and-scoping.md`](../docs/rules/access-and-scoping.md)
+- The doctor is never taken from `req.user.id` or a request body: use `@WorkstationDoctorId()` — `WorkstationGuard` is the only place that decides whose practice a request acts on.
+- A practice is never resolved again inside a service: pass the resolved `doctorId` in (a second resolver leaked another practice's activity feed).
+- `WorkstationsService.resolve` is never extended for IPD ward-team logins: that would hand a ward nurse the whole practice's OPD records.
+- Practice-data controllers use `JwtAuthGuard, WorkstationGuard` and take the doctor from `@WorkstationDoctorId()` — never from `req.user.id`, never a client-sent doctorId in the body.
+- Patient access table (owner / assistant / supervisor): DELETE patient is owner-only, always; a new patient-scoped endpoint must pick its column and mirror the `where` of `patients.service.ts`.
+- `hmDrugDates` / `hmSymptomDates` are owner-only, denied by two layers: the controller stops an assistant, the service's `patient.doctorId !== doctorId` check stops a supervisor — both load-bearing.
+- Do not put `hmDrugDates` back in `RX_LIFECYCLE` without a permission key; `PATCH /patients/:id` is the only route accepting `UpdatePatientDto` — keep that one door.
 
-If you add a new patient-scoped endpoint, decide explicitly which column of this table it belongs to and mirror the corresponding `where` shape from `patients.service.ts`.
+### Authentication and sessions → [`docs/rules/auth.md`](../docs/rules/auth.md)
+- Access `mhs_at` (15 min) + rotated refresh `mhs_rt` (path `/api/auth`), both httpOnly; `publicUser()` must keep returning `accountTier`.
+- Keep the refresh rotation grace window (10 s, same User-Agent only) in `auth.service.ts#refresh`; a different/missing UA is theft; removing it logs everyone out on reload.
+- Client `apiFetch` refreshes once on 401 and logs out only on a definitive rejection; keep server semantics compatible.
 
-**A supervisor reads the patient row without the owner's draft (2026-09-29) — and with their OWN (19/10/2026).** `incompleteRx` is the in-progress prescription of the practice that READS it. The owner's practice gets the patient's column; a read by another practice goes through `patients.service.ts#withOwnDraft` (`get`, `findByMobile`), which gives that practice its own `SupervisedDraft` row's data, or `null` — never the owner's (`forViewer` blanks it first) — and the `patient` included on `GET /prescriptions/:id` gives it `null` (`forViewer`). A supervising practice writes its row only through `PUT /patients/:id/supervised-draft` (the owner's practice gets 400; an assistant needs any `rx.*` key, as for `incompleteRx`); `PATCH /patients/:id` still refuses a supervisor wholesale. Keyed by the practice (the workstation doctor), so its assistants share it as the owner's practice shares `incompleteRx`. Before, a supervising doctor's unprinted visit was kept nowhere but their one-slot editor draft — a reload, another patient opened or the next sign-in lost it. `manual-supervised-draft.sql` must be applied BEFORE the release that reads it is deployed. A new read path that returns a Patient row to a possibly-supervising caller must go through `PatientsService.get` / `findByMobile` (`withOwnDraft` is private to it) or use `forViewer`. `SupervisedDraft` missing (the SQL not applied) costs only the parked visit: the read logs an error and answers it as none, never a 500 for the patient (review). Removing a supervising doctor (`patient-chat` `removeSupervisor`) removes their parked visit for that patient after the link, on its own: when the parked visit cannot be removed — the table missing, or any other failure — the link still goes and a warning is logged, and the parked visit stays behind (third review: in one transaction, a missing table failed the removal and the supervisor kept their access). Not covered: the owner's patient DELETE removes a supervising practice's parked visit with the patient (it refuses only over another doctor's PRESCRIPTIONS); and `apiFetch` re-reads the `X-Workstation` header when it retries after a 401, so a parked visit written exactly as the user switches practice can land under the new one — rare, for a user assisting two practices that both supervise the patient. Pinned in `test/supervised-draft.int-spec.ts`. **Lines added to a patient's drug history after Save & print go through `POST /patients/:id/drug-history`** (19/10/2026), which appends them under the row's lock to whatever the record holds: the first version sent the client's whole list, and one device's copy, behind the record, erased what another device had just printed (independent review, before release). Owner's practice only, like `PATCH`; a stored value that is not a list is refused (409), never replaced. Pinned in `test/drug-history-append.int-spec.ts`. **One stored medicine's start date and duration are put right through `PATCH /patients/:id/drug-history`** (07/11/2026, physician's sheet: "Edit option add hobe … date duration edit kora jabe"; `patients.service.ts#replaceDrugHistoryBlock`, `patients/drug-history-edit.ts`): the only route that rewrites a stored drug-history line, so it is as narrow as the request. The body is the BLOCK as stored (`replace`: a medicine line and the `(cont)` lines under it) and its replacement (`replacement`). The block is found in the record **by its exact text, under the row's lock** (`ROW_LOCK_TX`) — never at a position a client read, since the list a client holds is one device's copy — and when it is no longer there (another device changed it) the answer is 409 and nothing is written; of two identical blocks the first is changed. `blockEditProblem` accepts only the SAME number of lines, each the same kind (the medicine first, tapers under it; a note, a legacy `Current:`/`Past:` line and a taper with no medicine are refused — 400), every cell but the last (the duration) character for character the same — name, dose and food cannot change through it — one real `dd/mm/yyyy` date (1900–2200) on every line, and no cell separator or line break in a duration. Same reach as the append: the owner's practice only (403 for a supervising doctor, 404 for a patient the practice cannot reach), an assistant needs any `rx.*` key; a stored value that is not a list is 409, never replaced. It writes no activity line itself — the client does, once the answer is in. `client/src/lib/drugCourse.ts#rewriteCourse` is the client's copy of the same rules (`drug-history-edit.spec.ts` ⇄ `drugCourse.test.ts`: edit one, edit both). Pinned in `drug-history-edit.spec.ts` and `test/drug-history-edit.int-spec.ts` (an edit and an append sent together are both kept; run against a real Postgres). **A saved visit's On-examination findings go through `POST /patients/:id/on-examination`** (31/10/2026; `patients.service.ts#appendOnExamination`, `patients/on-examination.ts`): appended under the row's lock to `Patient.onExaminationSummary`, an entry with the same date and text not written twice, nothing stored changed. **Wider than the drug-history append on purpose: a SUPERVISING practice may append** (the physician's rule: the history is the patient's, seen by all their doctors) — append only, and `by` is the name of `@WorkstationDoctorId()`'s user read here, never a client value. Pinned in `test/on-examination-append.int-spec.ts` and `on-examination.spec.ts`.
+### Validation and DTOs → [`docs/rules/validation-and-dto.md`](../docs/rules/validation-and-dto.md)
+- `ValidationPipe({ whitelist: true })`: any new client field must be added to the DTO or it is silently dropped; JSON columns follow `patients.service.ts#update` (`InputJsonValue`, `DbNull`).
 
-**Read-modify-write of a JSON column takes a row lock.** `ipd.service.ts#lockAdmission` (`SELECT … FOR UPDATE`) before re-reading `clinical`, like the family-tree link. A plain SELECT at READ COMMITTED let two overlapping writes each read the same order sheets and the later one erase the earlier page. **⚕️ And such a transaction is given `ROW_LOCK_TX` (`src/prisma/row-lock.ts`: 30 s, 10 s for a connection), never Prisma's default.** The default fails an interactive transaction that has run past 5 s, counting the WAIT for the lock (it is refused once the lock is granted): a few writes arriving together on a busy server answered 500 ("Transaction already closed") at the back of the queue, and the page or family member was not filed (18/10/2026 — found from `ipd-analogue.int-spec.ts` failing 2 runs in 12 with the CPU loaded). Pinned deterministically by holding the lock for 6 s in `ipd-analogue.int-spec.ts` (upload, PATCH, status) and `row-lock-wait.int-spec.ts` (family link). Any interactive transaction that WRITES a row a `FOR UPDATE` may hold gets the same options and the same test (the status change was missed at first: its UPDATE waited on the lock too — review). Not covered: a query waiting for a lock that never comes free is not ended by Prisma; `lock_timeout` is not set. `scripts/backfill-image-thumbs.js` still uses the defaults.
+### Database, manual SQL and Prisma → [`docs/rules/db-and-prisma.md`](../docs/rules/db-and-prisma.md)
+- `medicines` is never put in `schema.prisma`: it is a raw table queried with parameterised `$queryRaw`.
+- A transaction that takes a row lock is never left on Prisma's default 5 s limit: it takes `ROW_LOCK_TX` (`server/src/prisma/row-lock.ts`); a test that fails only under load is reproduced UNDER LOAD and read.
+- Read-modify-write of a JSON column takes a `FOR UPDATE` row lock, and any such interactive transaction gets `ROW_LOCK_TX`, never Prisma's default; give it the same lock-holding test.
+- Regenerate Prisma only with the dev server stopped; loose casts for a not-yet-generated column are acceptable short-term — regenerate ASAP.
+- Medical-history JSON columns are append/merge on the client, whole-value writes on the server; never "fix up" their contents server-side without an explicit migration script.
+- `medicines` is a raw Postgres table NOT in `schema.prisma`, queried with `$queryRaw`; no Prisma model, never let a destructive schema push touch it, keep queries parameterized.
 
-**Narrower than the table above:** `hmDrugDates` / `hmSymptomDates` (the Health-trend-chart duration overrides) are **owner-only**, and the two denials come from **different layers** — both load-bearing:
+### Server architecture → [`docs/rules/server-architecture.md`](../docs/rules/server-architecture.md)
 
-| Caller | Stopped by |
-|---|---|
-| Assistant in the owner's workstation | `patients.controller.ts#update`: `ws.role !== 'owner'` + the key is present → 403 |
-| Supervising doctor | *Not* the controller — they act under their **own** workstation, so `ws.role` is `'owner'`. The `patient.doctorId !== doctorId` check in `patients.service.ts#update` is what stops them |
+### Admin console → [`docs/rules/admin.md`](../docs/rules/admin.md)
+- Deleting a doctor must not delete their patients: `hardDelete` relies on `onDelete: SetNull`; orphans are unreachable; findability needs its own access design, never bolted onto a delete path.
 
-`Patient.imageThumbs` (2026-09-07, `manual-patient-image-thumbs.sql`) is a nullable `Json` side map, `{ [fullImageUrl]: thumbUrl }`, holding 400px copies for the two document galleries. Display-only and additive: it carries no clinical content, nothing was migrated, and a gallery URL absent from it falls back to the full image — which is how every image stored before it reads. It rides the generic `...rest` passthrough in `patients.service.ts#update` and is deliberately **not** in the controller's `RX_LIFECYCLE` set, so an assistant needs exactly the `pt.info` key `prescriptionImages` already requires; it must never widen that, and it only ever travels in the same PATCH as the gallery it describes. The arrays themselves were left alone on purpose — see `client/CLAUDE.md` for why the thumbnails are a side map rather than a richer array.
+### Build, deploy, dependencies, git → [`docs/rules/deploy-and-ops.md`](../docs/rules/deploy-and-ops.md)
+- `npx tsc --noEmit` cannot catch the rootDir trap: before pushing a new file outside `src/`, run `rm -rf dist && npm run build && ls dist/main.js`; no `dist/main.js` = 502.
+- `rootDir` belongs in the BUILD config, not `tsconfig.json`, which also type-checks `test/`, `prisma/seed.ts` and `scripts/*.ts` in CI.
+- `tsBuildInfoFile` keeps the incremental cache inside `dist/`, else the next build writes nothing (no `dist/main.js`); check any change to these configs with two builds in a row.
+- `CORS_ORIGIN` is a comma list and must include every frontend origin; a missing one looks like random auth failures.
 
-`Patient.lastRxImageKey` (2026-08-23, `manual-patient-last-rx-image-key.sql`) is a plain `TEXT?` that carries no clinical content: the SHA-256 of the printed sheet behind the newest AUTO snapshot in `prescriptionImages`, so the client can tell a re-save of an unchanged visit from a real edit and stop filing the same paper into the gallery on every click (see `client/CLAUDE.md`). It rides the generic `...rest` passthrough in `patients.service.ts#update` — no service branch of its own — and it is deliberately **not** in `RX_LIFECYCLE`: it only ever travels in the same PATCH as `prescriptionImages`, which already requires `pt.info` for an assistant, so it must not widen that. NULL means "nothing filed yet" and the client always takes a snapshot, which is why the column needed no backfill.
+## Before you touch a module, read its file
 
-`hmDrugDates` used to sit in the assistant `RX_LIFECYCLE` bypass set — deliberately removed; don't put it back without a permission key. `PATCH /patients/:id` is the **only** route that accepts `UpdatePatientDto`, and these fields are declared on it alone (not on Create/Link), so `ValidationPipe({ whitelist: true })` strips them everywhere else. One door — keep it that way.
-
-**Deleting a doctor must not delete their patients.** A patient is not the property of the account that registered them: the same person returns to a different doctor and is found again by mobile. `admin.service.ts#hardDelete` therefore does a plain user delete and lets `Patient.doctorId`'s `onDelete: SetNull` keep the row, its demographics and its durable history (`investigationSummary`, `onExaminationSummary`, `drugHistory`, `familyMembers`). That doctor's own `Prescription` rows still cascade, which is consistent — they were never visible to another doctor. **Known gap:** `accessibleWhere()` matches `{ doctorId }` OR an assigned supervisor, so a patient left with `doctorId = null` is retained but **not reachable** through the mobile lookup. Making unowned patients findable exposes PII across practices and needs its own access design — do not bolt it onto a delete path.
-
-## ⚠️ Rule 2b — an IPD team is NOT a workstation
-
-`wards` (2026-08-15) models a ward and the team that works it: `Ward` (one per
-practice, unique name), `IpdTeamMember` (ward + user + `ipd.*` permission keys),
-and `IpdAdmission.wardId`.
-
-Two things about it are load-bearing:
-
-- **Every handler in `wards.controller.ts` passes the signed-in user's OWN id**,
-  never `@WorkstationDoctorId()`. Deciding who may reach admitted patients is the
-  owner's call; an assistant inside the practice must not be able to put anyone
-  (least of all themselves) on a ward team. Same posture as `AssistantsController`.
-- **`patientId` in an admission body must be a patient this practice can reach** (owner or supervising doctor — the reach of `PatientsService.get`), or `POST /ipd` answers 404 and admits nobody (`ipd.service.ts#create`, review 18/10/2026). It was written as sent; since that date the doctor app admits only from a patient chosen by mobile number, so every admission carries one.
-- **`wardId` in an admission body is validated against the doctor's own wards**
-  (`ipd.service.ts#resolveWard`) and the ward's real name is written back into
-  `wardNo`. A foreign id in a request body widens access exactly like a forged
-  header would; an unknown ward is refused rather than silently dropped, so the
-  doctor is never left believing a ward team can see a patient it cannot.
-
-**The remaining half — letting a team member log in and reach the ward — is NOT
-built, and must not be done by extending `WorkstationsService.resolve`.** Every
-patient-data controller reads `workstationDoctorId`, so the moment a ward
-membership resolves to a workstation, that member has the practice's patients,
-prescriptions and OPD queue too — a ward nurse would silently gain the OPD
-record of someone who was never on their ward. Build a narrow IPD-only door
-instead: `ipd.service` resolves ward membership itself and returns only that
-ward's admissions, and nothing else in the app changes shape.
-
-## ⚠️ Rule 2c — `DoctorRxHabit` is DERIVED, and its write path is load-bearing
-
-`rx-habits` (2026-08-17) learns a doctor's repeated prescribing instructions and
-offers them back in the ℞ pad. The domain rules are in the root `CLAUDE.md`;
-these are the ones that live in this app's code and are easy to break.
-
-- **⚕️ The same prescription sent again is the one on record (19/10/2026).** A save whose answer was lost on the way back reads to the doctor as "not saved", and they press again: the visit was filed twice. **Since 20/10/2026 the doctor app leans on this rule twice:** it sends Save & print's very request again by itself while its answer is lost (`client/src/lib/sendAgain.ts`), and where no answer comes it tells the doctor that pressed again unchanged within half an hour it will not be filed twice (`MAY_BE_SAVED`, `client/src/lib/saveNotice.ts`, whose test reads `REPEAT_WINDOW_MS` here). A change that narrows the comparison, the window or the lock turns those re-sends into second prescriptions. `create()` now takes an advisory lock per doctor and patient, and answers a request identical to this doctor's LATEST prescription for the patient, from the last 30 minutes (`REPEAT_WINDOW_MS`), with that one — 201, the same shape, no second row, and nothing learned a second time. "Identical" is every field the DTO can carry and every line (`repeat.ts#sameContent`); `repeat.spec.ts` reads the DTOs' metadata and fails when a field is added without a line in `repeat.ts`, since a field left out of the comparison would make two prescriptions that differ only there one — the second one's value lost. Compared with the latest only: a third save like the first, after a different second, is new. The repeat is answered with `repeat: true` added, so the client writes the visit's audit lines once. Pinned in `test/repeat-save.int-spec.ts` (another patient, another doctor, a changed dose, a >>> line marked otherwise, 31 minutes later — each a new row; the lock by HOLDING it from the test and seeing the save wait — two copies sent at once passed with the lock taken out, review) and `repeat.spec.ts` (each line property changed in turn — a property left out of a hand-written comparison passed every test, review; the comparison is now driven by `ITEM_FIELDS`). The OPD queue does the same for an add: a patient still waiting in today's queue whose prescription is not yet printed keeps their visit (`opd.service.ts`; printed — `rxStatus: complete`, which Save & print sets without pressing Done — or Done, they are queued again: the first version handed a morning visit back in the afternoon, review), and both OPD writes take one advisory lock per doctor. A reused visit keeps its own `type` (the client sends none).
-- **The write is awaited, in a try/catch, AFTER `prescription.create` returns.**
-  All three parts matter and each was chosen against a specific failure:
-  *outside the prescription write*, because a habit failure inside it would roll
-  back a prescription the doctor believes was saved and has already printed;
-  *awaited*, because every deploy restarts pm2 and a detached promise in flight
-  at that moment is simply lost; *caught*, because a convenience must never fail
-  the single most important write path in the product.
-  `prescriptions.service.spec.ts` is a REGRESSION spec for exactly this — if you
-  touch `create()`, it is the test that says whether you broke the record.
-- **`patientCount` is never `increment: 1`.** It counts DISTINCT PATIENTS, and
-  the answer comes from the record: `priorBlockKeys()` asks whether this patient
-  already contributed this block on an EARLIER prescription. One query per save,
-  then a set lookup per block. A prescription-count would make one returning
-  patient look like routine practice, which defeats the only safety signal the
-  feature has.
-- **`contLines` is a Json column, so it is unknown at every boundary.**
-  `sanitiseContLines` returns `null` for anything it cannot read and the block is
-  dropped **whole** — never partially. Half a tapering schedule delivered as if
-  it were the whole instruction is worse than no suggestion. The client sanitises
-  again (`rxHabitRows.ts`); the two layers fail for different reasons.
-- **The lookup matches `searchKey` only**, through the SAME normalisation the
-  stored key went through, and needs the `text_pattern_ops` index from
-  `manual-rx-habits.sql`. The plain btree does NOT serve `LIKE 'prefix%'` here:
-  this database's collation is `C.UTF-8`, and Postgres only treats a collation as
-  pattern-safe when it is exactly `C`/`POSIX`. Verified with EXPLAIN on
-  2026-08-17 — an earlier draft of the design assumed otherwise. LIKE
-  metacharacters in the doctor's typing are escaped (`likePrefix`); a bare `%`
-  would otherwise match every medicine they have ever prescribed.
-- **`list()` attaches each medicine's `generic` from the raw `medicines` table**,
-  matched on the same normalised key that grouped the habits. This is a SAFETY
-  field, not a label: prescribing-alert rules are written against generics
-  (`entecavir`) while the ℞ line carries the brand (`Tablet. Barcavir 0.5 mg`).
-  Resolving it on the client from a separate medicines request — the original
-  design — made it depend on a race, and a doctor clicking the suggestion before
-  that request landed would lose the contraindication warning entirely. The
-  catalogue is asked through `catalogueRows` (below), wrapped in try/catch: no
-  generic just means the line behaves like a hand-typed brand.
-- **There is a second read path, `listAll()` (`GET /rx-habits/all`, 2026-10-13),
-  and it THROWS.** It feeds the "Add Bulk Medicine" box: one row per medicine —
-  the row the typing dropdown would offer first (pinned, then most patients, then
-  most recent), with hidden rows left out BEFORE that choice, so a hidden dose
-  never hides the next one. `list()` is silent on failure because it sits under a
-  working medicine search; this is a list the doctor opened on purpose, and
-  "could not be loaded" must not look like "you have prescribed nothing". It
-  writes nothing and logs nothing to `activity`; scope is
-  `@WorkstationDoctorId()` like every other route here
-  (`server/test/rx-habits-all.int-spec.ts` holds that against the real
-  database). A medicine whose chosen row has unreadable `contLines` is left out
-  and COUNTED (`unreadable`), and the box says the number — the dropdown would
-  offer that medicine's next instruction, so in that one case the two surfaces
-  differ.
-  **Since 15/10/2026 each medicine also carries `recent`** — the doctor's last
-  three instructions for it, newest first (physician's sheet, item 2: the ▼ on
-  a medicine in the box). A second query over the SAME rows (this doctor,
-  `hidden = false`), `ROW_NUMBER() … ORDER BY "lastUsedAt" DESC, "id"`, `rr <= 3`
-  (`attachRecent`); an instruction whose `contLines` cannot be read is left out
-  of the choices and the medicine stays. Timed on `muqsit_load_test` with made-up
-  rows (one doctor with 2,000 medicines × 4 instructions among 68,000): median
-  ~10 ms, the same as the list's own query; the production table was not timed.
-  Held against a real Postgres in `rx-habits-all.int-spec.ts`.
-- **⚕️ `attachGenerics` THROWS on a failed catalogue lookup: `list()` catches
-  it, `listAll()` does not** (first review, 2026-10-13, before release). The
-  first version wrapped the lookup in the dropdown's try/catch and returned the
-  list without generics. For `list()` that is right: the ℞ pad has a second,
-  PARTIAL source — the medicine results loaded for what was typed
-  (`resolveGeneric` on the client; at most the ten rows of that search). The
-  box has no second source at all — a medicine added from it without the
-  generic the catalogue holds for it is a contraindication warning that does not
-  fire, on several lines at once, with nothing on screen to say so. A rule that
-  fails silently is safe only together with whatever catches the failure;
-  before giving it to a second caller, check that caller has the catch too.
-- **⚕️ The catalogue is asked ONCE, by an equality on the brand's first word**
-  (`catalogueRows`, 2026-10-14) — never by a pattern per brand. It was
-  `"brandName" ILIKE ANY('{napa%,…}')`: fine for the dropdown's four medicines,
-  ruinous for a doctor's whole list, because every pattern is tried against
-  every row of the catalogue. Nothing had shown it: the test catalogue is six
-  rows. Measured on a made-up catalogue of 35,000 medicines, the box took 5 to
-  7 s to open for a doctor with 200 medicines and over a minute for 2,000; as
-  one hash join (`lower(first word of "brandName") IN (SELECT unnest($1))`) it
-  is 0.08 s and 0.32 s for the whole service call (0.05 s and 0.13 s of it the
-  query), and the dropdown's own lookup is cheaper than it was.
-  The question is also a better one. A prefix needed a row cap, and a cap that
-  bites drops whichever brands the database reached last (the dropdown's old
-  `LIMIT 500` could, for one broad prefix); a brand whose first word is one
-  letter could not be asked for at all. An equality needs neither rule, and
-  its answer is bounded by the catalogue. The first word is taken as
-  `normaliseDrugKey` takes it — lower case, a leading space ignored, a tab or
-  a no-break space counted as the space a spreadsheet meant — and
-  `server/test/rx-habits-all.int-spec.ts` holds each of those against a real
-  Postgres, for the box and for the dropdown. **Do not turn it back into a
-  `LIKE`**, and do not use `= ANY($1)` for the list: with a bound array that is
-  a linear search per row (2.5 s for 2,000 brands, measured). The rows come in
-  a stated order, so the same medicine gets the same generic on every request.
-  **Where the catalogue lists one medicine (form, brand, strength) under two
-  different generics, the first is used, as it always was — the first in the
-  stated order now (brand, form, strength, then generic), where it was
-  whichever row the database returned first — and the log names the medicine
-  and the generics, once per process.** Attaching neither would be the
-  stricter rule; it changes which warnings fire in the dropdown as well, and
-  needs a look at the real catalogue before it is decided
-  (`FUNCTIONAL-AUDIT.md`).
-- **The boot check never throws.** `onModuleInit` runs one `SELECT 1` and logs a
-  single ERROR naming `manual-rx-habits.sql` if the table is unreadable. Because
-  the doctor is shown silence on failure by design, the log is the ONLY place a
-  dead feature announces itself — and this repo already has two committed-but-
-  unapplied manual migrations to prove that matters.
-- **`RxHabitsModule` imports `WorkstationsModule`.** `WorkstationGuard` injects
-  `WorkstationsService`, and Nest resolves that at BOOT: `npx tsc --noEmit` is
-  green without the import and the API then crash-loops on start. Typecheck is
-  not enough for a new guarded module — start the server.
-`doctor-phrases` (2026-09-21) is the FREE-TEXT sibling of `rx-habits`: it learns
-the ADVICE lines and the free-typed ℞ **note** lines a doctor writes, and offers
-them back as they type. It is built to the same five rules and shares the same
-seam — `PrescriptionsService.create` calls `phrases.recordFrom(...)` beside
-`habits.recordFrom(...)`, in the same try/catch that can never fail the save.
-
-- **`manual-doctor-phrase-habit.sql` must be applied** before it does anything.
-  Until then `DoctorPhrasesService.onModuleInit` logs one ERROR naming that file
-  and the rebuild script, and both fields keep working, silently. That boot
-  check is the only place a missing table can be announced: on the clinical
-  screen an empty list and a dead feature look identical.
-- **`patientCount` is DISTINCT PATIENTS.** `recordFrom` asks the record which
-  patients already contributed each signature on an EARLIER prescription
-  (`priorSignatures`, excluding the one being learned from) and increments only
-  for a genuinely new one. Never `increment: 1` unconditionally.
-- **Typography-only normalisation** (`doctor-phrases/normalise.ts`): case,
-  whitespace, one trailing full stop. It must never drop a word, number, unit or
-  parenthesised qualifier — `Insulin as before` and `Inj. Insulin as before` are
-  two instructions. Pinned in `normalise.spec.ts`, including everything it must
-  NOT fold.
-- **How many a lookup returns depends on the surface (31/10/2026):** `rxNote`
-  at most 8 (a dropdown under the caret); `advice` at most 1000, because the
-  physician asked for every Advice line he ever wrote to stay offered (the
-  client's Advice popup scrolls). `LIST_LIMIT` in the service; spec pins both.
-- **`hidden` is never un-set by a later save.** A suppressed line stays
-  suppressed even when the doctor writes it again by hand; un-hiding is the
-  PATCH route.
-- **Repair, never hand-edit:** `node scripts/rebuild-doctor-phrases.js
-  [--dry-run]` recomputes the table from `Prescription.advice` and
-  `PrescriptionItem where isNote`, in one transaction, re-applying `hidden`
-  **by content** for the same reason the medicine rebuild does.
-
-- **Repair, never hand-edit:** `node scripts/rebuild-rx-habits.js [--dry-run]`
-  recomputes the table from `Prescription`/`PrescriptionItem`, one transaction
-  per doctor, and re-applies `pinned`/`hidden` **by content**. Do not "simplify"
-  that to a `signature` join — a signature is the OUTPUT of the normalisation
-  algorithm, so the day a rule is edited every signature changes, every flag
-  orphans, and every deliberately suppressed dose comes back silently. The
-  script loads `normalise.ts` from `dist/` (or via ts-node) rather than
-  reimplementing it, and must stay `.js` — see the `rootDir` trap below.
-- **⚕️ A Bangla dose / food / duration is the same instruction as its English
-  (`ALGO_VERSION` 2, 2026-10-15).** BAN writes the ℞ columns in Bangla
-  (physician's decision, 2026-10-14), so `১+০+১ · খাবারের আগে · ৭ দিন` and
-  `1+0+1 · Before meal · 7 days` reached the habit table as two rows and split
-  one dose's distinct-patient count. `signatureOf` now reads each cell through
-  `rx-habits/rxLanguage.ts#cellInEnglish` first — the physician's table, a
-  COPY of `client/src/lib/rxLanguage.ts#rxCellIn(…, "en")`, pinned against it by
-  one literal table in `normalise.spec.ts` ⇄ `rxLanguage.test.ts`. Three things
-  about it are safety, not style:
-  - **A cell with no Bangla in it is returned untouched,** so no English
-    habit's signature moved; only a habit saved with Bangla changes key.
-  - **Nothing outside the table is read:** `খাবারের পর`, `২.৫ মিলি` stay as typed
-    and are their own instruction; a decimal point stays a point (`০.৫` is
-    `0.5`, never `5`); a 3→1 taper is still not a 1→3 taper.
-  - **The rebuild keeps a flag set on ANY wording that folded in,** `hidden`
-    winning over a wording that was not hidden. Before this, one signature was
-    one wording per stored row and the newest wording's flag was enough; now
-    two stored rows (Bangla, English) become one, and taking only the newest
-    wording's flags would bring back a dose the doctor had hidden.
-  `server/test/rx-habits-bangla.int-spec.ts` runs it for real: both languages
-  through `POST /prescriptions` into one row, the same patient in the other
-  language not counted twice, and the repair script against rows learned under
-  version 1. **After the deploy, run the rebuild once** (`--dry-run` first) —
-  until then rows already learned in Bangla stay as separate rows, and a new
-  Bangla prescription lands on the English row and not on its hidden Bangla twin.
-
-## `drug-advice` — the doctor's own standing advice (2026-09-24)
-
-`DoctorDrugAdvice` (`manual-drug-advice.sql`, applied 2026-09-24) holds what a
-doctor writes in the ℞ pad's ••• box. Unlike the two habit tables it is NOT
-derived — every line is typed by the doctor, so there is no rebuild script and
-nothing learns into it. `PUT /drug-advice` replaces a key's lines (empty =
-cleared). Scope is `@WorkstationDoctorId()`; an assistant needs `rx.advice` to
-write. Keys (`drug-advice/keys.ts`): scope `medicine` reuses
-`rx-habits/normalise.ts#normaliseDrugKey` (strength included), scope `generic`
-folds case and spacing only, and scope `diagnosis` (a final diagnosis, the •••
-beside its line — physician's sheet 15/10/2026) folds case and spacing only too.
-`scope` is a plain text column, so the third scope needed no SQL. The client
-mirrors all three in `lib/rxDrugAdvice.ts`.
-Boot check logs one ERROR naming the SQL file if the table is unreadable.
-
-## ⚕️ `patient-drug-safety` — H/O drug hypersensitivity and High-Alert Medication (31/10/2026)
-
-`PatientDrugSafety` (`manual-patient-drug-safety.sql`, **not applied yet** — apply it before the release that reads it; until then `GET` answers 500, the editor says the list could not be loaded and Save & print asks before printing without it; a boot check logs one ERROR). A per-PATIENT list kept for life, under `/patients/:id/drug-safety`. Reach is `PatientsService.get(@WorkstationDoctorId(), id)` (owner's practice, its assistants, supervising doctors; 404 otherwise). Rule 2 column: **read** anyone who reaches the patient; **add** the same, a supervising doctor included (a hypersensitivity any prescribing doctor finds must be recordable); **edit / remove / restore** the owner's practice for any entry, another practice only for the entries its own practice added (`practiceDoctorId`, 403 otherwise) — the list answers `editable` per entry for the caller; an assistant needs `rx.drugHistory` for every write (controller). Removal is SOFT (`removedAt`/`removedById`), and `restore` clears it; there is no hard delete. No FK to `User` on purpose — deleting a doctor's account must not take a patient's allergy record with it; the patient's own owner-only DELETE cascades. An add and a restore take the patient row's lock (`ROW_LOCK_TX`) and refuse the same entry twice (409: same brand + generic, or the same line, capitals and spaces set aside). `generic` is what the client got from the medicines catalogue, or null — the server never fills one in. Every change writes one activity line to the ACTING practice's feed (detail ≤ 400), never failing the request. Pinned in `patient-drug-safety.service.spec.ts` and `test/patient-drug-safety.int-spec.ts` (written, typechecked, **not yet run**; `npm run test:db` again for the new table).
-
-## `statistics` — Settings → Statistics (physician's sheet, 11/11/2026)
-
-Read only (`GET /statistics/visits/days|months|overall`, `/statistics/diseases`; `docs/API.md` §5.12d), no migration, `@UseGuards(JwtAuthGuard, WorkstationGuard)` and `@WorkstationDoctorId()` on every query (Rule 1). Open to the practice's assistants (physician's decision) — no owner check, no key. Rules that are safety, not style:
-
-- **"Seen" is the queue's Completed** — `"status" = 'done' OR COALESCE("rxStatus", '') = 'complete'` (`SEEN_SQL`), one copy beside `client/src/lib/opdPresence.ts#isCompleted`: the OPD card and this number must never disagree about who was seen. A visit's day is `queueDate`, else the Dhaka day of `createdAt` (`+ interval '6 hours'`, the fixed UTC+6 the queue uses), never `createdAt` alone. Total serial is every queue row of the day.
-- **The chamber is a claim** (`StatisticsController.scope`): absent / empty / `all` = every chamber; else `ChambersService.resolve` — the default chamber's id means "no chamber" (`chamberId IS NULL`), another practice's / a removed / a made-up id is **404, never the total in its place**, two values is 400. The global `X-Chamber` header ("My Chamber") is NOT read here: the screen's own dropdown decides.
-- **The arithmetic is in `visit-stats.ts`** (pure, `visit-stats.spec.ts`): every day / month is zero-filled; `overallFigures` gives the CALENDAR averages — seen ÷ every day from the first seen visit to today, ÷ every month from that visit's month to this one, both ends included (physician, 11/11/2026) — one decimal, `null` (never 0) with nothing seen or a first visit dated after today; the answer carries `today`, the server's Dhaka day, so the screen names "this month" from it and not from a PC clock.
-- **Diseases:** the practice's `Prescription.finalDiagnosis` lines, grouped by `foldDiagnosis` (capitals and spacing only — the `drug-advice` `diagnosis` fold; `DM` ≠ `Diabetes mellitus`, nothing is merged by meaning), counting DISTINCT PATIENTS, the newest wording shown, most patients first then A–Z. A prescription holds no chamber, so there is none here. A supervising doctor's prescriptions are stored under their own `doctorId` (Rule 2), so each practice counts its own.
-- **Not measured:** the SQL scans one doctor's `OpdVisit` rows (`@@index([doctorId, createdAt])`; the day expression cannot use the `queueDate` index) and one doctor's prescriptions unnested; run on the test database with a handful of rows only. Time it against `muqsit_load_test` with a doctor of tens of thousands of visits before calling it fast (root CLAUDE.md, "a query … that has only met the six rows of a test table").
-- Pinned in `statistics.service.spec.ts` (which question is asked: whose practice, which chamber, which rule for seen), `statistics.controller.spec.ts` (the chamber claim) and `test/statistics.int-spec.ts` (the SQL against a real Postgres: seen, the day, the Dhaka midnight, chambers, another practice, an assistant, 401 / 403).
-
-## `patient-files` — Permissions and Imaging DICOM (07/11/2026)
-
-`PatientFile` (`manual-patient-files.sql` — **apply it before the release that reads it**; until then the routes answer 500 and a boot check logs one ERROR). One row per file of kind `permission` (a scanned image) or `dicom`, under `/patients/:id/files`. Rule 2 column: **read** anyone who reaches the patient (`PatientsService.get`); **add / remove** the patient's OWNER practice only (`patient.doctorId === workstation doctor`; a supervising doctor gets 403, as `PATCH /patients/:id` refuses them for the galleries), and an assistant needs `pt.info`. **Imaging DICOM is PREMIUM-only (physician, 09/11/2026): the signed-in user's `accountTier === "premium"` is checked on the server for the dicom list, upload and removal (403 otherwise); Permissions are not gated.** Removal is SOFT (`removedAt`/`removedById`) and the bytes stay in `/uploads` — no hard delete. The row says who added it (`addedByName`) and each add/remove writes one activity line (section `Permissions` / `Imaging DICOM`). **DICOM bytes:** multer streams to `uploads/tmp-<uuid>` (limit 300 MB, `DICOM_MAX_BYTES`), `UploadService.storeDicomFromDisk` checks `DICM` at byte 128 (extension and Content-Type prove nothing), refuses a local `PUBLIC_URL` like every upload, renames to `<uuid>.dcm`, and the temp file is always gone afterwards — it sits where `/uploads` is served. A file with no preamble is refused with a message, not guessed at. The name and the owner check run BEFORE the file is kept. Pinned in `patient-files.service.spec.ts` and `upload.service.spec.ts`; the integration spec against the test database is not written yet.
-
-## ⚠️ `patient-notes` — keyed by the SIGNED-IN USER, on purpose (2026-09-24)
-
-`DoctorPatientNote` (`manual-doctor-patient-note.sql`, applied 2026-09-24) is the
-one patient-scoped table that is NOT keyed by the workstation doctor: the
-physician's rule is that a personal note is visible to the person who wrote it
-and nobody else — not an assistant in the owner's workstation, not the owner
-reading an assistant's. So `@CurrentUser().id` is the ONLY key a note is read or
-written under, and `@WorkstationDoctorId()` is used for one thing: proving the
-patient is reachable through `PatientsService.get` (404 otherwise). Do not
-"fix" this to the workstation doctor, and never log it to `activity`.
-`patientInfo` is written on create only. Pinned in `patient-notes.service.spec.ts`.
-
-## ⚠️ Rule 2d — the IPD `clinical` column is REPLACED, so new per-admission data gets its own route
-
-`ipd.service.ts#update` writes `dto.clinical` verbatim (`data = { ...dto }`). Two
-consequences, both of which have to be designed around rather than lived with:
-
-- **A key the client omits is DELETED**, not left alone. No error, nothing in the
-  admission feed. The client builds the payload with `lib/ipdClinical.ts#mergeIpdClinical`
-  (start from the stored object, lay the known fields on top), and this side keeps
-  `preserveAnalogueSheets` for the case the client guard cannot cover: an old tab
-  still open on a ward PC after a deploy, or a rollback of the build that introduced
-  the key. Both halves are pinned in `ipd.service.spec.ts` / `ipdClinical.test.ts`.
-- **Two writers silently clobber each other.** There is no version check, and the
-  ward-team design means more than one person on one admission is the normal case,
-  not the rare one. Still open for the clinical fields — its own issue, and it needs
-  a 409 flow that does not cost the doctor their typing.
-
-So **new per-admission data does not ride this PATCH.** The analogue (paper)
-order-sheet pages are the worked example: `POST /ipd/:id/analogue`,
-`PATCH|DELETE /ipd/:id/analogue/:sheetId`, `POST .../restore`. Each one re-reads the
-admission inside a transaction, touches exactly one entry (or appends), and writes
-`clinical` back with every other key passed through. A whole-array write would have
-just relocated the clobber — two devices photographing the same sheet would
-overwrite each other's pages.
-
-Four more rules there are safety, not style:
-
-- **The server assigns `id` and `addedAt`.** The id is the handle every per-page
-  route addresses, and ward PCs have wrong clocks — a clinical timestamp is not
-  something to take from a browser.
-- **Removal is SOFT** (`removedAt` / `removedBy`). These are medico-legal documents:
-  the entry keeps its place, the file stays on disk, and a page removed by mistake is
-  recoverable long after the client's Undo bar is gone.
-- **Every operation writes an `IpdEvent` in the same transaction**, attributed to the
-  signed-in user (not the workstation's doctor), so the admission's own feed says who
-  added or removed a page.
-- **`assertMayEditAnalogue` deliberately does NOT require `ipd.analogue` of an
-  assistant.** The `ipd.*` keys are ticked per `IpdTeamMember` and are kept out of the
-  assistant editor on purpose (`client/CLAUDE.md`) — an assistant reaches IPD with no
-  key at all. Requiring one here would revoke something they can already do on every
-  other field of the same screen. The doctor and their assistants pass; any OTHER
-  actor (the ward-team login, when it is built) needs the key. Real the day that door
-  opens, denies nobody today.
-
-## ⚠️ `opd` — the queue is booked by DAY (28/10/2026)
-
-`OpdVisit.queueDate` (Dhaka `yyyy-mm-dd`) and `position` (1, 2, 3 …) name a visit's day and place; `OpdDaySetting` holds a day's chamber schedule (`manual-opd-queue-date.sql` — **apply it BEFORE the release is deployed**: every OPD request reads these columns). Rules that are safety, not style:
-
-- **The day is `queueDate`, never `createdAt`.** A patient can be booked today for a later day, so `createdAt` is no longer the day. A row an older build wrote has neither column (and so does one written between the SQL and the deploy): `OpdService.dayWhere` reads it as the Dhaka day it was created, and lists it after the rows that have a place; the next add or move numbers them in the order shown first (`queue-order.ts#renumber`).
-- **A day that has passed is locked in the SERVICE** (`PAST_DAY`, `TODAY_ONLY`): add, move and re-time are refused (400, in words for a doctor) before anything is read for writing or written, whatever a client sends. Done is for today only. `setRxStatusByPatient` (Save & print) marks TODAY's visit only — a patient booked for a later day is never the one marked printed. `opd.service.spec.ts` checks each refusal happens before a write; `test/opd-queue.int-spec.ts` runs the rest against the database.
-- **Order is a pure function** (`queue-order.ts`): a patient swaps places with the nearest patient still WAITING; someone already seen keeps their place and is not moved. Every write takes the doctor's advisory lock and `ROW_LOCK_TX` (the lock is waited for; Prisma's 5 s default would fail the writes at the back of a queue).
-- **The first visit added to a day saves its schedule** (`freezeSchedule`) when the day inherited one, so changing an earlier day later does not move times already told to patients. A day with no schedule of its own takes the latest earlier day's, else the pre-set values (`schedule.ts#DEFAULT_OPD_SCHEDULE`, a copy of the client's).
-- **`manual-opd-queue-date.sql` REPLACES the token-unique index.** `manual-opd-token-unique.sql` made a token unique per doctor and per day of `createdAt`; a later day's `T-01`, written today, would collide with today's `T-01`. The new script drops `OpdVisit_doctor_day_token_key` and builds the same guarantee on `(doctorId, queueDate, token)` (skipped with a NOTICE if a duplicate already exists). Checked on a scratch database with an old-shape table: the Dhaka-midnight boundary, a second run changes nothing, a later day's `T-01` is accepted and a true duplicate refused. **It has not been applied to the shared database** (applying it migrates production).
-- **Presence, urgency and status (physician's sheet, 29/10/2026).** `OpdVisit.presentAt`, `criticallyIll`, `urgent` (`PATCH /opd/:id/presence`, `manual-opd-presence.sql`). Rules that are safety, not style:
-  - **`presentAt` is the SERVER's clock**, never a time a client sends: it is set once and kept if Present is pressed again, and cleared when taken off. A browser's clock can be wrong, and the time is what reception tells the doctor.
-  - **Today's queue only** (400 "Only today's queue can be marked present."), refused in the service before any write. Another doctor's visit is a 404; the doctor is `@WorkstationDoctorId()` as everywhere.
-  - **`list` and `move` rows carry `pictureUrl` and `padStage`** (`decorate()` in `opd.service.ts`). The draft that `padStage` is read from NEVER leaves the server: the row says `'history' | 'pending' | null`, nothing of the text.
-  - **The patient lookup is scoped like `accessibleWhere`** (owner OR supervisor). A visit whose patient the practice cannot reach shows no picture and no stage. The owner's `incompleteRx` is read only for the owner's OWN patients; a supervising practice reads its own `SupervisedDraft` only, so one practice's work in progress never reads as another's.
-  - **A missing `SupervisedDraft` table (`P2021`) costs only the stage** of a supervised patient and is logged naming `manual-supervised-draft.sql`; any other error is thrown, not swallowed. A draft whose `ptDate` is not today (or has none) says nothing, so a visit parked yesterday never reads "History taken". **A row of a day other than today carries `padStage: null`** (a visit booked for tomorrow, or left unseen on yesterday's queue, must not read today's draft). The missing-table message is logged once per process, not on every list call.
-  - **`HISTORY_FIELDS` / `PENDING_FIELDS` in `src/opd/pad-stage.ts` are the ONE place that names which editor fields count** (physician: "Chief complaints or any data entry"). Change the lists there, nowhere else; the client has no copy.
-  - **`manual-opd-presence.sql` has NOT been applied to the shared database and must be applied BEFORE the release is deployed:** it adds three columns, and every queue read selects them.
-- **⚕️ Chambers (physician's sheet 28/10/2026, item 8; 01/11/2026).** A practice sits in several chambers (Labaid, Ibn Sina), each with its OWN queue, tokens, schedule and OPD print settings. `OpdChamber` / `OpdChamberLayout` (`src/chambers/`, `manual-opd-chambers.sql` — **apply it after `manual-opd-queue-date.sql` and BEFORE the release**: every queue read selects `chamberId`). Rules that are safety, not style:
-  - **`ChambersService.resolve(doctorId, X-Chamber)` is the ONE place that decides the chamber** — the header is a claim. No header or the default chamber's id → NULL; another live chamber of THIS practice → its id; another practice's, a removed one or a made-up id → 404 (never a quiet fall-back: a patient in the wrong chamber's list is told the wrong place). The OPD controller resolves it and passes `chamberId` into the service (`list`, `create`, `getSchedule`, `saveSchedule`, `setRxStatusByPatient`); calls on one visit by id (status, presence, move) act where the visit is (move within its own chamber).
-  - **NULL is the DEFAULT chamber**, always: every row from before chambers, and every new row of the default (never stored with its id), so the default's list is one predicate and nothing was backfilled. The default is made on the first `GET /chambers` (under an advisory lock; one per doctor, partial unique index), named "Main chamber", address copied once from the profile's first chamber; it cannot be removed.
-  - **NOT the profile's `Chamber` table**: `users.service.ts` deletes and recreates those rows on every profile save, so nothing may point at them.
-  - **Uniqueness moved to expression indexes Prisma cannot express**: `(doctorId, COALESCE(chamberId,''), queueDate, token)` and `(doctorId, COALESCE(chamberId,''), day)` replace `OpdVisit_doctorId_queueDate_token_key` and `OpdDaySetting_doctorId_day_key` — the new one is built first and the old dropped only once it exists; a duplicate is a NOTICE, the old index then stays (a second chamber's `T-01` on that day would fail until it is de-duplicated). `schema.prisma` has `@@index([doctorId, day])` on `OpdDaySetting` now, so the schedule is found with `findFirst` and written under the queue's lock (no `upsert` on `doctorId_day`). Verified on a scratch database with old-shape tables (idempotent second run, both guarantees, the duplicate NOTICE); `test/opd-chambers.int-spec.ts` applies the SQL to the test database itself.
-  - **Chamber print settings are OPD only** (`GET|PUT|DELETE /chambers/:id/layout`): no row → the doctor's own `PrescriptionLayout` prints; the first PUT starts from the practice doctor's settings. Chambers and their settings are written by the OWNER only (`ws.role`); an assistant reads them and chooses one.
-  - **A schedule is inherited only from the SAME chamber's earlier days**; a new chamber starts from the pre-set values.
-- **SMS to every patient of a day — built 2026-11-01 (`src/sms/`, `manual-sms-wallet.sql`, NOT applied to the shared database; apply it BEFORE the release is deployed).** `POST /opd/sms/preview` sends and charges nothing; `POST /opd/sms/send` is a press of the doctor's and carries the preview's `signature`. Rules that are safety, not style:
-  - **Today or a later day only, refused in the SERVICE** (`requireSendableDay`), and an empty day is refused. Never sent by itself.
-  - **⚕️ The chamber is the queue's** (multi-chamber, merged 01/11/2026): `OpdSmsController` resolves `X-Chamber` through `ChambersService.resolve` exactly as the OPD controller does (no header = the default chamber, NULL; another practice's or a removed chamber = 404) and the service reads `OpdService.list` / `getSchedule` for THAT chamber. The place the message names is that `OpdChamber`'s own name and address (`chamberOf`: `name, address`; the default chamber's app-given name "Main chamber" is left off, so it is its address — copied from the profile's first chamber when the default was made). Neither is ever picked separately from the queue: a patient of one chamber must not be told another's address. Both empty → a `problem` ("Add this chamber's name or address in Settings → Chambers"), nothing built. There is no `chamberId` in the body.
-  - **The time is the Print Queue's**: `OpdService.list` (the order shown — `OpdModule` exports `OpdService` for this) and `slotTimes` over `OpdService.getSchedule`. `schedule.ts#slotTimes` is a COPY of `client/src/lib/opdSchedule.ts#slotTimes`; the specs hold the same cases — edit one, edit both. A serial past midnight is skipped (no sample words it).
-  - **The words are the physician's samples** (`appointment-message.ts`, both languages, pinned against the samples in its spec; the Bangla sample is pinned with জনাব for a male patient): **the title follows the RECORDED sex** of the queue row (`normaliseSex`, a copy of `client/src/lib/sex.ts`) — জনাব / জনাবা in Bangla (physician, 01/11/2026), Mr. / Ms. in English (an assumption, by the same rule); a sex not recorded, or Other, gets no title, never a guess. **The Bangla time is wholly Bangla** — Bangla digits and a part-of-day word, no AM/PM (physician, 01/11/2026). `dr.` as written, an English name joined in Bangla with `-এ` / `-এর`, a leading `Dr.` in the profile's name left off. The part-of-day words beyond সন্ধ্যা are conventional ranges (`BANGLA_DAY_PERIODS`) — still the physician's to confirm.
-  - **Counted as the provider counts** (`segments.ts`: GSM-7 160/153, any non-GSM character → UCS-2 70/67, a character never split across parts); **1 taka per message counted** (`SMS_COST_TAKA_PER_SEGMENT`, the one constant).
-  - **Only what the gateway took is charged.** The job's cost is reserved (ledger `send`) under the wallet's lock, the messages go one at a time (`SmsService.send` — its `{ok, detail}` is shown per patient, never swallowed), and what did not go is refunded (ledger `refund`) in a `finally`. **An unconfigured gateway logs and answers ok — so `send` refuses it (503 `SMS_NOT_CONFIGURED`) before anything is reserved.**
-  - **One job per (doctor, chamber, day, language)** (`SmsSendJob.chamberId`), decided under `pg_advisory_xact_lock('sms:…')`: a job still `sending` (within 30 min) is 409 `SMS_SENDING`; a patient sent this very message (number + words) within 30 minutes makes it 409 `SMS_REPEAT` unless `confirmRepeat`.
-  - **The wallet** (`sms-wallet.service.ts`): `SmsWallet.doctorId` is the PRACTICE doctor (`@WorkstationDoctorId()`); balance and ledger change together in one transaction holding `SELECT … FOR UPDATE` on the wallet, with `ROW_LOCK_TX`; never below 0 (refused before writing; the SQL adds a CHECK). `test/sms-wallet.int-spec.ts` runs two sends at once against the database (checked red with the lock and the check broken, in a copy).
-  - **Who:** preview / send / balance — anyone at the workstation, an assistant included (the OPD queue is open to every assistant: `opd.addPatient`, always granted); ledger and payment requests — the doctor only (`ws.role === 'owner'`). A payment request's `quantity` is the SMS to buy (`sms`, required) or the MONTHS of the monthly subscription to renew (`renew`, optional — physician, 01/11/2026: "Renew means monthly subscription fees"); no fee or package is the app's. Admin routes (`/admin/payment-requests`) take `RolesGuard` + `@Roles('admin')`.
-  - **Not covered:** a job cut short by the process ending stays `sending` with its reservation taken (its `results` say what went so far); after 30 minutes a new send is allowed, the reservation is not refunded by itself — an admin `adjust` is by hand, and there is no route for it. Delivery reports are not read: "sent" means the gateway accepted it.
-
-## ⚠️ Rule 3 — ValidationPipe strips unknown fields
-
-`main.ts` uses `ValidationPipe({ whitelist: true })`. **Any new field the client sends must be added to the DTO** (`src/*/dto/*.ts`) or it is silently dropped — a classic "saved but nothing persisted" bug. For JSON columns follow the existing pattern in `patients.service.ts#update`: destructure the field, cast via `Prisma.InputJsonValue`, use `Prisma.DbNull` for explicit nulls.
-
-## Auth architecture (don't regress these)
-
-- Access token `mhs_at` (15 min) + refresh `mhs_rt` (rotated, path `/api/auth`), both httpOnly. `publicUser()` must keep returning `accountTier` — the client's tier gates read it from the login/refresh response.
-- **Rotation grace window (10 s, same User-Agent only)** in `auth.service.ts#refresh` (`ROTATION_GRACE_MS`; was 30 s until the CSO pass): a just-rotated token presented again by the SAME browser while the family has a live successor is a benign concurrent-refresh race (multiple tabs / client+admin share the cookie) → issue a fresh token. A different or missing User-Agent inside the window is treated as theft. Only replay after the window, or against a dead family, revokes the family. Removing this brings back the "everyone logs out on reload" bug.
-- Client `apiFetch` silently refreshes once on 401 and only logs out on a definitive rejection; keep server semantics compatible.
-- `revokeAllForUser` is the admin evict path; sessions die within one access-token lifetime.
-
-## Prisma specifics
-
-- Regenerating on Windows requires the dev server stopped (root CLAUDE.md). If a freshly added column isn't in the generated client yet, the codebase uses loose casts (`const extra = rest as Record<string, unknown>`) — acceptable short-term, regenerate ASAP.
-- JSON columns carrying medical history (`investigationSummary`, `onExaminationSummary`, `drugHistory`, `incompleteRx`, `familyMembers`, IPD `clinical`) are **append/merge on the client, whole-value writes on the server**. Never "fix up" their contents server-side without an explicit migration script.
-- **`onExaminationSummary` is written by the server only, under the row lock (`ROW_LOCK_TX`):** `POST /patients/:id/on-examination` APPENDS (31/10/2026), and since 02/11/2026 `POST /patients/:id/on-examination/remove` and `/restore` take a `Disease Hx:` / `Surgical Hx:` entry off SOFTLY and put it back (`setHxRemoved` in `patients/on-examination.ts`; the sidebar's History block, physician's sheet 28/10/2026 item 7). A removed entry stays in the array with `removedAt` (ISO) and `removedBy` (the practice doctor's name, never a client's word); every client reader leaves it out (`isRemovedOe`), and the append does not count it as "already there", so the same words written again are a new entry. An entry is named by kind + its words (case and outer spacing aside), not by index or id, so entries from before the change (no id) can be named, and every copy of the same history (written at two visits) goes together. Same reach as the append: the owner's practice AND a supervising one (`accessibleWhere`); an assistant needs any `rx.*`. Nothing to do is a 409 in a doctor's words. Only those two prefixes can be named — an examination finding cannot be removed. `on-examination.spec.ts`, `test/on-examination-append.int-spec.ts`.
-- Seed: `npm run seed` (needs `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD`).
-
-## SSE mirror
-
-`mirror` fans out editor snapshots per user in-memory. The `@Sse('stream')` route sets `X-Accel-Buffering: no` — required or nginx buffers the stream in prod and mirroring "stops working". Keep it on any new SSE route.
-
-## ⚠️ Adding a `.ts` file OUTSIDE `src/` can take production down
-
-Happened 2026-07-30: `scripts/sms-test.ts` was added, CI deployed, and the API
-served **502** until it was reverted-by-fix. Nothing was wrong with the file.
-
-`tsconfig.json` sets **no `rootDir`**, so TypeScript infers it from the common root
-of the input files. Every `.ts` used to live under `src/` (`scripts/` held only
-`.js`/`.py`, `prisma` and `test` are excluded), so the inferred root was `src/` and
-`nest build` emitted `dist/main.js`. Add one `.ts` anywhere else and the common root
-becomes the project root: output silently moves to `dist/src/main.js`, `start:prod`
-(`node dist/main`) can't resolve it, pm2 crash-loops, nginx returns 502.
-
-`tsconfig.build.json` now excludes `scripts`, so that one path is safe. Anything
-else outside `src/` (a `tools/`, a root-level `foo.ts`) reintroduces it.
-
-**`npx tsc --noEmit` cannot catch this** — it type-checks and emits nothing, so it
-is green either way. Before pushing a new file outside `src/`, run the real build
-and check the artifact:
-
-```bash
-cd server && rm -rf dist && npm run build && ls dist/main.js
-```
-
-No `dist/main.js` means the deploy will 502.
-
-**Since 2026-10-16 `tsconfig.build.json` sets `"rootDir": "./src"`**, and the silent
-move is a compile error: `TS6059: File 'tools/stray.ts' is not under 'rootDir'`,
-`nest build` exits 1, and the deploy stops before `pm2 restart all` (it builds each
-app in a subshell — `deploy.yml`). In THIS failure TypeScript still writes
-`dist/main.js` in the right place, so a later restart finds it — not in every
-failed build: `nest build` empties `dist` first, so a build that fails before
-writing leaves a later restart with nothing to start (root `CLAUDE.md`, Deploy). Checked in a copy of `server/` with a
-stray `tools/stray.ts`: without the setting the build was GREEN with its output at
-`dist/src/main.js`; with it, red. Two things about it are load-bearing:
-
-- **It is in the BUILD config, not `tsconfig.json`.** `tsconfig.json` has no
-  `include`, so it also reads `test/`, `prisma/seed.ts` and `scripts/*.ts` — the
-  CI typecheck (`tsc --noEmit -p tsconfig.json`) checks them, and a `rootDir`
-  there would refuse them.
-- **`tsBuildInfoFile` keeps the incremental cache inside `dist/`.** `incremental`
-  is on, and given a `rootDir`, TypeScript puts its cache beside the config
-  (`server/tsconfig.build.tsbuildinfo`) instead of in `dist/`. `nest build`
-  deletes `dist/` but not that file, so the NEXT build read a cache saying
-  everything was already written and wrote nothing: exit 0 and no
-  `dist/main.js` — the 502 this guards against, on the second deploy. The first
-  version of this change did exactly that, and only a second build in a row
-  showed it. A change to these configs is checked with two builds in a row.
-
-## Gotchas
-
-- **The medicine database is a raw Postgres table `medicines` that is NOT in `schema.prisma`** — `medicines.service.ts` queries it with `$queryRaw` (bound params, brand-before-generic ranking). Don't look for a Prisma model, don't let a destructive schema push touch it, and keep any new query parameterized.
-- Email (OTP verification, notifications) is nodemailer over SMTP — `SMTP_HOST/SMTP_USER/SMTP_PASS` env. Without them the transporter is null (dev): signup OTP won't arrive; that's configuration, not a bug.
-- **SMS** (`sms/sms.service.ts`, 24bulksmsbd) — `SMS_CUSTOMER_ID/SMS_API_KEY`, optional `SMS_API_URL`. Same unconfigured-is-fine posture as mail: it logs instead of sending. **`SmsModule` is in `AppModule` since 2026-11-01** — its first caller is the SMS to a day's queue (`opd` section above); the cross-practice OTP-consent design can use the exported `SmsService`. Two rules for every caller: `send()` returns `{ok, detail, ms, raw}` and must never be `void`-ed into a swallowed catch — a lost access code that nobody hears about is the whole failure mode; and the gateway answers **HTTP 200 for business failures too** (bad key, no balance), so status alone is not proof of delivery, which is why the body is pattern-checked and the first few raw responses are logged. Numbers go through `normaliseBdMobile()`, which refuses anything that isn't `01[3-9]XXXXXXXX` rather than guessing — a guessed digit sends a patient's code to a stranger.
-- `CORS_ORIGIN` env is a comma list and must include every frontend origin (localhost:3000/3001 + prod domains) — a missing origin looks like random auth failures.
-- Activity log (`activity`) is the doctor-facing audit trail; when adding a feature that records clinical input, log it (`section`, `detail`, optional `imageUrl`) so it appears in "Notifications, Chats & Reports". `detail` is capped at **400 chars** — trim free-text names (a chief complaint is doctor-typed) before interpolating, or the whole log call 400s. **`ActivityService` takes an already-resolved `doctorId` and must never resolve a practice itself.** It used to re-derive one from what it treated as a user id (`Assistant where assistantId = …`); because the controller passes `@WorkstationDoctorId()`, a doctor who ALSO assists someone else silently read and wrote the OTHER practice's feed — patient names and clinical detail across the boundary Rule 1 exists to hold. Fixed 2026-08-27 (CSO audit) and pinned by `activity.service.spec.ts`, which asserts `prisma.assistant` is never touched. The general rule: **`WorkstationGuard` is the only place allowed to decide whose practice a request acts on** — a service that resolves it again is a second, unreviewed answer to the same question.
-- **Backfilling old thumbnails: `node scripts/backfill-image-thumbs.js [--dry-run] [--limit N]`** (2026-09-07). Generates the 400px copies for gallery images filed before `imageThumbs` existed, with sharp, at the same size and quality the browser uses (400px long side, JPEG q80 — keep it in step with `client/src/lib/imageThumbs.ts`). Four things about it are deliberate: it **only ever adds keys** to the display-only map and never touches `prescriptionImages` / `reportImages`; it **must run on the machine that holds the files** (the DB is shared, `uploads/` is not — a laptop run skips the 178 production images and finds only its own), and it **refuses to write when `PUBLIC_URL` is localhost** because that run would put unreachable thumbnail URLs into the doctors' real records; it installs sharp into **`scripts/.tools/`** rather than `server/node_modules`, since a plain `npm install sharp` here reported *"added 10 packages, removed 4, changed 64"* — the live API's dependency tree moving to add a resizer — and touching `package-lock.json` is what blocked a deploy on 2026-07-20; and it merges under a `FOR UPDATE` lock so a doctor adding an image mid-run is not silently overwritten. It does **not** cover the ward's analogue order sheets: that column is written through per-page routes with their own soft-delete and audit trail, and a script doing read-modify-write on it could clobber a round in progress.
-- **`/uploads` is served `immutable, max-age=365d` (2026-09-07), and that is correctness, not speed.** express.static's default is `Cache-Control: public, max-age=0`, which caches the bytes but makes the browser **revalidate every one of them on every use**. A patient records page carries dozens of images (48 on a real record), `api.muqsithealthsystem.com` negotiates **no HTTP/2** (verified: no ALPN), so those revalidations queue six at a time behind the app's own API calls and the SSE mirror stream — every tile sat blank until its round trip returned, and one request dropped on a clinic connection left it blank until the whole page was reloaded. That was the reported "images are broken until I reload". `immutable` is a fact here, not a hope: every upload is written under a fresh `randomUUID()` name and nothing in the app rewrites one, so a changed image is always a new URL and a stale cache entry cannot show a doctor the wrong page. **Do not add an overwrite-in-place upload path without removing this first.** The client's other half is the failed-tile retry in `ImageGallery` (`client/CLAUDE.md`).
-- **⚕️ An upload URL is ABSOLUTE and carries the environment that minted it — so a localhost one is REFUSED (2026-09-20).** `upload.service.ts` stamps `${PUBLIC_URL}/uploads/<uuid>` into the patient's record at upload time. On a laptop that is `http://localhost:4000`, and **the database is the live one** (dev tunnels to it), so every image uploaded while working locally landed in a doctor's real record as an address no other machine can open: the live site showed "Did not load" and the console read `net::ERR_CONNECTION_REFUSED`. It hid for months because it looks perfect on the machine that created it, and it reached further than the two galleries — the scan found **274 files across `ActivityLog.imageUrl` (266 rows), `Patient.prescriptionImages`, `reportImages`, `imageThumbs` and `pictureUrl`**. `uploadImage` now throws `503` **before `writeFileSync`** (a refused upload must not leave an orphan on disk) whenever the origin resolves to localhost/127.0.0.1/::1/0.0.0.0, unless `ALLOW_LOCALHOST_UPLOAD_URLS=true`. That flag is opt-in and **never inferred**: the tunnel makes the production database look like `localhost:5432`, so the `DATABASE_URL` host cannot tell a local database from the live one. Anything but the exact string `true` fails closed. Pinned in `upload.service.spec.ts`.
-  - **Repair, never hand-edit: `node scripts/repair-localhost-image-urls.js [--scan|--stage <dir>|--apply --target <origin>]`.** It finds the URLs by asking `information_schema` which text/JSON column actually holds one, rather than listing models by hand — that is how the 266 activity-feed rows were found at all. Three rules are safety, not style: it **HEAD-checks every filename at the target first and rewrites only a live 200** (a broken link a doctor can report beats a rewritten one that 404s silently); it changes **only the host prefix** of a matched URL, never the filename, array order or JSON shape; and each column is one **atomic UPDATE**, so a doctor saving the same row mid-run cannot lose their write to a read-modify-write. Idempotent — a repaired URL no longer matches. **Order matters: the files must be copied to the serving machine BEFORE `--apply`**, or verification refuses everything and nothing is written (`--stage` collects them for `scp`).
-- **⚕️ ONE format table, and it reads the BYTES (2026-09-20).** `upload.service.ts#sniff` is the single gate deciding what may be stored: **JPEG, PNG, GIF, BMP, WEBP, AVIF, HEIC/HEIF, TIFF**. Three things changed and each fixed a real rejection or a real unviewable file:
-  - **TIFF was refused outright.** Most document scanners produce it, so a doctor picking their own scan was told "File is not a valid JPEG, PNG or WEBP image". Now accepted.
-  - **The stored EXTENSION now comes from the content, never the filename.** It used to prefer the uploaded name and fall back to the MIME subtype, so HEIC bytes were saved as `.jpg` whenever the browser sent `application/octet-stream` (routine on Windows) — served as `image/jpeg` and undrawable by anything. The extension decides the `Content-Type` express.static serves, so it has to describe the bytes.
-  - **The multer MIME filter is gone**, deliberately. It refused anything whose `Content-Type` did not start with `image/`, which threw away real HEIC and TIFF uploads. The header is caller-supplied and was never evidence; an empty filter plus the magic-byte check is strictly stronger than a trusted-header filter plus the same check. Five HEIF brands a real iPhone emits (`hevx`, `heim`, `heis`, `hevm`, `hevs`) were also missing and read to the doctor as a corrupt photo.
-  - **SVG stays refused, permanently.** It is a script-bearing document and this app renders stored images inline — that is a security boundary, not a format gap. PDF is refused too (it is not an image; the galleries render `<img>`).
-  - The rejection message now names every accepted format. It used to say "JPEG, PNG or WEBP" while the code also took GIF, BMP, AVIF and HEIC, sending doctors to convert files that would have been accepted.
-  - The client mirrors this table in `client/src/lib/imageFormats.ts` and converts HEIC/TIFF to JPEG **before** upload, so one arriving here is a browser that could not. The two copies are pinned by tests sharing the same signature literals (`upload.service.spec.ts` ⇄ `imageFormats.test.ts`) — **edit one, edit both.**
-- **CORS is registered BEFORE `useStaticAssets` in `main.ts` (2026-09-24), and the order is load-bearing.** express.static answers a file itself and never calls `next()`, so with CORS registered after it every real `/uploads` file went out with no `Access-Control-Allow-Origin` (only 404s had one). The galleries' Download PDF reads the image bytes with `fetch`, which the browser refuses cross-origin without it. Only the `CORS_ORIGIN` list is allowed; `<img>` loading is unaffected.
-- Uploaded files are on-disk under `uploads/` (served at `/uploads/<file>`) — hosted URLs, never base64 into the DB. `server/.gitignore` anchors this as `/uploads/`: an unanchored `uploads/` **also matched `src/uploads/`**, the upload module, so a new file added there was silently untracked and never deployed. Keep the leading slash.
-- **⚠️ multer is lifted to 2.4 under Nest 10 by an `overrides` entry in `package.json` (2026-10-16), and the public upload route takes ONE file and no text field.** `@nestjs/platform-express` 10 pins multer 2.0.2, which carries eight denial-of-service advisories fixed in 2.3.0 (GHSA-wc9g-mqfw-jrwm, GHSA-535w-7cp7-47q4, GHSA-72gw-mp4g-v24j, …) — on `POST /uploads/image`, which anyone on the internet can reach. Three things came with it, each held in `test/uploads.int-spec.ts`, the first spec to send a real multipart request through the route:
-  - **Nest 10 maps multer's errors by their MESSAGE** (`multer.utils.js#transformException`), and multer 2.4 reworded "Unexpected field" and raises codes Nest 10 does not know (`INVALID_FIELD_NAME`, `LIMIT_FIELD_NESTING`, …): unmapped, a file under the wrong field name was a 500 logged as a server fault. `uploads/multer-error.filter.ts` answers whatever Nest leaves by multer's stable CODE — 413 for a file over the limit, 400 otherwise.
-  - **`limits.fields: 0`.** The one caller (`client/src/lib/api.ts#uploadImage`) sends a single part, the file. The advisories ride in text fields' NAMES; with no text field accepted, such a name is refused before it is parsed. A new caller that needs a field must widen this on purpose.
-  - **Drop the override when Nest is upgraded** to a platform-express that ships a fixed multer. `uploads/multer-version.spec.ts` fails if the override is lost and multer goes back below 2.4.
-- The upload size limit is **8 MB on purpose**. `compressImage()` on the client returns the ORIGINAL file whenever `createImageBitmap` throws (HEIC on most desktop browsers), for GIFs, and whenever the re-encode isn't smaller — and `upload.service.ts#checkMagic` accepts `heic`/`heif`/`avif` deliberately. iPhone report photos are routinely 3-8 MB; a tighter ceiling rejects real uploads. The hardening that matters is the magic-byte check, not the last few MB.
+- **Editor lifecycle: drafts, reload, visit state, device mirror** → [`docs/rules/editor-lifecycle.md`](../docs/rules/editor-lifecycle.md) — 18 entries. Named there: `patients.service.ts#withOwnDraft`, `PUT /patients/:id/supervised-draft`, `forViewer`, `mirror`, `ROW_LOCK_TX`, `X-Accel-Buffering`.
+  - A practice never reads another's draft: a Patient read for a possibly-supervising caller goes through `PatientsService.get` / `findByMobile` or `forViewer` (+N more: drug-history, on-exam).
+  - `mirror` fans out editor snapshots in-memory; every SSE route must set `X-Accel-Buffering: no` or nginx buffers the stream in prod.
+- **The ℞ pad and Save & print** → [`docs/rules/rx-pad.md`](../docs/rules/rx-pad.md) — 20 entries. Named there: `opd.service.ts`, `repeat.ts#sameContent`, `prescription.create`, `REPEAT_WINDOW_MS`, `prescriptions.service.spec.ts`, `repeat.spec.ts`.
+  - `create()` answers a request identical to the latest Rx for the patient within 30 min with that one; never narrow comparison, window or lock; a new DTO field needs a line in `repeat.ts` (+1 more).
+  - The habit write is awaited, in try/catch, AFTER `prescription.create` returns — it must never fail or roll back a prescription; `prescriptions.service.spec.ts` is the regression spec for `create()`.
+- **Prescribing alerts, drug hypersensitivity, high-alert medication** → [`docs/rules/rx-alerts.md`](../docs/rules/rx-alerts.md) — 34 entries. Named there: `manual-patient-drug-safety.sql`, `/patients/:id/drug-safety`, `PatientDrugSafety`, `ROW_LOCK_TX`.
+  - `PatientDrugSafety` (SQL not applied yet): any reaching practice reads/adds; edit/remove only own entries (owner: all); removal SOFT; server never fills `generic`; no FK to `User` (+N more).
+- **"Your usual", learned phrases, Add Bulk Medicine, drug advice** → [`docs/rules/habits-and-phrases.md`](../docs/rules/habits-and-phrases.md) — 61 entries. Named there: `doctor-phrases/normalise.ts`, `scripts/rebuild-rx-habits.js`, `drug-advice/keys.ts`, `lib/rxDrugAdvice.ts`, `rx-habits/rxLanguage.ts#cellInEnglish`, `scripts/rebuild-doctor-phrases.js`.
+  - A habit/phrase `patientCount` is never `increment: 1`: it counts distinct patients, taken from the record.
+  - A derived-feature write never fails a prescription save: it runs awaited, in try/catch, after `prescription.create`.
+  - A "fail silently" rule is never handed to a second caller without the thing that made it safe: for the bulk list the generic lookup throws (`listAll` does not catch what `attachGenerics` throws; `list` does).
+  - A flag is never carried across a fold by the wording that won alone (`rebuild-rx-habits.js`): every wording that landed on the habit is tried for `hidden` / `pinned`, and `hidden` wins.
+  - `attachGenerics` THROWS on a failed catalogue lookup: `list()` catches it, `listAll()` must not — a silent-fail rule is safe only with a caller that has a second source.
+  - `catalogueRows` asks the catalogue ONCE by equality on the brand's first word — never turn it back into a `LIKE`, never use `= ANY($1)`; two generics for one medicine: the first is used, logged.
+  - A Bangla dose/food/duration is the same habit as its English via `cellInEnglish` (copy of the client table); nothing outside the table read; rebuild keeps `hidden` from ANY folded wording (+1 more).
+- **The visit sheet and the app shell** → [`docs/rules/visit-sheet.md`](../docs/rules/visit-sheet.md) — 12 entries. Named there: `POST /patients/:id/on-examination`, `isRemovedOe`, `onExaminationSummary`, `setHxRemoved`.
+  - `onExaminationSummary` is written by the server only, under `ROW_LOCK_TX`: append, and SOFT remove/restore of `Disease Hx:` / `Surgical Hx:` entries by kind + words; findings cannot be removed.
+- **Patient Records page and files** → [`docs/rules/records-page.md`](../docs/rules/records-page.md) — 8 entries. Named there: `patients.service.ts#update`, `manual-patient-files.sql`, `manual-patient-image-thumbs.sql`, `manual-patient-last-rx-image-key.sql`, `RX_LIFECYCLE`, `DICOM_MAX_BYTES`.
+  - `Patient.imageThumbs` is a display-only side map riding `...rest`, not in `RX_LIFECYCLE`; it must never widen the `pt.info` key and only travels in the same PATCH as its gallery.
+  - `Patient.lastRxImageKey` (SHA-256 of the newest auto snapshot) rides `...rest`, not `RX_LIFECYCLE`; only travels with `prescriptionImages` and must not widen `pt.info`; NULL = nothing filed yet.
+  - `PatientFile`: add/remove owner practice only (assistant needs `pt.info`); DICOM is premium-only, checked on the server; removal SOFT; DICOM bytes checked for `DICM` at byte 128 (+N more).
+- **OPD queue, chambers, appointment SMS** → [`docs/rules/opd.md`](../docs/rules/opd.md) — 18 entries. Named there: `src/opd/pad-stage.ts`, `manual-opd-queue-date.sql`, `queue-order.ts#renumber`, `manual-opd-chambers.sql`, `manual-opd-presence.sql`, `manual-opd-token-unique.sql`.
+  - A queue's day is never found through `createdAt`: `OpdVisit.queueDate` says whose day it is; a day that has passed is refused by the SERVICE, not hidden by the screen.
+  - `ChambersService.resolve` is the ONE place deciding the chamber: foreign/removed/made-up id is 404, never a fall-back; NULL is the default; never point at profile `Chamber` rows (+N more).
+- **IPD: ward sheet, order sheets, wards and their teams** → [`docs/rules/ipd.md`](../docs/rules/ipd.md) — 31 entries. Named there: `lib/ipdClinical.ts#mergeIpdClinical`, `ipd.service.ts#resolveWard`, `wards.controller.ts`, `POST /ipd/:id/analogue`, `PATCH|DELETE /ipd/:id/analogue/:sheetId`, `POST /ipd`.
+  - New per-admission data is never sent through the IPD `clinical` PATCH (it replaces the whole column): give it its own route (see `/ipd/:id/analogue`).
+- **Patient chat, notes, activity feed** → [`docs/rules/chat-and-notes.md`](../docs/rules/chat-and-notes.md) — 7 entries. Named there: `ActivityService`, `DoctorPatientNote`, `PatientsService.get`, `WorkstationGuard`, `@CurrentUser().id`, `activity.service.spec.ts`.
+  - `DoctorPatientNote` is read/written only under `@CurrentUser().id`; `@WorkstationDoctorId()` only proves reach — do not "fix" it to the workstation doctor, never log it to `activity`.
+  - `ActivityService` takes an already-resolved `doctorId` and must never resolve a practice itself; `detail` capped at 400 chars — trim free text (+1 more: log clinical input).
+- **Settings → Statistics** → [`docs/rules/statistics.md`](../docs/rules/statistics.md) — 14 entries. Named there: `client/src/lib/opdPresence.ts#isCompleted`, `visit-stats.ts`, `/statistics/diseases`, `GET /statistics/visits/days|months|overall`, `queueDate`, `ChambersService.resolve`.
+- **SMS and payment** → [`docs/rules/sms-and-payment.md`](../docs/rules/sms-and-payment.md) — 2 entries. Named there: `sms/sms.service.ts`, `manual-sms-wallet.sql`, `sms-wallet.service.ts`, `POST /opd/sms/send`, `src/sms/`, `normaliseBdMobile()`.
+  - Day SMS: never sent by itself, today/later only; chamber and time are the queue's; title from RECORDED sex, never guessed; charge only what the gateway took (+N more; SQL not applied).
+  - `SmsService.send()` result must never be `void`-ed into a swallowed catch; HTTP 200 is not delivery proof; numbers go through `normaliseBdMobile()`, which refuses rather than guesses.
+- **Uploads** → [`docs/rules/uploads.md`](../docs/rules/uploads.md) — 20 entries. Named there: `client/src/lib/imageFormats.ts`, `client/src/lib/imageThumbs.ts`, `scripts/backfill-image-thumbs.js`, `scripts/repair-localhost-image-urls.js`, `uploads/multer-error.filter.ts`, `upload.service.ts#checkMagic`.
+  - Upload URLs minted on localhost are never stored (the dev DB is production); `upload.service.ts` refuses them.
+  - `uploadImage` refuses (503, before `writeFileSync`) a localhost `PUBLIC_URL` unless `ALLOW_LOCALHOST_UPLOAD_URLS=true` exactly; never inferred (+1 more: repair script).
+  - `upload.service.ts#sniff` is the one format gate, by BYTES; the stored extension comes from content, never filename; SVG and PDF stay refused; client copy: edit one, edit both (+N more).

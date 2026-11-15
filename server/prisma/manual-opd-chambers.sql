@@ -2,7 +2,7 @@
 -- sits at Labaid and at Ibn Sina keeps a separate OPD list, schedule and print
 -- settings for each. See OpdChamber / OpdChamberLayout / OpdVisit.chamberId /
 -- OpdDaySetting.chamberId in schema.prisma and
--- docs/superpowers/specs/2026-11-01-multi-chamber-design.md.
+-- docs/decisions/2026-11-01-multi-chamber-design.md.
 --
 -- ⚕️ ADDITIVE AND IDEMPOTENT, with TWO index replacements (4 and 5 below). This
 -- database is SHARED with production (root CLAUDE.md), so applying this through

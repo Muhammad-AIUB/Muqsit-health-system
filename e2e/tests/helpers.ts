@@ -117,14 +117,14 @@ export async function login(page: Page, role: Role) {
   // The address changes before the page is drawn: the dev server may still be
   // handing over the page's own script. With anything else heavy on the
   // machine that one request has taken 13 s (the trace's network list shows
-  // it, twice now — e2e/README.md), and the default 15 s ran out as the page
+  // it, twice now — docs/testing/e2e.md), and the default 15 s ran out as the page
   // appeared. THAT wait is the dev server's and gets its own allowance; the
   // page being drawn once its script is here is the app's own work and keeps
   // the default 15 s, so a page that has become slow to draw still fails.
   // (One 60 s wait for both hid exactly that — and with the 60 s above it
   // came to the whole 120 s a test is given.)
   await page.waitForFunction(routeScriptIsHere, ROUTE_SCRIPT, { timeout: 30_000 })
-    .catch(() => { throw new Error(`the page's script (${ROUTE_SCRIPT}) did not arrive within 30 s of the address changing — see e2e/README.md`); });
+    .catch(() => { throw new Error(`the page's script (${ROUTE_SCRIPT}) did not arrive within 30 s of the address changing — see docs/testing/e2e.md`); });
   await expect(mobileLookup(page)).toBeVisible();
 }
 
@@ -150,7 +150,7 @@ export async function createPatient(page: Page, mobile: string, name: string) {
  * Waits until the page's main thread is idle, i.e. React has finished the
  * renders an edit set off. The ℞ pad and the prescription model sync through
  * two effects, and a second edit landing before the first has settled can send
- * them into a render loop (DEFECT-E1 in e2e/README.md) — a doctor's keystrokes
+ * them into a render loop (DEFECT-E1 in docs/testing/e2e.md) — a doctor's keystrokes
  * are a human distance apart, a script's are not.
  */
 export async function settle(page: Page) {

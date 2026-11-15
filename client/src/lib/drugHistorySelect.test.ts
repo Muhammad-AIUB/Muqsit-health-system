@@ -2,7 +2,7 @@
 // Every expectation here is a clinical fact, not a formatting nit: a red test
 // means a dose, a taper or a whole medicine reaches the ℞ differently than the
 // physician decided on 2026-09-21. Check the design note before touching one:
-// docs/superpowers/specs/2026-09-21-drug-history-multi-select-design.md
+// docs/decisions/2026-09-21-drug-history-multi-select-design.md
 
 import { describe, it, expect } from "vitest";
 import { appendBlocks, blocksFromRows, moveSummary, type HistoryRow } from "@/lib/drugHistorySelect";

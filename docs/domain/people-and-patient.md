@@ -1,0 +1,22 @@
+# Domain — People, access and the patient
+
+> Part of the shared vocabulary ([glossary](../DOMAIN.md)). Each entry is a concept with the physician's decisions behind it, moved here word for word from `docs/DOMAIN.md` on 2026-11-15. Keep it current in the same commit as the change (PRIME DIRECTIVE rule 7), and its line in the glossary with it.
+
+## People and access
+
+- **Account tiers:** `primary`/`premium` own a practice ("workstation"); `secondary` can only work as someone's assistant (upgrade gate otherwise). New signups start `secondary`; admin app promotes.
+- **Workstation:** the practice a request acts on. Client sends `X-Workstation: <doctorId>`; server resolves owner/assistant + permissions. See server/CLAUDE.md.
+- **Assistant:** a user another doctor added (`Assistant` table) with granted permission keys; works inside that doctor's workstation.
+- **Ward / IPD team (2026-08-15):** a **Ward** is a named group of admitted patients inside one practice (`Ward`, unique name per doctor), and its **team** (`IpdTeamMember`) is whoever works that ward — every admission on the ward is under the whole team, and membership is expected to change with the rota. Managed at Settings → "Manage your assistants and IPD team", **owner-only** (the routes take the signed-in user's own id, never a workstation doctor). Permissions are ticked **per member** (`ipd.*` keys), because a ward mixes doctors and nurses; a new member starts with nothing ticked. `IpdAdmission.wardId` is the link and `wardNo` stays the displayed name — an admission recorded before wards existed keeps its free-typed text and belongs to no team until someone picks a ward for it on the IPD detail page. **Not yet built: the team member's own login.** Adding people to a ward does not yet let them reach it — see server/CLAUDE.md for why that must not be bolted onto `WorkstationGuard`.
+
+- **Supervised doctor (4.docx):** per-PATIENT link (`PatientSupervisor`). The supervisor logs into **their own** account, finds the patient by mobile ("SUPERVISED" badge), sees patient info (records/summaries/history) but **never** the owner's prescriptions or draft, and prescribes fresh under their own `doctorId`. No workstation involved. Their own unprinted visit is parked like the owner's (19/10/2026): in a place of the supervising practice's own (`SupervisedDraft`), which a read of the patient returns to that practice as `incompleteRx` — a reload, another patient opened or the next sign-in no longer loses it.
+
+## The patient
+
+- **The patient photo (02/11/2026):** the header's photo is always the photo of the patient on screen — cleared with the rest of the editor ("New Prescription", another practice, a fresh login, Save to complete later), replaced when a patient is opened, never put back by a patient fetch that lands after the doctor moved on, and never handed to a NEW patient saved from a cleared screen (it was: the new record was created with the last patient's photo and watch flag). A wrong face on a prescription screen is a patient-safety defect (`client/CLAUDE.md`, Editor lifecycle).
+
+- **Patient ≠ property of a doctor.** The same person returns to a different doctor and is found again by mobile number, so deleting a doctor's account must never delete their patients (`Patient.doctorId` is `onDelete: SetNull`). Their own prescriptions do cascade — those were never visible to another doctor. **Open gap:** an unowned patient (`doctorId = null`) is retained but not yet findable, because the lookup matches owner-or-supervisor. Closing it needs a deliberate access design, not a quiet widening. See `server/CLAUDE.md`.
+
+- **The patient gate (3.docx; closed to the keyboard since 2026-10-06).** Nothing can be written on a prescription until a patient is chosen — picked from the mobile lookup, or created with Add New. Until then the editor is shown, blurred, and takes neither the mouse nor the keyboard: before that date it stopped only the mouse, and Tab from the mobile box could put text on the ℞ pad with no patient behind it. The mobile box above the gate is the one way in. See `client/CLAUDE.md` ("The 3.docx mobile gate").
+
+- **The patient list on a phone (2026-10-09).** A phone's bottom bar has six places: Rx, OPD, IPD, Supervised, Research and More. Patients — the patient records and the surveillance list — is reached through **More**, whose page starts with it; until then it could be opened on a phone only by typing its address. Nothing about who may see which patient changed: it is the same screen the desktop's Patients tab opens.
