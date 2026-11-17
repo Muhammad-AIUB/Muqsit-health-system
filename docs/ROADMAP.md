@@ -125,7 +125,8 @@ Chambers, SMS and payment, Settings → Statistics, patient files (Permissions, 
 
 - `manual-*.sql` files recorded as not applied and needed before the release that reads them — see 1.6 ([`audit/db-and-prisma.md`](audit/db-and-prisma.md)).
 - `server/test/patient-drug-safety.int-spec.ts` written and typechecked but not run; no browser pass; eight assumptions for the physician ([`audit/rx-alerts.md`](audit/rx-alerts.md)).
-- No integration spec against the test database for `patient-files` ([`rules/records-page.md`](rules/records-page.md)); records-page questions for the physician ([`audit/records-page.md`](audit/records-page.md)).
+- `server/test/patient-files.int-spec.ts` (2026-11-18) pins the patient-file routes over HTTP; run green in a copy on Node 22 (whole integration suite 472/472; the spec alone, 27 tests, after its last edit), not yet in CI — its first CI run is the release that carries it. It pins ONE known defect with `it.failing`: a DICOM upload that the DTO refuses leaves its temp file in `/uploads` (any signed-in user can trigger it; a prototype fix was checked in a copy; [`audit/records-page.md`](audit/records-page.md)).
+- Records-page questions for the physician ([`audit/records-page.md`](audit/records-page.md)).
 - Statistics SQL not timed against `muqsit_load_test` ([`rules/statistics.md`](rules/statistics.md)); open questions on what is counted ([`audit/statistics.md`](audit/statistics.md)).
 - SMS: no real SMS sent, delivery reports not read, a send cut short keeps its reservation, the message words still to confirm ([`audit/sms-and-payment.md`](audit/sms-and-payment.md)); not run in a browser ([`audit/testing-and-verification.md`](audit/testing-and-verification.md)).
 - Next 15 / Nest 12 upgrades still open — 2.4, 2.5 ([`audit/deploy-and-ops.md`](audit/deploy-and-ops.md)).

@@ -115,6 +115,7 @@ Helper files beside services: `opd/dhaka-day.ts`, `opd/pad-stage.ts`, `opd/queue
 | `opd-chambers.int-spec.ts` | per-chamber OPD lists, tokens, schedules |
 | `opd-queue.int-spec.ts` | OPD queue booked per day |
 | `patient-drug-safety.int-spec.ts` | `/patients/:id/drug-safety` |
+| `patient-files.int-spec.ts` | `/patients/:id/files` — Permissions and Imaging DICOM: access, premium gate, soft removal, bytes on disk |
 | `prescriptions.int-spec.ts` | prescription save/read through real pipeline |
 | `regression.int-spec.ts` | server fixes without end-to-end pin |
 | `repeat-save.int-spec.ts` | resent save not filed twice |
