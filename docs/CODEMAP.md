@@ -128,7 +128,7 @@ Helper files beside services: `opd/dhaka-day.ts`, `opd/pad-stage.ts`, `opd/queue
 | `supervised-draft.int-spec.ts` | supervising doctor's parked visit |
 | `uploads.int-spec.ts` | `POST /uploads/image` |
 
-- `support/`: `app.ts` (real AppModule + `configureApp`, cookie jar per browser), `client-calls.ts` (reads `client/src/lib/api.ts` with the TS compiler), `doubles.ts` (fake MailService), `env.ts` (jest `setupFiles`), `fixtures.ts` / `fixtures-clinical.ts`, `routes.ts` (route discovery), `test-db.ts` (`assertTestDatabase`), `setup-db.js` (`npm run test:db`: creates DBs, `db push`, adds `medicines`), `medicines.sql`.
+- `support/`: `app.ts` (real AppModule + `configureApp`, cookie jar per browser), `client-calls.ts` (reads `client/src/lib/api.ts` with the TS compiler; a path hole typed as a union of string literals is one call per value), `doubles.ts` (fake MailService), `env.ts` (jest `setupFiles`), `fixtures.ts` / `fixtures-clinical.ts`, `routes.ts` (route discovery, `findRoute`), `test-db.ts` (`assertTestDatabase`), `setup-db.js` (`npm run test:db`: creates DBs, `db push`, adds `medicines`), `medicines.sql`.
 - `serve.ts` — real API on :4100 (or `TEST_PORT`) against a throwaway DB for e2e / k6 (`npm run test:serve`).
 - `seed-e2e.ts` — seeds `muqsit_e2e_test`; `seed-load.ts` — seeds `muqsit_load_test`.
 

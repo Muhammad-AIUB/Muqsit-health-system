@@ -30,6 +30,28 @@ export interface DiscoveredRoute {
 export const routeKey = (method: string, path: string): string =>
   `${method.toUpperCase()} ${path.replace(/:[A-Za-z0-9_]+/g, ':p')}`;
 
+/**
+ * The server route a client call lands on, segment by segment: a server `:param`
+ * takes any client segment, a server LITERAL takes only the same literal. So a
+ * client `:p` (a value the reader cannot name) never stands in for a literal
+ * route — it has to land on a param — while a client literal (`permission`, from
+ * a `kind` typed "permission" | "dicom") lands on its own literal route or on a
+ * `:kind` param. Where both fit, the one with the fewest params wins.
+ */
+export function findRoute<T>(routes: Map<string, T>, method: string, path: string): T | undefined {
+  const want = routeKey(method, path).split('/');
+  let best: { route: T; params: number } | undefined;
+  for (const [key, route] of routes) {
+    const have = key.split('/');
+    if (have.length !== want.length) continue;
+    // `have[0]` / `want[0]` is `METHOD ` — it has to be equal, like any literal.
+    if (!have.every((h, i) => h === ':p' || h === want[i])) continue;
+    const params = have.filter((h) => h === ':p').length;
+    if (!best || params < best.params) best = { route, params };
+  }
+  return best?.route;
+}
+
 const clean = (p: string): string => p.replace(/^\/+|\/+$/g, '');
 
 const joinPath = (...parts: string[]): string =>

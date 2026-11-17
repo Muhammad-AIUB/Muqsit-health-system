@@ -13,7 +13,11 @@ export const CLIENT_API_FILE = join(CLIENT, 'src', 'lib', 'api.ts');
 
 export interface ClientCall {
   method: string;
-  /** `/api/...` with every interpolated segment as `:p`; null if not resolvable. */
+  /**
+   * `/api/...` with every interpolated segment as `:p` — except one the compiler
+   * can name in full (a union of string literals), which is one call per value;
+   * null if not resolvable.
+   */
   path: string | null;
   /** `client/src/lib/api.ts:123` */
   at: string;
@@ -55,6 +59,38 @@ function pathOf(node: ts.Expression): string | null {
   raw = raw.replace(new RegExp(`/${HOLE}(?=/|$)`, 'g'), '/:p').replace(new RegExp(`${HOLE}+$`), '');
   if (raw.includes(HOLE)) return null;
   return `/api${raw.replace(/\/+$/, '')}`;
+}
+
+/**
+ * The values a path hole can take, when the type checker can name every one of
+ * them: a union of string literals (`kind: "permission" | "dicom"`). Null for
+ * anything wider (`string`) — that stays an unknown `:p`.
+ */
+function literalValues(type: ts.Type): string[] | null {
+  const members = type.isUnion() ? type.types : [type];
+  if (!members.every((m) => m.isStringLiteral())) return null;
+  return members.map((m) => (m as ts.StringLiteralType).value);
+}
+
+/**
+ * Every path one call can reach. A hole the checker can name in full is one
+ * path per value — `/files/${kind}` is `/files/permission` AND `/files/dicom`,
+ * and each of them has to be served; any other hole is `:p`, as in `pathOf`.
+ */
+function pathsOf(node: ts.Expression, checker: ts.TypeChecker): (string | null)[] {
+  const base = pathOf(node);
+  if (base === null || !ts.isTemplateExpression(node)) return [base];
+  // The j-th `:p` segment of `base` came from the j-th hole: a hole that was not
+  // a whole segment (a glued-on query string) was dropped, and only after the
+  // last whole-segment one; any other made the path unresolvable (null above).
+  const values = node.templateSpans.map((s) => literalValues(checker.getTypeAtLocation(s.expression)));
+  let hole = 0;
+  let paths = [''];
+  base.split('/').forEach((seg, i) => {
+    const options = seg === ':p' ? (values[hole++] ?? [':p']) : [seg];
+    paths = paths.flatMap((p) => options.map((o) => (i === 0 ? o : `${p}/${o}`)));
+  });
+  return paths;
 }
 
 export function readClientApi(): ClientApi {
@@ -123,14 +159,16 @@ export function readClientApi(): ClientApi {
       // The recursive retry inside apiFetch itself forwards `path, options`.
       const isSelfRetry = ts.isIdentifier(pathArg) && !!opts && ts.isIdentifier(opts);
       if (!isSelfRetry) {
-        calls.push({
-          method: optsReadable ? method : '?',
-          path: pathOf(pathArg),
-          at: where(node),
-          hasBody,
-          payload,
-          payloadText,
-        });
+        for (const path of pathsOf(pathArg, checker)) {
+          calls.push({
+            method: optsReadable ? method : '?',
+            path,
+            at: where(node),
+            hasBody,
+            payload,
+            payloadText,
+          });
+        }
       }
     }
     ts.forEachChild(node, visit);

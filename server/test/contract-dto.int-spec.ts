@@ -2,7 +2,7 @@ import { getMetadataStorage } from 'class-validator';
 import type * as ts from 'typescript';
 import { createTestApp, TestApp } from './support/app';
 import { ClientApi, ClientCall, readClientApi } from './support/client-calls';
-import { DiscoveredRoute, discoverRoutes, routeKey } from './support/routes';
+import { DiscoveredRoute, discoverRoutes, findRoute } from './support/routes';
 
 // CONTRACT: what the client sends vs what the server's DTO declares.
 //
@@ -52,7 +52,17 @@ const KNOWN_DROPPED_FIELDS: string[] = [
 
 // Payloads (or parts of one) whose property names cannot be resolved
 // statically — the type is `unknown` / an index signature. NOT checked.
-const KNOWN_OPAQUE_PAYLOADS: string[] = [];
+//
+// The two patient-file uploads send a multipart FormData, not
+// `JSON.stringify(x)`, so the reader cannot see which fields they carry. Read by
+// hand when this was written: the client appends `name`, `fileDate` and `file`
+// (client/src/lib/api.ts, patientFilesApi.upload); `UploadPatientFileDto`
+// declares `name` and `fileDate`, and the file is the interceptor's — nothing is
+// stripped. A change on either side is NOT noticed here: read both.
+const KNOWN_OPAQUE_PAYLOADS: string[] = [
+  'POST /api/patients/:p/files/dicom :: (body)',
+  'POST /api/patients/:p/files/permission :: (body)',
+];
 
 // Mutations whose handler does not bind the body to a validated DTO class
 // (inline type → ValidationPipe skips it → nothing is stripped, and nothing is
@@ -175,7 +185,7 @@ describe('contract: client payloads vs server DTOs', () => {
     for (const call of client.calls) {
       if (!call.path || !MUTATIONS.includes(call.method) || !call.hasBody) continue;
       const route = `${call.method} ${call.path}`;
-      const server = byKey.get(routeKey(call.method, call.path));
+      const server = findRoute(byKey, call.method, call.path);
       if (!server) continue; // reported by the "real route" test
       if (!call.payload) {
         opaque.set(`${route} :: (body)`, `${call.at}  body is not JSON.stringify(x): ${call.payloadText}`);
@@ -226,7 +236,7 @@ describe('contract: client payloads vs server DTOs', () => {
 
   it('calls only routes the API really serves', () => {
     const missing = client.calls
-      .filter((c) => c.path && !byKey.has(routeKey(c.method, c.path)))
+      .filter((c) => c.path && !findRoute(byKey, c.method, c.path))
       .map((c) => `${c.method} ${c.path}  (${c.at})`);
     expect(missing).toEqual([]);
   });
