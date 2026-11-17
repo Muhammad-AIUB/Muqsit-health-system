@@ -1,12 +1,12 @@
 name: Test
 
-# Runs on pull requests and on demand. It does NOT run on push to main and
-# deploy.yml does not depend on it — gating the deploy on this workflow is an
-# owner decision (it changes how production ships), not something this file
-# turns on by itself.
+# Runs on pull requests, on demand, and as the GATE of deploy.yml: a push to
+# main runs these jobs first, and the deploy job `needs` them (`workflow_call`).
+# A red run here stops the deploy. It is given no secrets.
 on:
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

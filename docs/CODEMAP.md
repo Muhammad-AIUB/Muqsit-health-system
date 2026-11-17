@@ -291,8 +291,8 @@ Feature groups:
 - `load/` (k6, against the throwaway load DB): `lib.js` (shared target guard), `login.js`, `medicine-search.js`, `patient-lookup.js`, `prescription-save.js`, `mixed.js` (clinic mix), `stress.js` (read-path stepping); `results/`.
 - `scripts/test-repeat.mjs` — flaky-test detector: `node scripts/test-repeat.mjs <server|int|client> N`.
 - `infra/enable-http2.sh` — run on the VPS: add `http2` to nginx TLS server blocks, test, reload.
-- `.github/workflows/test.yml` (pull_request, manual) — server: `npm ci` → `tsc` → `npm test --coverage` → build + `dist/main.js` check → compose up test DB → `test:db` → `test:int`; client: `npm ci` → `tsc` → `test:cov`.
-- `.github/workflows/deploy.yml` (push to `main`) — SSH to VPS: reset lockfiles → `git pull --ff-only` → server install + `prisma generate` + build → client install + build → admin build (failure tolerated) → `pm2 restart all`.
+- `.github/workflows/test.yml` (pull_request, manual, and `workflow_call` from `deploy.yml` — the deploy gate) — server: `npm ci` → `tsc` → `npm test --coverage` → build + `dist/main.js` check → compose up test DB → `test:db` → `test:int`; client: `npm ci` → `tsc` → `test:cov`.
+- `.github/workflows/deploy.yml` (push to `main`) — the `test` job (`test.yml`) must be green first (`needs: test`) → SSH to VPS: reset lockfiles → `git fetch` + `git merge --ff-only <tested sha>` → server install + `prisma generate` + build → client install + build → admin build (failure tolerated) → `pm2 restart all`.
 - `docker-compose.test.yml` — `postgres:16-alpine` `muqsit-testdb` on `127.0.0.1:5544`, tmpfs data, DB `muqsit_int_test`.
 - Root `package.json` scripts: `dev` (concurrently api/web/admin), `dev:api`, `dev:web`, `dev:admin`, `build` (server → client → admin), `install:all`.
 - Server scripts of note: `start:dev` (nodemon), `test`, `test:int`, `test:db`, `test:serve`, `seed`, `lint`, `format`; `postinstall` runs `prisma generate`.

@@ -105,6 +105,8 @@ listed in the report for the physician/owner to decide.
 `deploy.yml` depend on it changes how production deploys and is left as an
 explicit owner decision.
 
+**D13 update, 2026-11-17 — activated.** The owner asked for it after `test.yml`, run by hand on `dev`, showed a contract test red that no deploy had noticed. `deploy.yml` now has a `test` job (this workflow) and its `deploy` job `needs: test`; it deploys the tested commit. See `docs/rules/deploy-and-ops.md`.
+
 ## 4. Deliverables by requested item
 
 1. **Unit** — fill the largest untested, high-risk units chosen from the coverage report (server: workstation resolution, patients access `where` shapes, auth refresh rotation; client: gaps in `lib/`).

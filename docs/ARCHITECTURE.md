@@ -244,7 +244,7 @@ Anything clickable that is not a `<button>` uses `pressable()` (`lib/a11y.ts`); 
 ## 8. Build, deploy, operations
 
 - **Branches:** exactly `main` and `dev`. Work on `dev`; releasing is fast-forwarding `main` to it. That push is the deploy.
-- **Pipeline:** push to `main` → `.github/workflows/deploy.yml` → SSH to the VPS → `git pull --ff-only origin main` → build API (`prisma generate` + `nest build`), then client, then admin (admin is non-fatal) → `pm2 restart all`. About 2–3 minutes. Each build runs in a subshell so a failed one stops the script before the restart. The action is pinned to a commit SHA, not a tag, because it holds the VPS key.
+- **Pipeline:** push to `main` → `.github/workflows/deploy.yml` → the `test` job (`test.yml`: the gate) → only if it is green, the `deploy` job → SSH to the VPS → `git fetch` and `git merge --ff-only` of the tested commit → build API (`prisma generate` + `nest build`), then client, then admin (admin is non-fatal) → `pm2 restart all`. About 2–3 minutes for the deploy itself, plus about 3 for the tests (measured; about 5–6 in all is an estimate). The gate (2026-11-17) is not yet proven by a real deploy: its first run is the first push to `main` after it. Each build runs in a subshell so a failed one stops the script before the restart. The action is pinned to a commit SHA, not a tag, because it holds the VPS key.
 - **Migrations are manual** and never run by the deploy (see [SCHEMA.md](SCHEMA.md#migrations)). SQL a release reads must already be applied; whether a given `manual-*.sql` file has been applied is not recorded in the repository — check the database.
 - **A red deploy is not a safe state.** `next build` and `nest build` empty their output folders first, so after a failed build the running app may already be missing files. Fix or revert at once. Building into a separate folder and swapping on success would close this and is **not done**.
 - **Never** instruct manual builds on the VPS. If a `package-lock.json` drift blocks `git pull`: SSH, `git checkout -- <app>/package-lock.json`, re-run the Action.
@@ -262,7 +262,7 @@ Anything clickable that is not a `<button>` uses `pressable()` (`lib/a11y.ts`); 
 | Browser E2E | `cd e2e && npx playwright test` | `e2e/tests/*.spec.ts` | Chromium on `:3100` against API `:4200`, throwaway DB, request guard blocks any other host |
 | Flake hunt | `node scripts/test-repeat.mjs <server\|int\|client> 3` | root | a test whose outcome varies is a defect, not a retry |
 | Typecheck | `npx tsc --noEmit` in `server/`, `client/`, `admin/` | | required before any commit |
-| CI | `.github/workflows/test.yml` | GitHub Actions | pull requests and manual runs only: server typecheck, unit, build check, integration; client typecheck and coverage. It does **not** run on a push to `main` and the deploy does not wait for it — making it a gate is the owner's decision |
+| CI | `.github/workflows/test.yml` | GitHub Actions | pull requests, manual runs, and as the gate of `deploy.yml` (a push to `main` runs it first and the deploy `needs` it, 2026-11-17): server typecheck, unit, build check, integration; client typecheck and coverage. Playwright and `admin` are not in it |
 
 How to run each layer, the sandbox ports and the rules of the browser suite: [`testing/e2e.md`](testing/e2e.md); load tests: [`testing/load.md`](testing/load.md); the discipline behind them: [`rules/testing-and-verification.md`](rules/testing-and-verification.md).
 
@@ -293,6 +293,6 @@ Carried from the repository's own audit notes; not new findings.
 | `client`/`admin` `npm run lint` has no ESLint config | Do not rely on it |
 | Investigation/report image pool in the editor is session-only (per the audit, older) | Verify before relying on either direction |
 | Some placeholder views (Research — the tab is switched off; its Compare/Export; Data security level) | Stubs. The `message` tab is not one: it is the Supervised view (`client/src/components/tabs/MessageView.tsx`), though the first audit still lists a "Message tab" placeholder |
-| `test.yml` does not gate the deploy | A push to `main` ships without the suites having run in CI |
+| The deploy gate (`deploy.yml` `needs: test`, 2026-11-17) has not run on `main` yet | Only a push to `main` exercises it; until its first run goes green, treat "the tests ran before this deploy" as unproven |
 
 The audit is [`FUNCTIONAL-AUDIT.md`](FUNCTIONAL-AUDIT.md) (an index by area) with the threads in [`audit/`](audit/); several of its older items have since been closed, so read the area's file rather than only the titles.

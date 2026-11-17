@@ -6,8 +6,23 @@ on:
       - main
 
 jobs:
+  # ⚠️ THE GATE. `deploy` below `needs: test`, so a push to main whose tests fail
+  # deploys NOTHING: production stays on the last good commit and this run goes
+  # red. Never remove `needs: test`, and never add a way around it, without the
+  # owner's say (docs/rules/deploy-and-ops.md). The tests are test.yml, the same
+  # as for a pull request. This job is given no secrets: the VPS key is only
+  # named in the `deploy` job.
+  test:
+    uses: ./.github/workflows/test.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
+    # One deploy at a time: a second push waits for the one on the box instead of
+    # running over it (a waiting one is replaced by a newer push, which holds it).
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
       - name: Deploy to VPS over SSH
         # ⚠️ PINNED TO A COMMIT SHA ON PURPOSE — never go back to `@v1.0.3`.
@@ -40,7 +55,13 @@ jobs:
             # carried a hidden payload (`init` files + `node init &&` in the build
             # scripts). A reset would have built and run it. Fix the HISTORY on origin
             # (root CLAUDE.md, "merge commit"), not this line.
-            git pull --ff-only origin main
+            # It deploys exactly the commit that PASSED the tests (github.sha), not
+            # whatever main is by now: a push that lands while the tests run waits for
+            # its own tests. `merge --ff-only <sha>` keeps the --ff-only rule (it stops,
+            # never merges or resets, when the box has diverged) and does nothing on a
+            # box already at that commit.
+            git fetch origin main
+            git merge --ff-only ${{ github.sha }}
             # ⚠️ Each build runs in a SUBSHELL, so that a failed step STOPS the
             # script before `pm2 restart all` and this Action goes red. Until
             # 2026-10-16 they were written `cd client && … && npm run build && cd ..`,
