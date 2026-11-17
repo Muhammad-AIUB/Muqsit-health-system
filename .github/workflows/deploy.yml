@@ -62,6 +62,9 @@ jobs:
             # box already at that commit.
             git fetch origin main
             git merge --ff-only ${{ github.sha }}
+            # Log only (changes nothing): which Node and npm the box builds with.
+            # CI tests on Node 20 with `npm ci`; the box was never checked.
+            echo "VPS runtime: node $(node -v), npm $(npm -v)"
             # ⚠️ Each build runs in a SUBSHELL, so that a failed step STOPS the
             # script before `pm2 restart all` and this Action goes red. Until
             # 2026-10-16 they were written `cd client && … && npm run build && cd ..`,
@@ -78,3 +81,56 @@ jobs:
             # Admin build is non-fatal so it can never block the core client/server deploy.
             (cd admin && npm install && npm run build) || echo "admin build failed — continuing"
             pm2 restart all
+
+  # After the deploy: does the live app ANSWER? `pm2 restart all` exiting 0 only
+  # means pm2 started the processes, not that they serve. This job asks the public
+  # URLs from a GitHub runner (the nginx and pm2 ports are not in the repo, so none
+  # is assumed). It has no secrets and no token (`permissions: {}`). It only
+  # DETECTS a dead app: it rolls nothing back, and a red `verify` means "production
+  # may be down, look now", not "production is unchanged" (docs/rules/deploy-and-ops.md).
+  # It does not run when `test` or `deploy` failed.
+  verify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions: {}
+    env:
+      # No cookie is sent. The API answers 401 (the auth guard is loaded, so the
+      # process is up) and the doctor app redirects `/` (307) or serves it.
+      API_URL: https://api.muqsithealthsystem.com/api/patients
+      SITE_URL: https://muqsithealthsystem.com/
+      ADMIN_URL: https://admin.muqsithealthsystem.com/
+      WAIT_SECONDS: "90"
+    steps:
+      - name: Check the live app answers
+        run: |
+          # check <label> <url> <expected status, as a regex>
+          # Asks every 5 s until it gets the expected status; fails after WAIT_SECONDS.
+          check() {
+            local deadline=$((SECONDS + WAIT_SECONDS)) code
+            while true; do
+              code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$2") || code=000
+              if [[ "$code" =~ ^($3)$ ]]; then
+                echo "OK    $1 $2 -> $code"
+                return 0
+              fi
+              if (( SECONDS >= deadline )); then
+                echo "FAIL  $1 $2 -> $code (wanted $3; gave up after about ${WAIT_SECONDS}s)"
+                return 1
+              fi
+              echo "wait  $1 $2 -> $code (wanted $3), trying again in 5 s"
+              sleep 5
+            done
+          }
+          failed=0
+          check "API  " "$API_URL" 401 || failed=1
+          check "Site " "$SITE_URL" '[23][0-9][0-9]' || failed=1
+          # Admin is only a warning, like its build in the deploy step: it must never
+          # make a healthy doctor app and API look down.
+          check "Admin" "$ADMIN_URL" '[23][0-9][0-9]' ||
+            echo "::warning::The admin app did not answer; the API and the doctor app are judged on their own."
+          if (( failed )); then
+            echo "::error::The live API or doctor app did not answer after the deploy. Production may be down."
+            exit 1
+          fi
+          echo "The API and the doctor app answer."
