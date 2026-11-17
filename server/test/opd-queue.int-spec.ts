@@ -18,6 +18,14 @@ const TODAY = dayKey(0);
 const TOMORROW = dayKey(1);
 const LATER = dayKey(3);
 const YESTERDAY = dayKey(-1);
+// A row an older build wrote has no `queueDate`, so it belongs to the Dhaka day of its
+// `createdAt` (`dayWhere` and `visitDay` in `opd.service.ts`). The tests for such rows
+// need a moment that is EARLIER TODAY in Dhaka at any time of day: "an hour ago" is
+// YESTERDAY in the first hour after Dhaka midnight (00:00-01:00 BDT = 18:00-19:00 UTC),
+// which made them fail then (found 2026-11-18). The +06:00 offset is written out on
+// purpose, not taken from `dhaka-day.ts`, so a wrong offset there fails these tests.
+// Like every other `TODAY` test here, a run that crosses Dhaka midnight can still fail.
+const EARLIER_TODAY = new Date(`${TODAY}T00:01:00+06:00`).getTime();
 
 describe('OPD queue by day', () => {
   let t: TestApp;
@@ -174,7 +182,7 @@ describe('OPD queue by day', () => {
 
     it('rows an older build wrote with no place are numbered in the order shown, then moved', async () => {
       const { doctor, browser } = await setup();
-      const base = Date.now() - 60 * 60 * 1000;
+      const base = EARLIER_TODAY;
       const rows = [];
       for (const [i, n] of ['Old1', 'Old2', 'Old3'].entries()) {
         rows.push(await t.prisma.opdVisit.create({ data: { doctorId: doctor.id, name: n, token: `T-0${i + 1}`, createdAt: new Date(base + i * 1000) } }));
@@ -187,7 +195,7 @@ describe('OPD queue by day', () => {
 
     it('a patient added after such rows comes after them, not before', async () => {
       const { doctor, browser } = await setup();
-      const base = Date.now() - 60 * 60 * 1000;
+      const base = EARLIER_TODAY;
       await t.prisma.opdVisit.create({ data: { doctorId: doctor.id, name: 'Old1', token: 'T-01', createdAt: new Date(base) } });
       await t.prisma.opdVisit.create({ data: { doctorId: doctor.id, name: 'Old2', token: 'T-02', createdAt: new Date(base + 1000) } });
       const fresh = await add(browser, 'Fresh');

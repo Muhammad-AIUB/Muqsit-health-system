@@ -94,6 +94,7 @@ One line per rule. The rule itself — with its reason, and usually the incident
 - `set -e` is never trusted across an `&&` chain (`deploy.yml`): each build runs in a subshell, the API first, so a failure stops with exit 1 and no restart.
 - A push to `main` is never deployed before `test.yml` is green, nor as a different commit from the one tested: `deploy.yml`'s `deploy` job `needs: test` and runs `git merge --ff-only ${{ github.sha }}`; the gate is never removed or bypassed (proven once by run 44130628179; the red path has not been exercised).
 - A deploy is never called good because its commands ran: `deploy.yml`'s `verify` job asks the public URLs after the restart (API 401, doctor app 2xx/3xx, admin a warning); it only detects, never rolls back, and a red `verify` is a red deploy — fix at once.
+- CI is never tested on a different Node major than the box builds with: `test.yml` uses Node 22, the major of the `VPS runtime` line every deploy logs; change one, check the other. Fixed with it (2026-11-18): two OPD-queue integration tests failed in the first hour after Dhaka midnight (00:00–01:00 BDT) because they built rows at `Date.now() - 1 h`; a test never leans on the time of day (`docs/rules/testing-and-verification.md`).
 - A file under `.github/workflows/` is never changed without showing the owner the diff and getting a yes, every time.
 - A merge commit is not clean because both its parents are: diff its tree against `git merge-tree --write-tree <p1> <p2>`; never run `npm`/`next` in a checkout of `20e80cc`, `834005b`, `3f9699f`. (+2 more)
 

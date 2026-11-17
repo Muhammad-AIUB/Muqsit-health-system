@@ -63,7 +63,8 @@ jobs:
             git fetch origin main
             git merge --ff-only ${{ github.sha }}
             # Log only (changes nothing): which Node and npm the box builds with.
-            # CI tests on Node 20 with `npm ci`; the box was never checked.
+            # CI tests on Node 22 (test.yml) with `npm ci`; this line shows whether
+            # the box still runs the same major (it printed v22.23.4 on 2026-11-17).
             echo "VPS runtime: node $(node -v), npm $(npm -v)"
             # ⚠️ Each build runs in a SUBSHELL, so that a failed step STOPS the
             # script before `pm2 restart all` and this Action goes red. Until

@@ -262,7 +262,7 @@ Anything clickable that is not a `<button>` uses `pressable()` (`lib/a11y.ts`); 
 | Browser E2E | `cd e2e && npx playwright test` | `e2e/tests/*.spec.ts` | Chromium on `:3100` against API `:4200`, throwaway DB, request guard blocks any other host |
 | Flake hunt | `node scripts/test-repeat.mjs <server\|int\|client> 3` | root | a test whose outcome varies is a defect, not a retry |
 | Typecheck | `npx tsc --noEmit` in `server/`, `client/`, `admin/` | | required before any commit |
-| CI | `.github/workflows/test.yml` | GitHub Actions | pull requests, manual runs, and as the gate of `deploy.yml` (a push to `main` runs it first and the deploy `needs` it, 2026-11-17): server typecheck, unit, build check, integration; client typecheck and coverage. Playwright and `admin` are not in it |
+| CI | `.github/workflows/test.yml` | GitHub Actions | pull requests, manual runs, and as the gate of `deploy.yml` (a push to `main` runs it first and the deploy `needs` it, 2026-11-17): server typecheck, unit, build check, integration; client typecheck and coverage; on Node 22 like the VPS build (since 2026-11-18). Playwright and `admin` are not in it |
 
 How to run each layer, the sandbox ports and the rules of the browser suite: [`testing/e2e.md`](testing/e2e.md); load tests: [`testing/load.md`](testing/load.md); the discipline behind them: [`rules/testing-and-verification.md`](rules/testing-and-verification.md).
 
@@ -294,6 +294,7 @@ Carried from the repository's own audit notes; not new findings.
 | Investigation/report image pool in the editor is session-only (per the audit, older) | Verify before relying on either direction |
 | Some placeholder views (Research — the tab is switched off; its Compare/Export; Data security level) | Stubs. The `message` tab is not one: it is the Supervised view (`client/src/components/tabs/MessageView.tsx`), though the first audit still lists a "Message tab" placeholder |
 | The deploy gate (`deploy.yml` `needs: test`, 2026-11-17): the green path is proven (run 44130628179), the red path is not | A failing test stopping the deploy rests on GitHub's documented `needs` behaviour and one review; a red commit is never pushed to `main` to prove it |
-| The `verify` job (health check after the restart, `deploy.yml`) has not run on GitHub yet | Its first run is the release that carries it. It only detects a dead app (no rollback) and does not show that the database works or which commit is running |
+| The `verify` job (health check after the restart, `deploy.yml`) ran once on GitHub (run 44142381575, green, every URL answered at the first attempt) | Its retry and red paths ran only locally. It only detects a dead app (no rollback) and does not show that the database works or which commit is running |
+| `test.yml` tests on Node 22 (moved from 20 on 2026-11-18) to match the VPS build (`v22.23.4`, npm 10.9.9, printed by every deploy log) | Only the major is matched (`22` = whichever 22.x `setup-node` picks); nothing checks drift automatically; which Node pm2 runs the apps with was not read; the box runs `npm install` where CI runs `npm ci` |
 
 The audit is [`FUNCTIONAL-AUDIT.md`](FUNCTIONAL-AUDIT.md) (an index by area) with the threads in [`audit/`](audit/); several of its older items have since been closed, so read the area's file rather than only the titles.
