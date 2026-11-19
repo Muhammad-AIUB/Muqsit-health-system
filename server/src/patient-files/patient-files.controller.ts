@@ -18,6 +18,8 @@ import { diskStorage } from 'multer';
 import { randomUUID } from 'crypto';
 import { join } from 'path';
 import { unlinkSync } from 'fs';
+import { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
+import { Observable, catchError, throwError } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkstationGuard } from '../workstations/workstation.guard';
 import { ActiveWorkstation, WorkstationDoctorId } from '../workstations/workstation.decorator';
@@ -47,6 +49,25 @@ const assertPremium = (user: AuthenticatedUser): void => {
     throw new ForbiddenException('Imaging DICOM is available to premium accounts');
   }
 };
+
+// ⚕️ multer has already streamed a DICOM file to uploads/tmp-<uuid> when the ValidationPipe checks the
+// DTO, and a pipe's refusal never reaches the handler's `finally` (pipes run inside the handler call).
+// Until 2026-11-19 a bad fileDate or an over-long name therefore left that file — up to 300 MB, where
+// /uploads is served — for ANY signed-in user. This removes it on ANY error raised after the file was
+// written; it is listed AFTER FileInterceptor so that it wraps the pipes.
+class RemoveTempFileOnError implements NestInterceptor {
+  intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
+    return next.handle().pipe(
+      catchError((err) => {
+        try {
+          const f = ctx.switchToHttp().getRequest().file;
+          if (f?.path) unlinkSync(f.path);
+        } catch { /* gone already */ }
+        return throwError(() => err);
+      }),
+    );
+  }
+}
 
 const assertMayWrite = (ws: Workstation): void => {
   if (ws.role === 'assistant' && !ws.permissions.includes(WRITE_KEY)) {
@@ -110,6 +131,7 @@ export class PatientFilesController {
       }),
       limits: { fileSize: DICOM_MAX_BYTES, fields: 2 },
     }),
+    new RemoveTempFileOnError(),
   )
   async addDicom(
     @WorkstationDoctorId() doctorId: string,

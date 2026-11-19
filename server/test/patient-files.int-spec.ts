@@ -34,7 +34,7 @@ import { resetDb } from './support/test-db';
 // A request refused AFTER its file was kept (an unreal date such as 31/02/2026, a
 // permission with no usable name) leaves that file on disk; that is recorded in
 // docs/audit/records-page.md and deliberately not pinned. A DICOM request the DTO
-// refuses leaves its temp file: a DEFECT, pinned below with `it.failing`.
+// refuses leaves no temp file either (a defect until 2026-11-19, fixed in the controller).
 // The multipart bodies are opaque to the contract test (`KNOWN_OPAQUE_PAYLOADS`).
 //
 // Files the API writes land in server/uploads/; the ones written here are removed
@@ -333,41 +333,27 @@ describe('Patient files — Permissions and Imaging DICOM', () => {
       expect(await rows(p)).toEqual([]);
     });
 
-    // The DICOM route binds the same DTO as the permission route: a date that is not
-    // dd/mm/yyyy is refused (400) and nothing is filed. The disk side of this very request
-    // is the DEFECT below, so what it leaks is removed here; keeping the 400 and the empty
-    // tables in a test of their own means the `it.failing` below cannot go green merely
-    // because this route stopped checking the date.
-    it('a date that is not dd/mm/yyyy is 400 and nothing is filed', async () => {
-      const p = await patientOf(owner);
-      const was = files();
-      try {
-        const res = await addDicom(o, p, { fields: { name: 'MRI', fileDate: '2026-11-07' } });
-        expect(res.status).toBe(400);
-        expect(await rows(p)).toEqual([]);
-        expect(await lines(p)).toEqual([]);
-      } finally {
-        removeNewFiles(was);
-      }
-    });
-
-    // DEFECT-dicom-temp-file-on-dto-refusal (found 2026-11-18, seen on a real run in a copy).
     // multer streams the file to `uploads/tmp-<uuid>` BEFORE the ValidationPipe checks the DTO,
-    // and the handler's `finally` (which unlinks it) never runs when the pipe refuses the
-    // request: a `fileDate` that is not dd/mm/yyyy, or a name over 120 characters, leaves the
-    // temp file — up to DICOM_MAX_BYTES (300 MB) — where /uploads is served. No premium, owner
-    // or key check has run by then: any signed-in user, any patient id, can do it.
-    // Stays `it.failing` until the code is fixed; then remove `.failing` (the run will say so).
-    it.failing('DEFECT: a DICOM upload the DTO refuses leaves no temp file', async () => {
+    // and the handler's `finally` never runs when the pipe refuses the request. Until 2026-11-19
+    // that left the temp file (up to 300 MB, where /uploads is served) for ANY signed-in user:
+    // this was the DEFECT `it.failing` test. `RemoveTempFileOnError` in the controller now
+    // removes it. Both triggers — a date that is not dd/mm/yyyy, a name over 120 characters —
+    // are refused (400), nothing is filed, and no file is left; the second is sent by an
+    // account that is not even premium and for a patient that does not exist.
+    it('a DICOM upload the DTO refuses is 400, files nothing and leaves no temp file', async () => {
       const p = await patientOf(owner);
       const was = files();
-      try {
-        const res = await addDicom(o, p, { fields: { name: 'MRI', fileDate: '2026-11-07' } });
-        expect(res.status).toBe(400);
-        noNewFiles(was); // today: `tmp-<uuid>` stays
-      } finally {
-        removeNewFiles(was); // do not leave the leak behind
-      }
+      // The message proves it is the DTO (the ValidationPipe) that refused each one: a refusal
+      // from the handler would clean up by itself and prove nothing about the interceptor.
+      const badDate = await addDicom(o, p, { fields: { name: 'MRI', fileDate: '2026-11-07' } });
+      expect(badDate.status).toBe(400);
+      expect(JSON.stringify(badDate.body)).toContain('fileDate must be dd/mm/yyyy');
+      const longName = await addDicom(ob, p, { fields: { name: 'n'.repeat(121) } });
+      expect(longName.status).toBe(400);
+      expect(JSON.stringify(longName.body)).toContain('name must be shorter than or equal to 120');
+      noNewFiles(was);
+      expect(await rows(p)).toEqual([]);
+      expect(await lines(p)).toEqual([]);
     });
   });
 
