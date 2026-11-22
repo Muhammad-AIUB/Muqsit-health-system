@@ -42,6 +42,9 @@ export interface Registration {
   accountTier: string;
   // Non-null → the account is in Trash (soft-deleted).
   deletedAt: string | null;
+  // Profile settings (16/11/2026): see `DoctorSettings`.
+  isolated: boolean;
+  hideMhsLogo: boolean;
   createdAt: string;
   updatedAt: string;
   // Only populated by getRegistration(id) (the View-details print page).
@@ -134,6 +137,25 @@ export interface PaymentRequestRow {
   balance: number;
 }
 
+// Account → Profile settings (physician's sheet, 16/11/2026): the two switches.
+export interface DoctorSettings {
+  /** This practice works on its own patients only — no opening another doctor's
+   *  patient with the patient's code, and none of its own opened that way. */
+  isolated: boolean;
+  /** The practice's screens and printed prescriptions leave the MHS mark off. */
+  hideMhsLogo: boolean;
+}
+
+// Account → Profile settings → Point system: ten criteria, a whole number 1–10
+// each. A criterion the admin has not scored is absent from `scores`.
+export interface PointScoresAnswer {
+  criteria: { key: string; label: string }[];
+  scores: Record<string, number>;
+  updatedAt: string | null;
+}
+
+const enc = encodeURIComponent;
+
 export const adminApi = {
   login: (email: string, password: string) =>
     apiFetch<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify({ identifier: email, password }) }),
@@ -168,6 +190,27 @@ export const adminApi = {
     apiFetch<PaymentRequestRow>(`/admin/payment-requests/${id}/credit`, { method: "PATCH", body: JSON.stringify(credit ? { credit } : {}) }),
   rejectPaymentRequest: (id: string) =>
     apiFetch<PaymentRequestRow>(`/admin/payment-requests/${id}/reject`, { method: "PATCH", body: JSON.stringify({}) }),
+
+  // ── Account → Profile settings ──
+  getSettings: (id: string) => apiFetch<DoctorSettings>(`/admin/users/${enc(id)}/settings`),
+  // Either switch or both; one that is not sent stays as it is.
+  updateSettings: (id: string, patch: Partial<DoctorSettings>) =>
+    apiFetch<DoctorSettings>(`/admin/users/${enc(id)}/settings`, { method: "PATCH", body: JSON.stringify(patch) }),
+  getPointScores: (id: string) => apiFetch<PointScoresAnswer>(`/admin/users/${enc(id)}/point-scores`),
+  // The WHOLE set: a criterion sent as null is cleared.
+  savePointScores: (id: string, scores: Record<string, number | null>) =>
+    apiFetch<PointScoresAnswer>(`/admin/users/${enc(id)}/point-scores`, { method: "PUT", body: JSON.stringify({ scores }) }),
+
+  // ── Account → Dr's patient data: the doctor's Statistics, read only. Each
+  //    answer is `unknown` here and checked by `lib/statistics.ts#read…` before it is drawn. ──
+  statChambers: (id: string) => apiFetch<unknown>(`/admin/users/${enc(id)}/statistics/chambers`),
+  statDays: (id: string, month: string, chamber: string) =>
+    apiFetch<unknown>(`/admin/users/${enc(id)}/statistics/visits/days?month=${enc(month)}&chamber=${enc(chamber)}`),
+  statMonths: (id: string, year: string, chamber: string) =>
+    apiFetch<unknown>(`/admin/users/${enc(id)}/statistics/visits/months?year=${enc(year)}&chamber=${enc(chamber)}`),
+  statOverall: (id: string, chamber: string) =>
+    apiFetch<unknown>(`/admin/users/${enc(id)}/statistics/visits/overall?chamber=${enc(chamber)}`),
+  statDiseases: (id: string) => apiFetch<unknown>(`/admin/users/${enc(id)}/statistics/diseases`),
 };
 
 export const PROFESSION_LABELS: Record<string, string> = {

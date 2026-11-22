@@ -114,11 +114,73 @@ model User {
   // SUPERVISES (another practice's) — see SupervisedDraft.
   supervisedDrafts SupervisedDraft[]
 
+  // ── Set by the platform admin (Profile settings, 16/11/2026) ───────────
+  // `isolated`: this doctor's practice neither opens other doctors' patients by
+  // the patient's own code nor can have its patients opened that way.
+  // `hideMhsLogo`: the practice's screens and printed prescriptions leave the
+  // MHS mark off; the "By EXHORT" credit stays.
+  isolated    Boolean @default(false)
+  hideMhsLogo Boolean @default(false)
+  // The admin's own scores for this doctor — read by the admin only.
+  pointScore  DoctorPointScore?
+  // Patients of other practices this doctor's practice opened with the patient's
+  // own code, and the codes it asked for (see PatientAccessGrant).
+  accessGrants PatientAccessGrant[] @relation("AccessGrantee")
+  accessCodes  PatientAccessCode[]  @relation("AccessCodeAsker")
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([approvalStatus])
   @@index([deletedAt])
+}
+
+// The admin's Point system for a doctor (16/11/2026): ten fixed criteria, each a
+// whole number 1–10 or absent. Its own table, not a column of `User`, so that no
+// query that returns the doctor's account (sign-in, workstations, assistants)
+// can ever carry the admin's marks back to the doctor.
+model DoctorPointScore {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // { [criterionKey]: 1..10 } — only keys the admin has set.
+  scores    Json     @default("{}")
+  updatedAt DateTime @updatedAt
+}
+
+// A practice's standing permission to open ONE patient of another practice (or
+// of none), given when the patient's own phone received a code and the doctor
+// entered it (16/11/2026). It reaches the patient like a supervising doctor
+// does (`patients/reach.ts`) and is never the team chat's `PatientSupervisor`.
+model PatientAccessGrant {
+  id             String   @id @default(cuid())
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId       String
+  doctor         User     @relation("AccessGrantee", fields: [doctorId], references: [id], onDelete: Cascade)
+  // The number the code went to, as it stood on the patient when it was entered.
+  verifiedMobile String
+  createdAt      DateTime @default(now())
+
+  @@unique([patientId, doctorId])
+  @@index([doctorId])
+}
+
+// One code sent to a patient's phone for one practice. Only a keyed hash of the
+// code is kept. At most 5 wrong tries, 10 minutes, used once.
+model PatientAccessCode {
+  id        String    @id @default(cuid())
+  patientId String
+  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  String
+  doctor    User      @relation("AccessCodeAsker", fields: [doctorId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([patientId, doctorId])
+  @@index([patientId, createdAt])
 }
 
 // Real-time activity feed: every add/save a doctor (or their assistant) does is
@@ -394,6 +456,9 @@ model Patient {
   supervisedDrafts SupervisedDraft[]
   personalNotes DoctorPatientNote[]
   drugSafety    PatientDrugSafety[]
+  // Practices that opened this patient with the patient's own code.
+  accessGrants  PatientAccessGrant[]
+  accessCodes   PatientAccessCode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

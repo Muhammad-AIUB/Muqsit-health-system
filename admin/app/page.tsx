@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { Dialog, type Question } from "./Dialog";
 import {
   adminApi,
   ApiError,
@@ -172,8 +174,20 @@ const ddmmyyyy = (iso: string) => {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 
+// Which list is open is kept in the address (`/?tab=trash`), so that Back from an
+// account's page — and a reload — return to the same list instead of Primary.
+const navFromUrl = (): NavId => {
+  if (typeof window === "undefined") return "primary";
+  const id = new URLSearchParams(window.location.search).get("tab");
+  return NAV.some((n) => n.id === id) ? (id as NavId) : "primary";
+};
+
 function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
-  const [nav, setNav] = useState<NavId>("primary");
+  const [nav, setNav] = useState<NavId>(navFromUrl);
+  useEffect(() => {
+    // The router's own history state is kept as it is.
+    window.history.replaceState(window.history.state, "", `/?tab=${nav}`);
+  }, [nav]);
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -375,9 +389,9 @@ function AccountsPage({ mode }: { mode: NavId }) {
 }
 
 // ── Per-row actions ──────────────────────────────────────────
-// "View details" opens the print-friendly page in a new tab (admin then
-// uses the browser's "Save as PDF"). The other buttons depend on which list
-// the row is in (see the spec in NAV).
+// "View details" opens the account's page (Profile / Dr's patient data / Profile
+// settings; the Profile tab prints). The other buttons depend on which list the
+// row is in (see the spec in NAV).
 function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [ask, setAsk] = useState<(Question & { answer: (ok: boolean) => void }) | null>(null);
@@ -410,10 +424,13 @@ function RowActions({ reg, mode, onChanged }: { reg: Registration; mode: NavId; 
     }
   };
 
+  // The account's own page, in THIS tab (16/11/2026): it was a new tab with only
+  // the print record in it. A link, not a button, so it can still be opened in a
+  // new tab on purpose. Its Back returns to the list the account belongs to.
   const view = (
-    <button onClick={() => window.open(`/accounts/${reg.id}`, "_blank", "noopener")} style={actBtn(C.white)} disabled={busy}>
+    <Link href={`/accounts/${reg.id}`} style={{ ...actBtn(C.white), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
       View details
-    </button>
+    </Link>
   );
 
   // Live tiers (premium / primary / secondary) share the same action set; only
@@ -605,47 +622,7 @@ function PaymentsPage() {
   );
 }
 
-interface Question { title: string; body?: string; confirm: string; danger?: boolean }
-
-function Dialog({ title, body, confirm, danger, onAnswer }: { title: string; body?: string; confirm?: string; danger?: boolean; onAnswer: (ok: boolean) => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  const answer = useRef(onAnswer);
-  answer.current = onAnswer;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); answer.current(false); return; }
-      if (e.key !== "Tab") return;
-      // Tab stays on the two buttons instead of walking into the table behind.
-      const stops = Array.from(box.current?.querySelectorAll<HTMLElement>("button") ?? []);
-      if (!stops.length) return;
-      const at = stops.indexOf(document.activeElement as HTMLElement);
-      e.preventDefault();
-      stops[(at + (e.shiftKey ? -1 : 1) + stops.length) % stops.length].focus();
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
-
-  return (
-    <div onClick={confirm ? () => onAnswer(false) : undefined} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(32,33,36,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, whiteSpace: "normal" }}>
-      <div ref={box} role="alertdialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} style={{ width: "min(440px, 100%)", background: C.white, borderRadius: 12, padding: 20, boxShadow: "0 2px 6px rgba(32,33,36,0.10), 0 16px 44px rgba(32,33,36,0.22)" }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: C.n900, lineHeight: 1.35, overflowWrap: "anywhere" }}>{title}</div>
-        {body && <div style={{ fontSize: 13, color: C.n600, lineHeight: 1.55, marginTop: 6, overflowWrap: "anywhere" }}>{body}</div>}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 20 }}>
-          {confirm ? (
-            <>
-              <button type="button" autoFocus onClick={() => onAnswer(false)} style={{ ...btnGhost, padding: "9px 16px", fontSize: 13 }}>Cancel</button>
-              <button type="button" onClick={() => onAnswer(true)} style={danger ? { ...btnPri, background: C.dangerDark } : btnPri}>{confirm}</button>
-            </>
-          ) : (
-            <button type="button" autoFocus onClick={() => onAnswer(true)} style={btnPri}>OK</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// `Dialog` and `Question` live in ./Dialog.tsx (shared with the account page).
 
 const TIERS = ["premium", "primary", "secondary"] as const;
 type Tier = (typeof TIERS)[number];

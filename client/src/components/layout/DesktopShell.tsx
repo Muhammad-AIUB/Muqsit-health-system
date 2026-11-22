@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import { C, font } from "@/theme";
 import { shadowCard, tabInk, tabOn } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
+import MhsMark from "./MhsMark";
 import { TABS, TRAILING_TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import TabIcon from "./TabIcon";
 import AccountMenu from "./AccountMenu";
@@ -32,7 +33,7 @@ export default function DesktopShell() {
       <div style={{ background: C.n[0], borderBottom: `1px solid ${C.n[200]}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, rowGap: 8, padding: "10px 20px 8px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[0], fontSize: 10, fontWeight: 700, letterSpacing: "0.02em", flexShrink: 0 }}>MHS+</div>
+            <MhsMark size={{ width: 32, height: 32 }} radius={8} fontSize={10} letterSpacing="0.02em" />
             <span style={{ fontSize: 15, fontWeight: 600, color: C.n[900], whiteSpace: "nowrap" }}>Muqsit Health System</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

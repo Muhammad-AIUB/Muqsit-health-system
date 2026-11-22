@@ -24,6 +24,8 @@ vi.mock("@/lib/api", () => ({
     link: vi.fn(),
     get: vi.fn(),
   },
+  // The lookup also asks for other practices' patients on the number (16/11/2026): none here.
+  patientAccessApi: { search: () => Promise.resolve({ isolated: false, patients: [] }) },
 }));
 
 const ctx = {

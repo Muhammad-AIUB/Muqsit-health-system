@@ -12,5 +12,7 @@ import { StatisticsService } from './statistics.service';
   imports: [WorkstationsModule, ChambersModule],
   controllers: [StatisticsController],
   providers: [StatisticsService],
+  // The admin console reads a doctor's numbers through the same service.
+  exports: [StatisticsService],
 })
 export class StatisticsModule {}

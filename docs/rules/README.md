@@ -26,7 +26,7 @@ An entry that an indexing line gets wrong is corrected in the line, never in the
 
 | File | Entries | Size | Covers |
 |---|---|---|---|
-| [`access-and-scoping.md`](access-and-scoping.md) | 12 | 7 KB | Access and scoping (workstation, assistants, supervised doctor) |
+| [`access-and-scoping.md`](access-and-scoping.md) | 16 | 12 KB | Access and scoping (workstation, assistants, supervised doctor, opened with the patient's own code) |
 | [`auth.md`](auth.md) | 5 | 3 KB | Authentication and sessions |
 | [`validation-and-dto.md`](validation-and-dto.md) | 2 | 2 KB | Validation and DTOs |
 | [`db-and-prisma.md`](db-and-prisma.md) | 12 | 7 KB | Database, manual SQL and Prisma |
@@ -40,7 +40,7 @@ An entry that an indexing line gets wrong is corrected in the line, never in the
 | [`health-trends.md`](health-trends.md) | 24 | 48 KB | Health monitoring and the trend chart |
 | [`calculators.md`](calculators.md) | 1 | 1 KB | Clinical calculators |
 | [`visit-sheet.md`](visit-sheet.md) | 12 | 18 KB | The visit sheet and the app shell |
-| [`printing.md`](printing.md) | 62 | 52 KB | Printing |
+| [`printing.md`](printing.md) | 63 | 54 KB | Printing |
 | [`patient-identity.md`](patient-identity.md) | 7 | 6 KB | Patient identity: sex, age, NID, family tree, photo |
 | [`records-page.md`](records-page.md) | 8 | 15 KB | Patient Records page and files |
 | [`opd.md`](opd.md) | 18 | 25 KB | OPD queue, chambers, appointment SMS |
@@ -57,7 +57,7 @@ An entry that an indexing line gets wrong is corrected in the line, never in the
 | [`theme-and-colour.md`](theme-and-colour.md) | 21 | 17 KB | Theme, colour, night mode, icons, fonts |
 | [`layout-and-zoom.md`](layout-and-zoom.md) | 11 | 10 KB | Layout, page zoom, responsive |
 | [`naming-and-wording.md`](naming-and-wording.md) | 3 | 2 KB | Naming and wording |
-| [`admin.md`](admin.md) | 1 | 2 KB | Admin console |
+| [`admin.md`](admin.md) | 5 | 6 KB | Admin console (the account page: Profile, Dr's patient data, Profile settings, Point system) |
 | [`testing-and-verification.md`](testing-and-verification.md) | 18 | 12 KB | Testing and verification |
 | [`deploy-and-ops.md`](deploy-and-ops.md) | 16 | 12 KB | Build, deploy, dependencies, git |
 | [`ai-tooling.md`](ai-tooling.md) | 2 | 1 KB | AI tooling |

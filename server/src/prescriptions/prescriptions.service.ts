@@ -7,6 +7,7 @@ import { CreatePrescriptionDto } from './dto/prescription.dto';
 import { RxHabitsService } from '../rx-habits/rx-habits.service';
 import { DoctorPhrasesService } from '../doctor-phrases/doctor-phrases.service';
 import { REPEAT_WINDOW_MS, sameContent } from './repeat';
+import { patientReachWhere } from '../patients/reach';
 
 @Injectable()
 export class PrescriptionsService {
@@ -23,7 +24,7 @@ export class PrescriptionsService {
     // a supervising doctor prescribes fresh; the row carries their own doctorId,
     // so each doctor's prescriptions stay scoped to themselves).
     const patient = await this.prisma.patient.findFirst({
-      where: { id: dto.patientId, OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] },
+      where: { id: dto.patientId, ...patientReachWhere(doctorId) },
     });
     if (!patient) throw new NotFoundException('Patient not found');
 

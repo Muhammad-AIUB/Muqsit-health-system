@@ -63,6 +63,7 @@ One line per rule. The rule itself — with its reason, and usually the incident
 - `prisma generate` is never run with the API up: kill the :4000 process first — Windows locks the query-engine DLL (EPERM).
 - A `manual-*.sql` file is never assumed applied: check the DB (`manual-opd-token-unique.sql` / `manual-ipd-bed-unique.sql` may still be unapplied).
 - A table created as `postgres` is never left with that owner: run `ALTER TABLE "X" OWNER TO exhort_user;` — otherwise the app gets `42501 permission denied`.
+- `manual-admin-settings-and-patient-access.sql` (16/11/2026) is applied BEFORE the release that reads it: every read of a `User` asks for `isolated` / `hideMhsLogo`, so without it the whole API answers P2022 — not only the new routes.
 - Clinical documents are never hard-deleted, and learned suggestions get no DELETE route: use soft removal (`removedAt`) / `hidden`.
 
 ### The ℞ pad and Save & print → [`docs/rules/rx-pad.md`](docs/rules/rx-pad.md)

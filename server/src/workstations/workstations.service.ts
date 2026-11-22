@@ -13,18 +13,27 @@ export interface Workstation {
   permissions: string[];
 }
 
+// What the practice's own settings say (admin Profile settings, 16/11/2026), read
+// by the app to draw itself: no MHS mark where `hideMhsLogo`, and no search for
+// other practices' patients where `isolated`. Only the LISTING carries them — a
+// request's workstation (`resolve`) is about who may act, not how the app looks.
+export interface WorkstationListing extends Workstation {
+  hideMhsLogo: boolean;
+  isolated: boolean;
+}
+
 @Injectable()
 export class WorkstationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listForUser(userId: string): Promise<Workstation[]> {
+  async listForUser(userId: string): Promise<WorkstationListing[]> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, displayName: true, accountTier: true },
+      select: { id: true, name: true, displayName: true, accountTier: true, hideMhsLogo: true, isolated: true },
     });
     if (!user) return [];
 
-    const out: Workstation[] = [];
+    const out: WorkstationListing[] = [];
 
     // Own workstation — only for purchased tiers (primary/premium). A secondary
     // account can't work on its own, so it has no own workstation (→ shows the
@@ -35,6 +44,8 @@ export class WorkstationsService {
         name: user.displayName?.trim() || user.name,
         role: 'owner',
         permissions: [],
+        hideMhsLogo: user.hideMhsLogo,
+        isolated: user.isolated,
       });
     }
 
@@ -44,7 +55,7 @@ export class WorkstationsService {
       select: {
         doctorId: true,
         permissions: true,
-        doctor: { select: { name: true, displayName: true } },
+        doctor: { select: { name: true, displayName: true, hideMhsLogo: true, isolated: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -54,6 +65,8 @@ export class WorkstationsService {
         name: l.doctor.displayName?.trim() || l.doctor.name,
         role: 'assistant',
         permissions: l.permissions,
+        hideMhsLogo: l.doctor.hideMhsLogo,
+        isolated: l.doctor.isolated,
       });
     }
     return out;

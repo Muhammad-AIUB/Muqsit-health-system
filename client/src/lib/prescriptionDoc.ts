@@ -76,6 +76,15 @@ export interface PrescriptionDoc {
   // of the printable area (physician's decision, 2026-10-07: "footer o print
   // hbe"). Sanitised by the caller, like the header. Absent or blank ⇒ nothing.
   footerHtml?: string;
+  /**
+   * ⚕️ Admin → Profile settings → "Remove MHS logo" (physician's sheet,
+   * 16/11/2026: "even prescription theke muqsit er logo chola jabe, print hobe
+   * na"): the PRACTICE's setting, so the doctor's own sheet leaves the MHS mark
+   * off the foot of every page. "By EXHORT" stays ("developed by exhort
+   * thakbe"). Only `true` removes it: absent, false — or anything else — prints
+   * exactly as the sheet always has (pinned by the whole-document snapshots).
+   */
+  hideMhsLogo?: boolean;
 }
 
 /**
@@ -1089,8 +1098,8 @@ function buildSheet(d: PrescriptionDoc, privacyCopy: boolean): string {
     </div></td></tr></tbody>
     <tfoot><tr><td class="pagefoot">
       <div class="foot">
-        <div class="brandbar">
-          <span class="bb-mhs">MHS</span>
+        <div class="brandbar">${d.hideMhsLogo === true ? "" : `
+          <span class="bb-mhs">MHS</span>`}
           <span class="bb-by">By <img class="bb-exhort" src="exort-logo.png" alt="EXHORT" /></span>
         </div>
         <div class="sign"><span class="line">${esc(d.doctorName || "Signature")}</span></div>

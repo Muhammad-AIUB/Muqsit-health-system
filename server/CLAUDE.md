@@ -27,6 +27,8 @@ The server's rules — the access model, the derived tables, the queue, uploads,
 - Patient access table (owner / assistant / supervisor): DELETE patient is owner-only, always; a new patient-scoped endpoint must pick its column and mirror the `where` of `patients.service.ts`.
 - `hmDrugDates` / `hmSymptomDates` are owner-only, denied by two layers: the controller stops an assistant, the service's `patient.doctorId !== doctorId` check stops a supervisor — both load-bearing.
 - Do not put `hmDrugDates` back in `RX_LIFECYCLE` without a permission key; `PATCH /patients/:id` is the only route accepting `UpdatePatientDto` — keep that one door.
+- ⚕️ Whose patient a practice can reach is ONE `where`, `patients/reach.ts#patientReachWhere` (own / supervising / opened with the patient's code, isolation read in the query); never a hand-written `OR: [{ doctorId }, { supervisors … }]` again.
+- ⚕️ Another practice's patient opens only by the patient's own code (`/patient-access`): never in an answer, kept as an HMAC, 10 min, 5 tries claimed atomically, refused when the SMS gateway is unconfigured; a grant is never a `PatientSupervisor` (it must not join the owner's chat).
 
 ### Authentication and sessions → [`docs/rules/auth.md`](../docs/rules/auth.md)
 - Access `mhs_at` (15 min) + rotated refresh `mhs_rt` (path `/api/auth`), both httpOnly; `publicUser()` must keep returning `accountTier`.
@@ -35,11 +37,13 @@ The server's rules — the access model, the derived tables, the queue, uploads,
 
 ### Validation and DTOs → [`docs/rules/validation-and-dto.md`](../docs/rules/validation-and-dto.md)
 - `ValidationPipe({ whitelist: true })`: any new client field must be added to the DTO or it is silently dropped; JSON columns follow `patients.service.ts#update` (`InputJsonValue`, `DbNull`).
+- A nested object whose KEYS the user chooses is read `@Body('field')` raw, never a DTO property: class-transformer answers 500 to an own `constructor` key and silently drops `__proto__`.
 
 ### Database, manual SQL and Prisma → [`docs/rules/db-and-prisma.md`](../docs/rules/db-and-prisma.md)
 - `medicines` is never put in `schema.prisma`: it is a raw table queried with parameterised `$queryRaw`.
 - A transaction that takes a row lock is never left on Prisma's default 5 s limit: it takes `ROW_LOCK_TX` (`server/src/prisma/row-lock.ts`); a test that fails only under load is reproduced UNDER LOAD and read.
 - Read-modify-write of a JSON column takes a `FOR UPDATE` row lock, and any such interactive transaction gets `ROW_LOCK_TX`, never Prisma's default; give it the same lock-holding test.
+- A `NOT:` over a nullable column silently drops the NULL rows (`NOT (NULL)` is NULL): for "everything but these" ask the positive `where` and use `id: { notIn }` (`patient-access.service.ts#search` — the ownerless patient).
 - Regenerate Prisma only with the dev server stopped; loose casts for a not-yet-generated column are acceptable short-term — regenerate ASAP.
 - Medical-history JSON columns are append/merge on the client, whole-value writes on the server; never "fix up" their contents server-side without an explicit migration script.
 - `medicines` is a raw Postgres table NOT in `schema.prisma`, queried with `$queryRaw`; no Prisma model, never let a destructive schema push touch it, keep queries parameterized.
@@ -48,6 +52,7 @@ The server's rules — the access model, the derived tables, the queue, uploads,
 
 ### Admin console → [`docs/rules/admin.md`](../docs/rules/admin.md)
 - Deleting a doctor must not delete their patients: `hardDelete` relies on `onDelete: SetNull`; orphans are unreachable; findability needs its own access design, never bolted onto a delete path.
+- The admin's per-doctor routes (`/admin/users/:id/…`: settings, Point system, the doctor's statistics) take the doctor from the URL — right only there — and only a professional account; the doctor's statistics read through the same service and `chamber-scope.ts`, and reading never writes (no default chamber made). The Point system is its own table (`DoctorPointScore`), never a `User` column, never in a doctor-facing answer.
 
 ### Build, deploy, dependencies, git → [`docs/rules/deploy-and-ops.md`](../docs/rules/deploy-and-ops.md)
 - `npx tsc --noEmit` cannot catch the rootDir trap: before pushing a new file outside `src/`, run `rm -rf dist && npm run build && ls dist/main.js`; no `dist/main.js` = 502.

@@ -17,6 +17,7 @@
 - Regenerate Prisma only with the dev server stopped; loose casts for a not-yet-generated column are acceptable short-term — regenerate ASAP.
 - Medical-history JSON columns are append/merge on the client, whole-value writes on the server; never "fix up" their contents server-side without an explicit migration script.
 - How it works — Seed with `npm run seed` (needs `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD`).
+- A `NOT:` over a filter on a nullable column never stands in for "everything else": `NOT (doctorId = x)` is NULL, not true, for a NULL `doctorId`, and the row drops out silently — ask the positive `where` and subtract its ids (`patient-access.service.ts#search`).
 - `medicines` is a raw Postgres table NOT in `schema.prisma`, queried with `$queryRaw`; no Prisma model, never let a destructive schema push touch it, keep queries parameterized.
 
 ---
@@ -53,6 +54,7 @@ _From `server/CLAUDE.md`._
 - JSON columns carrying medical history (`investigationSummary`, `onExaminationSummary`, `drugHistory`, `incompleteRx`, `familyMembers`, IPD `clinical`) are **append/merge on the client, whole-value writes on the server**. Never "fix up" their contents server-side without an explicit migration script.
 
 - Seed: `npm run seed` (needs `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD`).
+- **A `NOT:` over a nullable column drops the NULL rows (22/11/2026).** SQL's `NOT (NULL)` is NULL, which a `WHERE` treats as false. The search for another practice's patients was first written `NOT: patientReachWhere(doctorId)`: for a patient with no owner (`doctorId` NULL — their doctor's account was deleted) `"doctorId" = x` is NULL, so the whole `NOT (…)` was NULL and the very patient the list exists to let a practice claim never appeared (no leak — it failed closed; found by `patient-access.int-spec.ts` the first time it was run). It now asks the positive `patientReachWhere` for the ids already reached and uses `id: { notIn }`. Any new "not this" over a column that may be NULL does the same, or says `OR: [{ col: null }, { col: { not: x } }]` by hand.
 
 ## Gotchas
 

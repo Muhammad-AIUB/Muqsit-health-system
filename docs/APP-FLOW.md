@@ -240,7 +240,7 @@ Below the Save buttons, once a patient is loaded:
 1. Admin signs in on the single page.
 2. Sidebar: **Premium accounts**, **Primary accounts**, **Secondary accounts**, **Trash**, **SMS payments**, and **Log out**. Columns: Name, Contact, Status, Signed up, Actions (Trash adds Tier).
 3. Actions: **Approve**, **Suspend**, **Move to Trash**, **Delete permanently**, and moving an account between tiers. Each asks first in an in-page dialog.
-4. **View details** opens a print-friendly account record that is saved as PDF through the browser.
+4. **View details** opens the account's own page in the same tab (16/11/2026): Back, then **Profile** (a print-friendly account record, saved as PDF through the browser), **Dr's patient data** (the doctor's Statistics, read only) and **Profile settings** (isolate the doctor's system, remove the MHS logo, the Point system).
 5. **SMS payments:** the doctors' requests from Settings → Payment, **Pending** or **All** (Doctor, Request, Note, Date, Balance, Status). Once the payment has come in, **Add SMS** credits a Buy SMS request to the doctor's balance (1 SMS = 1 taka; a request pressed twice is credited once), **Mark done** records that a Renew was handled, **Reject** refuses. Each asks first in the page's own dialog. **(code only)**
 
 ## 11. Phone differences

@@ -20,8 +20,10 @@ vi.mock("@/lib/api", () => ({
     link: (...a: unknown[]) => link(...a),
     get: (...a: unknown[]) => get(...a),
   },
+  // Other practices' patients (16/11/2026): none on this number here.
+  patientAccessApi: { search: () => Promise.resolve({ isolated: false, patients: [] }) },
 }));
-vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ({ activeWorkstationId: null }) }));
+vi.mock("@/context/MuqsitContext", () => ({ useMuqsit: () => ({ activeWorkstationId: null, activeWorkstation: null }) }));
 
 afterEach(() => { cleanup(); create.mockReset(); link.mockReset(); get.mockReset(); });
 

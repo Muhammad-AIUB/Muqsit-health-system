@@ -1,26 +1,20 @@
 "use client";
 
-// Print-friendly account record. Opened in a new tab from the "View details"
-// button in the accounts table; the admin uses the browser's Print → "Save as
-// PDF" to produce the PDF. Everything outside `.doc` is hidden when printing.
+// One account's page — opened with "View details" in the accounts table, in the
+// SAME tab (16/11/2026; it was a new tab holding only the print record). A Back
+// arrow, then three tabs, as the physician's sheet draws them:
+//   Profile            — the account verification record; its Print / Save as PDF
+//                        is the browser's Print → "Save as PDF". Everything outside
+//                        `.doc` is hidden when printing.
+//   Dr's patient data  — the doctor's own Statistics, read only (PatientData.tsx).
+//   Profile settings   — isolate, remove the MHS logo, the Point system.
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { adminApi, ApiError, PROFESSION_LABELS, type Registration } from "@/lib/api";
-
-// See app/page.tsx: `pri` is the brand (blue), `ok` a status or category (green).
-const C = {
-  pri: "#1A73E8",
-  priDark: "#185ABC",
-  priLight: "#E8F0FE",
-  okDark: "#0F6E56",
-  okLight: "#E1F5EE",
-  border: "#E3E6EA",
-  n500: "#6B7075",
-  n600: "#565A5F",
-  n900: "#202124",
-  blue: "#185FA5",
-  blueLight: "#E6F1FB",
-};
+import PatientData from "./PatientData";
+import ProfileSettings from "./ProfileSettings";
+import { C, tabStyle } from "./ui";
 
 // dd/mm/yyyy, hh:mm — the product's date order, whatever the browser's own is.
 // `toLocaleString()` printed "10/9/2026" on this record for the 9th of October
@@ -36,9 +30,20 @@ const STATUS_BADGE: Record<string, { bg: string; fg: string }> = {
   rejected: { bg: "#FCEBEB", fg: "#A32D2D" },
 };
 
-export default function AccountRecordPage({ params }: { params: { id: string } }) {
+type Tab = "profile" | "data" | "settings";
+const TABS: { id: Tab; name: string }[] = [
+  { id: "profile", name: "Profile" },
+  { id: "data", name: "Dr's patient data" },
+  { id: "settings", name: "Profile settings" },
+];
+
+// The list the account is in — where Back goes: Trash if it is in Trash, else its tier.
+const listOf = (reg: Registration) => (reg.deletedAt ? "trash" : reg.accountTier);
+
+export default function AccountPage({ params }: { params: { id: string } }) {
   const [reg, setReg] = useState<Registration | null>(null);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState<Tab>("profile");
 
   useEffect(() => {
     adminApi
@@ -48,12 +53,51 @@ export default function AccountRecordPage({ params }: { params: { id: string } }
   }, [params.id]);
 
   if (error) {
-    return <div style={{ padding: 40, color: "#A32D2D", fontSize: 14 }}>{error}</div>;
+    return (
+      <div style={{ padding: 40, fontSize: 14 }}>
+        <div style={{ color: "#A32D2D" }}>{error}</div>
+        <Link href="/" style={{ ...backLink, marginTop: 16, display: "inline-flex" }}>← Back</Link>
+      </div>
+    );
   }
   if (!reg) {
     return <div style={{ padding: 40, color: C.n600, fontSize: 14 }}>Loading…</div>;
   }
 
+  return (
+    <>
+      <style>{printCss}</style>
+
+      {/* Toolbar — hidden when printing. */}
+      <div className="no-print" style={toolbar}>
+        <Link href={`/?tab=${listOf(reg)}`} style={backLink} aria-label="Back to the accounts list">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5 M12 19l-7-7 7-7" /></svg>
+          Back
+        </Link>
+        {tab === "profile" && <button onClick={() => window.print()} style={priBtn}>Print / Save as PDF</button>}
+      </div>
+
+      <div className="doc" style={doc}>
+        <div className="no-print" role="tablist" aria-label="Account" style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 20, overflowX: "auto" }}>
+          {TABS.map((t) => (
+            <button key={t.id} type="button" role="tab" id={`acct-tab-${t.id}`} aria-selected={tab === t.id} aria-controls="acct-panel" onClick={() => setTab(t.id)} style={tabStyle(tab === t.id)}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+
+        <div role="tabpanel" id="acct-panel" aria-labelledby={`acct-tab-${tab}`}>
+          {tab === "profile" && <ProfileRecord reg={reg} />}
+          {tab === "data" && <PatientData id={reg.id} name={reg.name} />}
+          {tab === "settings" && <ProfileSettings reg={reg} onSettings={(s) => setReg({ ...reg, ...s })} />}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── The Profile tab: the account verification record ─────────────────────
+function ProfileRecord({ reg }: { reg: Registration }) {
   const badge = STATUS_BADGE[reg.approvalStatus] ?? STATUS_BADGE.pending;
   const profession = reg.profession ? PROFESSION_LABELS[reg.profession] ?? reg.profession : "—";
 
@@ -84,75 +128,65 @@ export default function AccountRecordPage({ params }: { params: { id: string } }
 
   return (
     <>
-      <style>{printCss}</style>
-
-      {/* Toolbar — hidden when printing. */}
-      <div className="no-print" style={toolbar}>
-        <button onClick={() => window.close()} style={ghostBtn}>← Close</button>
-        <button onClick={() => window.print()} style={priBtn}>Print / Save as PDF</button>
-      </div>
-
-      <div className="doc" style={doc}>
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", borderBottom: `2px solid ${C.pri}`, paddingBottom: 16, marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: C.priDark }}>Muqsit Health System</div>
-            <div style={{ fontSize: 12, color: C.n600, marginTop: 2 }}>Account verification record</div>
-          </div>
-          {reg.profilePictureUrl ? (
-            <img src={reg.profilePictureUrl} alt="" style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", border: `1px solid ${C.border}` }} />
-          ) : (
-            <div style={{ width: 72, height: 72, borderRadius: 10, background: C.priLight, color: C.priDark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700 }}>
-              {reg.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-            </div>
-          )}
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", borderBottom: `2px solid ${C.pri}`, paddingBottom: 16, marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.priDark }}>Muqsit Health System</div>
+          <div style={{ fontSize: 12, color: C.n600, marginTop: 2 }}>Account verification record</div>
         </div>
-
-        {/* Name + status */}
-        <div style={{ marginBottom: 22 }}>
-          <h1 style={{ fontSize: 22, color: C.n900, margin: 0 }}>{reg.name}</h1>
-          <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-            <span style={{ ...pill, background: badge.bg, color: badge.fg }}>{reg.approvalStatus}</span>
-            <span style={{ ...pill, background: reg.accountTier === "secondary" ? C.blueLight : C.okLight, color: reg.accountTier === "secondary" ? C.blue : C.okDark }}>{reg.accountTier}</span>
-            {reg.deletedAt && <span style={{ ...pill, background: "#FCEBEB", color: "#A32D2D" }}>in trash</span>}
-          </div>
-        </div>
-
-        {/* Submitted information */}
-        <h2 style={sectionH}>Submitted information</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 32px", marginBottom: 8 }}>
-          {fields.map((f) => (
-            <div key={f.label}>
-              <div style={{ fontSize: 11, color: C.n500, textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</div>
-              <div style={{ fontSize: 14, color: C.n900, marginTop: 2 }}>{f.value ?? "—"}</div>
-            </div>
-          ))}
-        </div>
-
-        {reg.rejectionReason && (
-          <div style={{ marginTop: 14, fontSize: 13, color: "#A32D2D", background: "#FCEBEB", borderRadius: 8, padding: "10px 12px" }}>
-            Rejection reason: {reg.rejectionReason}
+        {reg.profilePictureUrl ? (
+          <img src={reg.profilePictureUrl} alt="" style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", border: `1px solid ${C.border}` }} />
+        ) : (
+          <div style={{ width: 72, height: 72, borderRadius: 10, background: C.priLight, color: C.priDark, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700 }}>
+            {reg.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
           </div>
         )}
+      </div>
 
-        {/* Documents */}
-        <h2 style={{ ...sectionH, marginTop: 28 }}>Uploaded documents</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-          {docs.map((d, i) => (
-            <div key={i} style={{ breakInside: "avoid" }}>
-              <div style={{ fontSize: 12, color: C.n600, marginBottom: 6, fontWeight: 500 }}>{d.label}</div>
-              {d.url ? (
-                <img src={d.url} alt={d.label} style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fafafa" }} />
-              ) : (
-                <div style={{ height: 120, borderRadius: 8, border: `1px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.n500, fontSize: 12 }}>Not provided</div>
-              )}
-            </div>
-          ))}
+      {/* Name + status */}
+      <div style={{ marginBottom: 22 }}>
+        <h1 style={{ fontSize: 22, color: C.n900, margin: 0 }}>{reg.name}</h1>
+        <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+          <span style={{ ...pill, background: badge.bg, color: badge.fg }}>{reg.approvalStatus}</span>
+          <span style={{ ...pill, background: reg.accountTier === "secondary" ? "#E6F1FB" : C.okLight, color: reg.accountTier === "secondary" ? "#185FA5" : C.okDark }}>{reg.accountTier}</span>
+          {reg.deletedAt && <span style={{ ...pill, background: "#FCEBEB", color: "#A32D2D" }}>in trash</span>}
         </div>
+      </div>
 
-        <div style={{ marginTop: 28, paddingTop: 12, borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.n500 }}>
-          Generated {stamp(new Date())} · Muqsit Health System Admin
+      {/* Submitted information */}
+      <h2 style={sectionH}>Submitted information</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 32px", marginBottom: 8 }}>
+        {fields.map((f) => (
+          <div key={f.label}>
+            <div style={{ fontSize: 11, color: C.n500, textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</div>
+            <div style={{ fontSize: 14, color: C.n900, marginTop: 2 }}>{f.value ?? "—"}</div>
+          </div>
+        ))}
+      </div>
+
+      {reg.rejectionReason && (
+        <div style={{ marginTop: 14, fontSize: 13, color: "#A32D2D", background: "#FCEBEB", borderRadius: 8, padding: "10px 12px" }}>
+          Rejection reason: {reg.rejectionReason}
         </div>
+      )}
+
+      {/* Documents */}
+      <h2 style={{ ...sectionH, marginTop: 28 }}>Uploaded documents</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+        {docs.map((d, i) => (
+          <div key={i} style={{ breakInside: "avoid" }}>
+            <div style={{ fontSize: 12, color: C.n600, marginBottom: 6, fontWeight: 500 }}>{d.label}</div>
+            {d.url ? (
+              <img src={d.url} alt={d.label} style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fafafa" }} />
+            ) : (
+              <div style={{ height: 120, borderRadius: 8, border: `1px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.n500, fontSize: 12 }}>Not provided</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 28, paddingTop: 12, borderTop: `1px solid ${C.border}`, fontSize: 11, color: C.n500 }}>
+        Generated {stamp(new Date())} · Muqsit Health System Admin
       </div>
     </>
   );
@@ -189,5 +223,5 @@ const doc: React.CSSProperties = {
 };
 const sectionH: React.CSSProperties = { fontSize: 13, color: C.n600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 14, fontWeight: 600 };
 const pill: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, padding: "3px 11px", borderRadius: 999 };
-const ghostBtn: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", color: C.n900, fontSize: 13, fontWeight: 500, cursor: "pointer" };
+const backLink: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", color: C.n900, fontSize: 13, fontWeight: 500, textDecoration: "none" };
 const priBtn: React.CSSProperties = { padding: "8px 18px", borderRadius: 8, border: "none", background: C.pri, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" };

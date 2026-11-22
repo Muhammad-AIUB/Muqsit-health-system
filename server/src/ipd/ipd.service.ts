@@ -18,6 +18,7 @@ import {
   UpdateAnalogueSheetDto,
 } from './dto/ipd.dto';
 import type { Workstation } from '../workstations/workstations.service';
+import { patientReachWhere } from '../patients/reach';
 
 // One photographed page of the ward's paper order sheet, as stored inside
 // `IpdAdmission.clinical.analogueSheets`. Mirrors `IpdAnalogueSheet` in the
@@ -58,7 +59,7 @@ export class IpdService {
     // Any id that was sent is checked — an empty one too, which is no patient.
     if (dto.patientId !== undefined && dto.patientId !== null) {
       const reachable = await this.prisma.patient.findFirst({
-        where: { id: dto.patientId, OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] },
+        where: { id: dto.patientId, ...patientReachWhere(doctorId) },
         select: { id: true },
       });
       if (!reachable) throw new NotFoundException('Patient not found');

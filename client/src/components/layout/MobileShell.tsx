@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { C } from "@/theme";
 import { tabInk, tabOn } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
+import MhsMark from "./MhsMark";
 import { TABS, MOBILE_TABS, HEADER_TABS, isPrescriptionGroup } from "./tabs";
 import TabIcon from "./TabIcon";
 import AccountMenu from "./AccountMenu";
@@ -44,7 +45,7 @@ export default function MobileShell({ preview = false }: { preview?: boolean }) 
         {preview && <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 18px", fontSize: 10, color: C.n[600] }}><span style={{ fontWeight: 500 }}>5:04 PM</span><div style={{ display: "flex", gap: 4, alignItems: "center" }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.ok[400] }} /><span>Synced</span></div></div>}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", minHeight: 48, background: C.n[0], borderBottom: `1px solid ${C.n[200]}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: "0 1 auto" }}>
-            <div style={{ width: 30, height: 26, borderRadius: 7, background: C.pri[400], display: "flex", alignItems: "center", justifyContent: "center", color: C.n[0], fontSize: 8.5, fontWeight: 700, flexShrink: 0 }}>MHS+</div>
+            <MhsMark size={{ width: 30, height: 26 }} radius={7} fontSize={8.5} />
             <span style={{ fontSize: 15, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tabTitle}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

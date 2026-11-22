@@ -4,7 +4,9 @@ import { PlusLabel } from "@/components/common/AddCircleButton";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, font } from "@/theme";
 import { inputSm, fieldLabel, btnPrimary, btnSecondary, dialogTitle, scrim, btnDisabled, shadowDialog, shadowMenu } from "@/theme/styles";
-import { patientsApi, type Patient, type RelativeMatch } from "@/lib/api";
+import { patientAccessApi, patientsApi, type AccessCandidate, type Patient, type RelativeMatch } from "@/lib/api";
+import { candidateLine, mayOpenOthers } from "@/lib/patientAccess";
+import AccessCodeDialog from "./AccessCodeDialog";
 import { ageFromDob, displayAge } from "@/lib/age";
 import { YEAR_POLICY } from "@/lib/dateInput";
 import DateField from "@/components/common/DateField";
@@ -35,16 +37,22 @@ export default function PatientMobileLookup({
   value, onChange, onPick, currentPatientId = null,
   label = "Mobile", placeholder = "01XXXXXXXXX", wrapStyle, inputStyle,
 }: Props) {
-  const { activeWorkstationId } = useMuqsit();
+  const { activeWorkstationId, activeWorkstation } = useMuqsit();
   const [matches, setMatches] = useState<Patient[]>([]);
   const [relatives, setRelatives] = useState<RelativeMatch[]>([]);
+  // Patients of OTHER practices on this number (16/11/2026): shown by name, age
+  // and sex only — they open with the patient's own code (AccessCodeDialog).
+  const [others, setOthers] = useState<AccessCandidate[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<
     | { kind: "related"; anchor: Patient }
     | { kind: "new"; number: string }
+    | { kind: "code"; patient: AccessCandidate }
     | null
   >(null);
+  // An isolated practice looks for no other practice's patient (admin Profile settings).
+  const looksElsewhere = mayOpenOthers(activeWorkstation);
   const boxRef = useRef<HTMLDivElement>(null);
   // Which edge of the field the list hangs from. The list is wider than the
   // field and the app shell clips whatever leaves it: with Mobile at the end of
@@ -57,7 +65,7 @@ export default function PatientMobileLookup({
   // Debounced exact lookup once a complete 11-digit number is present. Also
   // surfaces family-tree members on this number (info-only — not patients).
   useEffect(() => {
-    if (digits.length < 11) { setMatches([]); setRelatives([]); return; }
+    if (digits.length < 11) { setMatches([]); setRelatives([]); setOthers([]); return; }
     let cancel = false;
     setLoading(true);
     const t = setTimeout(() => {
@@ -70,9 +78,20 @@ export default function PatientMobileLookup({
         .relativesByMobile(digits)
         .then((rows) => { if (!cancel) setRelatives(rows); })
         .catch(() => { if (!cancel) setRelatives([]); });
+      // Other practices' patients on this number. Secondary to the doctor's own
+      // list, so a failure shows nothing (never an error over the list) — the
+      // doctor's own patients and Add New are all there is, as before.
+      if (looksElsewhere) {
+        patientAccessApi
+          .search(digits)
+          .then((r) => { if (!cancel) setOthers(r.isolated ? [] : r.patients); })
+          .catch(() => { if (!cancel) setOthers([]); });
+      } else {
+        setOthers([]);
+      }
     }, 250);
     return () => { cancel = true; clearTimeout(t); };
-  }, [digits]);
+  }, [digits, looksElsewhere]);
 
   useEffect(() => {
     if (!open || !boxRef.current) return;
@@ -145,6 +164,22 @@ export default function PatientMobileLookup({
               <span style={{ fontSize: 11, color: C.n[500] }}>{r.patientName ? `${r.patientName}'s family` : "in a family tree"}</span>
             </div>
           ))}
+          {/* Patients of other doctors on this number: not opened by a click — by
+              the patient's own code, asked for in the box this row opens. */}
+          {!loading && others.length > 0 && (
+            <div role="group" aria-label="Other doctors' patients on this number">
+              <div style={rowHeading}>Other doctors&apos; patients on this number</div>
+              {others.map((o) => (
+                <button key={o.id} onClick={() => { setModal({ kind: "code", patient: o }); setOpen(false); }} style={rowBtn} type="button">
+                  <span style={{ fontWeight: 600, color: C.n[900], fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {o.name}
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.pri[700], background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 999, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.03em" }}>Needs the patient&apos;s code</span>
+                  </span>
+                  {candidateLine(o) && <span style={{ fontSize: 11, color: C.n[500] }}>{candidateLine(o)}</span>}
+                </button>
+              ))}
+            </div>
+          )}
           {!loading && anchor && (
             <button onClick={() => { setModal({ kind: "related", anchor }); setOpen(false); }} style={rowAction} type="button">
               <PlusLabel>Add person related to {anchor.name}</PlusLabel>
@@ -171,6 +206,13 @@ export default function PatientMobileLookup({
           number={modal.number}
           onClose={() => setModal(null)}
           onDone={(p) => { setModal(null); pick(p); }}
+        />
+      )}
+      {modal?.kind === "code" && (
+        <AccessCodeDialog
+          patient={modal.patient}
+          onClose={() => setModal(null)}
+          onOpened={(p) => { setModal(null); pick(p); }}
         />
       )}
     </div>
@@ -474,6 +516,7 @@ const rowAction: CSSProperties = {
   fontSize: 12, fontWeight: 500, fontFamily: font,
 };
 const rowMuted: CSSProperties = { padding: "9px 13px", fontSize: 12, color: C.n[500] };
+const rowHeading: CSSProperties = { padding: "7px 13px 4px", fontSize: 11, fontWeight: 600, color: C.n[600], background: C.n[50], borderBottom: `0.5px solid ${C.n[100]}` };
 // Family-tree match — info only (no pointer, not a button).
 const rowInfo: CSSProperties = {
   display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, width: "100%",

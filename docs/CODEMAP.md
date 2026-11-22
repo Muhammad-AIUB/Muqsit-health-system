@@ -42,7 +42,8 @@ Guards: J = `JwtAuthGuard`, W = `WorkstationGuard`, R = `RolesGuard`.
 | Module | `@Controller` prefix(es) | Guards | Models / tables | Purpose |
 |---|---|---|---|---|
 | `activity` | `activity` | J W | ActivityLog | practice activity feed: list and log entries |
-| `admin` | `admin` | J R(admin) | User (via UsersService/AuthService) | registrations: approve, reject, suspend, tier, delete, revoke sessions |
+| `admin` | `admin` | J R(admin) | User (via UsersService/AuthService), DoctorPointScore, OpdChamber (read) | registrations: approve, reject, suspend, tier, delete, revoke sessions; per doctor (`/admin/users/:id/…`): Profile settings (`isolated`, `hideMhsLogo`), Point system, the doctor's Statistics read only |
+| `patient-access` | `patient-access` | J W | PatientAccessGrant, PatientAccessCode, Patient, User | another practice's patient opened with the patient's own code: search by number, SMS a code, verify (physician's sheet 16/11/2026) |
 | `assistants` | `assistants` | J | Assistant, User | a doctor's assistants, their permissions and defaults |
 | `auth` | `auth` | `me`: J; rest public + throttled | EmailOtp, RefreshToken (User via UsersService) | register, email OTP, login, refresh, logout, me |
 | `chambers` | `chambers` | J W | Chamber, OpdChamber, OpdChamberLayout, PrescriptionLayout | OPD chambers and each chamber's print layout |
@@ -73,7 +74,7 @@ Guards: J = `JwtAuthGuard`, W = `WorkstationGuard`, R = `RolesGuard`.
 | `wards` | `wards` | J | Ward, IpdTeamMember, IpdAdmission, User | IPD wards and ward-team members |
 | `workstations` | `workstations` | J | Assistant, User | workstations the user may act in; `resolve()` for the guard |
 
-Helper files beside services: `opd/dhaka-day.ts`, `opd/pad-stage.ts`, `opd/queue-order.ts`, `opd/schedule.ts`; `patients/drug-history-edit.ts`, `patients/on-examination.ts`; `rx-habits/normalise.ts`, `rx-habits/rxLanguage.ts`; `doctor-phrases/normalise.ts`; `drug-advice/keys.ts`; `medicines/catalogue.ts`; `patient-drug-safety/lines.ts`; `sms/segments.ts`, `sms/appointment-message.ts`; `statistics/visit-stats.ts`. Unit specs `*.spec.ts` sit beside them.
+Helper files beside services: `opd/dhaka-day.ts`, `opd/pad-stage.ts`, `opd/queue-order.ts`, `opd/schedule.ts`; `patients/drug-history-edit.ts`, `patients/on-examination.ts`, `patients/reach.ts` (the ONE definition of whose patient a practice can reach); `admin/point-system.ts`, `admin/admin-doctor.service.ts`; `patient-access/code.ts`; `statistics/chamber-scope.ts`; `rx-habits/normalise.ts`, `rx-habits/rxLanguage.ts`; `doctor-phrases/normalise.ts`; `drug-advice/keys.ts`; `medicines/catalogue.ts`; `patient-drug-safety/lines.ts`; `sms/segments.ts`, `sms/appointment-message.ts`; `statistics/visit-stats.ts`. Unit specs `*.spec.ts` sit beside them.
 
 ### `server/prisma/`
 - `schema.prisma` — 35 models:
@@ -126,6 +127,8 @@ Helper files beside services: `opd/dhaka-day.ts`, `opd/pad-stage.ts`, `opd/queue
 | `smoke.int-spec.ts` | test harness refuses non-test DB |
 | `sms-wallet.int-spec.ts` | day SMS and SMS wallet (fake gateway) |
 | `statistics.int-spec.ts` | Settings → Statistics figures |
+| `patient-access.int-spec.ts` | another practice's patient opened with the patient's own code: search, the SMS, tries, isolation, what the practice can then do |
+| `admin-doctor.int-spec.ts` | the admin's page for one doctor: Profile settings, Point system, the doctor's Statistics read only |
 | `supervised-draft.int-spec.ts` | supervising doctor's parked visit |
 | `uploads.int-spec.ts` | `POST /uploads/image` |
 
@@ -248,8 +251,9 @@ Feature groups:
 - Env files: `client/.env.production` (tracked), `client/.env.local` (untracked); `admin/.env.production` (tracked); `server/.env.example` (tracked), `server/.env` (untracked). Values not read.
 
 ## 3. Admin (`admin/`)
-- `admin/app/page.tsx` — the whole console: `LoginForm`, `Dashboard`, `AccountsPage` (registrations by status + `RowActions`), `PaymentsPage`, own `Dialog`.
-- `admin/app/accounts/[id]/page.tsx` — one registration's record (`AccountRecordPage`).
+- `admin/app/page.tsx` — the console: `LoginForm`, `Dashboard` (the open list is kept in `?tab=`), `AccountsPage` (registrations by status + `RowActions`; "View details" is a `Link`), `PaymentsPage`. `admin/app/Dialog.tsx` — the page's own confirm / failure box.
+- `admin/app/accounts/[id]/` — one account's page (16/11/2026): `page.tsx` (Back, the three tabs, `ProfileRecord` — the print record), `PatientData.tsx` + `BarChart.tsx` (the doctor's Statistics), `ProfileSettings.tsx` (switches + Point system), `useLoad.ts` (keyed read), `ui.ts` (colours, shared styles).
+- `admin/src/lib/statistics.ts` (copy of the client's), `admin/src/lib/points.ts` (the typed score).
 - `admin/app/layout.tsx`, `globals.css`, `icon.svg`.
 - `admin/src/lib/api.ts` — own `apiFetch` (cookie + refresh) and `adminApi` → `/admin/registrations…`, `/admin/users/:id/revoke-sessions`, `/admin/payment-requests…`.
 - `admin/next.config.mjs` — `reactStrictMode`, `images.unoptimized`, font caching. Scripts: `next dev/start -p 3001`.

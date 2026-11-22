@@ -159,12 +159,13 @@ export class AdminService {
     // owner. That doctor's own prescriptions cascade with the account, which is
     // consistent: they were never visible to any other doctor anyway.
     //
-    // KNOWN GAP: accessibleWhere() in patients.service.ts matches
-    // `{ doctorId }` OR an assigned supervisor, so a patient left with
-    // doctorId = null is retained but not reachable through the mobile lookup
-    // until a deliberate claim/re-own path exists. Widening the lookup to
-    // unowned patients exposes PII across practices and needs its own access
-    // design — do not add it here as a side effect of a delete.
+    // A patient left with doctorId = null is not reachable through the mobile
+    // lookup of any practice (patientReachWhere: own, supervising, or opened
+    // with a code). Since 16/11/2026 the way back in is the patient's own
+    // code: another practice finds them by number and opens them with the code
+    // sent to their phone (`patient-access`). Widening the lookup itself to
+    // unowned patients would expose PII across practices — do not add it here
+    // as a side effect of a delete.
     await this.users.remove(id);
     return { deleted: true };
   }

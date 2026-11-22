@@ -8,6 +8,7 @@ import { C, font } from "@/theme";
 import { confirmAction, tell } from "@/lib/dialogs";
 import { btnDisabled, btnPrimary, btnSecondary, btnTonal } from "@/theme/styles";
 import { useMuqsit, UNWRITABLE_PAD } from "@/context/MuqsitContext";
+import { hidesMhsLogo } from "@/lib/practiceBrand";
 import { useAuth } from "@/context/AuthContext";
 import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
 import { sanitizeHtml } from "@/lib/safeHtml";
@@ -263,6 +264,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       } : undefined,
       // Footer section, the header's twin at the foot of the page (2026-10-07).
       footerHtml: layout ? sanitizeHtml(layout.footerHtml, { images: true }) : undefined,
+      // The practice's own setting (admin Profile settings, 16/11/2026).
+      hideMhsLogo: hidesMhsLogo(m.activeWorkstation),
     });
   };
 

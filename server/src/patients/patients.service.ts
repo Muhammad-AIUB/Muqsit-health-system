@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ROW_LOCK_TX } from '../prisma/row-lock';
 import { appendOeEntries, setHxRemoved, type HxKind } from './on-examination';
 import { blockEditProblem, findBlock } from './drug-history-edit';
+import { patientReachWhere } from './reach';
 import {
   CreatePatientDto,
   LinkPatientDto,
@@ -119,7 +120,7 @@ export class PatientsService {
   // patient's info and prescribe fresh — the owner's prescriptions stay scoped
   // to the owner because prescription queries filter by their own doctorId.
   private accessibleWhere(doctorId: string) {
-    return { OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] };
+    return patientReachWhere(doctorId);
   }
 
   async get(doctorId: string, id: string): Promise<Patient> {

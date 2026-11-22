@@ -22,6 +22,7 @@ The rules of the doctor app — clinical accuracy, the storage formats, the edit
 - Keep the `ipd.*` keys in `IPD_PERMISSION_GROUPS`, OUT of `PERMISSION_GROUPS` — folding them in would revoke IPD access from every existing assistant.
 - A new ward team member starts with nothing ticked: on a ward, silence must mean "cannot", never "can".
 - Permission gating uses `can(key)` / `canEditLabel(label)` from context and `<Lock>` around read-only sections; tier gating reads `user.accountTier`
+- ⚕️ Another practice's patient is listed in the mobile lookup apart from the doctor's own and opens only through `AccessCodeDialog` (the patient's own code, `lib/patientAccess.ts`); an isolated practice (`activeWorkstation.isolated`) does not even ask; a failed search shows nothing extra, never an error over the doctor's own list.
 - Note and Plan both carry `rx.note` via explicit `permKey`; never put "Plan" into `PERM_KEY_OF_LABEL` (IPD label); a label colliding across screens must pass `permKey` → `docs/rules/visit-sheet.md`
 
 ### Dates → [`docs/rules/dates.md`](../docs/rules/dates.md)
@@ -179,6 +180,7 @@ The rules of the doctor app — clinical accuracy, the storage formats, the edit
   - ⚕️ Print: a ℞ row is never cut across two pages and a `>>>` taper stays with its medicine; a number is kept with its unit by a wrap only where the glued pair fits its cell (`glueWhereItFits`) — in a cell too narrow it breaks between digits; the foot stays ONE row — a wrapped foot is not repeated, so pages print with no signature
   - Print: the fitting script lets a multi-word ℞ cell that cannot hold its line wrap, never a single word (`letWrap`); a page break can only be checked in Chromium's PDF, not in a screenshot (`prescriptionDoc.fit.test.ts`, `docs/rules/printing.md`)
   - A colour, size or spacing in `prescriptionDoc.ts` is never changed as part of an app restyle: it imports no theme on purpose.
+  - ⚕️ `PrescriptionDoc.hideMhsLogo` (admin "Remove MHS logo", 16/11/2026) removes only the `bb-mhs` mark, only for the boolean `true` (via `lib/practiceBrand.ts#hidesMhsLogo`, the practice's setting from `activeWorkstation`); "By EXHORT" and the signature stay and the sheet is byte-for-byte unchanged with it off.
 - **Patient identity: sex, age, NID, family tree, photo** → [`docs/rules/patient-identity.md`](../docs/rules/patient-identity.md) — 7 entries. Named there: `lib/age.ts#ageFromDob`, `lib/sex.ts`, `src/lib/ocr.ts`, `patientForm.ts`, `PatientMobileLookup.tsx`, `normaliseSex`.
 - **Patient Records page and files** → [`docs/rules/records-page.md`](../docs/rules/records-page.md) — 8 entries. Named there: `lib/galleryPdf.ts`, `lib/imagesPdf.ts`, `lib/onExaminationSummary.ts`, `lib/totalSummary.ts`, `DicomSection.tsx`, `RecordsHistorySections.tsx`.
 - **OPD queue, chambers, appointment SMS** → [`docs/rules/opd.md`](../docs/rules/opd.md) — 18 entries. Named there: `components/layout/ChamberPicker.tsx`, `components/opd/OpdSmsDialog.tsx`, `lib/chamber.ts`, `lib/opdDay.ts`, `lib/opdPresence.ts`, `lib/opdSchedule.ts`.

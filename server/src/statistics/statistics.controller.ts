@@ -1,8 +1,9 @@
-import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WorkstationGuard } from '../workstations/workstation.guard';
 import { WorkstationDoctorId } from '../workstations/workstation.decorator';
 import { ChambersService } from '../chambers/chambers.service';
+import { resolveChamberScope } from './chamber-scope';
 import { ChamberScope, StatisticsService } from './statistics.service';
 
 // Settings → Statistics (physician's sheet, 11/11/2026). Read only. The practice
@@ -16,16 +17,9 @@ export class StatisticsController {
     private readonly chambers: ChambersService,
   ) {}
 
-  // ⚕️ `chamber` is a claim, decided where every chamber is decided: absent,
-  // empty or `all` is every chamber of the practice ("All chamber total");
-  // anything else goes through `ChambersService.resolve` — the default chamber's
-  // own id is the default chamber, another live chamber of THIS practice is that
-  // one, and another practice's, a removed one or a made-up id is 404, never a
-  // quiet fall-back to the total.
-  private async scope(doctorId: string, raw: unknown): Promise<ChamberScope> {
-    if (raw === undefined || raw === '' || raw === 'all') return { kind: 'all' };
-    if (typeof raw !== 'string') throw new BadRequestException('Choose one chamber, or all.');
-    return { kind: 'one', chamberId: await this.chambers.resolve(doctorId, raw) };
+  // ⚕️ `chamber` is a claim — see `chamber-scope.ts`, the one copy of that rule.
+  private scope(doctorId: string, raw: unknown): Promise<ChamberScope> {
+    return resolveChamberScope(this.chambers, doctorId, raw);
   }
 
   @Get('visits/days')

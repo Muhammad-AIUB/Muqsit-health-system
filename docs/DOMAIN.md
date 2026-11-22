@@ -15,11 +15,14 @@ Moved verbatim from the root `CLAUDE.md` on 2026-09-24 to keep that file short. 
 - **Assistant** — A user another doctor added (`Assistant` table) with granted permission keys; works inside that doctor's workstation.
 - **Ward / IPD team** — A Ward is a named group of admitted patients in one practice; its team (`IpdTeamMember`) has per-member `ipd.*` keys, managed owner-only. Not yet built: the team member's own login.
 - **Supervised doctor** — Per-PATIENT link (`PatientSupervisor`): supervisor uses their own account, sees patient info but never the owner's prescriptions or draft, prescribes under their own `doctorId`.
+- **Opened with the patient's own code** — A doctor types another practice's patient's mobile; the patient's phone gets a 6-digit code; the doctor enters it and the patient opens for that practice for good (`PatientAccessGrant`), as a supervising doctor's does, but never in the owner's chat. Physician's sheet 16/11/2026; the code is how an unowned patient is claimed.
+- **Isolated practice** — An admin switch per doctor (Profile settings): that practice neither opens other practices' patients by code nor has its own opened that way; it closes access already given, nothing is deleted.
+- **Point system** — The admin's ten scores (1–10) for a doctor; the admin's alone, never shown to the doctor.
 
 ### The patient → [`domain/people-and-patient.md`](domain/people-and-patient.md)
 
 - **The patient photo** — The header photo is always the patient on screen: cleared with the editor, never put back by a late fetch, never handed to a NEW patient saved from a cleared screen.
-- **Patient ≠ property of a doctor** — Deleting a doctor's account must never delete their patients (`onDelete: SetNull`); their prescriptions cascade. Open gap: an unowned patient is retained but not yet findable.
+- **Patient ≠ property of a doctor** — Deleting a doctor's account must never delete their patients (`onDelete: SetNull`); their prescriptions cascade. An unowned patient is found by number and opened with the patient's own code (16/11/2026).
 - **The patient gate** — Nothing can be written on a prescription until a patient is chosen (mobile lookup or Add New); until then the editor is blurred and takes neither mouse nor keyboard.
 - **The patient list on a phone** — The phone bottom bar has Rx, OPD, IPD, Supervised, Research and More; Patients is reached through More. Who may see which patient did not change.
 

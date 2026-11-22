@@ -707,10 +707,31 @@ export interface Workstation {
   name: string;
   role: "owner" | "assistant";
   permissions: string[]; // owner → [] (full access); assistant → granted keys
+  // The PRACTICE's settings, set by the admin (Profile settings, 16/11/2026) and
+  // sent by the workstation listing only. Absent (an older answer) reads as off.
+  /** No MHS mark on this practice's screens and printed prescriptions; "By EXHORT" stays. */
+  hideMhsLogo?: boolean;
+  /** This practice works on its own patients only: no opening another doctor's patient by the patient's code. */
+  isolated?: boolean;
 }
 
 export const workstationsApi = {
   list: () => apiFetch<Workstation[]>("/workstations"),
+};
+
+// ── Another practice's patient, opened with the patient's own code (16/11/2026) ──
+// The doctor types the patient's mobile, the patient's phone gets a code, the
+// doctor enters it. `search` shows only enough to tell people on one number apart.
+export interface AccessCandidate { id: string; name: string; sex: string | null; age: number | null }
+export interface AccessCodeSent { sentTo: string; expiresInSeconds: number; resendAfterSeconds: number }
+
+export const patientAccessApi = {
+  search: (mobile: string) =>
+    apiFetch<{ isolated: boolean; patients: AccessCandidate[] }>(`/patient-access/search?mobile=${encodeURIComponent(mobile)}`),
+  requestCode: (patientId: string) =>
+    apiFetch<AccessCodeSent>(`/patient-access/${encodeURIComponent(patientId)}/code`, { method: "POST" }),
+  verify: (patientId: string, code: string) =>
+    apiFetch<{ ok: true; patientId: string }>(`/patient-access/${encodeURIComponent(patientId)}/verify`, { method: "POST", body: JSON.stringify({ code }) }),
 };
 
 // ── Active prescription draft (auto-saved editor state, one per doctor) ──

@@ -21,7 +21,11 @@ const mocks = vi.hoisted(() => ({
   add: vi.fn(),
 }));
 
-vi.mock("@/lib/api", () => ({ patientsApi: { byMobile: vi.fn(), relativesByMobile: () => Promise.resolve([]), create: vi.fn(), link: vi.fn(), get: vi.fn() } }));
+vi.mock("@/lib/api", () => ({
+  patientsApi: { byMobile: vi.fn(), relativesByMobile: () => Promise.resolve([]), create: vi.fn(), link: vi.fn(), get: vi.fn() },
+  // The lookup also asks for other practices' patients on the number (16/11/2026): none here.
+  patientAccessApi: { search: () => Promise.resolve({ isolated: false, patients: [] }) },
+}));
 vi.mock("@/context/MuqsitContext", () => ({
   useMuqsit: () => ({
     setPtName: vi.fn(), setPtAge: vi.fn(), setPtGender: vi.fn(), setPtPhone: vi.fn(), setActiveTab: vi.fn(),

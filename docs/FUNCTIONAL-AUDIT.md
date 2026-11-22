@@ -44,7 +44,7 @@ The threads themselves are in [`docs/audit/<area>.md`](audit/), moved there **wo
 | Lists: loading, empty and error states | · | · | · | 2 | [`audit/lists-loading-errors.md`](audit/lists-loading-errors.md) |
 | Theme, colour, night mode, icons | 2 | 2 | 1 | 1 | [`audit/theme-and-colour.md`](audit/theme-and-colour.md) |
 | Layout, page zoom, responsive | 1 | · | · | · | [`audit/layout-and-zoom.md`](audit/layout-and-zoom.md) |
-| Admin console | 1 | · | · | 1 | [`audit/admin.md`](audit/admin.md) |
+| Admin console | 3 | · | · | 1 | [`audit/admin.md`](audit/admin.md) |
 | Database, manual SQL and Prisma | · | 5 | · | 1 | [`audit/db-and-prisma.md`](audit/db-and-prisma.md) |
 | Performance | · | 1 | · | 2 | [`audit/performance.md`](audit/performance.md) |
 | Testing and verification | · | 12 | · | 3 | [`audit/testing-and-verification.md`](audit/testing-and-verification.md) |
@@ -55,7 +55,7 @@ The threads themselves are in [`docs/audit/<area>.md`](audit/), moved there **wo
 
 **Access and scoping** — [`audit/access-and-scoping.md`](audit/access-and-scoping.md)
 
-- Unowned patients are retained but unreachable
+- Another practice's patient opened with the patient's own code (16/11/2026) — open for the physician (the "unowned patients" thread is closed by it)
 - An assistant without `rx.medicines` can still READ the list
 - A supervising doctor's Save & print is refused the owner's histories
 - A supervising doctor now ADDS to the shared On-examination history
@@ -212,6 +212,8 @@ The threads themselves are in [`docs/audit/<area>.md`](audit/), moved there **wo
 **Admin console** — [`audit/admin.md`](audit/admin.md)
 
 - Admin tabs "Supervising account" and "Team for IPD" — NOT built
+- Account page (16/11/2026) — decisions the builder took
+- Account page — not run against the real console
 
 ## To do — engineering work, no decision needed
 

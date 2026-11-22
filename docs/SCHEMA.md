@@ -88,9 +88,11 @@ Every login. Doctors, nurses, technologists, computer operators and back-office 
 | `investigationUnitPrefs` | Json, default `{}` | `{ [testName]: "u1" \| "u2" }` |
 | `fieldRecents` | Json, default `{}` | `{ [fieldLabel]: string[] }` — recently typed chip entries |
 | `investigationGroups` | Json, default `[]` | `[{ name, tests: string[] }]` — the user's own test groups |
+| `isolated` | Boolean, default `false` | set by the admin (Profile settings, 16/11/2026): this practice neither opens other practices' patients with the patient's code nor has its own opened that way; closes access already given (`manual-admin-settings-and-patient-access.sql`) |
+| `hideMhsLogo` | Boolean, default `false` | set by the admin: the practice's screens and printed prescriptions leave the MHS mark off; "By EXHORT" stays (same file) |
 
 Indexes: `approvalStatus`, `deletedAt`.
-Relations: owns `Patient`, `Prescription`, `Chamber`, `OtherCertificate`, `PrescriptionTemplate`, `ActivityLog`, `Ward`, the learned/advice tables below, and has at most one `PrescriptionLayout`, `PrescriptionDraft` and `DoctorRevisionNote`. Also `Assistant` (both sides), `RefreshToken`, `PatientChatMessage` (as author), `PatientSupervisor` (as supervising doctor), `IpdTeamMember`, `SupervisedDraft`. The OPD-chamber, SMS and payment tables carry a `doctorId` with no relation to `User`.
+Relations: owns `Patient`, `Prescription`, `Chamber`, `OtherCertificate`, `PrescriptionTemplate`, `ActivityLog`, `Ward`, the learned/advice tables below, and has at most one `PrescriptionLayout`, `PrescriptionDraft` and `DoctorRevisionNote`. Also `Assistant` (both sides), `RefreshToken`, `PatientChatMessage` (as author), `PatientSupervisor` (as supervising doctor), `IpdTeamMember`, `SupervisedDraft`, `DoctorPointScore`, `PatientAccessGrant` / `PatientAccessCode` (as the practice that asks). The OPD-chamber, SMS and payment tables carry a `doctorId` with no relation to `User`.
 
 #### `RefreshToken`
 Opaque tokens stored as SHA-256 hashes. A login starts a *family*; each rotation issues a new token in the family and revokes the old one. A revoked token presented again revokes the whole family — except inside the 10-second same-User-Agent grace window that stops concurrent tabs signing each other out.
@@ -122,6 +124,17 @@ Unique `(doctorId, assistantId)`. Indexes on both ids.
 #### `PatientSupervisor`
 A **per-patient** link giving another doctor access to that one patient. Not a workstation.
 `patientId` → `Patient`, `doctorId` → `User`, `createdAt`. Unique `(patientId, doctorId)`; indexes on `patientId` and `doctorId`. Cascades with `Patient` and `User`.
+
+#### `PatientAccessGrant`, `PatientAccessCode` (16/11/2026)
+Another practice's patient opened with the **patient's own code** (`server/src/patient-access/`, [API §5.12e](API.md)). A grant reaches the patient like a supervisor does (`patients/reach.ts`) but is NOT a `PatientSupervisor` — it never puts the practice in the owner's chat. Both need `manual-admin-settings-and-patient-access.sql`.
+
+| Table | Fields | Notes |
+|---|---|---|
+| `PatientAccessGrant` | `patientId` → `Patient`, `doctorId` → `User` (the practice), `verifiedMobile`, `createdAt` | unique `(patientId, doctorId)`; index `doctorId`. One row = permanent access until removed; it counts only while neither the practice nor the patient's owner is `isolated` |
+| `PatientAccessCode` | `patientId`, `doctorId`, `codeHash` (HMAC-SHA256 of patient, practice and code — never the code), `expiresAt` (10 min), `attempts` (max 5, claimed atomically), `usedAt?`, `createdAt` | indexes `(patientId, doctorId)`, `(patientId, createdAt)` (the hourly count). A new code deletes the practice's earlier unused ones |
+
+#### `DoctorPointScore` (16/11/2026)
+The admin's Point system for one doctor: `userId` (primary key, cascades with `User`), `scores` Json `{ [criterion]: 1..10 }` (only the criteria scored; ten fixed keys in `server/src/admin/point-system.ts`), `updatedAt`. Its own table — not a `User` column — so that no query returning the account (sign-in, workstations, assistants) can carry the admin's marks back to the doctor.
 
 ### 3.2 Patients
 
@@ -446,9 +459,9 @@ JSON columns are unknown at every boundary. Readers coerce what they can, drop w
 
 | Parent | Child | On delete |
 |---|---|---|
-| `User` | `Prescription`, `ActivityLog`, `Assistant` (both sides), `Chamber`, `OtherCertificate`, `PrescriptionTemplate`, `PrescriptionLayout`, `PrescriptionDraft`, `RefreshToken`, `Ward`, `IpdTeamMember`, `PatientChatMessage`, `PatientSupervisor`, all `Doctor*` tables, `SupervisedDraft` | **Cascade** |
+| `User` | `Prescription`, `ActivityLog`, `Assistant` (both sides), `Chamber`, `OtherCertificate`, `PrescriptionTemplate`, `PrescriptionLayout`, `PrescriptionDraft`, `RefreshToken`, `Ward`, `IpdTeamMember`, `PatientChatMessage`, `PatientSupervisor`, all `Doctor*` tables (`DoctorPointScore` too), `SupervisedDraft`, `PatientAccessGrant`, `PatientAccessCode` | **Cascade** |
 | `User` | `Patient.doctorId` | **SetNull** — the patient and their history survive |
-| `Patient` | `Prescription`, `PatientChatMessage`, `PatientSupervisor`, `SupervisedDraft`, `DoctorPatientNote`, `PatientDrugSafety`, `PatientFile` | **Cascade** |
+| `Patient` | `Prescription`, `PatientChatMessage`, `PatientSupervisor`, `SupervisedDraft`, `DoctorPatientNote`, `PatientDrugSafety`, `PatientFile`, `PatientAccessGrant`, `PatientAccessCode` | **Cascade** |
 | `Patient` | `OpdVisit.patientId`, `IpdAdmission.patientId` | **SetNull** |
 | `Ward` | `IpdTeamMember` | Cascade |
 | `Ward` | `IpdAdmission.wardId` | SetNull |
@@ -476,12 +489,13 @@ Clinical documents are never hard-deleted by a feature: analogue sheets use `rem
 
 Do not assume a `manual-*.sql` file was applied — check the database. `manual-opd-token-unique.sql` and `manual-ipd-bed-unique.sql` are noted in the repo as possibly unapplied; this document did not verify that against the live database.
 
-### The `manual-*.sql` files (39)
+### The `manual-*.sql` files (40)
 
-Whether a file has been applied to the shared database is **not recorded in the repository**; check it against the database before a release that depends on it ([`rules/db-and-prisma.md`](rules/db-and-prisma.md)). Said to be unapplied when written (in `docs/rules/` or `docs/audit/`): `manual-opd-token-unique.sql`, `manual-ipd-bed-unique.sql`, `manual-opd-queue-date.sql`, `manual-opd-presence.sql`, `manual-opd-chambers.sql`, `manual-sms-wallet.sql`, `manual-patient-drug-safety.sql`, `manual-patient-files.sql`.
+Whether a file has been applied to the shared database is **not recorded in the repository**; check it against the database before a release that depends on it ([`rules/db-and-prisma.md`](rules/db-and-prisma.md)). Said to be unapplied when written (in `docs/rules/` or `docs/audit/`): `manual-opd-token-unique.sql`, `manual-ipd-bed-unique.sql`, `manual-opd-queue-date.sql`, `manual-opd-presence.sql`, `manual-opd-chambers.sql`, `manual-sms-wallet.sql`, `manual-patient-drug-safety.sql`, `manual-patient-files.sql`, `manual-admin-settings-and-patient-access.sql`.
 
 | File | What it adds |
 |---|---|
+| `manual-admin-settings-and-patient-access.sql` | `User.isolated`, `User.hideMhsLogo`; `DoctorPointScore`, `PatientAccessGrant`, `PatientAccessCode` tables (16/11/2026). **Apply BEFORE the release**: every read of a `User` asks for the two columns |
 | `manual-activity-imageurl.sql` | `ActivityLog.imageUrl` |
 | `manual-activity-log.sql` | `ActivityLog` table + `(doctorId, createdAt)` index |
 | `manual-doctor-patient-note.sql` | `DoctorPatientNote` table (private note per user and patient) |

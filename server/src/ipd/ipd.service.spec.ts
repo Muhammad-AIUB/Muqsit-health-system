@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { IpdService } from './ipd.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import { patientReachWhere } from '../patients/reach';
 
 // ⚕️ REGRESSION SPEC — the IPD clinical sheet is replaced WHOLESALE.
 //
@@ -291,10 +292,16 @@ describe('IpdService.create — the patient must be reachable', () => {
   it('links a patient this practice can reach', async () => {
     const { service, create, patientFind } = build(true);
     await service.create('doc_1', { bed: 'B-3', name: 'Rahim', patientId: 'p1' });
-    expect(patientFind.mock.calls[0][0].where).toEqual({
-      id: 'p1',
-      OR: [{ doctorId: 'doc_1' }, { supervisors: { some: { doctorId: 'doc_1' } } }],
-    });
+    // The reach is `patientReachWhere` — the ONE definition (own, supervising, or
+    // opened with the patient's own code), shared with the patient routes, the OPD
+    // queue and prescription create (patients/reach.ts, 16/11/2026).
+    const where = patientFind.mock.calls[0][0].where;
+    expect(where).toEqual({ id: 'p1', ...patientReachWhere('doc_1') });
+    // …and it is still at least the two ways this test used to name:
+    expect(where.OR).toEqual(expect.arrayContaining([
+      { doctorId: 'doc_1' },
+      { supervisors: { some: { doctorId: 'doc_1' } } },
+    ]));
     expect(create).toHaveBeenCalledTimes(1);
   });
 

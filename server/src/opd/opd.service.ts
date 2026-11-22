@@ -14,6 +14,7 @@ import {
 import { padStage, PadStage } from './pad-stage';
 import { planMove, renumber } from './queue-order';
 import { DEFAULT_OPD_SCHEDULE, OpdSchedule, scheduleProblem } from './schedule';
+import { patientReachWhere } from '../patients/reach';
 
 const NOT_A_DAY = 'That is not a day on the calendar.';
 const PAST_DAY = 'A day that has passed cannot be changed.';
@@ -92,7 +93,7 @@ export class OpdService {
     const patients = await this.prisma.patient.findMany({
       // ⚕️ Scoped like PatientsService.accessibleWhere: create() takes any patientId,
       // so an id outside this practice (own or supervised) must not hand back its picture.
-      where: { id: { in: ids }, OR: [{ doctorId }, { supervisors: { some: { doctorId } } }] },
+      where: { id: { in: ids }, ...patientReachWhere(doctorId) },
       select: { id: true, doctorId: true, pictureUrl: true, incompleteRx: true },
     });
     let supervised: { patientId: string; data: Prisma.JsonValue }[] = [];

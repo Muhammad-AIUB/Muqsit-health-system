@@ -33,6 +33,7 @@ import { PatientChatModule } from './patient-chat/patient-chat.module';
 import { MirrorModule } from './mirror/mirror.module';
 import { SmsModule } from './sms/sms.module';
 import { StatisticsModule } from './statistics/statistics.module';
+import { PatientAccessModule } from './patient-access/patient-access.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { StatisticsModule } from './statistics/statistics.module';
     MirrorModule,
     SmsModule,
     StatisticsModule,
+    PatientAccessModule,
   ],
   controllers: [],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
