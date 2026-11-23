@@ -9,6 +9,7 @@ Owner decision, 2026-11-23: the doctor app tries to deter screenshots and screen
 - Typing boxes keep text selection and the context menu.
 
 ## The rules, in full
+0. **One account is exempt:** `dr.shahariar.dmc@gmail.com` (the testing account, owner 2026-11-23) — `SCREEN_GUARD_EXEMPT_EMAILS` in `ScreenGuard.tsx`, matched by whole email in lower case, never by domain or prefix. It gets no watermark, no cover, no selection block. Anyone else is guarded in production; add to the list only on the owner's word.
 1. **Production only.** `next dev` (including the E2E run, which uses `next dev`) never renders it, so tests and Playwright are unaffected. Reason: the owner asked for it; a guard that hides the page would break development.
 2. **The print path is untouched.** `prescriptionDoc.ts` and `PrintSheetModal` are not changed; the guard's watermark/cover carry `data-screen-guard` and are `display:none` in `@media print`. Reason: print is a legal document (PRIME DIRECTIVE 4).
 3. **Blur is not always a capture.** The cover ignores a window blur when `document.activeElement` is an IFRAME, or the print sheet would hide itself the moment the doctor clicked in it.

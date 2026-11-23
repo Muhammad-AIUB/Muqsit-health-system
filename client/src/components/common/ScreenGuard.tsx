@@ -4,7 +4,7 @@
 // truly block them (OS tools, a phone camera), so this does two honest things:
 //   1. hides the screen when focus leaves the page or a capture key is pressed;
 //   2. tiles a faint watermark (who / when) so a leaked picture is traceable.
-// Production only: `next dev` and the E2E run (also `next dev`) never see it.
+// Production only (and not for the testing account): `next dev` and the E2E run (also `next dev`) never see it.
 // Printing the prescription is NOT touched — it runs in its own iframe.
 
 import { useEffect, useState } from "react";
@@ -12,7 +12,16 @@ import { C, font } from "@/theme";
 import { useOptionalAuth } from "@/context/AuthContext";
 import { stamp } from "@/lib/stamp";
 
-export function screenGuardEnabled(): boolean {
+// The testing account may take screenshots and recordings (owner, 2026-11-23).
+// Compared in lower case; nobody else is exempt.
+export const SCREEN_GUARD_EXEMPT_EMAILS: readonly string[] = ["dr.shahariar.dmc@gmail.com"];
+
+export function isScreenGuardExempt(email: string | null | undefined): boolean {
+  return !!email && SCREEN_GUARD_EXEMPT_EMAILS.includes(email.trim().toLowerCase());
+}
+
+export function screenGuardEnabled(email?: string | null): boolean {
+  if (isScreenGuardExempt(email)) return false;
   return process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_SCREEN_GUARD !== "off";
 }
 
@@ -35,7 +44,7 @@ function isTypingTarget(t: EventTarget | null): boolean {
 
 export default function ScreenGuard() {
   const auth = useOptionalAuth();
-  const enabled = screenGuardEnabled();
+  const enabled = screenGuardEnabled(auth?.user?.email);
   const [blurred, setBlurred] = useState(false);
   const [keyCover, setKeyCover] = useState(false);
 
