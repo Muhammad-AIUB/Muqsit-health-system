@@ -327,16 +327,15 @@ describe("a line the ℞ pad cannot write travels with the visit", () => {
     expect(JSON.stringify(dialogs.tell.mock.calls[0])).toMatch(/could not be read/i);
   });
 
-  it("is written in Bangla with every other line when BAN is pressed, and stays", async () => {
+  it("is left exactly as it is when BAN is pressed (the pad is always English), and stays", async () => {
     const a = device();
     await tick(10);
     await withRedLine(a);
     act(() => { fireEvent.click(within(a.container).getByRole("button", { name: "BAN" })); });
     await tick(10);
-    expect(a.store.rxItems[0].dose).toBe(rxCellIn("1+1+1", "bn"));
+    expect(a.store.rxItems[0].dose).toBe("1+1+1");
     expect(redLines(a.container)).toHaveLength(1);
-    expect(a.store.rxPadHeld?.[1].dose).toBe(rxCellIn("1+0+1", "bn"));
-    expect(a.store.rxPadHeld?.[1].dose).not.toBe("1+0+1");
+    expect(a.store.rxPadHeld?.[1].dose).toBe("1+0+1");
     expect(dialogs.tell).not.toHaveBeenCalled();
   });
 

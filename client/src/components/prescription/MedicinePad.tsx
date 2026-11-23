@@ -10,9 +10,6 @@ import { rxSuggestReady } from "@/lib/rxSuggest";
 import { lastUsedLabel } from "@/lib/lastUsed";
 import { fmtMedicine, looksLikeMedicine, parseDose, parseDuration, parseFood, splitDrugLabel, FOOD_HINT } from "@/lib/rxShorthand";
 import { parseFlexibleDate } from "@/lib/dateInput";
-import { BANGLA_ATTR } from "@/lib/banglaInput";
-import { useKbdLang } from "@/lib/kbdLang";
-import { habitIn, rxCellIn } from "@/lib/rxLanguage";
 import { blockOf, canMove, moveBlock } from "@/lib/rxRowMove";
 import { rxHabitsApi, type RxHabitGroup, type RxHabitItem } from "@/lib/api";
 import {
@@ -83,7 +80,7 @@ const cellArea: CSSProperties = {
   minHeight: ROW_H - 8,
 };
 
-function AutoCell({ value, onChange, onFocus, onBlur, onKeyDown, placeholder, title, bangla, refCb, style }: {
+function AutoCell({ value, onChange, onFocus, onBlur, onKeyDown, placeholder, title, refCb, style }: {
   value: string;
   onChange: (v: string) => void;
   onFocus?: () => void;
@@ -91,7 +88,6 @@ function AutoCell({ value, onChange, onFocus, onBlur, onKeyDown, placeholder, ti
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder: string;
   title?: string;
-  bangla?: boolean;
   refCb: (el: HTMLTextAreaElement | null) => void;
   style: CSSProperties;
 }) {
@@ -116,7 +112,6 @@ function AutoCell({ value, onChange, onFocus, onBlur, onKeyDown, placeholder, ti
       placeholder={placeholder}
       title={title}
       style={style}
-      {...(bangla ? BANGLA_ATTR : {})}
     />
   );
 }
@@ -131,23 +126,20 @@ function AutoCell({ value, onChange, onFocus, onBlur, onKeyDown, placeholder, ti
 // "Add Bulk Medicine" box.
 export { lastUsedLabel };
 
-// The instruction as saved, in the pad's language (`cellIn`, OPD only: BAN shows
-// a line learned in English in Bangla, and EN the reverse — exactly what a pick
-// inserts). A blank field is simply absent — never filled in with a guess.
-const asIs = (s: string) => s;
-const instructionLine = (dose: unknown, food: unknown, duration: unknown, cellIn: (s: string) => string = asIs): string =>
+// The instruction as saved. A blank field is simply absent — never filled in
+// with a guess. The pad is always English; BAN changes only the printout.
+const instructionLine = (dose: unknown, food: unknown, duration: unknown): string =>
   [safeHabitText(dose), safeHabitText(food), safeHabitText(duration)]
-    .map((v) => cellIn(v.trim()))
+    .map((v) => v.trim())
     .filter(Boolean)
     .join(" · ");
 
-function HabitRow({ habit, dim, onPick, onHide, onRestore, cellIn }: {
+function HabitRow({ habit, dim, onPick, onHide, onRestore }: {
   habit: RxHabitItem;
   dim?: boolean;
   onPick?: () => void;
   onHide?: () => void;
   onRestore?: () => void;
-  cellIn?: (s: string) => string;
 }) {
   const cont = safeContLines(habit?.contLines);
   const n = Number(habit?.patientCount);
@@ -172,14 +164,14 @@ function HabitRow({ habit, dim, onPick, onHide, onRestore, cellIn }: {
         <span style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: C.n[900] }}>{safeHabitText(habit?.drugLabel)}</span>
           <span style={{ fontSize: 12.5, color: C.n[700] }}>
-            {instructionLine(habit?.dose, habit?.food, habit?.duration, cellIn)}
+            {instructionLine(habit?.dose, habit?.food, habit?.duration)}
           </span>
         </span>
         {/* Tapering lines preview with the same ↳ the pad uses, so what is shown
             is literally what gets inserted. */}
         {cont.map((c, i) => (
           <span key={i} style={{ display: "block", fontSize: 12, color: C.n[600], paddingLeft: 12 }}>
-            ↳ {instructionLine(c.dose, c.food, c.duration, cellIn)}
+            ↳ {instructionLine(c.dose, c.food, c.duration)}
           </span>
         ))}
         {meta && <span style={{ display: "block", fontSize: 11, color: C.n[500], marginTop: 2 }}>{meta}</span>}
@@ -234,9 +226,6 @@ interface Props {
   // (`useRxAlertInput`); the MATCHING runs inside `RxPadAlerts`'s own error
   // boundary, never here — see client/CLAUDE.md.
   alertInput?: RxAlertInput;
-  // BAN mode types Bangla into dose / food / duration (physician's decision,
-  // 2026-09-23) — OPD pad only. The medicine name never: it is a search.
-  bangla?: boolean;
   // Lines can be moved: drag a line by its serial number, or ▲ / ▼ while
   // ✎ Edit is on (physician's request, 2026-09-23). A medicine always moves
   // together with its >>> tapering lines — see lib/rxRowMove.ts. OPD pad only.
@@ -252,7 +241,7 @@ interface Props {
   drugAdvice?: { has: (row: Row) => boolean; open: (row: Row) => void };
 }
 
-export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, bangla = false, reorderable = false, numberNotes = false, drugAdvice }: Props) {
+export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteText, showCheck = true, showSF = false, showHabits = false, alertInput, reorderable = false, numberNotes = false, drugAdvice }: Props) {
   const [acRow, setAcRow] = useState<number | null>(null);
   // Which drug box the caret is in. Only used to decide whether that line
   // shows its plain <input> text or the read-only overlay that sets the brand
@@ -393,30 +382,6 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     };
   }, [acRow, rows]);
   const { results: acItems } = useMedicineSearch(acQuery);
-  // ⚕️ BAN writes the dose / food / duration in Bangla (physician's decision,
-  // 2026-10-14) on the OPD pad only (`bangla`). A typed cell is written when it
-  // is committed — the moment its shorthand is expanded — never mid-typing.
-  const lang = useKbdLang();
-  // …a cell that was TYPED IN, that is (review of 409be0b). One only passed
-  // through — blur or Enter — is kept as written: a printed visit's cells were
-  // rewritten in Bangla and the visit no longer said what was printed, and so
-  // were cells that arrived from another device or a draft ("never on
-  // arrival"). Typed in means an edit in this cell since the caret entered it
-  // — not a value that changed under the caret, which another device can do
-  // (review of b8e4a3e). The BAN keyboard types through the cell's own input
-  // event, so it counts.
-  const enteredRef = useRef<{ key: string; typed: boolean } | null>(null);
-  const enter = (key: string) => { enteredRef.current = { key, typed: false }; };
-  const typedIn = (key: string) => { if (enteredRef.current?.key === key) enteredRef.current.typed = true; };
-  const commit = (key: string, s: string) => {
-    const at = enteredRef.current;
-    const typed = !at || at.key !== key || at.typed;
-    return bangla && lang === "bn" && typed ? rxCellIn(s, "bn") : s;
-  };
-  // A learned line is SHOWN in the pad's language too — Bangla in BAN, English
-  // in EN (physician's request, 2026-10-15) — as it would be inserted. Display
-  // only: what is stored is untouched.
-  const cellIn = bangla ? (s: string) => rxCellIn(s, lang) : asIs;
   // Learned lines wait for 3 letters (lib/rxSuggest.ts); the medicine list above does not.
   const { groups: habitGroups, refresh: refreshHabits } = useRxHabits(showHabits && rxSuggestReady(acQuery) ? acQuery : "");
   // ⚕️ Free-typed NOTE lines this doctor has written before ("Insulin as
@@ -445,7 +410,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
   const setHabitHidden = (habit: RxHabitItem, hidden: boolean) => {
     const id = safeHabitText(habit?.id);
     if (!id) return;
-    const label = [safeHabitText(habit?.drugLabel), instructionLine(habit?.dose, habit?.food, habit?.duration, cellIn)]
+    const label = [safeHabitText(habit?.drugLabel), instructionLine(habit?.dose, habit?.food, habit?.duration)]
       .filter(Boolean)
       .join("  ");
     // Optimistic, then reconciled against the server. The failure is NOT
@@ -469,9 +434,7 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
     // as a fallback for a response that predates the field.
     const generic =
       safeHabitText(groupGeneric) || resolveGeneric(safeHabitText(habit?.drugLabel), acItems);
-    // A learned line lands in the pad's current language, whichever language
-    // it was learned in (OPD only).
-    setRows((prev) => insertHabitRows(prev, idx, bangla ? habitIn(habit, lang) : habit, generic));
+      setRows((prev) => insertHabitRows(prev, idx, habit, generic));
     setAcRow(null);
     setShowHiddenFor(null);
     const next = focusIndexAfterInsert(idx, habit);
@@ -799,14 +762,14 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                                 habit={h}
                                 onPick={() => pickHabit(idx, h, g.generic)}
                                 onHide={() => setHabitHidden(h, true)}
-                                cellIn={cellIn}
+                               
                               />
                             ))}
                             {g.hiddenCount > 0 && (
                               showHiddenFor === g.drugKey ? (
                                 <>
                                   {g.hidden.map((h) => (
-                                    <HabitRow key={h.id} habit={h} dim onRestore={() => setHabitHidden(h, false)} cellIn={cellIn} />
+                                    <HabitRow key={h.id} habit={h} dim onRestore={() => setHabitHidden(h, false)} />
                                   ))}
                                   <button
                                     type="button"
@@ -918,35 +881,29 @@ export default function MedicinePad({ rows, setRows, minHeight, maxHeight, noteT
                   <AutoCell
                     refCb={(el) => { doseRefs.current[idx] = el; }}
                     value={row.dose}
-                    onChange={(v) => { typedIn(`${idx}:dose`); updateRow(idx, { dose: v }); }}
-                    onFocus={() => enter(`${idx}:dose`)}
-                    onBlur={() => updateRow(idx, { dose: commit(`${idx}:dose`, parseDose(row.dose)) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: commit(`${idx}:dose`, parseDose(row.dose)) }); foodRefs.current[idx]?.focus(); } }}
+                    onChange={(v) => { updateRow(idx, { dose: v }); }}
+                    onBlur={() => updateRow(idx, { dose: parseDose(row.dose) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { dose: parseDose(row.dose) }); foodRefs.current[idx]?.focus(); } }}
                     placeholder="dose"
-                    bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.dose.length)} 1 0`, minWidth: 52 }}
                   />
                   <AutoCell
                     refCb={(el) => { foodRefs.current[idx] = el; }}
                     value={row.food}
-                    onChange={(v) => { typedIn(`${idx}:food`); updateRow(idx, { food: v }); }}
-                    onFocus={() => enter(`${idx}:food`)}
-                    onBlur={() => updateRow(idx, { food: commit(`${idx}:food`, parseFood(row.food)) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: commit(`${idx}:food`, parseFood(row.food)) }); durRefs.current[idx]?.focus(); } }}
+                    onChange={(v) => { updateRow(idx, { food: v }); }}
+                    onBlur={() => updateRow(idx, { food: parseFood(row.food) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { food: parseFood(row.food) }); durRefs.current[idx]?.focus(); } }}
                     placeholder="food"
-                    bangla={bangla}
                     title={FOOD_HINT}
                     style={{ ...cellArea, flex: `${Math.max(10, row.food.length)} 1 0`, minWidth: 52 }}
                   />
                   <AutoCell
                     refCb={(el) => { durRefs.current[idx] = el; }}
                     value={row.duration}
-                    onChange={(v) => { typedIn(`${idx}:duration`); updateRow(idx, { duration: v }); }}
-                    onFocus={() => enter(`${idx}:duration`)}
-                    onBlur={() => updateRow(idx, { duration: commit(`${idx}:duration`, parseDuration(row.duration)) })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: commit(`${idx}:duration`, parseDuration(row.duration)) }); drugRefs.current[idx + 1]?.focus(); } }}
+                    onChange={(v) => { updateRow(idx, { duration: v }); }}
+                    onBlur={() => updateRow(idx, { duration: parseDuration(row.duration) })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); updateRow(idx, { duration: parseDuration(row.duration) }); drugRefs.current[idx + 1]?.focus(); } }}
                     placeholder="duration"
-                    bangla={bangla}
                     style={{ ...cellArea, flex: `${Math.max(10, row.duration.length)} 1 0`, minWidth: 52 }}
                   />
                 </div>

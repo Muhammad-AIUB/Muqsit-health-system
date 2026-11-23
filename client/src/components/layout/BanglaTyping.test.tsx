@@ -11,12 +11,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { BanglaTyping, LanguageToggle, setKbdLang } from "./BanglaTyping";
 import ExpandableField from "@/components/common/ExpandableField";
 import { BANGLA_ATTR, BANGLA_FIELDS } from "@/lib/banglaInput";
-import type { RxItem } from "@/types";
-import type { Row } from "@/components/prescription/MedicinePad";
 
-const setRxItems = vi.hoisted(() => vi.fn());
-const visit = vi.hoisted(() => ({ printed: false }));
-const setRxPadHeld = vi.hoisted(() => vi.fn());
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("@/hooks/useFieldRecents", () => ({
   useFieldRecents: () => ({ getRecents: () => [], addRecents: vi.fn() }),
@@ -25,68 +20,31 @@ vi.mock("@/hooks/useDoctorPhrases", () => ({
   useDoctorPhrases: () => ({ phrases: [], refresh: vi.fn() }),
 }));
 vi.mock("@/context/MuqsitContext", () => ({
-  useMuqsit: () => ({ canEditLabel: () => true, can: () => true, setRxItems, setRxPadHeld, visitPrinted: visit.printed }),
+  useMuqsit: () => ({ canEditLabel: () => true, can: () => true }),
 }));
 
 afterEach(() => {
   cleanup();
-  setRxItems.mockClear();
-  setRxPadHeld.mockClear();
   try { window.localStorage.removeItem("mhs_kbd_lang:u1"); } catch { /* none */ }
   act(() => setKbdLang("en"));
 });
 
-// ⚕️ BAN writes the ℞ pad's dose / food / duration in Bangla, EN writes them
-// back (physician's decision, 2026-10-14). The wording is pinned in
-// lib/rxLanguage.test.ts; this pins that pressing the switch is what does it.
-describe("LanguageToggle — the switch writes the ℞ columns in its language", () => {
-  const pad: RxItem[] = [{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "Before meal", duration: "7 days" }];
-  const lastUpdate = () => setRxItems.mock.calls.at(-1)![0] as (p: RxItem[]) => RxItem[];
-
-  it("BAN turns them Bangla, and EN turns them back", () => {
+// ⚕️ The switch never rewrites the ℞ pad (physician's decision, 2026-11-23,
+// replacing 2026-10-14): the pad is always English and BAN changes only the
+// printout (PrescriptionView; wording in lib/rxLanguage.test.ts).
+describe("LanguageToggle — the switch never touches the ℞ pad", () => {
+  it("pressing BAN or EN sets the mode and writes nothing to the pad", () => {
     render(<LanguageToggle />);
     fireEvent.click(screen.getByText("BAN"));
-    const bn = lastUpdate()(pad);
-    expect(bn[0]).toEqual({ drug: "Tablet. Napa 500 mg", dose: "১+০+১", instruction: "খাবারের আগে", duration: "৭ দিন" });
+    expect(screen.getByText("BAN").getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByText("EN"));
-    expect(lastUpdate()(bn)[0]).toEqual(pad[0]);
+    expect(screen.getByText("EN").getAttribute("aria-pressed")).toBe("true");
   });
 
-  // ⚕️ 19/10/2026 (third review): the press rewrote a PRINTED visit still on the
-  // pad — what it said was no longer what was printed, and the patient went
-  // back to "Incomplete" (and a round trip does not even come back exactly:
-  // "2 weeks" returns as "2 week"). A printed, unchanged visit is left as it
-  // was printed; the language is set for what is typed next.
-  it("a printed visit still on the pad is not rewritten — the language is set for what comes next", () => {
-    visit.printed = true;
-    try {
-      render(<LanguageToggle />);
-      fireEvent.click(screen.getByText("BAN"));
-      expect(screen.getByText("BAN").getAttribute("aria-pressed")).toBe("true");
-      expect(setRxItems).not.toHaveBeenCalled();
-      expect(setRxPadHeld).not.toHaveBeenCalled();
-    } finally {
-      visit.printed = false;
-    }
-  });
-
-  it("restoring a remembered BAN does not touch the pad — only a press does", () => {
+  it("restoring a remembered BAN sets the mode only", () => {
     window.localStorage.setItem("mhs_kbd_lang:u1", "bn");
     render(<LanguageToggle />);
     expect(screen.getByText("BAN").getAttribute("aria-pressed")).toBe("true");
-    expect(setRxItems).not.toHaveBeenCalled();
-    expect(setRxPadHeld).not.toHaveBeenCalled();
-  });
-
-  // ⚕️ 19/10/2026: the lines the pad holds and cannot write (lib/rxPadHold.ts)
-  // are written with the rest — on one side only they no longer fitted.
-  it("the same press writes the lines the pad holds and cannot write", () => {
-    render(<LanguageToggle />);
-    fireEvent.click(screen.getByText("BAN"));
-    const update = setRxPadHeld.mock.calls.at(-1)![0] as (h: Row[] | null) => Row[] | null;
-    const red: Row = { drug: "", dose: "1+0+1", food: "Before meal", duration: "7 days", checked: true, isMedicine: true, continuation: false };
-    expect(update([red])?.[0]).toMatchObject({ dose: "১+০+১", food: "খাবারের আগে", duration: "৭ দিন" });
-    expect(update(null)).toBeNull();
   });
 });
 

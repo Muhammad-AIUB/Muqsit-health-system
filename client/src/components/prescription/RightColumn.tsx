@@ -12,8 +12,6 @@ import { usePadSync } from "@/lib/usePadSync";
 import { writableItems } from "@/lib/rxRows";
 import { lineText } from "@/lib/rxPadHold";
 import { tell } from "@/lib/dialogs";
-import { useKbdLang } from "@/lib/kbdLang";
-import { rxItemsIn } from "@/lib/rxLanguage";
 import { useTemplates } from "@/hooks/useTemplates";
 import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
 import BulkMedicineButton from "@/components/prescription/BulkMedicineButton";
@@ -67,9 +65,6 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
   const { data: allTemplates = [] } = useTemplates("opd");
   const shownTemplates = allTemplates.filter((t) => t.name.toLowerCase().includes(tplSearch.trim().toLowerCase()));
 
-  // Lines added from a template or the bulk box land in the pad's current
-  // language — BAN writes the dose / food / duration in Bangla (2026-10-14).
-  const lang = useKbdLang();
 
   // Clicking a template ADDS its medicines to the current prescription.
   const addTemplate = (items: RxItem[], name: string) => {
@@ -78,7 +73,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
     // a >>> line, which appended here would stand under the pad's last medicine.
     // It is left out, and said.
     const { items: ok, dropped } = writableItems(items);
-    if (ok.length) setRxItems((prev) => [...prev, ...rxItemsIn(ok.map((it) => ({ ...it })), lang)]);
+    if (ok.length) setRxItems((prev) => [...prev, ...ok.map((it) => ({ ...it }))]);
     if (dropped) {
       tell({
         title: `${dropped} ${dropped === 1 ? "line" : "lines"} of “${name}” not added`,
@@ -159,7 +154,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           existing={rxItems}
           onAppend={(items) => {
             setAdded({ count: items.length, from: rows });
-            setRxItems((prev) => [...prev, ...rxItemsIn(items, lang)]);
+            setRxItems((prev) => [...prev, ...items]);
           }}
         />
       </div>
@@ -187,7 +182,6 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
             noteText="Start typing a medicine or note…"
             showCheck={false}
             showHabits
-            bangla
             reorderable
             numberNotes
             alertInput={alertInput}

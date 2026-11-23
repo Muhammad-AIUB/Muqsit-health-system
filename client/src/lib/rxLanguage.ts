@@ -115,6 +115,15 @@ export function rxItemsIn(items: RxItem[], lang: RxLang): RxItem[] {
   return changed ? out : items;
 }
 
+/**
+ * The ℞ lines as they are PRINTED (physician's decision, 2026-11-23): BAN prints
+ * the dose, food and duration in Bangla by the table above; EN prints them as
+ * entered — never converted back, so a Bangla line a doctor saved earlier is
+ * still printed as it was. Only the printout is converted: the pad and the
+ * record keep what was entered. Text the table does not cover prints as written.
+ */
+export const rxForPrint = (items: RxItem[], lang: RxLang): RxItem[] => (lang === "bn" ? rxItemsIn(items, "bn") : items);
+
 interface Cells { dose: string; food: string; duration: string }
 
 /** A "Your usual" line, and its tapering lines, in `lang`. */
@@ -144,4 +153,27 @@ export function rxRowsIn<T extends Cells & { isMedicine: boolean }>(rows: T[], l
     return { ...r, dose, food, duration };
   });
   return changed ? out : rows;
+}
+
+/** An Advice line that still needs translating for a BAN printout: it has Latin letters and no Bangla. */
+export const adviceNeedsTranslation = (line: string): boolean => /[A-Za-z]/.test(line) && !HAS_BANGLA.test(line);
+
+/**
+ * The Advice lines as printed in BAN: each line `adviceNeedsTranslation` is
+ * replaced by its machine translation; a Bangla line, or one whose translation
+ * is missing, prints as typed (`failed` counts those, so the doctor is told).
+ * `translated` holds the answers, in the order the lines that needed it were
+ * sent (`null` for a line that failed).
+ */
+export function adviceForPrint(lines: string[], translated: (string | null)[]): { lines: string[]; failed: number } {
+  let at = 0;
+  let failed = 0;
+  const out = lines.map((l) => {
+    if (!adviceNeedsTranslation(l)) return l;
+    const bn = translated[at++];
+    if (typeof bn === "string" && bn.trim()) return bn.trim();
+    failed += 1;
+    return l;
+  });
+  return { lines: out, failed };
 }

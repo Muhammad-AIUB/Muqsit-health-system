@@ -80,7 +80,6 @@ export default function AddMedicineRow({ existing, tabLabel, date, onAdd }: Prop
         rows={rows}
         setRows={(next) => { setRows(next); setMsg(""); }}
         showCheck={false}
-        bangla
         minHeight={96}
       />
       {msg && <div role="status" style={{ fontSize: 11.5, color: C.warn[800], marginTop: 6 }}>{msg}</div>}

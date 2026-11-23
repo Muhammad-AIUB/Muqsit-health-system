@@ -6,8 +6,6 @@ import { shadowCard, shadowMenu, tabInk, tabOn } from "@/theme/styles";
 import { useAuth } from "@/context/AuthContext";
 import { applyBanglaKey, PHONETIC_KEY, type WordState } from "@/lib/banglaInput";
 import { savedKbdLang, setKbdLang, useKbdLang, type KbdLang } from "@/lib/kbdLang";
-import { rxItemsIn, rxRowsIn } from "@/lib/rxLanguage";
-import { useMuqsit } from "@/context/MuqsitContext";
 
 // BAN / EN — the header switch and the keyboard handler behind it
 // (physician's decision, 2026-09-23). The conversion rules and why they never
@@ -26,30 +24,17 @@ export { setKbdLang, type KbdLang } from "@/lib/kbdLang";
 // ── Header switch ─────────────────────────────────────────────
 export function LanguageToggle() {
   const { user } = useAuth();
-  const { setRxItems, setRxPadHeld, visitPrinted } = useMuqsit();
-  const lang = useKbdLang();
+    const lang = useKbdLang();
 
   // Restore this user's last choice; anything unreadable is English. Only the
   // MODE is restored — the pad is converted by a press, never by a page load.
   useEffect(() => { setKbdLang(savedKbdLang(user?.id)); }, [user?.id]);
 
-  // ⚕️ A press writes the ℞ pad's dose / food / duration in that language
-  // (physician's decision, 2026-10-14): Bangla for BAN, English for EN, by the
-  // physician's own table (`lib/rxLanguage.ts`). Only on THIS device's press —
-  // a pad arriving from a mirrored device is left as that device wrote it.
-  // ⚕️ The lines the pad holds and cannot write (lib/rxPadHold.ts) are lines on
-  // the pad too, and are written with the rest in the same press: converted on
-  // one side only, they no longer fitted `rxItems` and came off the pad.
-  // ⚕️ Not a visit printed and unchanged (19/10/2026, third review): rewritten,
-  // it no longer said what was printed and went back to "Incomplete" — and a
-  // round trip does not come back exactly ("2 weeks" returns as "2 week"). The
-  // language is set for what is typed next; the printed visit stays as printed.
-  const choose = (value: KbdLang) => {
-    setKbdLang(value, user?.id);
-    if (visitPrinted) return;
-    setRxItems((prev) => rxItemsIn(prev, value));
-    setRxPadHeld((held) => (held ? rxRowsIn(held, value) : held));
-  };
+  // ⚕️ A press changes the typing language and the language of the PRINTOUT
+  // (`PrescriptionView`: the ℞ dose / food / duration by `lib/rxLanguage.ts`).
+  // It never rewrites the ℞ pad or anything stored (physician's decision,
+  // 2026-11-23, replacing the 2026-10-14 one): the pad is always English.
+  const choose = (value: KbdLang) => setKbdLang(value, user?.id);
 
   const opt = (value: KbdLang, label: string, title: string) => {
     const active = lang === value;
@@ -72,7 +57,7 @@ export function LanguageToggle() {
 
   return (
     <div role="group" aria-label="Typing language" style={{ display: "flex", gap: 2, padding: 2, borderRadius: 8, background: C.n[100], flexShrink: 0 }}>
-      {opt("bn", "BAN", "Type Bangla phonetically (Avro style: ami → আমি) in Chief complaints, Previous complaints, Note, Plan, Advice and the ℞ dose / food / duration — and write the ℞ dose / food / duration in Bangla")}
+      {opt("bn", "BAN", "Type Bangla phonetically (Avro style: ami → আমি) in Chief complaints, Previous complaints, Note, Plan and Advice — and print the ℞ dose / food / duration in Bangla (the screen stays English)")}
       {opt("en", "EN", "Type English")}
     </div>
   );

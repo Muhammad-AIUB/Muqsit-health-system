@@ -10,7 +10,6 @@ import { Loading, LoadError } from "@/components/common/ListState";
 import EmptyState from "@/components/common/EmptyState";
 import { splitDrugLabel } from "@/lib/rxShorthand";
 import { lastUsedLabel } from "@/lib/lastUsed";
-import { useKbdLang } from "@/lib/kbdLang";
 import { grouped } from "@/lib/calculators/format";
 import {
   bulkSummary, bulkToRxItems, choicesOf, instructionOf, medicinesOnPad, nothingAddedNote, patientsLabel, searchBulk,
@@ -134,9 +133,7 @@ const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabSto
   // The text is the label's, unchanged.
   const strength = after.trimStart();
   const gap = after.slice(0, after.length - strength.length);
-  // Shown in the current language (BAN Bangla, EN English), as it will be added.
-  const lang = useKbdLang();
-  const instruction = instructionOf(m, lang);
+  const instruction = instructionOf(m);
   const when = lastUsedLabel(m.lastUsedAt);
   // 17/10/2026: "just keep the medicine name, no need to add extra things like
   // dose, duration". The chip shows the name; what a tick adds — the
@@ -145,7 +142,7 @@ const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabSto
   const tooltip = [
     m.generic,
     instruction || "No dose recorded",
-    ...m.contLines.map((c) => `↳ ${instructionOf(c, lang)}`),
+    ...m.contLines.map((c) => `↳ ${instructionOf(c)}`),
     `${patientsLabel(m.patientCount)}${when ? ` · ${when}` : ""}`,
   ].filter(Boolean).join("\n");
   const listName = `Last instructions for ${m.drugLabel}`;
@@ -201,11 +198,11 @@ const BulkRow = memo(function BulkRow({ m: medicine, choiceId, on, onPad, tabSto
               onClick={() => onChoose(medicine.id, o.id)}
               style={{ textAlign: "left", padding: "6px 8px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: font, background: sel ? C.pri[100] : "transparent", color: C.n[900] }}>
               <span style={{ display: "block", fontSize: 12, overflowWrap: "anywhere" }}>
-                {instructionOf(o, lang) || "No dose recorded"}
+                {instructionOf(o) || "No dose recorded"}
                 {o.usual && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: C.n[600] }}>usual</span>}
               </span>
               {o.contLines.map((c, i) => (
-                <span key={i} style={{ display: "block", fontSize: 11.5, color: C.n[700], overflowWrap: "anywhere" }}>↳ {instructionOf(c, lang)}</span>
+                <span key={i} style={{ display: "block", fontSize: 11.5, color: C.n[700], overflowWrap: "anywhere" }}>↳ {instructionOf(c)}</span>
               ))}
               <span style={{ display: "block", fontSize: 10.5, color: C.n[500] }}>{patientsLabel(o.patientCount)}{oWhen ? ` · ${oWhen}` : ""}</span>
             </button>

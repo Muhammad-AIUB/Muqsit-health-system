@@ -120,7 +120,7 @@ The rules of the doctor app — clinical accuracy, the storage formats, the edit
   - A late answer never decides it is still wanted by asking about ONE of the ways the editor can move on: every writer that replaces the editor moves `editorEpochRef`, not `resetEditor` alone.
 - **The ℞ pad and Save & print** → [`docs/rules/rx-pad.md`](../docs/rules/rx-pad.md) — 20 entries. Named there: `client/src/lib/rxPadHold.ts`, `client/src/lib/usePadSync.ts`, `server/src/rx-habits/rxLanguage.ts`, `client/src/lib/medicineKey.ts`, `components/prescription/MonthlyCost.tsx`, `hooks/useMonthlyCost.ts`.
   - A `>>>` taper never leaves its medicine: written only under a named medicine directly above; a tapered medicine keeps its name; unwritable lines are held, red, and Save refuses (+4 more) → `docs/rules/drug-history.md`
-  - ⚕️ BAN/EN rewrites ℞ dose/food/duration via `lib/rxLanguage.ts` (physician's table verbatim; a decimal point never the dari); never on arrival; a NAME never converted; server copy: edit both (+3 more)
+  - ⚕️ The ℞ pad is always English; BAN/EN changes only the printout's dose/food/duration (`rxForPrint`, physician's table verbatim; a NAME never converted; advice is machine-translated, unreviewed, `docs/rules/rx-pad.md`)
   - OPD ℞ pad and print: notes and medicines are ONE numbered list, but a note stays a NOTE (no dose, mirror, alerts or habits); in print a note advances `rxNo` but never `rxRowNo`
   - ℞ pad medicine column has a 190px floor (`MedicinePad.tsx`); do not remove the floor to "save a line" — a pad too narrow wraps the doses to the next line
   - Save buttons: a failed save is a `tell()` box, never the green line; a throw after the prescription was created is never "not saved"; a lost answer is re-sent AS IT IS (+4 more)

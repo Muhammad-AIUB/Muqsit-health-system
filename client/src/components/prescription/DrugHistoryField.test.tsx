@@ -495,19 +495,18 @@ describe("+ Add medicine — a new line, never a correction", () => {
   });
 });
 
-// ⚕️ BAN writes the ℞ pad's dose / food / duration in Bangla (physician's
-// decision, 2026-10-14) — a line moved from the history lands that way too.
+// ⚕️ The ℞ pad is always English (physician's decision, 2026-11-23): in BAN a
+// line moved from the history lands as recorded; only the printout is Bangla.
 describe("Move to Rx in BAN", () => {
-  it("writes the moved line in Bangla, the record left as it was", () => {
+  it("lands the moved line as recorded, not in Bangla", () => {
     render(<DrugHistoryField items={HISTORY} />);
     openModal();
     fireEvent.click(screen.getByText(/Distant past medication/));
     act(() => setKbdLang("bn"));
     fireEvent.click(screen.getByLabelText("Select Metformin 500mg"));
     fireEvent.click(screen.getByText(/^Move to Rx/));
-    // "after food" is not in the physician's table, so it stays as recorded.
     expect(appended([])).toEqual([
-      { drug: "Metformin 500mg", dose: "১+০+১", instruction: "after food", duration: "১ মাস", isCont: false },
+      { drug: "Metformin 500mg", dose: "1+0+1", instruction: "after food", duration: "1 month", isCont: false },
     ]);
   });
 
@@ -524,45 +523,27 @@ describe("Move to Rx in BAN", () => {
   });
 });
 
-// ⚕️ In BAN the three columns are SHOWN in Bangla wherever they appear, and in
-// EN in English (physician's request, 2026-10-15). Display only.
-describe("Drug history shows the dose / food / duration in the current language", () => {
+// ⚕️ The three columns are shown as recorded in BAN too: no screen converts
+// them (physician's decision, 2026-11-23, replacing 2026-10-15).
+describe("Drug history shows the dose / food / duration as recorded", () => {
   const text = (c: HTMLElement) => (c.textContent ?? "").replace(/\s+/g, " ");
 
-  it("Current medications: BAN shows Bangla, EN shows English", () => {
+  it("Current medications: BAN changes nothing on screen", () => {
     const rx: RxItem[] = [{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", duration: "7 days", instruction: "Before meal" }];
     const { container } = render(<DrugHistoryField items={rxDrugHistoryEntries(rx, "07/09/2026")} />);
     openModal();
     act(() => setKbdLang("bn"));
-    expect(text(container)).toContain("১+০+১");
-    expect(text(container)).toContain("খাবারের আগে");
-    expect(text(container)).toContain("৭ দিন");
-    expect(text(container)).not.toContain("Before meal");
-    expect(text(container)).toContain("Tablet. Napa 500 mg"); // the name is never touched
-    act(() => setKbdLang("en"));
     expect(text(container)).toContain("Before meal");
-    expect(text(container)).not.toContain("খাবারের আগে");
+    expect(text(container)).toContain("7 days");
+    expect(text(container)).not.toContain("খাবারের");
   });
 
-  it("a line saved in Bangla is shown in English in EN", () => {
+  it("a line saved in Bangla stays as saved, in EN too", () => {
     const rx: RxItem[] = [{ drug: "Tablet. Napa 500 mg", dose: "১+০+১", duration: "৭ দিন", instruction: "খাবারের আগে" }];
     const { container } = render(<DrugHistoryField items={rxDrugHistoryEntries(rx, "07/09/2026")} />);
     openModal();
-    expect(text(container)).toContain("1+0+1");
-    expect(text(container)).toContain("Before meal");
-    expect(text(container)).toContain("7 days");
-  });
-
-  it("Distant past: the cells in Bangla, the medicine's name and untranslated text as written", () => {
-    const { container } = render(<DrugHistoryField items={HISTORY} />);
-    openModal();
-    fireEvent.click(screen.getByText(/Distant past medication/));
-    act(() => setKbdLang("bn"));
-    expect(text(container)).toContain("Metformin 500mg");
-    expect(text(container)).toContain("১ মাস");
-    expect(text(container)).toContain("after food"); // not in the physician's table
-    // The tick is still named by the medicine as written.
-    expect(screen.getByLabelText("Select Metformin 500mg")).toBeTruthy();
+    expect(text(container)).toContain("খাবারের আগে");
+    expect(text(container)).not.toContain("Before meal");
   });
 });
 

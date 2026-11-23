@@ -12,8 +12,6 @@ import { rxDrugHistoryEntries } from "@/lib/rxDrugHistory";
 import HideToggle from "@/components/common/HideToggle";
 import { useDialog } from "@/lib/useDialog";
 import AddMedicineRow from "./AddMedicineRow";
-import { useKbdLang } from "@/lib/kbdLang";
-import { rxCellIn, rxItemsIn } from "@/lib/rxLanguage";
 import { useDrugHistoryGenerics } from "@/hooks/useDrugHistoryGenerics";
 import DrugHistoryName, { GenericsNotLoaded, shownName } from "./DrugHistoryName";
 
@@ -79,11 +77,6 @@ interface Props {
 
 export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
   const { setRxItems, rxItems, ptDate, can, addDrugHistoryEntries } = useMuqsit();
-  const lang = useKbdLang();
-  // A line's dose / food / duration is SHOWN in the current language — Bangla in
-  // BAN, English in EN (physician's request, 2026-10-15). Display only: the
-  // entries, the ticks and Move to Rx read the record as it was written.
-  const shown = (s: string) => rxCellIn(s, lang);
   const cd = isoToDdmmyyyy(ptDate); // current visit date, dd/mm/yyyy
   // ⚕️ The ℞ pad's own key. Without it the pad is locked in RightColumn, so the
   // ticks and the Move button must not offer a way around that lock.
@@ -184,9 +177,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
     const { added, skipped } = appendBlocks(chosen, rxItems);
     setRxItems((prev) => {
       const r = appendBlocks(chosen, prev);
-      // In the pad's current language: BAN writes the dose / food / duration
-      // in Bangla (2026-10-14), whichever language the history recorded.
-      return r.items.length ? [...prev, ...rxItemsIn(r.items, lang)] : prev;
+      return r.items.length ? [...prev, ...r.items] : prev;
     });
     setSel(new Set());
     setRxMsg(moveSummary(added, skipped));
@@ -296,7 +287,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                       // dose, so its three values sit in the same three columns.
                       const [dose, food, duration] = (isCont
                         ? [parts[0] ?? "", parts[1] ?? "", parts[2] ?? ""]
-                        : [parts[1] ?? "", parts[2] ?? "", parts[3] ?? ""]).map(shown);
+                        : [parts[1] ?? "", parts[2] ?? "", parts[3] ?? ""]);
                       return (
                         <Fragment key={i}>{head}
                         <div style={row}>
@@ -328,7 +319,7 @@ export default function DrugHistoryField({ items, hidden, onHidden }: Props) {
                       {g.list.map((p, i) => {
                         // The medicine's name stays as written; a tapering line has
                         // no name, only its three cells.
-                        const parts = cells(p.body).map((x, k) => (k === 0 && p.kind !== "cont" ? x : shown(x)));
+                        const parts = cells(p.body);
                         const tick = canRx ? pastTicks[gi]?.get(i) : undefined;
                         return (
                           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < g.list.length - 1 ? `0.5px solid ${C.n[100]}` : "none" }}>

@@ -11,7 +11,7 @@
 - A listener on the whole document never guesses what an element is for: a caption that puts the cursor in its box is a `<label data-caption>`, and a thing that is pressed is a `<button>`.
 - Entered clinical values: never round, reformat or "normalize" one; display exactly what the doctor typed.
 - BAN/EN typing uses Avro Phonetic's rule table, vendored unmodified but for one `export` in `src/vendor/avro-phonetic/` (MPL-1.1) — keep the header and licence file; engine `lib/banglaInput.ts`.
-- Only physician-named fields convert (`BANGLA_FIELDS`, OPD ℞ dose/food/duration, `data-bangla="on"`); others type English with a notice; medicine NAME box excluded; widening is a product decision.
+- Only physician-named fields convert (`BANGLA_FIELDS`, `data-bangla="on"`; NOT the ℞ pad — it is always English, 2026-11-23); others type English with a notice; medicine NAME box excluded; widening is a product decision.
 - ⚕️ The BAN keyboard never converts a number: digits, `+`, `/`, `-` pass through as typed (`0.5` never `০।৫`); `.` becomes `।` only straight after a Bangla letter.
 - How it works — In BAN mode the food/duration shorthand becomes Bangla letters (`am` → `আম`, not "After meal") and units convert too; switch to EN for either.
 - BAN conversion is ONE document-level capture-phase `keydown` listener writing via the native value setter + an `input` event; no field holds Bangla state of its own.

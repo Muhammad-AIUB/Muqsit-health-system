@@ -564,6 +564,15 @@ export const drugAdviceApi = {
     apiFetch<DrugAdvice>("/drug-advice", { method: "PUT", body: JSON.stringify(input) }),
 };
 
+// ── Advice translation for the BAN printout (Sarvam, server-side) ──
+// A machine draft, printed as it comes (physician's decision, 2026-11-23: no
+// review box; he checks the quality himself). `bn` is null for a line that
+// could not be translated. Only the advice text is sent.
+export const translateApi = {
+  advice: (lines: string[]) =>
+    apiFetch<{ lines: { source: string; bn: string | null }[] }>("/translate/advice", { method: "POST", body: JSON.stringify({ lines }) }),
+};
+
 // ── Learned phrases (Advice + ℞ note lines) ─────────────────
 // The free-text sibling of rxHabitsApi: lines this doctor has written before,
 // offered back as they type. Doctor-scoped server-side (@WorkstationDoctorId).
