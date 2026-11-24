@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adviceForPrint, adviceNeedsTranslation, habitIn, rxCellIn, rxForPrint, rxItemsIn } from "./rxLanguage";
+import { habitIn, rxCellIn, rxForPrint, rxItemsIn } from "./rxLanguage";
 import type { RxItem } from "@/types";
 
 // ⚕️ The physician's table, word for word (2026-10-14). A failure here is a
@@ -188,26 +188,5 @@ describe("rxForPrint", () => {
   it("a note keeps its text in BAN", () => {
     const note: RxItem[] = [{ drug: "Insulin as advised", dose: "", instruction: "", duration: "", isNote: true }];
     expect(rxForPrint(note, "bn")).toEqual(note);
-  });
-});
-
-// ⚕️ Advice in a BAN printout: English lines are machine-translated, no review
-// (physician, 2026-11-23); anything not translated prints exactly as typed.
-describe("adviceForPrint", () => {
-  it("only an English line needs translating; a Bangla line or a bare number does not", () => {
-    expect(adviceNeedsTranslation("Drink plenty of water")).toBe(true);
-    expect(adviceNeedsTranslation("বাচ্চা নিলে জানাবেন")).toBe(false);
-    expect(adviceNeedsTranslation("Take 2 টি")).toBe(false);
-    expect(adviceNeedsTranslation("১২৩")).toBe(false);
-  });
-
-  it("puts each answer on its own line, leaving Bangla lines where they are", () => {
-    const r = adviceForPrint(["Drink water", "বাংলা", "Avoid milk"], ["পানি পান করুন", "দুধ এড়িয়ে চলুন"]);
-    expect(r).toEqual({ lines: ["পানি পান করুন", "বাংলা", "দুধ এড়িয়ে চলুন"], failed: 0 });
-  });
-
-  it("a missing or blank answer prints the line as typed and is counted", () => {
-    expect(adviceForPrint(["Drink water", "Avoid milk"], [null, "  "])).toEqual({ lines: ["Drink water", "Avoid milk"], failed: 2 });
-    expect(adviceForPrint(["Drink water"], [])).toEqual({ lines: ["Drink water"], failed: 1 });
   });
 });

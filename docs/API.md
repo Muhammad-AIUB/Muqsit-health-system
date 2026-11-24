@@ -655,12 +655,6 @@ diagnosis line (15/10/2026). Not learned — every line is typed by the doctor.
 | GET | `/drug-advice` | Every advice of the workstation doctor that still has lines: `[{ id, scope, key, label, lines, updatedAt }]`. |
 | PUT | `/drug-advice` | `SaveDrugAdviceDto { scope: "medicine" \| "generic" \| "diagnosis", label, lines[] }` — replaces the lines for that key (upsert). An empty `lines` clears it. Blank `label` → 400. Assistant needs `rx.advice` (403 otherwise). |
 
-### 5.14d Advice translation — `/translate` (JWT + WS)
-
-| Method | Path | Body / answer |
-|---|---|---|
-| POST | `/translate/advice` | `TranslateAdviceDto { lines[1..20] (each ≤ 400 chars) }` → `{ lines: [{ source, bn }] }`; `bn` is `null` for a line the service could not translate. English → Bangla by Sarvam (`SARVAM_API_KEY`); a draft for the BAN printout, nothing stored. 503 when the key is not set. |
-
 `key` is computed on the server: scope `medicine` → `normaliseDrugKey(label)`
 (strength INCLUDED — Napa 500 and Napa 665 are two medicines); scope `generic`
 → the generic name folded for case and spacing only; scope `diagnosis` → the

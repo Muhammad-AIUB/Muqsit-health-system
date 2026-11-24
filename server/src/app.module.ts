@@ -32,7 +32,6 @@ import { WorkstationsModule } from './workstations/workstations.module';
 import { PatientChatModule } from './patient-chat/patient-chat.module';
 import { MirrorModule } from './mirror/mirror.module';
 import { SmsModule } from './sms/sms.module';
-import { TranslateModule } from './translate/translate.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { PatientAccessModule } from './patient-access/patient-access.module';
 
@@ -72,7 +71,6 @@ import { PatientAccessModule } from './patient-access/patient-access.module';
     PatientChatModule,
     MirrorModule,
     SmsModule,
-    TranslateModule,
     StatisticsModule,
     PatientAccessModule,
   ],

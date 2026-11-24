@@ -2,7 +2,7 @@
 
 import { printableOnExamination, type OeFinding } from "@/lib/onExaminationSummary";
 import { patientHistory, printableHistory, type HxKind, type PatientHxEntry } from "@/lib/patientHistory";
-import { patientsApi, translateApi } from "@/lib/api";
+import { patientsApi } from "@/lib/api";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { C, font } from "@/theme";
 import { confirmAction, tell } from "@/lib/dialogs";
@@ -12,7 +12,7 @@ import { hidesMhsLogo } from "@/lib/practiceBrand";
 import { useAuth } from "@/context/AuthContext";
 import { buildPrescriptionHtml } from "@/lib/prescriptionDoc";
 import { getKbdLang } from "@/lib/kbdLang";
-import { adviceForPrint, adviceNeedsTranslation, rxForPrint } from "@/lib/rxLanguage";
+import { rxForPrint } from "@/lib/rxLanguage";
 import { sanitizeHtml } from "@/lib/safeHtml";
 import { uploadImage } from "@/lib/api";
 import { usePrescriptionLayout } from "@/hooks/usePrescriptionLayout";
@@ -170,30 +170,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     return go ? NO_HX : null;
   };
 
-  // ⚕️ BAN prints the Advice in Bangla (physician's decision, 2026-11-23): lines
-  // typed in English are machine-translated by the server and printed as they
-  // come — no review box. It never stops a print or a save: a line that could
-  // not be translated prints as typed, and the doctor is told which count.
-  const adviceForSheet = async (): Promise<string[]> => {
-    if (getKbdLang() !== "bn") return m.advice;
-    const todo = m.advice.filter(adviceNeedsTranslation);
-    if (!todo.length) return m.advice;
-    let answers: (string | null)[] = [];
-    try {
-      answers = (await translateApi.advice(todo)).lines.map((x) => x.bn);
-    } catch { /* every line prints as typed, below */ }
-    const { lines, failed } = adviceForPrint(m.advice, answers);
-    if (failed) {
-      tell({
-        title: `${failed} advice ${failed === 1 ? "line" : "lines"} could not be translated`,
-        body: "They are printed in English, as typed. The prescription is not affected.",
-      });
-    }
-    return lines;
-  };
-
   // Build the printable prescription HTML from the current editor state.
-  const buildHtml = (safetyLines: string[], hx: Record<HxKind, PatientHxEntry[]>, advice: string[]) => {
+  const buildHtml = (safetyLines: string[], hx: Record<HxKind, PatientHxEntry[]>) => {
     const rxMirrored = new Set(rxDrugHistoryEntries(m.rxItems, isoToDdmmyyyy(m.ptDate)));
     const printableDrugHistory = m.drugHistory.filter((e) => !rxMirrored.has(e));
     const followUp =
@@ -254,7 +232,9 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       // converted — the pad and the record stay as entered (`lib/rxLanguage.ts`,
       // the physician's table; text it does not cover is printed as written).
       rx: rxForPrint(m.rxItems, getKbdLang()),
-      advice,
+      // ⚕️ Advice prints exactly as typed, in whichever language the doctor typed
+      // it (physician, 24/11/2026: no machine translation).
+      advice: m.advice,
       adviceTest: m.adviceTest,
       followUp,
       // OPD + "extra page" → append a masked privacy copy as a second page.
@@ -339,7 +319,6 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
       if (h === null) return;
       hx = h;
     }
-    const advice = showing ? await adviceForSheet() : m.advice;
     if (showing) setSheet({ open: true, html: null, afterSave: true });
 
     // The save runs before anything that could throw. Nothing about rendering
@@ -360,7 +339,7 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     // untouched by the save, so this is still exactly what the doctor saw.
     let html: string;
     try {
-      html = buildHtml(safetyLines, hx, advice);
+      html = buildHtml(safetyLines, hx);
     } catch {
       closeSheet();
       tell({ title: "Prescription saved, but the printable sheet could not be built.", body: "Open Preview PDF to print it." });
@@ -427,9 +406,8 @@ export default function PrescriptionView({ mobile }: { mobile?: boolean }) {
     if (safetyLines === null) return;
     const hx = await historyForPrint();
     if (hx === null) return;
-    const advice = await adviceForSheet();
     try {
-      setSheet({ open: true, html: buildHtml(safetyLines, hx, advice), afterSave: false });
+      setSheet({ open: true, html: buildHtml(safetyLines, hx), afterSave: false });
     } catch {
       tell({ title: "The printable sheet could not be built.", body: "Nothing you have written is affected." });
     }

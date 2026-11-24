@@ -154,26 +154,3 @@ export function rxRowsIn<T extends Cells & { isMedicine: boolean }>(rows: T[], l
   });
   return changed ? out : rows;
 }
-
-/** An Advice line that still needs translating for a BAN printout: it has Latin letters and no Bangla. */
-export const adviceNeedsTranslation = (line: string): boolean => /[A-Za-z]/.test(line) && !HAS_BANGLA.test(line);
-
-/**
- * The Advice lines as printed in BAN: each line `adviceNeedsTranslation` is
- * replaced by its machine translation; a Bangla line, or one whose translation
- * is missing, prints as typed (`failed` counts those, so the doctor is told).
- * `translated` holds the answers, in the order the lines that needed it were
- * sent (`null` for a line that failed).
- */
-export function adviceForPrint(lines: string[], translated: (string | null)[]): { lines: string[]; failed: number } {
-  let at = 0;
-  let failed = 0;
-  const out = lines.map((l) => {
-    if (!adviceNeedsTranslation(l)) return l;
-    const bn = translated[at++];
-    if (typeof bn === "string" && bn.trim()) return bn.trim();
-    failed += 1;
-    return l;
-  });
-  return { lines: out, failed };
-}
