@@ -48,14 +48,18 @@ describe("the lines today's pad asks for", () => {
   const saved = [med("Tablet. Napa 500 mg", ["Take after meal"]), gen("Paracetamol", ["Do not exceed 8 tablets a day", "Take after meal"])];
 
   it("lists the medicine's own advice, then its generic's, once each", () => {
-    expect(rxAdviceLines([napa], saved, []).map((d) => d.line)).toEqual(["Take after meal", "Do not exceed 8 tablets a day"]);
+    expect(rxAdviceLines([napa], saved, []).map((d) => d.line)).toEqual(["Tablet. Napa 500 mg: Take after meal", "Tablet. Napa 500 mg: Do not exceed 8 tablets a day"]);
   });
 
   it("drops a line unticked for that medicine only", () => {
     const off = [offKey(drugKeyOf(napa.drug), "Do not exceed 8 tablets a day")];
-    expect(rxAdviceLines([napa], saved, off).map((d) => d.line)).toEqual(["Take after meal"]);
-    // Ace still asks for it through the group.
-    expect(rxAdviceLines([napa, ace], saved, off).map((d) => d.line)).toEqual(["Take after meal", "Do not exceed 8 tablets a day"]);
+    expect(rxAdviceLines([napa], saved, off).map((d) => d.line)).toEqual(["Tablet. Napa 500 mg: Take after meal"]);
+    // Ace still asks for it through the group — under its own name.
+    expect(rxAdviceLines([napa, ace], saved, off).map((d) => d.line)).toEqual([
+      "Tablet. Napa 500 mg: Take after meal",
+      "Tablet. Ace 500 mg: Do not exceed 8 tablets a day",
+      "Tablet. Ace 500 mg: Take after meal",
+    ]);
   });
 
   it("reads only head medicines from the pad — no notes, no taper lines", () => {
@@ -127,42 +131,45 @@ describe("advice for a final diagnosis", () => {
     expect(savedAdviceFor({ drug: "Pregnant", generic: "Pregnant" }, [pregnant])).toEqual({ medicine: null, generic: null });
   });
 
-  it("lists each diagnosis's lines in the order the diagnoses are written, a shared line once", () => {
+  it("lists each diagnosis's lines in the order the diagnoses are written, each under its own name", () => {
     const cHB = dx("CHB", ["Avoid alcohol", "Take folic acid daily"]);
     expect(diagnosisAdviceLines(["Pregnant", "URTI", "CHB"], [pregnant, cHB], []).map((l) => l.line)).toEqual([
-      "Take folic acid daily",
-      "Avoid raw papaya",
-      "Avoid alcohol",
+      "Pregnant: Take folic acid daily",
+      "Pregnant: Avoid raw papaya",
+      "CHB: Avoid alcohol",
+      "CHB: Take folic acid daily",
     ]);
   });
 
   it("drops a line unticked for that diagnosis this visit", () => {
     const off = [offKey(diagnosisOwner("Pregnant"), "Avoid raw papaya")];
-    expect(diagnosisAdviceLines(["Pregnant"], [pregnant], off).map((l) => l.line)).toEqual(["Take folic acid daily"]);
+    expect(diagnosisAdviceLines(["Pregnant"], [pregnant], off).map((l) => l.line)).toEqual(["Pregnant: Take folic acid daily"]);
   });
 
   it("an unticked diagnosis line is not unticked for a medicine with the same line", () => {
     const off = [offKey(diagnosisOwner("Pregnant"), "Take folic acid daily")];
     const lines = adviceLinesFor([napa], ["Pregnant"], [med(napa.drug, ["Take folic acid daily"]), pregnant], off).map((l) => l.line);
-    expect(lines).toContain("Take folic acid daily");
+    expect(lines).toContain("Tablet. Napa 500 mg: Take folic acid daily");
   });
 
   it("the medicines' advice comes first, then the diagnoses'", () => {
     const lines = adviceLinesFor([napa], ["Pregnant"], [pregnant, med(napa.drug, ["Take after meal"])], []);
-    expect(lines.map((l) => l.line)).toEqual(["Take after meal", "Take folic acid daily", "Avoid raw papaya"]);
+    expect(lines.map((l) => l.line)).toEqual(["Tablet. Napa 500 mg: Take after meal", "Pregnant: Take folic acid daily", "Pregnant: Avoid raw papaya"]);
     expect(lines.map((l) => l.kind)).toEqual(["medicine", "diagnosis", "diagnosis"]);
   });
 
-  it("a line both a medicine and a diagnosis ask for is written once, with the medicines'", () => {
+  it("a line both a medicine and a diagnosis ask for is written under each one's own name", () => {
     const lines = adviceLinesFor([napa], ["Pregnant"], [pregnant, med(napa.drug, ["Take folic acid daily"])], []);
-    expect(lines.filter((l) => l.line === "Take folic acid daily")).toEqual([
-      { line: "Take folic acid daily", drugKeys: [drugKeyOf(napa.drug), diagnosisOwner("Pregnant")], kind: "medicine" },
+    expect(lines.map((l) => [l.line, l.raw, l.kind])).toEqual([
+      ["Tablet. Napa 500 mg: Take folic acid daily", "Take folic acid daily", "medicine"],
+      ["Pregnant: Take folic acid daily", "Take folic acid daily", "diagnosis"],
+      ["Pregnant: Avoid raw papaya", "Avoid raw papaya", "diagnosis"],
     ]);
   });
 
   it("joins Advice the moment the diagnosis is written, and leaves with it", () => {
     const added = syncRxAdvice(["Drink plenty of water"], [], adviceLinesFor([], ["Pregnant"], [pregnant], []));
-    expect(added.advice).toEqual(["Drink plenty of water", "Take folic acid daily", "Avoid raw papaya"]);
+    expect(added.advice).toEqual(["Drink plenty of water", "Pregnant: Take folic acid daily", "Pregnant: Avoid raw papaya"]);
     const gone = syncRxAdvice(added.advice, added.owned, adviceLinesFor([], [], [pregnant], []));
     expect(gone.advice).toEqual(["Drink plenty of water"]);
   });
@@ -170,9 +177,9 @@ describe("advice for a final diagnosis", () => {
   it("⚕️ a diagnosis written BEFORE the medicine still prints after the medicine's advice", () => {
     const saved = [pregnant, med(napa.drug, ["Take after meal"])];
     const first = syncRxAdvice([], [], adviceLinesFor([], ["Pregnant"], saved, []));
-    expect(first.advice).toEqual(["Take folic acid daily", "Avoid raw papaya"]);
+    expect(first.advice).toEqual(["Pregnant: Take folic acid daily", "Pregnant: Avoid raw papaya"]);
     const then = syncRxAdvice(first.advice, first.owned, adviceLinesFor([napa], ["Pregnant"], saved, []));
-    expect(then.advice).toEqual(["Take after meal", "Take folic acid daily", "Avoid raw papaya"]);
+    expect(then.advice).toEqual(["Tablet. Napa 500 mg: Take after meal", "Pregnant: Take folic acid daily", "Pregnant: Avoid raw papaya"]);
   });
 
   it("⚕️ the doctor's own lines never move to make room", () => {
@@ -181,7 +188,7 @@ describe("advice for a final diagnosis", () => {
     const typed = [...first.advice.slice(0, 1), "Rest for 3 days", ...first.advice.slice(1)];
     const then = syncRxAdvice(typed, first.owned, adviceLinesFor([napa], ["Pregnant"], saved, []));
     // The typed line keeps its place; the mirror's lines are ordered among their own places.
-    expect(then.advice).toEqual(["Take after meal", "Rest for 3 days", "Take folic acid daily", "Avoid raw papaya"]);
+    expect(then.advice).toEqual(["Tablet. Napa 500 mg: Take after meal", "Rest for 3 days", "Pregnant: Take folic acid daily", "Pregnant: Avoid raw papaya"]);
   });
 
   it("is idempotent with both kinds", () => {
@@ -194,8 +201,51 @@ describe("advice for a final diagnosis", () => {
   it("a diagnosis line deleted from Advice by hand is unticked for that diagnosis, not put back", () => {
     const derived = adviceLinesFor([], ["Pregnant"], [pregnant], []);
     const first = syncRxAdvice([], [], derived);
-    const r = syncRxAdvice(["Take folic acid daily"], first.owned, derived);
-    expect(r.advice).toEqual(["Take folic acid daily"]);
+    const r = syncRxAdvice(["Pregnant: Take folic acid daily"], first.owned, derived);
+    expect(r.advice).toEqual(["Pregnant: Take folic acid daily"]);
     expect(r.newlyOff).toEqual([offKey(diagnosisOwner("Pregnant"), "Avoid raw papaya")]);
+  });
+});
+
+// ⚕️ Physician, 24/11/2026: advice that came from a diagnosis or a medicine is
+// written into Advice after that name and a colon — "PUO: ঠাণ্ডা লাগাবেন না",
+// "Tablet. Unifarin 1 mg: রক্তক্ষরন হলে জানাবেন". Advice saved for a GROUP is
+// written with the brand that is on the pad, so Farin shows "Farin", not Unifarin.
+describe("a mirrored line is written after the name it is advice for", () => {
+  it("a diagnosis: PUO: ঠাণ্ডা লাগাবেন না", () => {
+    const lines = adviceLinesFor([], ["PUO"], [dx("PUO", ["ঠাণ্ডা লাগাবেন না"])], []);
+    expect(lines.map((l) => l.line)).toEqual(["PUO: ঠাণ্ডা লাগাবেন না"]);
+    expect(syncRxAdvice([], [], lines).advice).toEqual(["PUO: ঠাণ্ডা লাগাবেন না"]);
+  });
+
+  it("a medicine: only for this one, under its own name", () => {
+    const saved = [med("Tablet. Unifarin 1 mg", ["রক্তক্ষরন হলে জানাবেন"])];
+    expect(adviceLinesFor([{ drug: "Tablet. Unifarin 1 mg" }], [], saved, []).map((l) => l.line)).toEqual([
+      "Tablet. Unifarin 1 mg: রক্তক্ষরন হলে জানাবেন",
+    ]);
+    // Another brand of the same generic gets nothing from a medicine-only note.
+    expect(adviceLinesFor([{ drug: "Tablet. Farin 1 mg", generic: "Warfarin Sodium" }], [], saved, [])).toEqual([]);
+  });
+
+  it("a group: every brand on the pad, each under the brand written", () => {
+    const saved = [gen("Warfarin Sodium", ["রক্তক্ষরন হলে জানাবেন"])];
+    const pad = [
+      { drug: "Tablet. Unifarin 1 mg", generic: "Warfarin Sodium" },
+      { drug: "Tablet. Farin 1 mg", generic: "Warfarin Sodium" },
+    ];
+    expect(adviceLinesFor([pad[1]], [], saved, []).map((l) => l.line)).toEqual(["Tablet. Farin 1 mg: রক্তক্ষরন হলে জানাবেন"]);
+    expect(adviceLinesFor(pad, [], saved, []).map((l) => l.line)).toEqual([
+      "Tablet. Unifarin 1 mg: রক্তক্ষরন হলে জানাবেন",
+      "Tablet. Farin 1 mg: রক্তক্ষরন হলে জানাবেন",
+    ]);
+  });
+
+  it("a line deleted from Advice by hand is unticked under the doctor's saved words, not the written ones", () => {
+    const derived = adviceLinesFor([], ["PUO"], [dx("PUO", ["ঠাণ্ডা লাগাবেন না"])], []);
+    const first = syncRxAdvice([], [], derived);
+    const r = syncRxAdvice([], first.owned, derived);
+    expect(r.newlyOff).toEqual([offKey(diagnosisOwner("PUO"), "ঠাণ্ডা লাগাবেন না")]);
+    // …and once unticked it is not asked for again.
+    expect(adviceLinesFor([], ["PUO"], [dx("PUO", ["ঠাণ্ডা লাগাবেন না"])], r.newlyOff)).toEqual([]);
   });
 });

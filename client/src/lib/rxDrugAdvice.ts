@@ -121,8 +121,24 @@ export function padMedicines(rxItems: RxItem[]): PadMedicine[] {
     .map((r) => ({ drug: r.drug.trim(), generic: r.generic }));
 }
 
+/**
+ * ⚕️ A mirrored line as it is WRITTEN into Advice (physician, 24/11/2026): the
+ * thing it is advice for, a colon, then the doctor's own words — "PUO: ঠাণ্ডা
+ * লাগাবেন না", "Tablet. Unifarin 1 mg: রক্তক্ষরণ হলে জানাবেন". The label is the
+ * diagnosis or the medicine exactly as written on the page/pad, so advice saved
+ * for a generic reads with whichever brand is on the pad ("Farin" for advice the
+ * doctor wrote under "Unifarin"). Nothing else is added or reworded.
+ */
+export function labelledLine(label: string, line: string): string {
+  const l = (label ?? "").replace(/\s+/g, " ").trim();
+  return l ? `${l}: ${line}` : line;
+}
+
 export interface DerivedLine {
+  /** The text written into Advice (label + the doctor's line). */
   line: string;
+  /** The doctor's saved line itself — what a tick (`offKey`) is remembered under. */
+  raw?: string;
   /** Every medicine on the pad (or `diagnosisOwner`) this line is advice for. */
   drugKeys: string[];
   /** Whose advice it is: a medicine's stands before a diagnosis's in Advice. */
@@ -145,12 +161,13 @@ export function rxAdviceLines(
     const dk = drugKeyOf(m.drug);
     if (!dk) continue;
     const { medicine, generic } = savedAdviceFor(m, saved);
-    for (const line of [...adviceLines(medicine), ...adviceLines(generic)]) {
-      if (offSet.has(offKey(dk, line))) continue;
+    for (const raw of [...adviceLines(medicine), ...adviceLines(generic)]) {
+      if (offSet.has(offKey(dk, raw))) continue;
+      const line = labelledLine(m.drug, raw);
       const d = byLine.get(line);
       if (d) {
         if (!d.drugKeys.includes(dk)) d.drugKeys.push(dk);
-      } else byLine.set(line, { line, drugKeys: [dk], kind: "medicine" });
+      } else byLine.set(line, { line, raw, drugKeys: [dk], kind: "medicine" });
     }
   }
   return [...byLine.values()];
@@ -171,12 +188,13 @@ export function diagnosisAdviceLines(
   for (const dx of diagnoses ?? []) {
     if (typeof dx !== "string" || !diagnosisKey(dx)) continue;
     const owner = diagnosisOwner(dx);
-    for (const line of adviceLines(savedAdviceForDiagnosis(dx, saved))) {
-      if (offSet.has(offKey(owner, line))) continue;
+    for (const raw of adviceLines(savedAdviceForDiagnosis(dx, saved))) {
+      if (offSet.has(offKey(owner, raw))) continue;
+      const line = labelledLine(dx, raw);
       const d = byLine.get(line);
       if (d) {
         if (!d.drugKeys.includes(owner)) d.drugKeys.push(owner);
-      } else byLine.set(line, { line, drugKeys: [owner], kind: "diagnosis" });
+      } else byLine.set(line, { line, raw, drugKeys: [owner], kind: "diagnosis" });
     }
   }
   return [...byLine.values()];
@@ -240,7 +258,7 @@ export function syncRxAdvice(
     if (!storedSet.has(o)) {
       handDeleted.add(o);
       const d = want.get(o);
-      if (d) for (const k of d.drugKeys) newlyOff.push(offKey(k, o));
+      if (d) for (const k of d.drugKeys) newlyOff.push(offKey(k, d.raw ?? o));
       continue;
     }
     stillOwned.push(o);

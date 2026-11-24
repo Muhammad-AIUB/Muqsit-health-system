@@ -780,11 +780,11 @@ describe("advice saved for a final diagnosis", () => {
     const r = await setup();
     act(() => r.result.current.setAdvice(["Drink plenty of water"]));
     act(() => r.result.current.setFinalDiagnosis(["pregnant"]));
-    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Take folic acid daily"]);
+    expect(r.result.current.advice).toEqual(["Drink plenty of water", "pregnant: Take folic acid daily"]);
     act(() => r.result.current.setRxItems([{ drug: "Tablet. Napa 500 mg", dose: "1+0+1", instruction: "", duration: "5 days" }]));
-    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Take after meal", "Take folic acid daily"]);
+    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Tablet. Napa 500 mg: Take after meal", "pregnant: Take folic acid daily"]);
     act(() => r.result.current.setFinalDiagnosis([]));
-    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Take after meal"]);
+    expect(r.result.current.advice).toEqual(["Drink plenty of water", "Tablet. Napa 500 mg: Take after meal"]);
   });
 });
 
