@@ -52,10 +52,44 @@ describe("ExpandableField — no × beside a line that is being read", () => {
     edit();
     const dialog = screen.getByRole("dialog", { name: "History" });
     fireEvent.click(within(dialog).getByRole("button", { name: "✎ Edit" }));
-    const chip = Array.from(dialog.querySelectorAll("span")).find((s) => s.textContent?.startsWith("DM for 5 years"))!;
-    fireEvent.click(chip.querySelector("button, [role=button]") ?? chip.lastElementChild!);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove from selection: DM for 5 years" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(latest).toEqual(["HTN"]);
+  });
+
+  // Physician, 24/11/2026: the popup's ✎ Edit works like the page's — every
+  // line becomes a box (with its ✕) that can be re-worded.
+  const popup = () => {
+    edit();
+    const dialog = screen.getByRole("dialog", { name: "History" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "✎ Edit" }));
+    return dialog;
+  };
+  it("⚕️ inside the popup's ✎ Edit every line is a box that can be re-worded; Done applies it", () => {
+    render(<Field label="History" initial={["DM for 5 years", "HTN"]} inlineEdit={false} />);
+    popup();
+    fireEvent.change(screen.getByTestId("chip-edit-1"), { target: { value: "HTN since 2020" } });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(latest).toEqual(["DM for 5 years", "HTN since 2020"]);
+  });
+
+  it("⚕️ a box left blank keeps its old text — only ✕ removes a line", () => {
+    render(<Field label="History" initial={["DM for 5 years", "HTN"]} inlineEdit={false} />);
+    popup();
+    fireEvent.change(screen.getByTestId("chip-edit-0"), { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(latest).toEqual(["DM for 5 years", "HTN"]);
+  });
+
+  it("Cancel throws the re-wording away; Enter in a box finishes the edit but not the popup", () => {
+    render(<Field label="History" initial={["DM for 5 years"]} inlineEdit={false} />);
+    popup();
+    fireEvent.change(screen.getByTestId("chip-edit-0"), { target: { value: "changed" } });
+    fireEvent.keyDown(screen.getByTestId("chip-edit-0"), { key: "Enter" });
+    expect(screen.queryByTestId("chip-edit-0")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "History" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(latest).toEqual(["DM for 5 years"]);
   });
 });
 

@@ -92,6 +92,11 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
   // sheet, 31/10/2026: a cross always on show is an accidental delete). Off at
   // every opening.
   const [chipEdit, setChipEdit] = useState(false);
+  // ⚕️ While ✎ Edit is on, every typed line is a text box (as on the page, 31/10/2026
+  // follow-up, physician 24/11/2026). `chipSnap` is the staged list as it was when the
+  // edit began, kept in step with removals: a box left blank is a mis-key and
+  // gets its old text back — only ✕ removes a line.
+  const [chipSnap, setChipSnap] = useState<string[]>([]);
   // Per-doctor "recently typed" entries for this field (server-backed).
   const { getRecents, addRecents } = useFieldRecents();
   const recents = getRecents(label);
@@ -202,7 +207,26 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
       addToDraft(text);
     }
   };
-  const removeFromDraft = (idx: number) => setDraft(draft.filter((_, i) => i !== idx));
+  const removeFromDraft = (idx: number) => {
+    setDraft(draft.filter((_, i) => i !== idx));
+    setChipSnap((prev) => prev.filter((_, i) => i !== idx));
+  };
+  const setDraftLine = (idx: number, v: string) => setDraft((prev) => prev.map((d, i) => (i === idx ? v : d)));
+  // Blank boxes take their old text back; a line that was never in the snapshot
+  // (added after the edit began) and is blank is simply not a line.
+  const settledDraft = (list: string[]) =>
+    list.map((d, i) => (d.trim() ? d.trim() : chipSnap[i] ?? "")).filter((d) => d.trim());
+  const toggleChipEdit = () => {
+    if (chipEdit) { setDraft((prev) => settledDraft(prev)); setChipEdit(false); return; }
+    setChipSnap([...draft]);
+    setChipEdit(true);
+  };
+  // Another path (suggestion, quick-pick, Add) changed the list's length: re-take
+  // the snapshot so positions keep matching.
+  useEffect(() => {
+    if (chipEdit && chipSnap.length !== draft.length) setChipSnap([...draft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.length, chipEdit]);
 
   const handleOpen = () => {
     if (!editable) return; // locked for this assistant — view only
@@ -221,7 +245,8 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
 
   const done = () => {
     // Anything still in the input counts too.
-    const finalDraft = inputVal.trim() && !draft.includes(inputVal.trim()) ? [...draft, inputVal.trim()] : draft;
+    const staged = chipEdit ? settledDraft(draft) : draft;
+    const finalDraft = inputVal.trim() && !staged.includes(inputVal.trim()) ? [...staged, inputVal.trim()] : staged;
     setItems(finalDraft);
     // Remember newly typed entries for future suggestions, and log them to the
     // activity feed.
@@ -471,15 +496,15 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                       <button
                         type="button"
                         aria-pressed={chipEdit}
-                        onClick={() => setChipEdit((v) => !v)}
+                        onClick={toggleChipEdit}
                         style={{ marginLeft: "auto", fontSize: 11, color: C.pri[600], background: C.pri[50], border: `0.5px solid ${chipEdit ? C.pri[400] : C.pri[100]}`, borderRadius: 6, padding: "2px 10px", cursor: "pointer", fontFamily: "inherit" }}
                       >{chipEdit ? "✓ Done editing" : "✎ Edit"}</button>
                     )}
                   </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center" }}>
+                  <div style={chipEdit ? { display: "flex", flexDirection: "column", gap: 6 } : { display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center" }}>
                     {draft.map((item, idx) =>
                       (checkboxOptions || []).includes(item) ? (
-                        <label key={idx} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none", background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "4px 12px" }}>
+                        <label key={idx} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none", background: C.pri[50], border: `0.5px solid ${C.pri[100]}`, borderRadius: 6, padding: "4px 12px", alignSelf: "flex-start" }}>
                           <input
                             type="checkbox"
                             checked
@@ -488,13 +513,22 @@ export default function ExpandableField({ label, items, setItems, suggestions, a
                           />
                           <span style={{ fontSize: 12.5, color: C.pri[600], fontWeight: 600 }}>{item}</span>
                         </label>
+                      ) : chipEdit ? (
+                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span aria-hidden style={{ color: C.n[400], fontSize: 12 }}>•</span>
+                          <input
+                            data-testid={`chip-edit-${idx}`}
+                            aria-label={`Edit ${label.toLowerCase()} line ${idx + 1}`}
+                            value={item}
+                            {...(bangla ? BANGLA_ATTR : {})}
+                            onChange={(e) => setDraftLine(idx, e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); toggleChipEdit(); } }}
+                            style={{ flex: 1, minWidth: 0, padding: "6px 10px", borderRadius: 6, fontSize: 13, border: `1px solid ${C.pri[400]}`, outline: "none", background: C.n[0], color: C.n[900], fontFamily: "inherit" }}
+                          />
+                          <button type="button" aria-label={`Remove from selection: ${item}`} onClick={() => removeFromDraft(idx)} style={{ width: 24, height: 24, borderRadius: "50%", border: "none", background: C.danger[50], color: C.danger[800], cursor: "pointer", fontSize: 14, lineHeight: 1, flexShrink: 0 }}>✕</button>
+                        </div>
                       ) : (
-                        <span key={idx} style={greenTag}>
-                          {item}
-                          {chipEdit && (
-                            <button aria-label={`Remove from selection: ${item}`} onClick={() => removeFromDraft(idx)} style={{ background: "none", border: "none", color: C.danger[800], cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
-                          )}
-                        </span>
+                        <span key={idx} style={greenTag}>{item}</span>
                       ),
                     )}
                   </div>
