@@ -10,7 +10,6 @@ import DesktopShell from "./layout/DesktopShell";
 import MobileShell from "./layout/MobileShell";
 import WorkstationSwitcher from "./layout/WorkstationSwitcher";
 import DeviceMirror from "./layout/DeviceMirror";
-import ScreenGuard from "./common/ScreenGuard";
 
 const VIEWS: View[] = ["desktop", "mobile"];
 
@@ -68,10 +67,6 @@ function MuqsitInner() {
 
       {/* The chamber the user works in (OPD) — renders nothing. */}
       <ChamberSync />
-
-      {/* Production only: hides the screen on focus loss / capture keys and
-          watermarks it. Never touches the prescription print. */}
-      <ScreenGuard />
     </div>
   );
 }

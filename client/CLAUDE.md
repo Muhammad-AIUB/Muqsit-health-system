@@ -92,9 +92,6 @@ The rules of the doctor app — clinical accuracy, the storage formats, the edit
 - An absent `mobile` prop does not mean a view is exempt from responsive handling; check sibling views before assuming a new fixed-width row is fine.
 - No control is drawn over a page that is open to be read: in the image viewer, at fit the whole page is on the screen with room kept for the controls (`LIGHTBOX_CSS`).
 
-### Screenshots and recording → [`docs/rules/screen-capture.md`](../docs/rules/screen-capture.md)
-- `ScreenGuard` (production only, doctor app, not admin) hides the screen on focus loss / capture keys and watermarks it; it never touches Save & print, and focus moving into an `<iframe>` is not a capture. A web page cannot truly block capture — never claim it does.
-
 ### Naming and wording → [`docs/rules/naming-and-wording.md`](../docs/rules/naming-and-wording.md)
 - Nav label, IPD ℞ heading and the `ipd.medicines` permission label read "Prescription"; the permission KEY `ipd.medicines` is unchanged (renaming revokes it); mobile tab `Rx`, ids and route unchanged.
 

@@ -99,9 +99,6 @@ One line per rule. The rule itself — with its reason, and usually the incident
 - A file under `.github/workflows/` is never changed without showing the owner the diff and getting a yes, every time.
 - A merge commit is not clean because both its parents are: diff its tree against `git merge-tree --write-tree <p1> <p2>`; never run `npm`/`next` in a checkout of `20e80cc`, `834005b`, `3f9699f`. (+2 more)
 
-### Screen capture → [`docs/rules/screen-capture.md`](docs/rules/screen-capture.md)
-- The doctor app deters screenshots/recording in production only (`ScreenGuard`); the print path is never touched, and no one is told capture is "impossible" — a web page cannot block it.
-
 ### AI tooling → [`docs/rules/ai-tooling.md`](docs/rules/ai-tooling.md)
 - The ECC plugin is never enabled in this repo: its hooks have not been checked against these safety rules.
 - The Fable model (`claude-fable-5-1`) is never used for this app — main session, subagent, fork or review: set a subagent's `model` explicitly (`sonnet` or `opus`); a session found running on Fable says so and stops.
