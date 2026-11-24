@@ -23,6 +23,8 @@ export class TemplatesService {
         category: dto.category,
         name: dto.name,
         items: dto.items as unknown as Prisma.InputJsonValue,
+        advice: (dto.advice ?? []) as unknown as Prisma.InputJsonValue,
+        adviceTest: (dto.adviceTest ?? []) as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -34,6 +36,8 @@ export class TemplatesService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.items !== undefined ? { items: dto.items as unknown as Prisma.InputJsonValue } : {}),
+        ...(dto.advice !== undefined ? { advice: dto.advice as unknown as Prisma.InputJsonValue } : {}),
+        ...(dto.adviceTest !== undefined ? { adviceTest: dto.adviceTest as unknown as Prisma.InputJsonValue } : {}),
       },
     });
   }

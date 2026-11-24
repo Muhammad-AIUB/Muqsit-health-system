@@ -225,7 +225,7 @@ Index: `prescriptionId`.
 The doctor's auto-saved editor state, one row per user. `userId` unique, `data Json` stored and returned verbatim. Deleted when the prescription is saved or the form is reset.
 
 #### `PrescriptionTemplate`
-`doctorId`, `category` (`opd` · `ipd` · `custom`), `name`, `items Json` (an `RxItem[]`, including `generic` so alerts keep working), `order`. Index `(doctorId, category)`.
+`doctorId`, `category` (`opd` · `ipd` · `custom`), `name`, `items Json` (an `RxItem[]`, including `generic` so alerts keep working), `advice Json` and `adviceTest Json` (`string[]`, default `[]`; Advice lines and Advised tests of an OPD template, 24/11/2026 — `manual-template-advice.sql`), `order`. Index `(doctorId, category)`.
 
 #### `PrescriptionLayout`
 Print setup, one row per user (`userId` unique). Numbers are strings because they mirror form inputs.

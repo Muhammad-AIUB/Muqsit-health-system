@@ -427,8 +427,8 @@ touching anything here.
 | Method | Path | Body |
 |---|---|---|
 | GET | `/prescription-templates?category=` | `opd` / `ipd` / `custom` |
-| POST | `/prescription-templates` | `{ category, name, items: [{ drug, dose, duration, instruction, isNote?, generic?, isCont? }] }` — `generic` keeps prescribing alerts working for template lines |
-| PATCH | `/prescription-templates/:id` | `{ name?, items? }` |
+| POST | `/prescription-templates` | `{ category, name, items: [{ drug, dose, duration, instruction, isNote?, generic?, isCont? }], advice?: string[], adviceTest?: string[] }` — `generic` keeps prescribing alerts working for template lines; `advice` / `adviceTest` (≤100 lines of ≤600 chars, kept as typed; the client sends them for OPD templates only) read back as `[]` when never saved |
+| PATCH | `/prescription-templates/:id` | `{ name?, items?, advice?, adviceTest? }` — a field not sent is left as it was |
 | DELETE | `/prescription-templates/:id` | — |
 
 ### 5.12 OPD queue — `/opd` (JWT + WS)

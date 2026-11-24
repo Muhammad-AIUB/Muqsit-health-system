@@ -667,6 +667,9 @@ export interface RxTemplateRecord {
   category: TemplateCategory;
   name: string;
   items: TemplateItem[];
+  /** Advice lines and Advised tests saved with the template (24/11/2026); [] for an older template. */
+  advice: string[];
+  adviceTest: string[];
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -752,9 +755,9 @@ export const prescriptionDraftApi = {
 export const templatesApi = {
   list: (category?: TemplateCategory) =>
     apiFetch<RxTemplateRecord[]>(`/prescription-templates${category ? `?category=${category}` : ""}`),
-  create: (input: { category: TemplateCategory; name: string; items: TemplateItem[] }) =>
+  create: (input: { category: TemplateCategory; name: string; items: TemplateItem[]; advice?: string[]; adviceTest?: string[] }) =>
     apiFetch<RxTemplateRecord>("/prescription-templates", { method: "POST", body: JSON.stringify(input) }),
-  update: (id: string, input: { name?: string; items?: TemplateItem[] }) =>
+  update: (id: string, input: { name?: string; items?: TemplateItem[]; advice?: string[]; adviceTest?: string[] }) =>
     apiFetch<RxTemplateRecord>(`/prescription-templates/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   remove: (id: string) =>
     apiFetch<{ id: string }>(`/prescription-templates/${id}`, { method: "DELETE" }),

@@ -12,10 +12,10 @@ export function useTemplates(category?: TemplateCategory) {
 export function useSaveTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id?: string; category: TemplateCategory; name: string; items: TemplateItem[] }): Promise<RxTemplateRecord> =>
+    mutationFn: (v: { id?: string; category: TemplateCategory; name: string; items: TemplateItem[]; advice?: string[]; adviceTest?: string[] }): Promise<RxTemplateRecord> =>
       v.id
-        ? templatesApi.update(v.id, { name: v.name, items: v.items })
-        : templatesApi.create({ category: v.category, name: v.name, items: v.items }),
+        ? templatesApi.update(v.id, { name: v.name, items: v.items, advice: v.advice, adviceTest: v.adviceTest })
+        : templatesApi.create({ category: v.category, name: v.name, items: v.items, advice: v.advice, adviceTest: v.adviceTest }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["templates"] }),
   });
 }

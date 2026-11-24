@@ -13,6 +13,7 @@ import { writableItems } from "@/lib/rxRows";
 import { lineText } from "@/lib/rxPadHold";
 import { tell } from "@/lib/dialogs";
 import { useTemplates } from "@/hooks/useTemplates";
+import { withTemplateLines } from "@/lib/rxTemplates";
 import DrugAdviceBox from "@/components/prescription/DrugAdviceBox";
 import BulkMedicineButton from "@/components/prescription/BulkMedicineButton";
 import { savedAdviceFor } from "@/lib/rxDrugAdvice";
@@ -67,7 +68,16 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
 
 
   // Clicking a template ADDS its medicines to the current prescription.
-  const addTemplate = (items: RxItem[], name: string) => {
+  const addTemplate = (items: RxItem[], name: string, extra?: { advice?: string[]; adviceTest?: string[] }) => {
+    // ⚕️ The template's Advice and Advised tests join the visit's (24/11/2026):
+    // added after what is already there, a line already present is not written
+    // twice, and a section this user may not edit (assistant permissions) is
+    // left alone — the same gate as the field itself.
+    const addLines = (lines: string[] | undefined, set: (f: (prev: string[]) => string[]) => void, allowed: boolean) => {
+      if (allowed && lines?.length) set((prev) => withTemplateLines(prev, lines));
+    };
+    addLines(extra?.advice, setAdvice, can("rx.advice"));
+    addLines(extra?.adviceTest, setAdviceTest, can("rx.adviceTest"));
     if (!items.length) return;
     // ⚕️ Read the pad's way: a template saved before 18/10/2026 may begin with
     // a >>> line, which appended here would stand under the pad's last medicine.
@@ -117,7 +127,7 @@ export default function RightColumn({ mobile }: { mobile?: boolean }) {
           {shownTemplates.map((t, i) => (
             <button
               key={`${t.name}-${i}`}
-              onClick={() => addTemplate(t.items, t.name)}
+              onClick={() => addTemplate(t.items, t.name, { advice: t.advice, adviceTest: t.adviceTest })}
               title={`Add ${t.items.length} item(s) from “${t.name}” to this prescription`}
               style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", border: `0.5px solid ${C.n[200]}`, background: C.n[0], color: C.n[600], fontFamily: font }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.pri[400]; e.currentTarget.style.background = C.pri[50]; e.currentTarget.style.color = C.pri[600]; }}

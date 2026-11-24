@@ -26,6 +26,11 @@ export class TemplateItemDto {
   @IsOptional() @IsBoolean() isCont?: boolean;
 }
 
+// Advice lines / Advised tests saved with a template (24/11/2026). Plain text
+// lines: every character is the doctor's own, nothing is rewritten here.
+const LINES = 100;
+const LINE_MAX = 600;
+
 export class CreateTemplateDto {
   @IsIn(['opd', 'ipd', 'custom']) category!: 'opd' | 'ipd' | 'custom';
   @IsString() @MinLength(1) @MaxLength(120) name!: string;
@@ -35,6 +40,12 @@ export class CreateTemplateDto {
   @ValidateNested({ each: true })
   @Type(() => TemplateItemDto)
   items!: TemplateItemDto[];
+
+  @IsOptional() @IsArray() @ArrayMaxSize(LINES) @IsString({ each: true }) @MaxLength(LINE_MAX, { each: true })
+  advice?: string[];
+
+  @IsOptional() @IsArray() @ArrayMaxSize(LINES) @IsString({ each: true }) @MaxLength(LINE_MAX, { each: true })
+  adviceTest?: string[];
 }
 
 export class UpdateTemplateDto {
@@ -46,4 +57,10 @@ export class UpdateTemplateDto {
   @ValidateNested({ each: true })
   @Type(() => TemplateItemDto)
   items?: TemplateItemDto[];
+
+  @IsOptional() @IsArray() @ArrayMaxSize(LINES) @IsString({ each: true }) @MaxLength(LINE_MAX, { each: true })
+  advice?: string[];
+
+  @IsOptional() @IsArray() @ArrayMaxSize(LINES) @IsString({ each: true }) @MaxLength(LINE_MAX, { each: true })
+  adviceTest?: string[];
 }

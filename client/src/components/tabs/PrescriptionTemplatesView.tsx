@@ -10,6 +10,10 @@ import { CATEGORY_LABEL, type RxTemplate, type TemplateCategory } from "@/lib/rx
 import { useTemplates, useSaveTemplate, useDeleteTemplate } from "@/hooks/useTemplates";
 import Icon, { type IconName } from "@/components/common/Icon";
 import { pressable } from "@/lib/a11y";
+import ExpandableField from "@/components/common/ExpandableField";
+import InvestigationDirectory from "@/components/investigation/InvestigationDirectory";
+import InvestigationGroups from "@/components/investigation/InvestigationGroups";
+import { isInlineEditField } from "@/lib/inlineEditFields";
 
 const CATEGORIES: { cat: TemplateCategory; desc: string; icon: IconName }[] = [
   { cat: "opd", desc: "Templates for outdoor / consultation prescriptions.", icon: "fileText" },
@@ -161,6 +165,13 @@ export default function PrescriptionTemplatesView({ onBack }: { onBack: () => vo
 function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; template: RxTemplate | null; onClose: () => void }) {
   const [name, setName] = useState(template?.name ?? "");
   const [rows, setRows] = useState<Row[]>(() => rowsFromRxItems(template?.items ?? []));
+  // ⚕️ OPD templates also carry Advice and Advised tests (physician, 24/11/2026),
+  // written with the SAME fields as the main prescription so the same
+  // suggestions are offered (the doctor's own learned lines, recents, the test
+  // directory and groups). Other categories keep the medicines only.
+  const withAdvice = cat === "opd";
+  const [advice, setAdvice] = useState<string[]>(() => template?.advice ?? []);
+  const [adviceTest, setAdviceTest] = useState<string[]>(() => template?.adviceTest ?? []);
   const [error, setError] = useState("");
   const saveMut = useSaveTemplate();
 
@@ -171,9 +182,10 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
     // pad cannot write (a >>> dose with no medicine above it, 18/10/2026).
     if (unwritableRows(rows).length > 0) { setError("A line has no medicine name (marked in red). Type the name — for a >>> line, on the line above it — or remove the line."); return; }
     const items = rxItemsFromRows(rows);
-    if (items.length === 0) { setError("Add at least one medicine or note."); return; }
+    // Advice or tests alone make a template too (a follow-up visit, say).
+    if (items.length === 0 && !(withAdvice && (advice.length || adviceTest.length))) { setError("Add at least one medicine, note, advice or test."); return; }
     saveMut.mutate(
-      { id: template?.id, category: cat, name: trimmed, items },
+      { id: template?.id, category: cat, name: trimmed, items, ...(withAdvice ? { advice, adviceTest } : {}) },
       { onSuccess: onClose, onError: () => setError("Could not save. Is the server running?") },
     );
   };
@@ -201,6 +213,17 @@ function TemplateEditor({ cat, template, onClose }: { cat: TemplateCategory; tem
       <div style={{ background: C.n[0], border: `0.5px solid ${C.n[200]}`, borderRadius: 8, padding: "8px 12px" }}>
         <MedicinePad rows={rows} setRows={setRows} minHeight={320} noteText="Start typing a medicine or note…" showCheck={false} />
       </div>
+
+      {withAdvice && (
+        <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+          <ExpandableField label="Advice" items={advice} setItems={setAdvice} learnedSource="advice" bangla
+            inlineEdit={isInlineEditField("Advice")} removable />
+          <ExpandableField label="Advised tests / investigation" items={adviceTest} setItems={setAdviceTest} investigationTabs
+            inlineEdit={isInlineEditField("Advised tests / investigation")} removable
+            renderDirectory={(selected, toggle) => <InvestigationDirectory selected={selected} onToggle={toggle} />}
+            renderGroups={(selected, apply) => <InvestigationGroups selected={selected} apply={apply} />} />
+        </div>
+      )}
 
       {error && <div style={{ fontSize: 12, color: C.danger[800], marginTop: 10 }}>{error}</div>}
 

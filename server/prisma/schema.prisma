@@ -213,6 +213,10 @@ model PrescriptionTemplate {
   category String // opd | ipd | custom
   name     String
   items    Json   @default("[]") // RxItem[]
+  // Advice lines and Advised tests saved with the template (24/11/2026); added to
+  // the prescription together with its medicines. manual-template-advice.sql.
+  advice     Json @default("[]") // string[]
+  adviceTest Json @default("[]") // string[]
   order    Int    @default(0)
 
   createdAt DateTime @default(now())
