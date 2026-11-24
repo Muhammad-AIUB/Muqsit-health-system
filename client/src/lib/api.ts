@@ -474,7 +474,9 @@ export const rxHabitsApi = {
   // `signal: abort` is written out, not `{ signal }`: the contract test reads
   // this file and takes only `name: value` options as ones it can read
   // (server/test/support/client-calls.ts).
-  all: (abort?: AbortSignal) => apiFetch<unknown>(`/rx-habits/all`, { signal: abort }),
+  // `scope` "ipd": the IPD sheet's list — what the doctor ordered on the ward comes first.
+  all: (abort?: AbortSignal, scope: "opd" | "ipd" = "opd") =>
+    apiFetch<unknown>(`/rx-habits/all${scope === "ipd" ? "?for=ipd" : ""}`, { signal: abort }),
   // No remove(): the prescription record is never touched, so "deleting" a
   // suggestion means hiding it — and hiding is always reversible.
   setFlags: (id: string, flags: { hidden?: boolean; pinned?: boolean }) =>

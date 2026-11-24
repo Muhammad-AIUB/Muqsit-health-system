@@ -31,8 +31,9 @@ export class RxHabitsController {
   // doctor has prescribed, each with its usual instruction. Declared before
   // any `:id` route so the two can never collide.
   @Get('all')
-  listAll(@WorkstationDoctorId() doctorId: string) {
-    return this.habits.listAll(doctorId);
+  // `?for=ipd` is the IPD sheet's box: what the doctor ordered on the ward first.
+  listAll(@WorkstationDoctorId() doctorId: string, @Query('for') forWard?: string) {
+    return this.habits.listAll(doctorId, forWard === 'ipd' ? 'ipd' : 'opd');
   }
 
   // PATCH /api/rx-habits/:id  { hidden?, pinned? }

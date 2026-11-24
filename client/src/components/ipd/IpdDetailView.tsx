@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { C, font } from "@/theme";
 import { btnSecondary, btnPrimary, btnDisabled } from "@/theme/styles";
 import { useMuqsit } from "@/context/MuqsitContext";
-import MedicinePad, { type Row } from "@/components/prescription/MedicinePad";
+import MedicinePad, { emptyRow, type Row } from "@/components/prescription/MedicinePad";
+import BulkMedicineButton from "@/components/prescription/BulkMedicineButton";
 import RxAlerts from "@/components/prescription/RxAlerts";
 import { rowsFromRxItems, rxItemsFromRows, unwritableRows } from "@/lib/rxRows";
+import type { RxItem } from "@/types";
 import { mergeIpdClinical } from "@/lib/ipdClinical";
 import { useAuth } from "@/context/AuthContext";
 import AnalogueSheetPanel from "./AnalogueSheetPanel";
@@ -122,7 +124,7 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   // local copy: while these fields hold the admission's findings, the editor's
   // auto-save must not file them in the loaded OPD patient's draft/incompleteRx,
   // and only the context can stand it down.
-  const { investigation, setInvestigation, invImages, setInvImages, setShowInvPopup, beginInvBorrow, endInvBorrow } = useMuqsit();
+  const { investigation, setInvestigation, invImages, setInvImages, setShowInvPopup, beginInvBorrow, endInvBorrow, activeWorkstationId } = useMuqsit();
 
   const c = admission.clinical ?? {};
   const [age, setAge] = useState(admission.age != null ? String(admission.age) : "");
@@ -166,6 +168,17 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   const draftHasValue = Object.values(draft).some((v) => (v ?? "").trim());
 
   const [rows, setRows] = useState<Row[]>(() => rowsFromRxItems(c.rxItems ?? []));
+
+  // ⚕️ "Add Bulk Medicine" lines go in BEFORE the pad's trailing typing line and
+  // touch nothing else: a line the pad holds and cannot write stays where it
+  // is (it is refused at Save, as ever), and the typing line stays last.
+  const appendBulk = (items: RxItem[]) =>
+    setRows((prev) => {
+      const added = rowsFromRxItems(items).slice(0, -1); // its own typing line is not wanted
+      const last = prev[prev.length - 1];
+      const hasTyping = !!last && !last.isMedicine && !last.drug.trim() && !last.dose.trim() && !last.food.trim() && !last.duration.trim();
+      return hasTyping ? [...prev.slice(0, -1), ...added, last] : [...prev, ...added, emptyRow()];
+    });
 
   // Which pair of panes is showing. `null` = nothing chosen yet.
   const { user } = useAuth();
@@ -410,7 +423,21 @@ export default function IpdDetailView({ admission, onBack }: { admission: IpdAdm
   const rxPane = (
     <>
   <div style={{ fontSize: 14, fontWeight: 600, color: C.pri[600], borderBottom: `1px solid ${C.pri[100]}`, paddingBottom: 6, marginBottom: 10 }}>Prescription</div>
-      <div style={{ fontSize: 15, color: C.pri[600], marginBottom: 6 }}>℞</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <div style={{ fontSize: 15, color: C.pri[600] }}>℞</div>
+        {/* The + beside ℞, as on the OPD pad (physician, 24/11/2026): the doctor's
+            own medicines, ticked and appended. Here the list shows what was
+            ordered on the WARD first (`scope="ipd"`). The box is this
+            admission's: it closes when another admission is opened. */}
+        <BulkMedicineButton
+          patientId={admission.id}
+          workstationId={activeWorkstationId}
+          scope="ipd"
+          allowed
+          existing={rxItemsFromRows(rows)}
+          onAppend={appendBulk}
+        />
+      </div>
       <RxAlerts input={rxAlertInput} />
       {/* The per-line bubbles go on the ward too. `client/CLAUDE.md`: a
           doctor who learns to trust the alert on one prescribing screen

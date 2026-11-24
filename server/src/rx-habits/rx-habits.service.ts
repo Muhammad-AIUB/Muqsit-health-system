@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/com
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogueRow, catalogueRowsByBrandWord } from '../medicines/catalogue';
+import { ipdMedicines } from './ipd-usage';
 import {
   ALGO_VERSION,
   HabitLine,
@@ -147,6 +148,7 @@ const MAX_MEDICINES = 4; // eng review: ≤12 rows above a 10-row medicine list
 const MAX_HIDDEN_PER_MEDICINE = 20; // bounded payload; hiddenCount is the true number
 const MIN_QUERY = 2; // mirrors useMedicineSearch
 const MAX_ALL_MEDICINES = 2000; // the bulk list; `truncated` says when it bit
+const MAX_IPD_ADMISSIONS = 1000; // newest admissions read for the ward's list
 const MAX_RECENT = 3; // physician's sheet, 15/10/2026: "last use 3ta option"
 
 /** Raw row shape returned by the windowed lookup. */
@@ -601,7 +603,7 @@ export class RxHabitsService implements OnModuleInit {
    * instead; here one row stands for the medicine, so it is not listed — and
    * the box says how many are not.
    */
-  async listAll(doctorId: string): Promise<HabitMedicineList> {
+  async listAll(doctorId: string, scope: 'opd' | 'ipd' = 'opd'): Promise<HabitMedicineList> {
     const rows = await this.prisma.$queryRaw<AllRow[]>`
       WITH ranked AS (
         SELECT h.*, ROW_NUMBER() OVER (
@@ -643,13 +645,31 @@ export class RxHabitsService implements OnModuleInit {
       });
     }
     await this.attachRecent(doctorId, medicines);
+    // ⚕️ The ward's box (`scope` ipd, physician 24/11/2026): what the doctor has
+    // ordered on the WARD comes first, then the rest of the OPD list. A medicine
+    // in both is listed once, with its ward instruction. The generic is asked of
+    // the catalogue for the whole list, below, exactly as for OPD.
+    let truncated = rows.length > MAX_ALL_MEDICINES;
+    if (scope === 'ipd') {
+      const admissions = await this.prisma.ipdAdmission.findMany({
+        where: { doctorId },
+        select: { admittedAt: true, clinical: true },
+        orderBy: { admittedAt: 'desc' },
+        take: MAX_IPD_ADMISSIONS,
+      });
+      const ward = ipdMedicines(admissions);
+      const onWard = new Set(ward.map((m) => m.drugKey));
+      const merged = [...ward, ...medicines.filter((m) => !onWard.has(m.drugKey))];
+      truncated = truncated || merged.length > MAX_ALL_MEDICINES;
+      medicines.splice(0, medicines.length, ...merged.slice(0, MAX_ALL_MEDICINES));
+    }
     // ⚕️ NOT caught, unlike in `list()`: the box has no second source for a
     // generic. Offered without the one the catalogue holds for it, a medicine
     // goes onto the pad with its contraindication warning switched off —
     // several lines at once, and nothing on screen to say so. The box says
     // "could not be loaded" instead, and Try again asks the catalogue again.
     await this.attachGenerics(medicines);
-    return { medicines, truncated: rows.length > MAX_ALL_MEDICINES, unreadable };
+    return { medicines, truncated, unreadable };
   }
 
   /**

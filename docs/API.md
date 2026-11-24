@@ -568,7 +568,7 @@ prescriptions.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/rx-habits?q=` | `q` needs ≥2 chars; prefix match on the normalised medicine key |
-| GET | `/rx-habits/all` | The "Add Bulk Medicine" list: every medicine this doctor has a visible habit for, one row each. See below |
+| GET | `/rx-habits/all?for=ipd` | The "Add Bulk Medicine" list: every medicine this doctor has a visible habit for, one row each. See below. `?for=ipd` (the IPD sheet's box, 24/11/2026) lists first what this doctor ordered on the WARD — read from the practice's admissions' `clinical.rxItems`, most admissions first, usual instruction = the one written for the most admissions, ids `ipd:<drugKey>` — then the other OPD medicines; a medicine in both is listed once with its ward instruction; same shape, generic from the catalogue |
 | PATCH | `/rx-habits/:id` | `{ hidden?, pinned? }` |
 
 The response of `?q=` is grouped per medicine, not flat:

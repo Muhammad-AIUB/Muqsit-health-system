@@ -33,11 +33,11 @@ const askAgain = (failures: number, error: unknown): boolean =>
  *     failed. Asked anyway, the request fails, and that can be said.
  *   • An answer that is not the list (`readBulkList` returns null) is thrown.
  */
-export function useBulkMedicines(workstationId: string | null) {
+export function useBulkMedicines(workstationId: string | null, scope: "opd" | "ipd" = "opd") {
   return useQuery({
-    queryKey: ["rx-habits", "all", workstationId ?? "own"],
+    queryKey: ["rx-habits", "all", workstationId ?? "own", scope],
     queryFn: async ({ signal }) => {
-      const list = readBulkList(await rxHabitsApi.all(signal));
+      const list = readBulkList(await rxHabitsApi.all(signal, scope));
       if (!list) throw new Error("the medicine list could not be read");
       return list;
     },

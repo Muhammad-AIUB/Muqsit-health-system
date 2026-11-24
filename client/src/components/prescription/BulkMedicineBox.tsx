@@ -40,7 +40,9 @@ export function bulkBoxState(q: BulkQuery): BulkBoxState {
  * the list is asked for when this mounts, so every opening shows what the
  * doctor has prescribed up to now.
  */
-export default function BulkMedicineBox({ workstationId, onClose, existing, onAdd }: {
+export default function BulkMedicineBox({ workstationId, scope = "opd", onClose, existing, onAdd }: {
+  /** "ipd": the ward sheet's list, what was ordered on the ward first. */
+  scope?: "opd" | "ipd";
   /** Whose list: the practice being worked in, or null for the doctor's own. */
   workstationId: string | null;
   onClose: () => void;
@@ -49,6 +51,6 @@ export default function BulkMedicineBox({ workstationId, onClose, existing, onAd
   /** The lines to append to the pad, and the sentence that says what happened. */
   onAdd: (items: RxItem[], summary: string) => void;
 }) {
-  const state = bulkBoxState(useBulkMedicines(workstationId));
+  const state = bulkBoxState(useBulkMedicines(workstationId, scope));
   return <BulkMedicineModal state={state} onClose={onClose} existing={existing} onAdd={onAdd} />;
 }

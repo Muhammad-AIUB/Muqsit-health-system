@@ -28,6 +28,8 @@ interface Props {
   patientId: string | null;
   /** Whose medicines: the practice being worked in, or null for the doctor's own. */
   workstationId: string | null;
+  /** "ipd" on the ward sheet: the list shows what was ordered on the ward first. */
+  scope?: "opd" | "ipd";
   /** May this user write on the ℞ pad (`rx.medicines`)? */
   allowed: boolean;
   /** What the pad holds now: a line already there is not added again. */
@@ -38,7 +40,7 @@ interface Props {
 
 const NO_ACCESS = "View only — you don't have access to edit medicines";
 
-export default function BulkMedicineButton({ patientId, workstationId, allowed, existing, onAppend }: Props) {
+export default function BulkMedicineButton({ patientId, workstationId, scope = "opd", allowed, existing, onAppend }: Props) {
   const [open, setOpen] = useState(false);
   const [said, setSaid] = useState("");
 
@@ -78,6 +80,7 @@ export default function BulkMedicineButton({ patientId, workstationId, allowed, 
       {open && allowed && (
         <BulkMedicineBox
           workstationId={workstationId}
+          scope={scope}
           onClose={() => setOpen(false)}
           existing={existing}
           onAdd={(items, summary) => {
