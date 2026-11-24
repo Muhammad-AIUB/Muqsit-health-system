@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { mirrorApi } from "@/lib/api";
 
-// Nav-bar switch (primary accounts only): when on, the user's logged-in
+// Nav-bar switch (every account tier): when on, the user's logged-in
 // devices mirror each other in real time — an action on one reflects on all.
 // Toggling broadcasts the new state so every device flips together.
 //
@@ -18,7 +18,7 @@ import { mirrorApi } from "@/lib/api";
 export default function MirrorToggle() {
   const { user } = useAuth();
   const { mirrorOn, setMirrorOn, mirrorConnId } = useMuqsit();
-  if (user?.accountTier !== "primary") return null;
+  if (!user) return null;
 
   const toggle = () => {
     const next = !mirrorOn;

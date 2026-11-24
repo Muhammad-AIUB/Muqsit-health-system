@@ -90,10 +90,12 @@ describe("Mirror devices — a switch", () => {
     expect(document.activeElement).not.toBe(search);
   });
 
-  it("is offered to a primary account only", () => {
-    state.tier = "secondary";
-    header();
-    expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.queryByText("Mirror devices")).toBeNull();
+  it("is offered to every account tier — primary, premium and secondary", () => {
+    for (const tier of ["primary", "premium", "secondary"]) {
+      state.tier = tier;
+      const { unmount } = header();
+      expect(screen.getByRole("switch", { name: /Mirror devices/ })).toBeTruthy();
+      unmount();
+    }
   });
 });

@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useMuqsit } from "@/context/MuqsitContext";
 import { mirrorApi } from "@/lib/api";
 
-// Drives the real-time "mirror my devices" sync (primary accounts only). Opens
+// Drives the real-time "mirror my devices" sync (every account tier: primary, premium, secondary). Opens
 // the SSE stream, applies snapshots from the user's other devices, and publishes
 // this device's state changes back out when mirroring is on. Renders nothing.
 export default function DeviceMirror() {
@@ -14,11 +14,13 @@ export default function DeviceMirror() {
     mirrorOn, setMirrorOn, mirrorConnId, setMirrorConnId,
     mirrorSnapshot, applyMirrorSnapshot, mirrorApplyingRef,
   } = useMuqsit();
-  const isPrimary = user?.accountTier === "primary";
+  // Every signed-in tier mirrors (physician, 24/11/2026). A device only applies a
+  // snapshot from its own practice (`applyMirrorSnapshot` checks workstationId).
+  const enabled = !!user;
 
-  // Open the SSE stream while signed in as primary.
+  // Open the SSE stream while signed in.
   useEffect(() => {
-    if (!isPrimary) return;
+    if (!enabled) return;
     const es = new EventSource(mirrorApi.streamUrl(), { withCredentials: true });
     es.onmessage = (ev) => {
       try {
@@ -37,19 +39,19 @@ export default function DeviceMirror() {
     };
     // The browser auto-reconnects on error; nothing to do here.
     return () => { es.close(); setMirrorConnId(null); };
-  }, [isPrimary, setMirrorConnId, setMirrorOn, applyMirrorSnapshot]);
+  }, [enabled, setMirrorConnId, setMirrorOn, applyMirrorSnapshot]);
 
   // Publish local state changes to the other devices (debounced) while on.
   const snapJson = JSON.stringify(mirrorSnapshot);
   useEffect(() => {
-    if (!isPrimary || !mirrorOn || !mirrorConnId) return;
+    if (!enabled || !mirrorOn || !mirrorConnId) return;
     if (mirrorApplyingRef.current) return; // don't echo a just-applied remote state
     const t = setTimeout(() => {
       void mirrorApi.publish(mirrorConnId, "state", mirrorSnapshot).catch(() => {});
     }, 150);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapJson, isPrimary, mirrorOn, mirrorConnId]);
+  }, [snapJson, enabled, mirrorOn, mirrorConnId]);
 
   return null;
 }
